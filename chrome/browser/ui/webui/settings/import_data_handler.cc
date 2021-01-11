@@ -124,6 +124,12 @@ void ImportDataHandler::HandleImportData(const base::ListValue* args) {
     return;
   }
 
+  if (!importer_list_loaded_ || browser_index < 0 ||
+      browser_index >= static_cast<int>(importer_list_->count())) {
+    // Prevent out-of-bounds access.
+    return;
+  }
+
   uint16_t selected_items = importer::NONE;
   if (*types.FindBoolKey(prefs::kImportDialogAutofillFormData))
     selected_items |= importer::AUTOFILL_FORM_DATA;
