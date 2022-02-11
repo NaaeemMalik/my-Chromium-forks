@@ -33,6 +33,7 @@ ExistingTabGroupSubMenuModel::ExistingTabGroupSubMenuModel(
                                model,
                                context_index,
                                kMinExistingTabGroupCommandId) {
+  DCHECK(model->SupportsTabGroups());
   const auto& tp = ThemeService::GetThemeProviderForProfile(model->profile());
   constexpr int kIconSize = 14;
   std::vector<MenuItemInfo> menu_item_infos;
@@ -81,7 +82,11 @@ ExistingTabGroupSubMenuModel::GetOrderedTabGroupsInSubMenu() {
 // static
 bool ExistingTabGroupSubMenuModel::ShouldShowSubmenu(TabStripModel* model,
                                                      int context_index) {
-  for (tab_groups::TabGroupId group : model->group_model()->ListTabGroups()) {
+  TabGroupModel* group_model = model->group_model();
+  if (!group_model)
+    return false;
+
+  for (tab_groups::TabGroupId group : group_model->ListTabGroups()) {
     if (ShouldShowGroup(model, context_index, group)) {
       return true;
     }
@@ -95,7 +100,14 @@ void ExistingTabGroupSubMenuModel::ExecuteNewCommand(int event_flags) {
 }
 
 void ExistingTabGroupSubMenuModel::ExecuteExistingCommand(int target_index) {
+  TabGroupModel* group_model = model()->group_model();
+  if (!group_model)
+    return;
+
   base::RecordAction(base::UserMetricsAction("TabContextMenu_NewTabInGroup"));
+
+  if (static_cast<size_t>(target_index) >= group_model->ListTabGroups().size())
+    return;
 
   if (!model()->ContainsIndex(GetContextIndex()))
     return;

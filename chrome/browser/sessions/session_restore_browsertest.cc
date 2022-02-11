@@ -957,6 +957,7 @@ namespace {
 // Groups the tabs in |model| according to |specified_groups|.
 void CreateTabGroups(TabStripModel* model,
                      base::span<const absl::optional<int>> specified_groups) {
+  ASSERT_TRUE(model->SupportsTabGroups());
   ASSERT_EQ(model->count(), static_cast<int>(specified_groups.size()));
 
   // Maps |specified_groups| IDs to actual group IDs in |model|.
@@ -1053,6 +1054,8 @@ class SessionRestoreTabGroupsTest : public SessionRestoreTest,
 }  // namespace
 
 IN_PROC_BROWSER_TEST_P(SessionRestoreTabGroupsTest, TabsWithGroups) {
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
+
   constexpr int kNumTabs = 6;
   const std::array<absl::optional<int>, kNumTabs> group_spec = {
       0, 0, absl::nullopt, absl::nullopt, 1, 1};
@@ -1078,6 +1081,8 @@ IN_PROC_BROWSER_TEST_P(SessionRestoreTabGroupsTest, TabsWithGroups) {
 }
 
 IN_PROC_BROWSER_TEST_P(SessionRestoreTabGroupsTest, GroupMetadataRestored) {
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
+
   // Open up 4 more tabs, making 5 including the initial tab.
   for (int i = 0; i < 4; ++i) {
     ui_test_utils::NavigateToURLWithDisposition(
@@ -1129,6 +1134,8 @@ IN_PROC_BROWSER_TEST_P(SessionRestoreTabGroupsTest, GroupMetadataRestored) {
 
 IN_PROC_BROWSER_TEST_P(SessionRestoreTabGroupsTest,
                        TabGroupIDsRelabeledOnRestore) {
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
+
   constexpr int kNumTabs = 3;
   const std::array<absl::optional<int>, kNumTabs> group_spec = {0, 0, 1};
 
@@ -1159,6 +1166,8 @@ IN_PROC_BROWSER_TEST_P(SessionRestoreTabGroupsTest,
 }
 
 IN_PROC_BROWSER_TEST_P(SessionRestoreTabGroupsTest, RecentlyClosedGroup) {
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
+
   constexpr int kNumTabs = 2;
   const std::array<absl::optional<int>, kNumTabs> group_spec = {0, 0};
 

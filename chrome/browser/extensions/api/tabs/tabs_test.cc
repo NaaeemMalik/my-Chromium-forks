@@ -669,6 +669,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, QueryAllTabsWithDevTools) {
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionTabsTest, QueryTabGroups) {
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
+
   GURL url(url::kAboutBlankURL);
   AddTabAtIndex(0, url, ui::PAGE_TRANSITION_LINK);
   AddTabAtIndex(0, url, ui::PAGE_TRANSITION_LINK);
@@ -2363,6 +2365,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionApiTest, ExtensionAPICannotMoveDevtoolsTab) {
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionApiTest, ExtensionAPICannotGroupDevtoolsTab) {
+  ASSERT_TRUE(browser()->tab_strip_model()->SupportsTabGroups());
+
   DevToolsWindow* devtools = DevToolsWindowTesting::OpenDevToolsWindowSync(
       browser()->tab_strip_model()->GetWebContentsAt(0), false /* is_docked */);
   scoped_refptr<TabsGroupFunction> function = new TabsGroupFunction();
