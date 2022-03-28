@@ -1011,14 +1011,15 @@ ExtensionFunction::ResponseAction DownloadsDownloadFunction::Run() {
           download_url, source_process_id(),
           render_frame_host() ? render_frame_host()->GetRoutingID() : -1,
           traffic_annotation));
-
   base::FilePath creator_suggested_filename;
   if (options.filename.get()) {
-#if defined(OS_WIN)
-    creator_suggested_filename =
-        base::FilePath::FromUTF8Unsafe(*options.filename);
-#elif defined(OS_POSIX)
-    creator_suggested_filename = base::FilePath(*options.filename);
+      // Strip "%" character as it affects environment variables.
+        std::string filenme;
+    base::ReplaceChars(*options.filename, "%", "_", &filenme);
+#if BUILDFLAG(IS_WIN)
+    creator_suggested_filename = base::FilePath::FromUTF8Unsafe(filenme);
+#elif BUILDFLAG(IS_POSIX)
+    creator_suggested_filename = base::FilePath(filenme);
 #endif
     if (!net::IsSafePortableRelativePath(creator_suggested_filename)) {
       return RespondNow(Error(download_extension_errors::kInvalidFilename));
