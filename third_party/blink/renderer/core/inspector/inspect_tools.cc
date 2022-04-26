@@ -477,14 +477,14 @@ bool PersistentTool::HideOnMouseMove() {
 void PersistentTool::Draw(float scale) {
   for (auto& entry : grid_node_highlights_) {
     std::unique_ptr<protocol::Value> highlight =
-        InspectorGridHighlight(entry.first.Get(), *(entry.second));
+        InspectorGridHighlight(entry.key, *(entry.value));
     if (!highlight)
       continue;
     overlay_->EvaluateInOverlay("drawGridHighlight", std::move(highlight));
   }
   for (auto& entry : flex_container_configs_) {
     std::unique_ptr<protocol::Value> highlight =
-        InspectorFlexContainerHighlight(entry.first.Get(), *(entry.second));
+        InspectorFlexContainerHighlight(entry.key, *(entry.value));
     if (!highlight)
       continue;
     overlay_->EvaluateInOverlay("drawFlexContainerHighlight",
@@ -492,7 +492,7 @@ void PersistentTool::Draw(float scale) {
   }
   for (auto& entry : scroll_snap_configs_) {
     std::unique_ptr<protocol::Value> highlight =
-        InspectorScrollSnapHighlight(entry.first.Get(), *(entry.second));
+        InspectorScrollSnapHighlight(entry.key, *(entry.value));
     if (!highlight)
       continue;
     overlay_->EvaluateInOverlay("drawScrollSnapHighlight",
@@ -500,17 +500,15 @@ void PersistentTool::Draw(float scale) {
   }
   for (auto& entry : container_query_configs_) {
     std::unique_ptr<protocol::Value> highlight =
-        InspectorContainerQueryHighlight(entry.first.Get(), *(entry.second));
+        InspectorContainerQueryHighlight(entry.key, *(entry.value));
     if (!highlight)
       continue;
     overlay_->EvaluateInOverlay("drawContainerQueryHighlight",
                                 std::move(highlight));
   }
-  for (wtf_size_t i = 0; i < isolated_element_configs_.size(); ++i) {
-    auto& entry = isolated_element_configs_.at(i);
+  for (auto& entry : isolated_element_configs_) {
     std::unique_ptr<protocol::Value> highlight =
-        InspectorIsolatedElementHighlight(entry.first.Get(), *(entry.second),
-                                          i);
+        InspectorIsolatedElementHighlight(entry.key, *(entry.value));
     if (!highlight)
       continue;
     overlay_->EvaluateInOverlay("drawIsolatedElementHighlight",
@@ -548,9 +546,11 @@ void PersistentTool::Dispatch(const ScriptValue& message,
 
   Element* element = nullptr;
   if (highlight_type == "isolatedElement") {
-    if (index < static_cast<int>(isolated_element_configs_.size()) &&
-        index >= 0) {
-      element = isolated_element_configs_.at(index).first.Get();
+    for (auto& entry : isolated_element_configs_) {
+      if (entry.value->highlight_index == index) {
+        element = entry.key;
+        break;
+      }
     }
   }
 
@@ -571,7 +571,7 @@ PersistentTool::GetGridInspectorHighlightsAsJson() const {
       protocol::ListValue::create();
   for (auto& entry : grid_node_highlights_) {
     std::unique_ptr<protocol::Value> highlight =
-        InspectorGridHighlight(entry.first.Get(), *(entry.second));
+        InspectorGridHighlight(entry.key, *(entry.value));
     if (!highlight)
       continue;
     highlights->pushValue(std::move(highlight));
@@ -582,6 +582,15 @@ PersistentTool::GetGridInspectorHighlightsAsJson() const {
     result->setValue("gridHighlights", std::move(highlights));
   }
   return result;
+}
+
+void PersistentTool::Trace(Visitor* visitor) const {
+  InspectTool::Trace(visitor);
+  visitor->Trace(grid_node_highlights_);
+  visitor->Trace(flex_container_configs_);
+  visitor->Trace(scroll_snap_configs_);
+  visitor->Trace(container_query_configs_);
+  visitor->Trace(isolated_element_configs_);
 }
 
 // SourceOrderTool -----------------------------------------------------------
