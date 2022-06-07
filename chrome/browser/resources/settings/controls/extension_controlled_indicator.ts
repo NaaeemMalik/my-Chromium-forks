@@ -7,16 +7,14 @@ import '../i18n_setup.js';
 import '../settings_shared_css.js';
 
 import {assert} from '//resources/js/assert.m.js';
-import {I18nMixin} from '//resources/js/i18n_mixin.js';
+import { I18nMixin } from '//resources/js/i18n_mixin.js';
+import { loadTimeData } from '//resources/js/load_time_data.m.js';
 import {html, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
 import {ExtensionControlBrowserProxyImpl} from '../extension_control_browser_proxy.js';
+import {OpenWindowProxyImpl} from '../open_window_proxy.js';
 
-const ExtensionControlledIndicatorElementBase = I18nMixin(PolymerElement);
-
-export class ExtensionControlledIndicatorElement extends
-    ExtensionControlledIndicatorElementBase {
-  static get is() {
+  export class ExtensionControlledIndicatorElement extends PolymerElement {
+    static get is() {
     return 'extension-controlled-indicator';
   }
 
@@ -37,19 +35,16 @@ export class ExtensionControlledIndicatorElement extends
   extensionName: string;
 
   private getLabel_(): string {
-    if (this.extensionId === undefined || this.extensionName === undefined) {
-      return '';
+    return loadTimeData.getStringF('controlledByExtension', this.extensionName);  
+}
+
+
+  private onManageClick_() {
+      const manageUrl = 'chrome://extensions/?id=' + this.extensionId;
+      OpenWindowProxyImpl.getInstance().openURL(manageUrl);
     }
 
-    const manageUrl = 'gtx://extensions/?id=' + this.extensionId;
-    return this.i18nAdvanced('controlledByExtension', {
-      substitutions:
-          ['<a href="' + manageUrl + '" target="_blank">' + this.extensionName +
-           '</a>'],
-    });
-  }
-
-  private onDisableTap_() {
+  private onDisableClick_() {
     assert(this.extensionCanBeDisabled);
     ExtensionControlBrowserProxyImpl.getInstance().disableExtension(
         assert(this.extensionId));
