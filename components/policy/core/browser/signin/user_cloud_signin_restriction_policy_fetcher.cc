@@ -68,6 +68,14 @@ void UserCloudSigninRestrictionPolicyFetcher::
         signin::IdentityManager* identity_manager,
         const CoreAccountId& account_id,
         base::OnceCallback<void(const std::string&)> callback) {
+  if (!base::FeatureList::IsEnabled(
+          features::kEnableUserCloudSigninRestrictionPolicyFetcher)) {
+    cancelable_callback_.Reset(std::move(callback));
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE,
+        base::BindOnce(cancelable_callback_.callback(), std::string()));
+    return;
+  }
   // base::Unretained is safe here because the callback is called in the
   // lifecycle of `this`.
   FetchAccessToken(
