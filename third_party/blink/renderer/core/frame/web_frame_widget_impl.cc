@@ -2432,10 +2432,15 @@ WebInputEventResult WebFrameWidgetImpl::HandleInputEvent(
   DCHECK(!WebInputEvent::IsTouchEventType(input_event.GetType()));
   CHECK(LocalRootImpl());
 
-  // Only record metrics for the main frame.
-  if (ForMainFrame()) {
+  // Clients shouldn't be dispatching events to a provisional frame but this
+  // can happen. Ensure that event handling can assume we're in a committed
+  // frame.
+  if (IsProvisional())
+    return WebInputEventResult::kHandledSuppressed;
+
+  // Only record metrics for the root frame.
+  if (ForTopMostMainFrame())
     GetPage()->GetVisualViewport().StartTrackingPinchStats();
-  }
 
   // If a drag-and-drop operation is in progress, ignore input events except
   // PointerCancel.
