@@ -43,6 +43,7 @@
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_source.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/web_contents.h"
@@ -145,6 +146,12 @@ bool ExtensionMayAttachToWebContents(const Extension& extension,
   // former being a 'virtual' URL as obtained from NavigationEntry.
   if (!ExtensionMayAttachToURL(extension, web_contents.GetLastCommittedURL(),
                                profile, error)) {
+    return false;
+  }
+  if (web_contents.GetController().GetPendingEntry() &&
+      !ExtensionMayAttachToURL(
+          extension, extension_profile,
+          web_contents.GetController().GetPendingEntry()->GetURL(), error)) {
     return false;
   }
 
