@@ -1301,7 +1301,11 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
     minimum_delay_between_loading_updates_ms_ = duration;
   }
 
- private:
+  RenderWidgetHost* mouse_lock_widget_for_testing() {
+    return mouse_lock_widget_;
+  }
+
+private:
   using FrameTreeIterationCallback = base::RepeatingCallback<void(FrameTree*)>;
   using RenderViewHostIterationCallback =
       base::RepeatingCallback<void(RenderViewHostImpl*)>;
