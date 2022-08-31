@@ -1019,7 +1019,140 @@ TEST(BackupRefPtrImpl, QuarantinedBytes) {
             0U);
 }
 
+<<<<<<< HEAD
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
+=======
+void RunBackupRefPtrImplAdvanceTest(
+    partition_alloc::PartitionAllocator& allocator,
+    size_t requested_size) {
+  char* ptr = static_cast<char*>(allocator.root()->Alloc(requested_size, ""));
+  raw_ptr<char> protected_ptr = ptr;
+
+  protected_ptr += 123;
+  protected_ptr -= 123;
+  protected_ptr = protected_ptr + 123;
+  protected_ptr = protected_ptr - 123;
+  protected_ptr += requested_size / 2;
+  protected_ptr =
+      protected_ptr + requested_size / 2;  // end-of-allocation address is ok
+  EXPECT_DEATH_IF_SUPPORTED(protected_ptr = protected_ptr + 1, "");
+  EXPECT_DEATH_IF_SUPPORTED(protected_ptr += 1, "");
+  EXPECT_DEATH_IF_SUPPORTED(++protected_ptr, "");
+
+  // Even though |protected_ptr| is already puinting to the end of the
+  // allocation, assign it explicitly to make sure the underlying implementation
+  // doesn't "switch" to the next slot.
+  protected_ptr = ptr + requested_size;
+  protected_ptr -= requested_size / 2;
+  protected_ptr = protected_ptr - requested_size / 2;
+  EXPECT_DEATH_IF_SUPPORTED(protected_ptr = protected_ptr - 1, "");
+  EXPECT_DEATH_IF_SUPPORTED(protected_ptr -= 1, "");
+  EXPECT_DEATH_IF_SUPPORTED(--protected_ptr, "");
+
+  allocator.root()->Free(ptr);
+}
+
+TEST(BackupRefPtrImpl, Advance) {
+  // TODO(bartekn): Avoid using PartitionAlloc API directly. Switch to
+  // new/delete once PartitionAlloc Everywhere is fully enabled.
+  partition_alloc::PartitionAllocGlobalInit(HandleOOM);
+  partition_alloc::PartitionAllocator allocator;
+  allocator.init(kOpts);
+
+  // This requires some internal PartitionAlloc knowledge, but for the test to
+  // work well the allocation + extras have to fill out the entire slot. That's
+  // because PartitionAlloc doesn't know exact allocation size and bases the
+  // guards on the slot size.
+  //
+  // A power of two is a safe choice for a slot size, then adjust it for extras.
+  size_t slot_size = 512;
+  size_t requested_size =
+      allocator.root()->AdjustSizeForExtrasSubtract(slot_size);
+  // Verify that we're indeed fillin up the slot.
+  ASSERT_EQ(
+      requested_size,
+      allocator.root()->AllocationCapacityFromRequestedSize(requested_size));
+  RunBackupRefPtrImplAdvanceTest(allocator, requested_size);
+
+  // We don't have the same worry for single-slot spans, as PartitionAlloc knows
+  // exactly where the allocation ends.
+  size_t raw_size = 300003;
+  ASSERT_GT(raw_size, partition_alloc::internal::MaxRegularSlotSpanSize());
+  ASSERT_LE(raw_size, partition_alloc::internal::kMaxBucketed);
+  requested_size = allocator.root()->AdjustSizeForExtrasSubtract(slot_size);
+  RunBackupRefPtrImplAdvanceTest(allocator, requested_size);
+
+  // Same for direct map.
+  raw_size = 1001001;
+  ASSERT_GT(raw_size, partition_alloc::internal::kMaxBucketed);
+  requested_size = allocator.root()->AdjustSizeForExtrasSubtract(slot_size);
+  RunBackupRefPtrImplAdvanceTest(allocator, requested_size);
+}
+
+bool IsQuarantineEmpty(partition_alloc::PartitionAllocator& allocator) {
+  return allocator.root()->total_size_of_brp_quarantined_bytes.load(
+             std::memory_order_relaxed) == 0;
+}
+
+struct BoundRawPtrTestHelper {
+  static BoundRawPtrTestHelper* Create(
+      partition_alloc::PartitionAllocator& allocator) {
+    return new (allocator.root()->Alloc(sizeof(BoundRawPtrTestHelper), ""))
+        BoundRawPtrTestHelper(allocator);
+  }
+
+  explicit BoundRawPtrTestHelper(partition_alloc::PartitionAllocator& allocator)
+      : owning_allocator(allocator),
+        once_callback(
+            BindOnce(&BoundRawPtrTestHelper::DeleteItselfAndCheckIfInQuarantine,
+                     Unretained(this))),
+        repeating_callback(BindRepeating(
+            &BoundRawPtrTestHelper::DeleteItselfAndCheckIfInQuarantine,
+            Unretained(this))) {}
+
+  void DeleteItselfAndCheckIfInQuarantine() {
+    auto& allocator = owning_allocator;
+    EXPECT_TRUE(IsQuarantineEmpty(allocator));
+
+    // Since we use a non-default partition, `delete` has to be simulated.
+    this->~BoundRawPtrTestHelper();
+    allocator.root()->Free(this);
+
+    EXPECT_FALSE(IsQuarantineEmpty(allocator));
+  }
+
+  partition_alloc::PartitionAllocator& owning_allocator;
+  OnceClosure once_callback;
+  RepeatingClosure repeating_callback;
+};
+
+// Check that bound callback arguments remain protected by BRP for the
+// entire duration of a callback invocation.
+TEST(BackupRefPtrImpl, Bind) {
+  // This test requires a separate partition; otherwise, unrelated allocations
+  // might interfere with `IsQuarantineEmpty`.
+  partition_alloc::PartitionAllocGlobalInit(HandleOOM);
+  partition_alloc::PartitionAllocator allocator;
+  allocator.init(kOpts);
+
+  auto* object_for_once_callback1 = BoundRawPtrTestHelper::Create(allocator);
+  std::move(object_for_once_callback1->once_callback).Run();
+  EXPECT_TRUE(IsQuarantineEmpty(allocator));
+
+  auto* object_for_repeating_callback1 =
+      BoundRawPtrTestHelper::Create(allocator);
+  std::move(object_for_repeating_callback1->repeating_callback).Run();
+  EXPECT_TRUE(IsQuarantineEmpty(allocator));
+
+  // `RepeatingCallback` has both lvalue and rvalue versions of `Run`.
+  auto* object_for_repeating_callback2 =
+      BoundRawPtrTestHelper::Create(allocator);
+  object_for_repeating_callback2->repeating_callback.Run();
+  EXPECT_TRUE(IsQuarantineEmpty(allocator));
+}
+
+#if defined(PA_REF_COUNT_CHECK_COOKIE)
+>>>>>>> cbc7afd07bed0 ([BRP] Extend the bind state lifetime in repeating callbacks)
 TEST(BackupRefPtrImpl, ReinterpretCast) {
   // TODO(bartekn): Avoid using PartitionAlloc API directly. Switch to
   // new/delete once PartitionAlloc Everywhere is fully enabled.
