@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/callback.h"
+#include "base/cancelable_callback.h"
 #include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
@@ -26,11 +27,16 @@ class ForcedProfileSwitchInterceptionHandle
   explicit ForcedProfileSwitchInterceptionHandle(
       base::OnceCallback<void(SigninInterceptionResult)> callback) {
     DCHECK(callback);
+    cancelable_callback_.Reset(std::move(callback));
     base::ThreadTaskRunnerHandle::Get()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback),
+        FROM_HERE, base::BindOnce(cancelable_callback_.callback(),
                                   SigninInterceptionResult::kAccepted));
   }
   ~ForcedProfileSwitchInterceptionHandle() override = default;
+
+ private:
+  base::CancelableOnceCallback<void(SigninInterceptionResult)>
+      cancelable_callback_;
 };
 
 class ForcedEnterpriseSigninInterceptionHandle
