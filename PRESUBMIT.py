@@ -972,6 +972,57 @@ _BANNED_CPP_FUNCTIONS = (
           r'^base[\\/]win[\\/]scoped_winrt_initializer\.cc$'
       ),
     ),
+    BanRule(
+      r'base::Watchdog',
+      (
+        'base::Watchdog is deprecated because it creates its own thread.',
+        'Instead, manually start a timer on a SequencedTaskRunner.',
+      ),
+      False,
+      (),
+    ),
+    BanRule(
+      'base::Passed',
+      (
+        'Do not use base::Passed. It is a legacy helper for capturing ',
+        'move-only types with base::BindRepeating, but invoking the ',
+        'resulting RepeatingCallback moves the captured value out of ',
+        'the callback storage, and subsequent invocations may pass the ',
+        'value in a valid but undefined state. Prefer base::BindOnce().',
+        'See http://crbug.com/1326449 for context.'
+      ),
+      False,
+      (
+        # False positive, but it is also fine to let bind internals reference
+        # base::Passed.
+        r'^base[\\/]functional[\\/]bind\.h',
+        r'^base[\\/]functional[\\/]bind_internal\.h',
+      ),
+    ),
+    BanRule(
+      r'base::Feature k',
+      (
+          'Please use BASE_DECLARE_FEATURE() or BASE_FEATURE() instead of ',
+          'directly declaring/defining features.'
+      ),
+      True,
+      [
+        _THIRD_PARTY_EXCEPT_BLINK,
+      ],
+    ),
+    BanRule(
+      r'\bchartorune\b',
+      (
+        'chartorune is not memory-safe, unless you can guarantee the input ',
+        'string is always null-terminated. Otherwise, please use charntorune ',
+        'from libphonenumber instead.'
+      ),
+      True,
+      [
+        _THIRD_PARTY_EXCEPT_BLINK,
+        # Exceptions to this rule should have a fuzzer.
+      ],
+    ),
 )
 
 # Format: Sequence of tuples containing:
