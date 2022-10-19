@@ -6119,6 +6119,13 @@ bool ChromeContentBrowserClient::IsClipboardPasteAllowed(
   DCHECK(render_frame_host);
 
   const GURL& url = render_frame_host->GetLastCommittedOrigin().GetURL();
+  // Paste requires either (1) user activation, ...
+  if (WebContents::FromRenderFrameHost(render_frame_host)
+          ->HasRecentInteractiveInputEvent()) {
+    return true;
+  }
+
+  // (2) granted web permission, ...
   content::BrowserContext* browser_context =
       render_frame_host->GetBrowserContext();
   Profile* profile = Profile::FromBrowserContext(browser_context);
