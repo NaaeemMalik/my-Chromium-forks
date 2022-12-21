@@ -20,7 +20,7 @@ import sys
 CHROME_BINARY_FOR_PLATFORM_DICT = {
     'LINUX': 'chrome',
     'MAC': 'Chromium.app/Contents/MacOS/Chromium',
-    'WINDOWS': 'chrome.exe',
+    'WINDOWS': 'GTXBrowser.exe',
 }
 
 

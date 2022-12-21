@@ -7,15 +7,15 @@
  * passwords.
  */
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
-import 'chrome://resources/polymer/v3_0/paper-progress/paper-progress.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+import 'gtx://resources/polymer/v3_0/paper-progress/paper-progress.js';
 import '../settings_shared_css.js';
 
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {html, microTask, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {html, microTask, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 // <if expr="chromeos or lacros">
 import {BlockingRequestManager} from './blocking_request_manager.js';

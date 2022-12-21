@@ -4,7 +4,7 @@
 
 // #import {Route, Router} from '../router.js';
 // #import {RouteObserverBehavior} from './route_observer_behavior.js';
-// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {assert} from 'gtx://resources/js/assert.m.js';
 
 cr.define('settings', function() {
   /** @polymerBehavior */

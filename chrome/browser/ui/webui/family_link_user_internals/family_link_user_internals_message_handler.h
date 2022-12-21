@@ -18,7 +18,7 @@ namespace base {
 class ListValue;
 }  // namespace base
 
-// The implementation for the chrome://family-link-user-internals page.
+// The implementation for the gtx://family-link-user-internals page.
 class FamilyLinkUserInternalsMessageHandler
     : public content::WebUIMessageHandler,
       public SupervisedUserServiceObserver,

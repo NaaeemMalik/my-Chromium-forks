@@ -16,12 +16,12 @@
  * has a `data-selectable` attribute.
  */
 
-import 'chrome://resources/polymer/v3_0/iron-selector/iron-selector.js';
+import 'gtx://resources/polymer/v3_0/iron-selector/iron-selector.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {getDeepActiveElement} from 'chrome://resources/js/util.m.js';
-import {IronSelectorElement} from 'chrome://resources/polymer/v3_0/iron-selector/iron-selector.js';
-import {calculateSplices, html, PolymerElement, TemplateInstanceBase, templatize} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {getDeepActiveElement} from 'gtx://resources/js/util.m.js';
+import {IronSelectorElement} from 'gtx://resources/polymer/v3_0/iron-selector/iron-selector.js';
+import {calculateSplices, html, PolymerElement, TemplateInstanceBase, templatize} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {BiMap} from './bimap.js';
 

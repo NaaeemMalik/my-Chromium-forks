@@ -171,7 +171,7 @@ void NearbyShareAction::LaunchAction(
   // TODO(vecore): Query this from the container view
   web_view->holder()->SetCornerRadii(gfx::RoundedCornersF(kCornerRadius));
 
-  // load chrome://nearby into the webview
+  // load gtx://nearby into the webview
   web_view->LoadInitialURL(GURL(chrome::kChromeUINearbyShareURL));
 
   // Without requesting focus, the sharesheet will launch in an unfocused state

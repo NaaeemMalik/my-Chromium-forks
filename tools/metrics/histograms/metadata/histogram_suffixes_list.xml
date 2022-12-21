@@ -7724,7 +7724,7 @@ chromium-metrics-reviews@google.com.
 <histogram_suffixes name="MemoryFDsAllProcesses" separator="."
     ordering="prefix">
   <suffix name="Browser" label="Browser process"/>
-  <suffix name="Chrome" label="chrome:// renderer process"/>
+  <suffix name="Chrome" label="gtx:// renderer process"/>
   <suffix name="Extension" label="Extension process"/>
   <suffix name="Gpu" label="GPU process"/>
   <suffix name="NativeClient" label="Native client process"/>

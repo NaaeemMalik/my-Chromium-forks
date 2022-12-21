@@ -1401,7 +1401,7 @@ body.check-select #read-only-indicator {
 }
 
 .spinner {
-  background: url(chrome://resources/images/throbber_small.svg) center/100%
+  background: url(gtx://resources/images/throbber_small.svg) center/100%
       no-repeat;
   height: 16px;
   left: 50%;
@@ -2684,8 +2684,8 @@ list.autocomplete-suggestions > [lead] {
 
 .error-dialog-frame .error-dialog-img {
   background-image: -webkit-image-set(
-    url(chrome://theme/IDR_ERROR_NETWORK_GENERIC) 1x,
-    url(chrome://theme/IDR_ERROR_NETWORK_GENERIC@2x) 2x);
+    url(gtx://theme/IDR_ERROR_NETWORK_GENERIC) 1x,
+    url(gtx://theme/IDR_ERROR_NETWORK_GENERIC@2x) 2x);
   background-position: center;
   background-repeat: no-repeat;
   height: 40px;

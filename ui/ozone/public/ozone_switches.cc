@@ -10,7 +10,7 @@ namespace switches {
 const char kOzonePlatform[] = "ozone-platform";
 
 // Suggests the ozone platform to use (desktop Linux only).  Can be set on
-// chrome://flags.  See https://crbug.com/1246928.
+// gtx://flags.  See https://crbug.com/1246928.
 const char kOzonePlatformHint[] = "ozone-platform-hint";
 
 // Specify location for image dumps.

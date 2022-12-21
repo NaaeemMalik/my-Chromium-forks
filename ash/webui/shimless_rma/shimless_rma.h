@@ -23,7 +23,7 @@ namespace shimless_rma {
 class ShimlessRmaDelegate;
 }  // namespace shimless_rma
 
-// The WebUI for ShimlessRMA or chrome://shimless-rma.
+// The WebUI for ShimlessRMA or gtx://shimless-rma.
 class ShimlessRMADialogUI : public ui::MojoWebDialogUI {
  public:
   ShimlessRMADialogUI(

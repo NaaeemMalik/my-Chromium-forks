@@ -128,7 +128,7 @@ chromium-metrics-reviews@google.com.
   <obsolete>
     Removed June 2021 in favor of a local histogram. See
     Net.SQLite.CorruptMetaTableRecovered (which is a local histogram only logged
-    to, and viewable from, chrome://histograms).
+    to, and viewable from, gtx://histograms).
   </obsolete>
   <owner>chlily@chromium.org</owner>
   <summary>
@@ -142,7 +142,7 @@ chromium-metrics-reviews@google.com.
   <obsolete>
     Removed June 2021 in favor of a local histogram. See
     Net.SQLite.CorruptMetaTableRecovered (which is a local histogram only logged
-    to, and viewable from, chrome://histograms).
+    to, and viewable from, gtx://histograms).
   </obsolete>
   <owner>chlily@chromium.org</owner>
   <owner>morlovich@chromium.org</owner>

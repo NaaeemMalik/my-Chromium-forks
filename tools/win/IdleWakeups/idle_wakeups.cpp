@@ -335,7 +335,7 @@ int wmain(int argc, wchar_t* argv[]) {
   }
   const char cpu_usage_unit = cpu_usage_in_seconds ? 's' : '%';
   SystemInformationSampler system_information_sampler(
-      target_process_name ? target_process_name : L"chrome.exe");
+      target_process_name ? target_process_name : L"GTXBrowser.exe");
 
   // Take the initial snapshot.
   std::unique_ptr<ProcessDataSnapshot> previous_snapshot =

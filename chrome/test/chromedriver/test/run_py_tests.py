@@ -5332,7 +5332,7 @@ if __name__ == '__main__':
         chrome_path = os.path.join(driver_path, 'Chromium.app',
                                    'Contents', 'MacOS', 'Chromium')
     elif platform == 'win':
-      chrome_path = os.path.join(driver_path, 'chrome.exe')
+      chrome_path = os.path.join(driver_path, 'GTXBrowser.exe')
 
     if chrome_path is not None and os.path.exists(chrome_path):
       _CHROME_BINARY = chrome_path

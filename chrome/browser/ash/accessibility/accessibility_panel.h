@@ -20,7 +20,7 @@ class Widget;
 
 namespace ash {
 
-const char EXTENSION_PREFIX[] = "chrome-extension://";
+const char EXTENSION_PREFIX[] = "gtx-extension://";
 
 // Creates a panel onscreen on which an accessibility extension can draw a
 // custom UI.

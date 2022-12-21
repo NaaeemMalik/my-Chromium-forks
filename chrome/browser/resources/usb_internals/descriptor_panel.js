@@ -4,13 +4,13 @@
 
 /**
  * Javascript for DescriptorPanel UI, served from
- *     chrome://usb-internals/.
+ *     gtx://usb-internals/.
  */
 
-import {assert, assertInstanceof} from 'chrome://resources/js/assert.m.js';
-import {decorate} from 'chrome://resources/js/cr/ui.m.js';
-import {Tree, TreeItem} from 'chrome://resources/js/cr/ui/tree.js';
-import {queryRequiredElement} from 'chrome://resources/js/util.m.js';
+import {assert, assertInstanceof} from 'gtx://resources/js/assert.m.js';
+import {decorate} from 'gtx://resources/js/cr/ui.m.js';
+import {Tree, TreeItem} from 'gtx://resources/js/cr/ui/tree.js';
+import {queryRequiredElement} from 'gtx://resources/js/util.m.js';
 
 import {UsbControlTransferParams, UsbControlTransferRecipient, UsbControlTransferType, UsbDeviceInterface, UsbTransferStatus} from './usb_device.mojom-webui.js';
 

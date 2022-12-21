@@ -12,7 +12,7 @@ import './bluetooth_icon.js';
 
 import {I18nBehavior, I18nBehaviorInterface} from '//resources/js/i18n_behavior.m.js';
 import {html, mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {FocusRowBehavior} from 'chrome://resources/js/cr/ui/focus_row_behavior.m.js';
+import {FocusRowBehavior} from 'gtx://resources/js/cr/ui/focus_row_behavior.m.js';
 import {assertNotReached} from '../../../js/assert.m.js';
 import {DeviceItemState} from './bluetooth_types.js';
 import {mojoString16ToString} from './bluetooth_utils.js';

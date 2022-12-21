@@ -1781,7 +1781,7 @@ This will otherwise be blocked by your privacy settings. This will allow the con
 <translation id="674375294223700098">Unknown server certificate error.</translation>
 <translation id="6744009308914054259">While waiting for a connection, you can visit Downloads to read offline articles.</translation>
 <translation id="6753269504797312559">Policy Value</translation>
-<translation id="6755241357817244406">chrome://flags</translation>
+<translation id="6755241357817244406">gtx://flags</translation>
 <translation id="6757797048963528358">Your device went to sleep.</translation>
 <translation id="6767985426384634228">Update address?</translation>
 <translation id="6768213884286397650">Hagaki (Postcard)</translation>
@@ -2326,7 +2326,7 @@ Additional details:
 <translation id="8511402995811232419">Manage cookies</translation>
 <translation id="8522552481199248698">Chrome can help you protect your Google account and change your password.</translation>
 <translation id="8530813470445476232">Clear your browsing history, cookies, cache and more in Chrome settings</translation>
-<translation id="8533619373899488139">Visit &lt;strong&gt;chrome://policy&lt;/strong&gt; to see the list of blocked URLs and other policies enforced by your system administrator.</translation>
+<translation id="8533619373899488139">Visit &lt;strong&gt;gtx://policy&lt;/strong&gt; to see the list of blocked URLs and other policies enforced by your system administrator.</translation>
 <translation id="8539500321752640291">Allow two permissions?</translation>
 <translation id="8541158209346794904">Bluetooth device</translation>
 <translation id="8542014550340843547">Triple staple bottom</translation>

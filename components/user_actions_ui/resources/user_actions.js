@@ -3,17 +3,17 @@
 // found in the LICENSE file.
 
 /**
- * Javascript for user_actions.html, served from chrome://user-actions/
+ * Javascript for user_actions.html, served from gtx://user-actions/
  * This is used to debug user actions recording. It displays a live
  * stream of all user action events that occur in chromium while the
- * chrome://user-actions/ page is open.
+ * gtx://user-actions/ page is open.
  *
  * The simple object defined in this javascript file listens for
  * callbacks from the C++ code saying that a new user action was seen.
  */
 
-import {addWebUIListener} from 'chrome://resources/js/cr.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {addWebUIListener} from 'gtx://resources/js/cr.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 /**
  * Appends a row to the output table listing the user action observed

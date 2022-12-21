@@ -7,16 +7,16 @@
  * 'site-details-permission' handles showing the state of one permission, such
  * as Geolocation, for a given origin.
  */
-import 'chrome://resources/cr_elements/md_select_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/cr_elements/md_select_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import '../settings_shared_css.js';
 import '../settings_vars_css.js';
 import '../i18n_setup.js';
 
-import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {ContentSetting, ContentSettingsTypes, SiteSettingSource} from './constants.js';
 import {SiteSettingsMixin} from './site_settings_mixin.js';

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {define as crUiDefine} from 'chrome://resources/js/cr/ui.m.js';
-import {hasKeyModifiers} from 'chrome://resources/js/util.m.js';
+import {define as crUiDefine} from 'gtx://resources/js/cr/ui.m.js';
+import {hasKeyModifiers} from 'gtx://resources/js/util.m.js';
 
 /**
  * @fileoverview DotList implementation

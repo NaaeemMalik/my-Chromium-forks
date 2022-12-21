@@ -6,12 +6,12 @@
  * @fileoverview This implements a table control.
  */
 
-import {dispatchSimpleEvent, getPropertyDescriptor, PropertyKind} from 'chrome://resources/js/cr.m.js';
-import {ArrayDataModel} from 'chrome://resources/js/cr/ui/array_data_model.m.js';
-import {List} from 'chrome://resources/js/cr/ui/list.m.js';
-import {ListItem} from 'chrome://resources/js/cr/ui/list_item.m.js';
-import {ListSelectionModel} from 'chrome://resources/js/cr/ui/list_selection_model.m.js';
-import {ListSingleSelectionModel} from 'chrome://resources/js/cr/ui/list_single_selection_model.m.js';
+import {dispatchSimpleEvent, getPropertyDescriptor, PropertyKind} from 'gtx://resources/js/cr.m.js';
+import {ArrayDataModel} from 'gtx://resources/js/cr/ui/array_data_model.m.js';
+import {List} from 'gtx://resources/js/cr/ui/list.m.js';
+import {ListItem} from 'gtx://resources/js/cr/ui/list_item.m.js';
+import {ListSelectionModel} from 'gtx://resources/js/cr/ui/list_selection_model.m.js';
+import {ListSingleSelectionModel} from 'gtx://resources/js/cr/ui/list_single_selection_model.m.js';
 
 import {TableColumnModel} from './table_column_model.js';
 import {TableHeader} from './table_header.js';

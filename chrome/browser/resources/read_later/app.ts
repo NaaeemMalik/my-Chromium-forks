@@ -2,22 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/cr_elements/mwb_element_shared_style.js';
-import 'chrome://resources/cr_elements/mwb_shared_style.js';
-import 'chrome://resources/cr_elements/mwb_shared_vars.js';
-import 'chrome://resources/polymer/v3_0/iron-selector/iron-selector.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/mwb_element_shared_style.js';
+import 'gtx://resources/cr_elements/mwb_shared_style.js';
+import 'gtx://resources/cr_elements/mwb_shared_vars.js';
+import 'gtx://resources/polymer/v3_0/iron-selector/iron-selector.js';
 import './read_later_item.js';
 import './strings.m.js';
 
-import {assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {listenOnce} from 'chrome://resources/js/util.m.js';
-import {IronSelectorElement} from 'chrome://resources/polymer/v3_0/iron-selector/iron-selector.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {listenOnce} from 'gtx://resources/js/util.m.js';
+import {IronSelectorElement} from 'gtx://resources/polymer/v3_0/iron-selector/iron-selector.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {CurrentPageActionButtonState, ReadLaterEntriesByStatus, ReadLaterEntry} from './read_later.mojom-webui.js';
 import {ReadLaterApiProxy, ReadLaterApiProxyImpl} from './read_later_api_proxy.js';

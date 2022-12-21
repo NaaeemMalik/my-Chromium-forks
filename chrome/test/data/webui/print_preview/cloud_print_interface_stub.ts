@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {CloudPrintInterface, CloudPrintInterfaceEventType, createDestinationKey, Destination, DestinationOrigin} from 'chrome://print/print_preview.js';
-import {NativeEventTarget as EventTarget} from 'chrome://resources/js/cr/event_target.m.js';
+import {CloudPrintInterface, CloudPrintInterfaceEventType, createDestinationKey, Destination, DestinationOrigin} from 'gtx://print/print_preview.js';
+import {NativeEventTarget as EventTarget} from 'gtx://resources/js/cr/event_target.m.js';
 
-import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
+import {TestBrowserProxy} from 'gtx://webui-test/test_browser_proxy.js';
 
 import {getCddTemplate} from './print_preview_test_utils.js';
 

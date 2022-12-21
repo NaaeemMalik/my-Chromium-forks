@@ -152,7 +152,7 @@ void HelpAppResult::Open(int event_flags) {
   if (id() == kHelpAppDiscoverResult) {
     // Launch discover tab suggestion chip.
     web_app::SystemAppLaunchParams params;
-    params.url = GURL("chrome://help-app/discover");
+    params.url = GURL("gtx://help-app/discover");
     params.launch_source =
         apps::mojom::LaunchSource::kFromAppListRecommendation;
     web_app::LaunchSystemWebAppAsync(
@@ -167,7 +167,7 @@ void HelpAppResult::Open(int event_flags) {
         base::UserMetricsAction("ReleaseNotes.SuggestionChipLaunched"));
 
     web_app::SystemAppLaunchParams params;
-    params.url = GURL("chrome://help-app/updates");
+    params.url = GURL("gtx://help-app/updates");
     params.launch_source =
         apps::mojom::LaunchSource::kFromAppListRecommendation;
     web_app::LaunchSystemWebAppAsync(

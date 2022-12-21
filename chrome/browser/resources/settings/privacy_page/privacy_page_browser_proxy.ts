@@ -5,7 +5,7 @@
 /** @fileoverview Handles interprocess communication for the privacy page. */
 
 // clang-format off
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
 // clang-format on
 
 export type MetricsReporting = {

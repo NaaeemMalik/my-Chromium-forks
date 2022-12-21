@@ -22,10 +22,10 @@ ts_library("build_ts") {
   out_dir = "$target_gen_dir/tsc"
   tsconfig_base = "tsconfig_base.json"
   path_mappings = [
-    "chrome://tab-strip.top-chrome/*|" +
+    "gtx://tab-strip.top-chrome/*|" +
         rebase_path("$root_gen_dir/chrome/browser/resources/tab_strip/tsc/*",
                     target_gen_dir),
-    "chrome://webui-test/*|" +
+    "gtx://webui-test/*|" +
         rebase_path("$root_gen_dir/chrome/test/data/webui/tsc/*",
                     target_gen_dir),
   ]

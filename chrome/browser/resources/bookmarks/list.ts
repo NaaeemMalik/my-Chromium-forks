@@ -2,22 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
 import './shared_style.js';
 import './strings.m.js';
 import './item.js';
 
-import {CrA11yAnnouncerElement} from 'chrome://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {isMac} from 'chrome://resources/js/cr.m.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {ListPropertyUpdateMixin, ListPropertyUpdateMixinInterface} from 'chrome://resources/js/list_property_update_mixin.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {PluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
-import {getDeepActiveElement} from 'chrome://resources/js/util.m.js';
-import {IronListElement} from 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import {afterNextRender, html, microTask, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrA11yAnnouncerElement} from 'gtx://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {isMac} from 'gtx://resources/js/cr.m.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {ListPropertyUpdateMixin, ListPropertyUpdateMixinInterface} from 'gtx://resources/js/list_property_update_mixin.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {PluralStringProxyImpl} from 'gtx://resources/js/plural_string_proxy.js';
+import {getDeepActiveElement} from 'gtx://resources/js/util.m.js';
+import {IronListElement} from 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
+import {afterNextRender, html, microTask, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {deselectItems, selectAll, selectItem, updateAnchor} from './actions.js';
 import {BookmarksCommandManagerElement} from './command_manager.js';

@@ -7,15 +7,15 @@
  * wallpaper.
  */
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
 import '/common/icons.js';
 import './styles.js';
 
 import {isNonEmptyArray} from '/common/utils.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {html} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {beginLoadSelectedImageAction, setSelectedImageAction} from '../personalization_actions.js';
 import {WallpaperLayout, WallpaperObserverReceiver, WallpaperType} from '../personalization_app.mojom-webui.js';
@@ -271,7 +271,7 @@ export class WallpaperSelected extends WithPersonalizationStore {
   }
 
   /**
-   * Return a chrome://image or data:// url to load the image safely. Returns
+   * Return a gtx://image or data:// url to load the image safely. Returns
    * empty string in case |image| is null or invalid.
    * @param {?CurrentWallpaper} image
    * @return {string}
@@ -280,7 +280,7 @@ export class WallpaperSelected extends WithPersonalizationStore {
   getImageSrc_(image) {
     if (image && image.url) {
       if (hasHttpScheme(image.url.url)) {
-        return `chrome://image?${removeHighResolutionSuffix(image.url.url)}`;
+        return `gtx://image?${removeHighResolutionSuffix(image.url.url)}`;
       }
       return image.url.url;
     }

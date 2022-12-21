@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// #import {FakeChromeEvent} from 'chrome://test/fake_chrome_event.js';
-// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {FakeChromeEvent} from 'gtx://test/fake_chrome_event.js';
+// #import {assert} from 'gtx://resources/js/assert.m.js';
 
 /**
  * @fileoverview Fake implementation of chrome.bluetooth for testing.

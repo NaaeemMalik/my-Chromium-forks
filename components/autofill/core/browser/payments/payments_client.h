@@ -265,7 +265,7 @@ class PaymentsClient {
     // Single card is being uploaded from the normal credit card offer-to-save
     // prompt during a checkout flow.
     UPSTREAM_CHECKOUT_FLOW,
-    // Single card is being uploaded from chrome://settings/payments.
+    // Single card is being uploaded from gtx://settings/payments.
     UPSTREAM_SETTINGS_PAGE,
     // Single card is being uploaded after being scanned by OCR.
     UPSTREAM_CARD_OCR,
@@ -273,7 +273,7 @@ class PaymentsClient {
     // a checkout flow.
     LOCAL_CARD_MIGRATION_CHECKOUT_FLOW,
     // 1+ cards are being uploaded from a migration request that was initiated
-    // from chrome://settings/payments.
+    // from gtx://settings/payments.
     LOCAL_CARD_MIGRATION_SETTINGS_PAGE,
   };
 

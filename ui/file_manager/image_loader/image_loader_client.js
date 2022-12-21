@@ -94,10 +94,10 @@ ImageLoaderClient.sendMessage_ = function(request, callback) {
  * Image loader client extension request URL matcher.
  * @const {!RegExp}
  */
-ImageLoaderClient.CLIENT_URL_REGEX = /filesystem:chrome-extension:\/\/[a-z]+/;
+ImageLoaderClient.CLIENT_URL_REGEX = /filesystem:gtx-extension:\/\/[a-z]+/;
 
 /**
- * Image loader client chrome://file-manager request URL matcher.
+ * Image loader client gtx://file-manager request URL matcher.
  * @const {!RegExp}
  */
 ImageLoaderClient.CLIENT_SWA_REGEX = /filesystem:chrome:\/\/file-manager/;
@@ -109,7 +109,7 @@ ImageLoaderClient.CLIENT_SWA_REGEX = /filesystem:chrome:\/\/file-manager/;
  * @const {string}
  */
 ImageLoaderClient.IMAGE_LOADER_URL =
-    'filesystem:chrome-extension://' + ImageLoaderClient.EXTENSION_ID;
+    'filesystem:gtx-extension://' + ImageLoaderClient.EXTENSION_ID;
 
 /**
  * Loads and resizes and image.

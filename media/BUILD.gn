@@ -57,7 +57,7 @@ buildflag_header("media_buildflags") {
 
 if (proprietary_codecs && media_use_ffmpeg) {
   assert(
-      ffmpeg_branding != "Chromium",
+      ffmpeg_branding != "GTXBrowser",
       "proprietary codecs and ffmpeg_branding set to Chromium are incompatible")
 }
 

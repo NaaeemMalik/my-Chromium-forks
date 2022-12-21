@@ -41,7 +41,7 @@ void AddStrings(content::WebUIDataSource* source) {
   }
 
   // Add load_time_data manually because it is not available at
-  // chrome-untrusted://resources/load_time_data.js. Specifically add
+  // gtx-untrusted://resources/load_time_data.js. Specifically add
   // load_time_data.js and not load_time_data.m.js because StringsJs will fail
   // to import load_time_data.m.js at this unusual path.
   source->AddResourcePath("load_time_data.js", IDR_WEBUI_JS_LOAD_TIME_DATA_JS);

@@ -24,10 +24,10 @@ var tests = [
     testGenerateAppForLink("aaaa", "test", "The URL \"aaaa\" is invalid.");
     testGenerateAppForLink("http1://google.com", "test",
         "The URL \"http1://google.com\" is invalid.");
-    testGenerateAppForLink("chrome://about", "test",
-        "The URL \"chrome://about\" is invalid.");
-    testGenerateAppForLink("chrome-extension://test/test", "test",
-        "The URL \"chrome-extension://test/test\" is invalid.");
+    testGenerateAppForLink("gtx://about", "test",
+        "The URL \"gtx://about\" is invalid.");
+    testGenerateAppForLink("gtx-extension://test/test", "test",
+        "The URL \"gtx-extension://test/test\" is invalid.");
   },
 
   function generateAppWithEmptyTitle() {

@@ -66,7 +66,7 @@ bool GetUserMediaDirectory(const std::string& xdg_name,
 //     otherwise $XDG_CONFIG_HOME if set
 //     otherwise ~/.config
 //   and <product> is:
-//     "chromium" for Chromium
+//     "gtxbrowser" for Chromium
 //     "google-chrome" for stable channel official build
 //     "google-chrome-beta" for beta channel official build
 //     "google-chrome-unstable" for dev channel official build
@@ -92,7 +92,7 @@ bool GetDefaultUserDataDirectory(base::FilePath* result) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   std::string data_dir_basename = "google-chrome";
 #else
-  std::string data_dir_basename = "chromium";
+  std::string data_dir_basename = "gtxbrowser";
 #endif
   *result = config_dir.Append(data_dir_basename + GetChannelSuffixForDataDir());
   return true;

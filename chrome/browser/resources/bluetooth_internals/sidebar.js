@@ -3,10 +3,10 @@
 // found in the LICENSE file.
 
 /**
- * Javascript for Sidebar, served from chrome://bluetooth-internals/.
+ * Javascript for Sidebar, served from gtx://bluetooth-internals/.
  */
 
-import {assert} from 'chrome://resources/js/assert.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
 import {PageManager, PageManagerObserver} from './page_manager.js';
 
 /** @typedef {{pageName: string, text: string}} */

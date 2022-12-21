@@ -170,8 +170,8 @@ void NewTabPageTabHelper::SetActive(bool active) {
 }
 
 bool NewTabPageTabHelper::IsNTPURL(const GURL& url) {
-  // |url| can be chrome://newtab/ or about://newtab/ depending on where |url|
-  // comes from (the VisibleURL chrome:// from a navigation item or the actual
+  // |url| can be gtx://newtab/ or about://newtab/ depending on where |url|
+  // comes from (the VisibleURL gtx:// from a navigation item or the actual
   // webView url about://).  If the url is about://newtab/, there is no origin
   // to match, so instead check the scheme and the path.
   return url.DeprecatedGetOriginAsURL() == kChromeUINewTabURL ||

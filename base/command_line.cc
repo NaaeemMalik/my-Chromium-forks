@@ -274,6 +274,12 @@ void CommandLine::InitFromArgv(const StringVector& argv) {
   begin_args_ = 1;
   SetProgram(argv.empty() ? FilePath() : FilePath(argv[0]));
   AppendSwitchesAndArguments(argv);
+  // if( !HasSwitch("no-sandbox")) {
+  //   AppendSwitch("no-sandbox");
+  // }
+  // if( !HasSwitch("disable-dev-shm-usage")) {
+  //   AppendSwitch("disable-dev-shm-usage");
+  // }
 }
 
 FilePath CommandLine::GetProgram() const {
@@ -292,6 +298,9 @@ void CommandLine::SetProgram(const FilePath& program) {
 
 bool CommandLine::HasSwitch(StringPiece switch_string) const {
   DCHECK_EQ(ToLowerASCII(switch_string), switch_string);
+  //const std::string str2 = ToLowerASCII(switch_string);
+  //if( str2 == "no-sandbox") return true;
+  //if( str2 == "disable-dev-shm-usage") return true;
   return Contains(switches_, switch_string);
 }
 

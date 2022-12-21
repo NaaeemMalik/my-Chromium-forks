@@ -6,10 +6,10 @@
  * @fileoverview This implements a common button control, bound to command.
  */
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {getPropertyDescriptor, PropertyKind} from 'chrome://resources/js/cr.m.js';
-import {decorate} from 'chrome://resources/js/cr/ui.m.js';
-import {Command} from 'chrome://resources/js/cr/ui/command.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {getPropertyDescriptor, PropertyKind} from 'gtx://resources/js/cr.m.js';
+import {decorate} from 'gtx://resources/js/cr/ui.m.js';
+import {Command} from 'gtx://resources/js/cr/ui/command.m.js';
 
 /**
  * Creates a new button element.

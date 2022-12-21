@@ -7,14 +7,14 @@
  * viewing mode of the currently selected wallpaper.
  */
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
 import '/common/icons.js';
 
-import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
-import {html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {FilePath} from 'gtx://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import {html} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {setFullscreenEnabledAction} from '../personalization_actions.js';
 import {CurrentWallpaper, WallpaperImage, WallpaperLayout, WallpaperProviderInterface} from '../personalization_app.mojom-webui.js';

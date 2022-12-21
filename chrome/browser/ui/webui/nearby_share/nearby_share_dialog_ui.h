@@ -25,7 +25,7 @@ class WebView;
 
 namespace nearby_share {
 
-// The WebUI controller for chrome://nearby.
+// The WebUI controller for gtx://nearby.
 class NearbyShareDialogUI : public ui::MojoWebUIController,
                             content::WebContentsDelegate {
  public:

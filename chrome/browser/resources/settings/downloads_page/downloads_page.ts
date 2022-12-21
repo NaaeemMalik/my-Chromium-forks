@@ -7,17 +7,17 @@
  * 'settings-downloads-page' is the settings page containing downloads
  * settings.
  */
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '../controls/controlled_button.js';
 import '../controls/settings_toggle_button.js';
 import '../settings_shared_css.js';
 
-import {focusWithoutInk} from 'chrome://resources/js/cr/ui/focus_without_ink.m.js';
-import {listenOnce} from 'chrome://resources/js/util.m.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {afterNextRender, html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {focusWithoutInk} from 'gtx://resources/js/cr/ui/focus_without_ink.m.js';
+import {listenOnce} from 'gtx://resources/js/util.m.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {afterNextRender, html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {PrefsMixin} from '../prefs/prefs_mixin.js';
 

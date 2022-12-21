@@ -1801,7 +1801,7 @@ void BookmarkBarView::ConfigureButton(const BookmarkNode* node,
   button->set_context_menu_controller(this);
   button->set_drag_controller(this);
   if (node->is_url()) {
-    // Themify chrome:// favicons and the default one. This is similar to
+    // Themify gtx:// favicons and the default one. This is similar to
     // code in the tabstrip.
     bool themify_icon = node->url().SchemeIs(content::kChromeUIScheme);
     gfx::ImageSkia favicon = model_->GetFavicon(node).AsImageSkia();

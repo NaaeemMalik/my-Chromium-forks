@@ -6,13 +6,13 @@
  * @fileoverview Polymer element that displays Google Photos albums.
  */
 
-import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
+import 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
 import './styles.js';
 import '/common/styles.js';
 
 import {isSelectionEvent} from '/common/utils.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {afterNextRender, html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {afterNextRender, html} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {PersonalizationRouter} from '../personalization_router_element.js';
 import {WithPersonalizationStore} from '../personalization_store.js';

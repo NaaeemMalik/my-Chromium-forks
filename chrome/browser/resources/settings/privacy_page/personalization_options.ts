@@ -63,7 +63,7 @@ export class SettingsPersonalizationOptionsElement extends
 
       /**
        * TODO(dpapad): Restore actual type !PrivacyPageVisibility after this
-       * file is no longer reused by chrome://os-settings. Dictionary defining
+       * file is no longer reused by gtx://os-settings. Dictionary defining
        * page visibility.
        */
       pageVisibility: Object,
@@ -219,7 +219,7 @@ export class SettingsPersonalizationOptionsElement extends
   private onMetricsReportingLinkClick_() {
     const chromeOSSyncSettingsPath =
         loadTimeData.getString('chromeOSSyncSettingsPath');
-    window.location.href = `chrome://os-settings/${chromeOSSyncSettingsPath}`;
+    window.location.href = `gtx://os-settings/${chromeOSSyncSettingsPath}`;
   }
   // </if>
 

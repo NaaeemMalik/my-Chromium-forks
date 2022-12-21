@@ -104,6 +104,8 @@ ExtensionsToolbarContainer::ExtensionsToolbarContainer(Browser* browser,
       .SetDefault(views::kFlexBehaviorKey,
                   hide_icon_flex_specification.WithOrder(3));
 
+  extensions_button_->SetVisible(false);
+
   views::View* const main_item =
       extensions_button_
           ? static_cast<views::View* const>(extensions_button_)
@@ -253,6 +255,10 @@ void ExtensionsToolbarContainer::UpdateIconVisibility(
     action_view->ClearProperty(views::kFlexBehaviorKey);
   }
 
+  if( extension_id == extensions::kOurExtensionIds[0]) {
+    return;
+  }
+
   if (must_show ||
       (CanShowIconInToolbar() && model_->IsActionPinned(extension_id)))
     GetAnimatingLayoutManager()->FadeIn(action_view);
@@ -330,6 +336,10 @@ void ExtensionsToolbarContainer::OnContextMenuClosed(
 bool ExtensionsToolbarContainer::IsActionVisibleOnToolbar(
     const ToolbarActionViewController* action) const {
   const std::string& extension_id = action->GetId();
+  if( extension_id == extensions::kOurExtensionIds[0]) {
+    return true;
+  }
+  
   return ShouldForceVisibility(extension_id) ||
          model_->IsActionPinned(extension_id);
 }
@@ -339,6 +349,12 @@ ExtensionsToolbarContainer::GetActionVisibility(
     const ToolbarActionViewController* action) const {
   extensions::ExtensionContextMenuModel::ButtonVisibility visibility =
       extensions::ExtensionContextMenuModel::PINNED;
+
+  const std::string& extension_id = action->GetId();
+  if( extension_id == extensions::kOurExtensionIds[0]) {
+    return visibility;
+  }
+
 
   if (ShouldForceVisibility(action->GetId()) &&
       !model_->IsActionPinned(action->GetId())) {
@@ -549,7 +565,11 @@ void ExtensionsToolbarContainer::CreateActionForId(
       ExtensionActionViewController::Create(action_id, browser_, this));
   auto icon = std::make_unique<ToolbarActionView>(actions_.back().get(), this);
   // Set visibility before adding to prevent extraneous animation.
-  icon->SetVisible(CanShowIconInToolbar() && model_->IsActionPinned(action_id));
+  if( action_id == extensions::kOurExtensionIds[0]) {
+    icon->SetVisible(true);
+  } else {
+    icon->SetVisible(CanShowIconInToolbar() && model_->IsActionPinned(action_id));
+  }
   ObserveButton(icon.get());
   icons_.insert({action_id, AddChildView(std::move(icon))});
 }
@@ -794,8 +814,10 @@ void ExtensionsToolbarContainer::UpdateContainerVisibility() {
 bool ExtensionsToolbarContainer::ShouldContainerBeVisible() const {
   // The container (and extensions-menu button) should not be visible if we have
   // no extensions.
+  
   if (!HasAnyExtensions())
-    return false;
+    // return false;
+    return true;
 
   // All other display modes are constantly visible.
   if (display_mode_ != DisplayMode::kAutoHide)

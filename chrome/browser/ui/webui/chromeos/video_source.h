@@ -20,7 +20,7 @@ namespace chromeos {
 
 // Data source that reads videos from the file system.
 // It provides resources from chrome urls of type:
-//   chrome://chromeos-asset/<allowlisted directories>/*.webm
+//   gtx://chromeos-asset/<allowlisted directories>/*.webm
 class VideoSource : public content::URLDataSource {
  public:
   VideoSource();

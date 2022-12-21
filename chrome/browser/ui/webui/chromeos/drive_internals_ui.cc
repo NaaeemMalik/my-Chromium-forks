@@ -227,7 +227,7 @@ class DriveInternalsWebUIHandler;
 void ZipLogs(Profile* profile,
              base::WeakPtr<DriveInternalsWebUIHandler> drive_internals);
 
-// Class to handle messages from chrome://drive-internals.
+// Class to handle messages from gtx://drive-internals.
 class DriveInternalsWebUIHandler : public content::WebUIMessageHandler {
  public:
   DriveInternalsWebUIHandler() : last_sent_event_id_(-1) {}

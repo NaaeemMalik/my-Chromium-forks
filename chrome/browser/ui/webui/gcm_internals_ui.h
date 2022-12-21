@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The WebUI for chrome://gcm-internals.
+// The WebUI for gtx://gcm-internals.
 class GCMInternalsUI : public content::WebUIController {
  public:
   explicit GCMInternalsUI(content::WebUI* web_ui);

@@ -8,6 +8,6 @@ namespace ash {
 
 const char kChromeUIShortcutCustomizationAppHost[] = "shortcut-customization";
 const char kChromeUIShortcutCustomizationAppURL[] =
-    "chrome://shortcut-customization";
+    "gtx://shortcut-customization";
 
 }  // namespace ash

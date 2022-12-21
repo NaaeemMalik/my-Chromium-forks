@@ -177,7 +177,7 @@ std::string GaiaSource::ToString() {
 
   // All sources should start with Chromium or chromeos for better server logs.
   DCHECK(source_string == "chromeos" ||
-         base::StartsWith(source_string, "Chromium",
+         base::StartsWith(source_string, "GTX Browser",
                           base::CompareCase::SENSITIVE));
   return source_string + suffix_;
 }

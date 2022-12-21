@@ -690,7 +690,7 @@ class GomaLinkWindows(GomaLinkBase):
   XIR = ''
 
   ALLOWLIST = {
-      'chrome.exe',
+      'GTXBrowser.exe',
       'chrome.dll',
       'chrome_child.dll',
       # TODO: The following targets are on the allow list because the

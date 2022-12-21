@@ -883,12 +883,12 @@ const char kCastReceiverEnabled[] = "cast_receiver.enabled";
 // be applied. See base::Version for exact string format.
 const char kMinimumAllowedChromeVersion[] = "minimum_req.version";
 
-// Boolean preference that triggers chrome://settings/androidApps/details to be
+// Boolean preference that triggers gtx://settings/androidApps/details to be
 // opened on user session start.
 const char kShowArcSettingsOnSessionStart[] =
     "start_arc_settings_on_session_start";
 
-// Boolean preference that triggers chrome://settings/syncSetup to be opened
+// Boolean preference that triggers gtx://settings/syncSetup to be opened
 // on user session start.
 const char kShowSyncSettingsOnSessionStart[] =
     "start_sync_settings_on_session_start";
@@ -1236,7 +1236,7 @@ const char kResetCheckDefaultBrowser[] =
 const char kDefaultBrowserSettingEnabled[] =
     "browser.default_browser_setting_enabled";
 
-// Boolean that indicates whether chrome://accessibility should show the
+// Boolean that indicates whether gtx://accessibility should show the
 // internal accessibility tree.
 const char kShowInternalAccessibilityTree[] =
     "accessibility.show_internal_accessibility_tree";
@@ -1347,7 +1347,7 @@ const char kImportSavedPasswords[] = "import_saved_passwords";
 const char kImportSearchEngine[] = "import_search_engine";
 
 // Prefs used to remember selections in the "Import data" dialog on the settings
-// page (chrome://settings/importData).
+// page (gtx://settings/importData).
 const char kImportDialogAutofillFormData[] = "import_dialog_autofill_form_data";
 const char kImportDialogBookmarks[] = "import_dialog_bookmarks";
 const char kImportDialogHistory[] = "import_dialog_history";
@@ -1924,7 +1924,7 @@ const char kDevToolsBackgroundServicesExpirationDict[] =
     "devtools.backgroundserviceexpiration";
 
 // Determines whether devtools should be discovering usb devices for
-// remote debugging at chrome://inspect.
+// remote debugging at gtx://inspect.
 const char kDevToolsDiscoverUsbDevicesEnabled[] =
     "devtools.discover_usb_devices";
 

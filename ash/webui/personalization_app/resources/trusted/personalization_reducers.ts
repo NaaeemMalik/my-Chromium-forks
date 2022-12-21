@@ -8,9 +8,9 @@
  * @see [redux tutorial]{@link https://redux.js.org/tutorials/fundamentals/part-3-state-actions-reducers}
  */
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {FilePath} from 'gtx://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
 
 import {ActionName} from './personalization_actions.js';
 import {Actions} from './personalization_actions.js';

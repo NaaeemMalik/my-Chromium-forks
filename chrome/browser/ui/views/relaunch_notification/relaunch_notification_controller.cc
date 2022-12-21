@@ -189,7 +189,7 @@ void RelaunchNotificationController::HandleCurrentStyle() {
 }
 
 void RelaunchNotificationController::StartObservingUpgrades() {
-  upgrade_detector_->AddObserver(this);
+  upgrade_detector_->AddObserverXay(this);
 }
 
 void RelaunchNotificationController::StopObservingUpgrades() {

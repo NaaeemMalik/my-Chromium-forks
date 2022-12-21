@@ -130,8 +130,8 @@ bool ParseMatchPatterns(const std::vector<std::string>& matches,
         pattern.scheme() != content::kChromeUIScheme) {
       // Exclude SCHEME_CHROMEUI unless it's been explicitly requested or
       // been granted by extension ID.
-      // If the --extensions-on-chrome-urls flag has not been passed, requesting
-      // a chrome:// url will cause a parse failure above, so there's no need to
+      // If the --extensions-on-gtx-urls flag has not been passed, requesting
+      // a gtx:// url will cause a parse failure above, so there's no need to
       // check the flag here.
       pattern.SetValidSchemes(pattern.valid_schemes() &
                               ~URLPattern::SCHEME_CHROMEUI);

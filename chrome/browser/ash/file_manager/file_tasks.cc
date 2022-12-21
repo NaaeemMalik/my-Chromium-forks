@@ -104,7 +104,7 @@ inline bool isFilesAppId(const std::string& app_id) {
   return app_id == kFileManagerAppId || app_id == kFileManagerSwaAppId;
 }
 
-// The SWA actionId is prefixed with chrome://file-manager/?ACTION_ID, just the
+// The SWA actionId is prefixed with gtx://file-manager/?ACTION_ID, just the
 // sub-string compatible with the extension/legacy e.g.: "view-pdf".
 std::string parseFilesAppActionId(const std::string& action_id) {
   if (base::StartsWith(action_id, kChromeUIFileManagerURL)) {
@@ -153,10 +153,10 @@ void RemoveFileManagerInternalActions(const std::set<std::string>& actions,
   tasks->swap(filtered);
 }
 
-// Adjusts |tasks| to reflect the product decision that chrome://media-app
+// Adjusts |tasks| to reflect the product decision that gtx://media-app
 // should behave more like a user-installed app than a fallback handler.
 // Specifically, only apps set as the default in user prefs should be preferred
-// over chrome://media-app.
+// over gtx://media-app.
 void AdjustTasksForMediaApp(const std::vector<extensions::EntryInfo>& entries,
                             std::vector<FullTaskDescriptor>* tasks) {
   const auto task_for_app = [&](const std::string& app_id) {

@@ -65,8 +65,8 @@ void GetApplicationDirs(std::vector<base::FilePath>* locations) {
   locations->push_back(base::FilePath("/sbin"));
   locations->push_back(base::FilePath("/bin"));
   // Lastly, try the default installation location.
-  locations->push_back(base::FilePath("/opt/google/chrome"));
-  locations->push_back(base::FilePath("/opt/chromium.org/chromium"));
+  //locations->push_back(base::FilePath("/opt/google/chrome"));
+  locations->push_back(base::FilePath("/opt/gtxbrowser"));
 }
 #elif defined(OS_ANDROID)
 void GetApplicationDirs(std::vector<base::FilePath>* locations) {
@@ -142,8 +142,8 @@ bool FindChrome(base::FilePath* browser_exe) {
 #elif defined(OS_LINUX) || defined(OS_CHROMEOS)
     base::FilePath("google-chrome"),
     base::FilePath(chrome::kBrowserProcessExecutablePath),
-    base::FilePath("chromium"),
-    base::FilePath("chromium-browser")
+    base::FilePath("gtxbrowser"),
+    base::FilePath("gtx-browser")
 #else
     // it will compile but won't work on other OSes
     base::FilePath()

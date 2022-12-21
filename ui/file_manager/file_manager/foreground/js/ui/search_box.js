@@ -4,11 +4,11 @@
 
 import '../../elements/files_toggle_ripple.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {dispatchSimpleEvent} from 'chrome://resources/js/cr.m.js';
-import {NativeEventTarget as EventTarget} from 'chrome://resources/js/cr/event_target.m.js';
-import {ListItem} from 'chrome://resources/js/cr/ui/list_item.m.js';
-import {queryRequiredElement} from 'chrome://resources/js/util.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {dispatchSimpleEvent} from 'gtx://resources/js/cr.m.js';
+import {NativeEventTarget as EventTarget} from 'gtx://resources/js/cr/event_target.m.js';
+import {ListItem} from 'gtx://resources/js/cr/ui/list_item.m.js';
+import {queryRequiredElement} from 'gtx://resources/js/util.m.js';
 
 import {FileType} from '../../../common/js/file_type.js';
 import {metrics} from '../../../common/js/metrics.js';

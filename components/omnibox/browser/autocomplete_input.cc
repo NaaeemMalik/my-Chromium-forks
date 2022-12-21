@@ -270,7 +270,7 @@ metrics::OmniboxInputType AutocompleteInput::Parse(
 #endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
   if (is_lacros_or_lacros_is_primary &&
       crosapi::gurl_os_handler_utils::IsAshOsAsciiScheme(parsed_scheme_utf8)) {
-    // Lacros and Ash have a different set of internal chrome:// pages.
+    // Lacros and Ash have a different set of internal gtx:// pages.
     // However - once Lacros is the primary browser, the Ash browser cannot be
     // reached anymore and many internal status / information / ... pages
     // become inaccessible (e.g. the flags page which allows to disable Lacros).

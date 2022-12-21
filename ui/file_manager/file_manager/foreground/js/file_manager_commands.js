@@ -4,10 +4,10 @@
 
 import './webui_command_extender.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {Command} from 'chrome://resources/js/cr/ui/command.m.js';
-import {contextMenuHandler} from 'chrome://resources/js/cr/ui/context_menu_handler.m.js';
-import {List} from 'chrome://resources/js/cr/ui/list.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {Command} from 'gtx://resources/js/cr/ui/command.m.js';
+import {contextMenuHandler} from 'gtx://resources/js/cr/ui/context_menu_handler.m.js';
+import {List} from 'gtx://resources/js/cr/ui/list.m.js';
 
 import {DialogType} from '../../common/js/dialog_type.js';
 import {FileOperationProgressEvent} from '../../common/js/file_operation_common.js';

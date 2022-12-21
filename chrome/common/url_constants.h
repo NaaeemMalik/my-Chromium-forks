@@ -77,7 +77,7 @@ extern const char kChromeOsHelpViaWebUIURL[];
 // widgets instead of using HTML.
 extern const char kChromeNativeScheme[];
 
-// Pages under chrome-search.
+// Pages under gtx-search.
 extern const char kChromeSearchLocalNtpHost[];
 
 // Host and URL for most visited iframes used on the Instant Extended NTP.
@@ -89,18 +89,18 @@ extern const char kChromeSearchMostVisitedUrl[];
 extern const char kChromeUIUntrustedNewTabPageBackgroundUrl[];
 extern const char kChromeUIUntrustedNewTabPageBackgroundFilename[];
 
-// Page under chrome-search.
+// Page under gtx-search.
 extern const char kChromeSearchRemoteNtpHost[];
 
-// The chrome-search: scheme is served by the same backend as chrome:.  However,
+// The gtx-search: scheme is served by the same backend as chrome:.  However,
 // only specific URLDataSources are enabled to serve requests via the
-// chrome-search: scheme.  See |InstantIOContext::ShouldServiceRequest| and its
+// gtx-search: scheme.  See |InstantIOContext::ShouldServiceRequest| and its
 // callers for details.  Note that WebUIBindings should never be granted to
-// chrome-search: pages.  chrome-search: pages are displayable but not readable
+// gtx-search: pages.  gtx-search: pages are displayable but not readable
 // by external search providers (that are rendered by Instant renderer
 // processes), and neither displayable nor readable by normal (non-Instant) web
 // pages.  To summarize, a non-Instant process, when trying to access
-// 'chrome-search://something', will bump up against the following:
+// 'gtx-search://something', will bump up against the following:
 //
 //  1. Renderer: The display-isolated check in WebKit will deny the request,
 //  2. Browser: Assuming they got by #1, the scheme checks in
@@ -110,7 +110,7 @@ extern const char kChromeSearchRemoteNtpHost[];
 //     coming from a blessed Instant process, and deny the request.
 extern const char kChromeSearchScheme[];
 
-// This is the base URL of content that can be embedded in chrome://new-tab-page
+// This is the base URL of content that can be embedded in gtx://new-tab-page
 // using an <iframe>. The embedded untrusted content can make web requests and
 // can include content that is from an external source.
 extern const char kChromeUIUntrustedNewTabPageUrl[];

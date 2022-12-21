@@ -208,7 +208,7 @@ bool VariationsFieldTrialCreator::SetUpFieldTrials(
   http_header_provider->SetLowEntropySourceValue(low_entropy_source_value);
   const base::CommandLine* command_line =
       base::CommandLine::ForCurrentProcess();
-  // Force the variation ids selected in chrome://flags and/or specified using
+  // Force the variation ids selected in gtx://flags and/or specified using
   // the command-line flag.
   auto result = http_header_provider->ForceVariationIds(
       variation_ids,
@@ -221,7 +221,7 @@ bool VariationsFieldTrialCreator::SetUpFieldTrials(
       break;
     case VariationsIdsProvider::ForceIdsResult::INVALID_VECTOR_ENTRY:
       // It should not be possible to have invalid variation ids from the
-      // vector param (which corresponds to chrome://flags).
+      // vector param (which corresponds to gtx://flags).
       NOTREACHED();
       break;
     case VariationsIdsProvider::ForceIdsResult::SUCCESS:

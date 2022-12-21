@@ -189,7 +189,7 @@ void LaunchTerminal(Profile* profile,
 
 void LaunchTerminalForSSH(Profile* profile, int64_t display_id) {
   LaunchTerminalWithUrl(profile, display_id,
-                        GURL("chrome-untrusted://terminal/html/nassh.html"));
+                        GURL("gtx-untrusted://terminal/html/nassh.html"));
 }
 
 void LaunchTerminalWithUrl(Profile* profile,

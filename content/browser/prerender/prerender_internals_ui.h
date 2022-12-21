@@ -10,7 +10,7 @@
 
 namespace content {
 
-// The WebUI for chrome://prerender-internals.
+// The WebUI for gtx://prerender-internals.
 class PrerenderInternalsUI : public WebUIController {
  public:
   explicit PrerenderInternalsUI(WebUI* web_ui);

@@ -33,7 +33,7 @@ const char kLookupUrl[] = "https://history.google.com/history/api/lookup";
 
 const char kDeleteUrl[] = "https://history.google.com/history/api/delete";
 
-const char kChromeClient[] = "chrome";
+const char kChromeClient[] = "gtx";
 
 const char kWebAndAppClient[] = "web_app";
 

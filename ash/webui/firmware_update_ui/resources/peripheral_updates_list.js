@@ -6,7 +6,7 @@ import './firmware_shared_css.js';
 import './firmware_shared_fonts.js';
 import './update_card.js';
 
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {FirmwareUpdate, UpdateProviderInterface} from './firmware_update_types.js';
 import {getUpdateProvider} from './mojo_interface_provider.js';
 

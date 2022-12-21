@@ -12,7 +12,7 @@
 // static
 bool SystemExtension::IsSystemExtensionOrigin(const url::Origin& origin) {
   // TODO(crbug.com/1253318): Use a custom scheme instead of overloading
-  // chrome-untrusted://.
+  // gtx-untrusted://.
   return origin.scheme() == content::kChromeUIUntrustedScheme &&
          origin.host().rfind("system-extension-", 0) == 0;
 }

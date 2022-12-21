@@ -29,7 +29,7 @@
 
 namespace {
 
-// Implementation of chrome://interstitials demonstration pages.
+// Implementation of gtx://interstitials demonstration pages.
 class InterstitialHTMLSource : public web::URLDataSourceIOS {
  public:
   explicit InterstitialHTMLSource(ChromeBrowserState* browser_state);
@@ -94,7 +94,7 @@ void InterstitialHTMLSource::StartDataRequest(
   // unsupported interstitial type is tapped.
 
   // Use the HTML generated from the interstitial page if created
-  // successfully.  Otherwise, return the default chrome://interstitials HTML.
+  // successfully.  Otherwise, return the default gtx://interstitials HTML.
   if (interstitial_page) {
     html = interstitial_page->GetHtmlContents();
   } else {

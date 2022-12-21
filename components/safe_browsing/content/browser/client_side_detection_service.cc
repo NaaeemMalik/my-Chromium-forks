@@ -287,7 +287,7 @@ void ClientSideDetectionService::StartClientReportPhishingRequest(
   AddPhishingReport(base::Time::Now());
 
   // The following is to log this ClientPhishingRequest on any open
-  // chrome://safe-browsing pages. If no such page is open, the request is
+  // gtx://safe-browsing pages. If no such page is open, the request is
   // dropped and the |request| object deleted.
   base::PostTask(
       FROM_HERE, {content::BrowserThread::UI},

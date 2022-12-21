@@ -363,7 +363,7 @@ void PrintPDFOutput(PP_Resource print_output,
 #endif  // BUILDFLAG(ENABLE_PRINTING)
 }
 
-constexpr char kChromePrint[] = "chrome://print/";
+constexpr char kChromePrint[] = "gtx://print/";
 
 bool IsPrintPreviewUrl(const GURL& document_url) {
   return url::Origin::Create(document_url.DeprecatedGetOriginAsURL()) ==

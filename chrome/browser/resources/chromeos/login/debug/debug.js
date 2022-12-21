@@ -6,12 +6,12 @@
  * @fileoverview Root element of the OOBE UI Debugger.
  */
 
-// #import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
+// #import {addSingletonGetter} from 'gtx://resources/js/cr.m.js';
 // #import {loadTimeData} from '../i18n_setup.js';
 // #import {Oobe} from '../cr_ui.m.js'
-// #import {$} from 'chrome://resources/js/util.m.js';
+// #import {$} from 'gtx://resources/js/util.m.js';
 
-// #import {MessageType, ProblemType} from 'chrome://resources/cr_components/chromeos/quick_unlock/setup_pin_keyboard.m.js';
+// #import {MessageType, ProblemType} from 'gtx://resources/cr_components/chromeos/quick_unlock/setup_pin_keyboard.m.js';
 
 cr.define('cr.ui.login.debug', function() {
   const DEBUG_BUTTON_STYLE = `
@@ -487,7 +487,7 @@ cr.define('cr.ui.login.debug', function() {
         appInfo: {
           name: 'Application Name',
           url: 'http://example.com/someApplication/VeryLongURL',
-          iconURL: 'chrome://theme/IDR_LOGO_GOOGLE_COLOR_90',
+          iconURL: 'gtx://theme/IDR_LOGO_GOOGLE_COLOR_90',
         },
         shortcutEnabled: true,
       },

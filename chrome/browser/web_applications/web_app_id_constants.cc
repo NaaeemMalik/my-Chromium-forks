@@ -17,7 +17,7 @@ namespace web_app {
 const char kCalculatorAppId[] = "oabkinaljpjeilageghcdlnekhphhphl";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://camera-app/views/main.html"))
+//     "gtx://camera-app/views/main.html"))
 const char kCameraAppId[] = "njfbnohfdkmbmnjapinfcopialeghnmh";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
@@ -29,11 +29,11 @@ const char kCanvasAppId[] = "ieailfmhaghpphfffooibmlghaeopach";
 const char kCursiveAppId[] = "apignacaigpffemhdbhmnajajaccbckh";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt,
-// GURL("chrome://diagnostics/"))
+// GURL("gtx://diagnostics/"))
 const char kDiagnosticsAppId[] = "keejpcfcpecjhmepmpcfgjemkmlicpam";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt,
-// GURL("chrome://accessory-update/"))
+// GURL("gtx://accessory-update/"))
 const char kFirmwareUpdateAppId[] = "nedcdcceagjbkiaecmdbpafcmlhkiifa";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
@@ -81,11 +81,11 @@ const char kGoogleSheetsAppId[] = "fhihpiojkbmbpdjeoajapmgkhlnakfjf";
 const char kGoogleSlidesAppId[] = "kefjledonklijopmnomlcbpllchaibag";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://help-app/"))
+//     "gtx://help-app/"))
 const char kHelpAppId[] = "nbljnnecbjbmifnoehiemkgefbnpoeak";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://media-app/"))
+//     "gtx://media-app/"))
 const char kMediaAppId[] = "jhdjimmaggjajfjphpljagpgkidjilnj";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
@@ -93,15 +93,15 @@ const char kMediaAppId[] = "jhdjimmaggjajfjphpljagpgkidjilnj";
 const char kMessagesAppId[] = "hpfldicfbfomlpcikngkocigghgafkph";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://test-system-app/pwa.html"))
+//     "gtx://test-system-app/pwa.html"))
 const char kMockSystemAppId[] = "maphiehpiinjgiaepbljmopkodkadcbh";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://os-feedback/"))
+//     "gtx://os-feedback/"))
 const char kOsFeedbackAppId[] = "iffgohomcomlpmkfikfffagkkoojjffm";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://os-settings/"))
+//     "gtx://os-settings/"))
 const char kOsSettingsAppId[] = "odknhmnlageboeamepcngndbggdpaobj";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
@@ -109,23 +109,23 @@ const char kOsSettingsAppId[] = "odknhmnlageboeamepcngndbggdpaobj";
 const char kPlayBooksAppId[] = "jglfhlbohpgcbefmhdmpancnijacbbji";
 
 // Generated as:web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//      "chrome://print-management/"))
+//      "gtx://print-management/"))
 const char kPrintManagementAppId[] = "fglkccnmnaankjodgccmiodmlkpaiodc";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt,
-// GURL("chrome://scanning/"))
+// GURL("gtx://scanning/"))
 const char kScanningAppId[] = "cdkahakpgkdaoffdmfgnhgomkelkocfo";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://settings/"))
+//     "gtx://settings/"))
 const char kSettingsAppId[] = "inogagmajamaleonmanpkpkkigmklfad";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://shortcut-customization"))
+//     "gtx://shortcut-customization"))
 const char kShortcutCustomizationAppId[] = "ihgeegogifolehadhdgelgcnbnmemikp";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(
-//     "chrome://shimless-rma/"))
+//     "gtx://shimless-rma/"))
 const char kShimlessRMAAppId[] = "ijolhdommgkkhpenofmpkkhlepahelcm";
 
 // Generated as: web_app::GenerateAppId(/*manifest_id=*/absl::nullopt, GURL(

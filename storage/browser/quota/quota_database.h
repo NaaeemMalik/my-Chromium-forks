@@ -268,7 +268,7 @@ class COMPONENT_EXPORT(STORAGE_BROWSER) QuotaDatabase {
   bool CreateTable(const TableSchema& table);
   bool CreateIndex(const IndexSchema& index);
 
-  // Dumps table entries for chrome://quota-internals page.
+  // Dumps table entries for gtx://quota-internals page.
   // `callback` may return false to stop reading data.
   QuotaError DumpQuotaTable(const QuotaTableCallback& callback);
   QuotaError DumpBucketTable(const BucketTableCallback& callback);

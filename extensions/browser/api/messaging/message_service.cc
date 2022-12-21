@@ -382,7 +382,7 @@ void MessageService::OpenChannelToExtension(
     //   spinning up an additional process here which might need to do some
     //   setup that we're not expecting.
     // - Only for extensions that can't normally be enabled in incognito, since
-    //   that surface (e.g. chrome://extensions) should be the only one for
+    //   that surface (e.g. gtx://extensions) should be the only one for
     //   enabling in incognito. In practice this means platform apps only.
     if (!is_web_connection || IncognitoInfo::IsSplitMode(target_extension) ||
         util::CanBeIncognitoEnabled(target_extension)) {

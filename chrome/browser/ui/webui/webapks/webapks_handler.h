@@ -14,7 +14,7 @@ namespace base {
 class ListValue;
 }  // namespace base
 
-// Handles JavaScript messages from the chrome://webapks page.
+// Handles JavaScript messages from the gtx://webapks page.
 class WebApksHandler : public content::WebUIMessageHandler {
  public:
   WebApksHandler();

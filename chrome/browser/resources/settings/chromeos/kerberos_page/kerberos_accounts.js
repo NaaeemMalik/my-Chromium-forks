@@ -151,8 +151,8 @@ Polymer({
    */
   getErrorBadgeIcon_() {
     return this.isDarkModeActive_ ?
-        'chrome://os-settings/images/error_badge_dark.svg' :
-        'chrome://os-settings/images/error_badge.svg';
+        'gtx://os-settings/images/error_badge_dark.svg' :
+        'gtx://os-settings/images/error_badge.svg';
   },
 
   /**

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {PostMessageAPIServer} from 'chrome://resources/js/post_message_api_server.m.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
+import {PostMessageAPIServer} from 'gtx://resources/js/post_message_api_server.m.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
 
 /**
  * Class that implements the Chrome side of the ParentAccess PostMessageAPI.

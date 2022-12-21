@@ -11,7 +11,7 @@
 
 class UsbInternalsPageHandler;
 
-// The WebUI for chrome://usb-internals.
+// The WebUI for gtx://usb-internals.
 class UsbInternalsUI : public ui::MojoWebUIController {
  public:
   explicit UsbInternalsUI(content::WebUI* web_ui);

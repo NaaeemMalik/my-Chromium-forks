@@ -4,9 +4,9 @@
 
 import './shared_vars.js';
 
-import {getFaviconForPageURL} from 'chrome://resources/js/icon.js';
-import {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {getFaviconForPageURL} from 'gtx://resources/js/icon.js';
+import {Url} from 'gtx://resources/mojo/url/mojom/url.mojom-webui.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /**
  * @fileoverview This file provides a custom element displaying a page favicon.

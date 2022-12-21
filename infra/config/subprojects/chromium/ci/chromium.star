@@ -160,12 +160,12 @@ ci.builder(
             "archive_datas": [
                 {
                     "files": [
-                        "chrome",
+                        "gtxbrowser",
                         "chrome-wrapper",
                         "chrome_100_percent.pak",
                         "chrome_200_percent.pak",
                         "chrome_crashpad_handler",
-                        "chrome_sandbox",
+                        "gtxbrowser_sandbox",
                         "icudtl.dat",
                         "libEGL.so",
                         "libGLESv2.so",

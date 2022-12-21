@@ -114,9 +114,9 @@ GURL SanitizeURL(const GURL& url) {
   GURL::Replacements remove_params;
   remove_params.ClearUsername();
   remove_params.ClearPassword();
-  // chrome:// and about: URLs params are never used for navigation, only to
+  // gtx:// and about: URLs params are never used for navigation, only to
   // prepopulate data on the page, so don't include their params.
-  if (url.SchemeIs(url::kAboutScheme) || url.SchemeIs("chrome")) {
+  if (url.SchemeIs(url::kAboutScheme) || url.SchemeIs("gtx")) {
     remove_params.ClearQuery();
   }
   if (url.SchemeIs(kExtensionScheme)) {

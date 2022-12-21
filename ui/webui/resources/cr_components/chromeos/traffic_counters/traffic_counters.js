@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_components/chromeos/network/network_shared_css.m.js';
+import 'gtx://resources/cr_components/chromeos/network/network_shared_css.m.js';
 
-import {OncMojo} from 'chrome://resources/cr_components/chromeos/network/onc_mojo.m.js';
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/js/i18n_behavior.m.js';
-import {CrosNetworkConfig} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
-import {NetworkType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {OncMojo} from 'gtx://resources/cr_components/chromeos/network/onc_mojo.m.js';
+import {I18nBehavior, I18nBehaviorInterface} from 'gtx://resources/js/i18n_behavior.m.js';
+import {CrosNetworkConfig} from 'gtx://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import {NetworkType} from 'gtx://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {TrafficCountersAdapter} from './traffic_counters_adapter.js';
 

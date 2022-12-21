@@ -4,7 +4,7 @@
 
 import {EventType, untrustedOrigin} from '/common/constants.js';
 import {validateReceivedSelection} from '/trusted/iframe_api.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
 
 import {PersonalizationRouter} from '../personalization_router_element.js';
 import {PersonalizationStore} from '../personalization_store.js';

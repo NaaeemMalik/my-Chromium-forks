@@ -366,7 +366,7 @@ ExtensionsUI::ExtensionsUI(content::WebUI* web_ui)
 #endif
 
   // Need to allow <object> elements so that the <extensionoptions> browser
-  // plugin can be loaded within chrome://extensions.
+  // plugin can be loaded within gtx://extensions.
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ObjectSrc, "object-src 'self';");
 

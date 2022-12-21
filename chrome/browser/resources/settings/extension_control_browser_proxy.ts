@@ -17,7 +17,7 @@ export class ExtensionControlBrowserProxyImpl implements
   }
 
   manageExtension(extensionId: string) {
-    window.open('chrome://extensions?id=' + extensionId);
+    window.open('gtx://extensions?id=' + extensionId);
   }
 
   static getInstance(): ExtensionControlBrowserProxy {

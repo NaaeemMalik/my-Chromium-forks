@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The implementation for the chrome://translate-internals page.
+// The implementation for the gtx://translate-internals page.
 class TranslateInternalsUI : public content::WebUIController {
  public:
   explicit TranslateInternalsUI(content::WebUI* web_ui);

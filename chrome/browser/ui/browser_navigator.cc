@@ -117,7 +117,7 @@ Browser* GetOrCreateBrowser(Profile* profile, bool user_gesture) {
 }
 
 // Change some of the navigation parameters based on the particular URL.
-// Currently this applies to some chrome:// pages which we always want to open
+// Currently this applies to some gtx:// pages which we always want to open
 // in a non-incognito window. Note that even though a ChromeOS guest session is
 // technically an incognito window, these URLs are allowed.
 // Returns true on success. Otherwise, if changing params leads the browser into
@@ -590,7 +590,7 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
     return nullptr;
   }
   // If Lacros comes here with an internal os:// redirect scheme to Ash, and Ash
-  // does not accept the URL, we convert it into a Lacros chrome:// url instead.
+  // does not accept the URL, we convert it into a Lacros gtx:// url instead.
   // This will most likely end in a 404 inside the Lacros browser. Note that we
   // do not want to create a "404 SWA application".
   if (crosapi::gurl_os_handler_utils::IsAshOsUrl(params->url)) {
@@ -777,8 +777,8 @@ bool IsHostAllowedInIncognito(const GURL& url) {
   }
 
   // Most URLs are allowed in incognito; the following are exceptions.
-  // chrome://extensions is on the list because it redirects to
-  // chrome://settings.
+  // gtx://extensions is on the list because it redirects to
+  // gtx://settings.
   return host != chrome::kChromeUIAppLauncherPageHost &&
          host != chrome::kChromeUISettingsHost &&
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -786,7 +786,6 @@ bool IsHostAllowedInIncognito(const GURL& url) {
 #endif
          host != chrome::kChromeUIHelpHost &&
          host != chrome::kChromeUIHistoryHost &&
-         host != chrome::kChromeUIExtensionsHost &&
          host != chrome::kChromeUIBookmarksHost &&
          host != chrome::kChromeUINewTabPageHost &&
          host != chrome::kChromeUINewTabPageThirdPartyHost;

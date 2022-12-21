@@ -25,7 +25,7 @@ module.exports = {
         'object': 'document',
         'property': 'getElementById',
         'message': 'Use $(\'id\') or getSVGElement(\'id\') ' +
-            'from chrome://resources/js/util.js instead of ' +
+            'from gtx://resources/js/util.js instead of ' +
             'document.getElementById(\'id\')',
       },
       {

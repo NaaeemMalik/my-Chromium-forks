@@ -100,9 +100,9 @@ void ChromeExtensionsClient::FilterHostPermissions(
     URLPatternSet* new_hosts,
     PermissionIDSet* permissions) const {
   for (auto i = hosts.begin(); i != hosts.end(); ++i) {
-    // Filters out every URL pattern that matches chrome:// scheme.
+    // Filters out every URL pattern that matches gtx:// scheme.
     if (i->scheme() == content::kChromeUIScheme) {
-      // chrome://favicon is the only URL for chrome:// scheme that we
+      // gtx://favicon is the only URL for gtx:// scheme that we
       // want to support. We want to deprecate the "chrome" scheme.
       // We should not add any additional "host" here.
       if (GURL(chrome::kChromeUIFaviconURL).host() != i->host())
@@ -133,7 +133,7 @@ URLPatternSet ChromeExtensionsClient::GetPermittedChromeSchemeHosts(
   if (extension->manifest_version() >= 3)
     return hosts;
 
-  // Regular extensions are only allowed access to chrome://favicon.
+  // Regular extensions are only allowed access to gtx://favicon.
   hosts.AddPattern(URLPattern(URLPattern::SCHEME_CHROMEUI,
                               chrome::kChromeUIFaviconURL));
 
@@ -204,7 +204,7 @@ void ChromeExtensionsClient::AddOriginAccessPermissions(
     const Extension& extension,
     bool is_extension_active,
     std::vector<network::mojom::CorsOriginPatternPtr>* origin_patterns) const {
-  // Allow component extensions to access chrome://theme/.
+  // Allow component extensions to access gtx://theme/.
   //
   // We don't want to grant these permissions to inactive component extensions,
   // to avoid granting them in "unblessed" (non-extension) processes.  If a

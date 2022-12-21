@@ -26,7 +26,7 @@ def getElementFromShadowRoot(driver, element, selector):
 
 def RunTest(driver):
   # The extension must be visible on the extensions page.
-  driver.get("chrome://extensions")
+  driver.get("gtx://extensions")
   # It's nested within a couple of shadow doms on the page - extract it.
   print("Looking for extension on extensions page: %s" % FLAGS.extension_id)
   extension_page = False

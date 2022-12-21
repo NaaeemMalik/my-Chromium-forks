@@ -9,7 +9,7 @@
 
 #import "ios/web/public/webui/web_ui_ios_controller.h"
 
-// The implementation for the chrome://autofill-internals page.
+// The implementation for the gtx://autofill-internals page.
 class AutofillInternalsUIIOS : public web::WebUIIOSController {
  public:
   explicit AutofillInternalsUIIOS(web::WebUIIOS* web_ui,

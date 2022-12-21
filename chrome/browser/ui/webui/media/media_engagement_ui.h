@@ -11,7 +11,7 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/webui/mojo_web_ui_controller.h"
 
-// The UI for chrome://media-engagement/.
+// The UI for gtx://media-engagement/.
 class MediaEngagementUI : public ui::MojoWebUIController {
  public:
   explicit MediaEngagementUI(content::WebUI* web_ui);

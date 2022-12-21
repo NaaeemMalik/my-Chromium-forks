@@ -367,7 +367,7 @@ InstallStatus IsChromeActiveOrUserCancelled(
   //          by us, we will not uninstall if we get this return code).
   VLOG(1) << "Launching Chrome to do uninstall tasks.";
   if (LaunchChromeAndWait(installer_state.target_path(), options, &exit_code)) {
-    VLOG(1) << "chrome.exe launched for uninstall confirmation returned: "
+    VLOG(1) << "GTXBrowser.exe launched for uninstall confirmation returned: "
             << exit_code;
     if ((exit_code == chrome::RESULT_CODE_UNINSTALL_CHROME_ALIVE) ||
         (exit_code == chrome::RESULT_CODE_UNINSTALL_USER_CANCEL) ||
@@ -377,7 +377,7 @@ InstallStatus IsChromeActiveOrUserCancelled(
     if (exit_code == chrome::RESULT_CODE_UNINSTALL_DELETE_PROFILE)
       return installer::UNINSTALL_DELETE_PROFILE;
   } else {
-    PLOG(ERROR) << "Failed to launch chrome.exe for uninstall confirmation.";
+    PLOG(ERROR) << "Failed to launch GTXBrowser.exe for uninstall confirmation.";
   }
 
   return installer::UNINSTALL_CONFIRMED;

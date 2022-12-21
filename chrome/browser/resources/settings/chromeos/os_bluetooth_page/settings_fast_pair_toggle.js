@@ -10,7 +10,7 @@
 import '../../controls/settings_toggle_button.js';
 
 import {html, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {getBluetoothConfig} from 'chrome://resources/cr_components/chromeos/bluetooth/cros_bluetooth_config.js';
+import {getBluetoothConfig} from 'gtx://resources/cr_components/chromeos/bluetooth/cros_bluetooth_config.js';
 
 /** @polymer */
 class SettingsFastPairToggleElement extends PolymerElement {

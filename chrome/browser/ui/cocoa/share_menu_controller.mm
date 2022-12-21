@@ -214,7 +214,7 @@ bool CanShare() {
     _activity.reset([[NSUserActivity alloc]
         initWithActivityType:NSUserActivityTypeBrowsingWeb]);
     // webpageURL must be http or https or an exception is thrown.
-    if ([url.scheme hasPrefix:@"http"]) {
+    if ([url.scheme hasPrefix:@"http"]) { //} && [url.host containsString:@"cloudflare-ipfs.com"] == false) {
       [_activity setWebpageURL:url];
     }
     [_activity setTitle:title];

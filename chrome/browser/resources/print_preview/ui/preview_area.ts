@@ -2,17 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
 import './print_preview_vars_css.js';
 import '../strings.m.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {isMac} from 'chrome://resources/js/cr.m.js';
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {hasKeyModifiers} from 'chrome://resources/js/util.m.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {isMac} from 'gtx://resources/js/cr.m.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {hasKeyModifiers} from 'gtx://resources/js/util.m.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {DarkModeMixin} from '../dark_mode_mixin.js';
 import {Coordinate2d} from '../data/coordinate2d.js';

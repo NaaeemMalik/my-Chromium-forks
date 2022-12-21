@@ -23,7 +23,7 @@
 namespace chrome {
 
 // chrome: components (without schemes) and URLs (including schemes).
-// e.g. kChromeUIFooHost = "foo" and kChromeUIFooURL = "chrome://foo/"
+// e.g. kChromeUIFooHost = "foo" and kChromeUIFooURL = "gtx://foo/"
 // Not all components have corresponding URLs and vice versa. Only add as
 // needed.
 // Please keep in alphabetical order, with OS/feature specific sections below.
@@ -443,6 +443,10 @@ extern const char kCfmNetworkSettingsHost[];
 extern const char kCfmNetworkSettingsURL[];
 #endif  // BUILDFLAG(PLATFORM_CFM)
 
+// URL without WebUI handler, just used to open Wallet extension page.
+extern const char kChromeGtxWalletURL[];
+extern const char kChromeGtxWalletHost[];
+
 // Settings sub-pages.
 extern const char kAccessibilitySubPage[];
 extern const char kAddressesSubPage[];
@@ -492,11 +496,11 @@ extern const char kChromeUICastFeedbackHost[];
 // Extensions sub pages.
 extern const char kExtensionConfigureCommandsSubPage[];
 
-// Gets the hosts/domains that are shown in chrome://chrome-urls.
+// Gets the hosts/domains that are shown in gtx://gtx-urls.
 extern const char* const kChromeHostURLs[];
 extern const size_t kNumberOfChromeHostURLs;
 
-// Gets the chrome://internals pages that are shown in chrome://chrome-urls.
+// Gets the gtx://internals pages that are shown in gtx://gtx-urls.
 extern const char* const kChromeInternalsPathURLs[];
 extern const size_t kNumberOfChromeInternalsPathURLs;
 

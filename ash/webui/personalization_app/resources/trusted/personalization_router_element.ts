@@ -7,10 +7,10 @@
  * parameters to display sections of the personalization SWA.
  */
 
-import 'chrome://resources/polymer/v3_0/iron-location/iron-location.js';
-import 'chrome://resources/polymer/v3_0/iron-location/iron-query-params.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import 'gtx://resources/polymer/v3_0/iron-location/iron-location.js';
+import 'gtx://resources/polymer/v3_0/iron-location/iron-query-params.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {WallpaperCollection} from './personalization_app.mojom-webui.js';
 

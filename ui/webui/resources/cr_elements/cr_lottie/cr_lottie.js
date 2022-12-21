@@ -20,7 +20,7 @@
  * @const {string}
  */
 /* #export */ const LOTTIE_JS_URL =
-    'chrome://resources/lottie/lottie_worker.min.js';
+    'gtx://resources/lottie/lottie_worker.min.js';
 
 Polymer({
   is: 'cr-lottie',

@@ -638,6 +638,7 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(Browser* browser) {
     return nullptr;
 
   GURL url(location_bar->GetDestinationURL());
+  //MessageBoxA(0, url.)
   TRACE_EVENT1("navigation", "chrome::OpenCurrentURL", "url", url);
 
   if (ShouldInterceptChromeURLNavigationInIncognito(browser, url)) {

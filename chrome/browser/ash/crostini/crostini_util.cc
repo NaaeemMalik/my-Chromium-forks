@@ -54,7 +54,7 @@
 namespace crostini {
 
 // web_app::GenerateAppId(/*manifest_id=*/absl::nullopt,
-//     GURL("chrome-untrusted://terminal/html/terminal.html"))
+//     GURL("gtx-untrusted://terminal/html/terminal.html"))
 const char kCrostiniTerminalSystemAppId[] = "fhicihalidkgcimdmhpohldehjmcabcf";
 
 const char kCrostiniImageAliasPattern[] = "debian/%s";

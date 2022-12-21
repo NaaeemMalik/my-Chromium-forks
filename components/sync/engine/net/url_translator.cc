@@ -17,7 +17,7 @@ const char kParameterClientID[] = "client_id";
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 const char kClientName[] = "Google Chrome";
 #else
-const char kClientName[] = "Chromium";
+const char kClientName[] = "GTX Browser";
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 }  // namespace
 

@@ -52,7 +52,7 @@ content::WebUIDataSource* CreateWhatsNewUIHtmlSource(Profile* profile) {
   // Allow embedding of iframe from chrome.com
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ChildSrc,
-      base::StringPrintf("child-src chrome://test https: %s;",
+      base::StringPrintf("child-src gtx://test https: %s;",
                          whats_new::kChromeWhatsNewURLShort));
   return source;
 }
@@ -93,6 +93,7 @@ void WhatsNewUI::BindInterface(
 }
 
 void WhatsNewUI::CreateBrowserCommandHandler(
+  
     mojo::PendingReceiver<browser_command::mojom::CommandHandler>
         pending_handler) {
   std::vector<browser_command::mojom::Command> supported_commands = {

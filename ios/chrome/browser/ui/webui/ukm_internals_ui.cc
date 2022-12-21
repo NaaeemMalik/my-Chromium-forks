@@ -29,7 +29,7 @@ web::WebUIIOSDataSource* CreateUkmInternalsUIHTMLSource() {
   return source;
 }
 
-// The handler for Javascript messages for the chrome://ukm/ page.
+// The handler for Javascript messages for the gtx://ukm/ page.
 class UkmMessageHandler : public web::WebUIIOSMessageHandler {
  public:
   explicit UkmMessageHandler(const ukm::UkmService* ukm_service);
@@ -83,7 +83,7 @@ UkmInternalsUI::UkmInternalsUI(web::WebUIIOS* web_ui, const std::string& host)
       GetApplicationContext()->GetMetricsServicesManager()->GetUkmService();
   web_ui->AddMessageHandler(std::make_unique<UkmMessageHandler>(ukm_service));
 
-  // Set up the chrome://ukm/ source.
+  // Set up the gtx://ukm/ source.
   web::WebUIIOSDataSource::Add(ChromeBrowserState::FromWebUIIOS(web_ui),
                                CreateUkmInternalsUIHTMLSource());
 }

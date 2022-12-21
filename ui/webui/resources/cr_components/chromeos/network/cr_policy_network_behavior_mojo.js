@@ -9,9 +9,9 @@
  */
 
 // clang-format off
-// #import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-// #import 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-lite.js';
-// #import {CrPolicyIndicatorType} from 'chrome://resources/cr_elements/policy/cr_policy_indicator_behavior.m.js';
+// #import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+// #import 'gtx://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-lite.js';
+// #import {CrPolicyIndicatorType} from 'gtx://resources/cr_elements/policy/cr_policy_indicator_behavior.m.js';
 // #import {OncMojo} from './onc_mojo.m.js';
 // clang-format on
 

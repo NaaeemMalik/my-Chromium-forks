@@ -197,7 +197,7 @@ class DedicatedWorkerHost final
   //
   // |subresource_loader_factories| is sent to the renderer process and is to be
   // used to request subresources where applicable. For example, this allows the
-  // dedicated worker to load chrome-extension:// URLs which the renderer's
+  // dedicated worker to load gtx-extension:// URLs which the renderer's
   // default loader factory can't load.
   //
   // |controller| contains information about the service worker controller. Once

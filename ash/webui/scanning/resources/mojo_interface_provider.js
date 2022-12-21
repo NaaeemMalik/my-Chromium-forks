@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-import 'chrome://resources/mojo/mojo/public/mojom/base/big_buffer.mojom-lite.js';
-import 'chrome://resources/mojo/mojo/public/mojom/base/string16.mojom-lite.js';
-import 'chrome://resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+import 'gtx://resources/mojo/mojo/public/mojom/base/big_buffer.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/mojom/base/string16.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-lite.js';
 import './accessibility_features.mojom-lite.js';
 import './scanning.mojom-lite.js';
 

@@ -1420,7 +1420,7 @@ Ak chcete spravovať nastavenia tohto účtu, nainštalujte si do zariadenia apl
 <translation id="2431027948063157455">Asistent Google sa nenačítal. Skontrolujte sieťové pripojenie a skúste to znova.</translation>
 <translation id="243179355394256322">Vaša organizácia obmedzuje registráciu zariadení iba na oprávnených používateľov. Tento používateľ nemá oprávnenie registrovať zariadenia. V sekcii Používatelia v správcovskej konzole skontrolujte, či má používateľ správcovské oprávnenie na registráciu súpravy Google Meet hardware.</translation>
 <translation id="243275146591958220">Zrušiť sťahovanie</translation>
-<translation id="2433452467737464329">Pridajte parameter dopytu do webovej adresy na automatické obnovenie stránky: chrome://network/?refresh=&lt;sec&gt;</translation>
+<translation id="2433452467737464329">Pridajte parameter dopytu do webovej adresy na automatické obnovenie stránky: gtx://network/?refresh=&lt;sec&gt;</translation>
 <translation id="2433507940547922241">Vzhľad</translation>
 <translation id="2433836460518180625">Iba odomknúť zariadenie</translation>
 <translation id="2434449159125086437">Tlačiareň sa nepodarilo nastaviť. Skontrolujte konfiguráciu a skúste to znova.</translation>
@@ -1956,7 +1956,7 @@ stlačením klávesov Ctrl + Alt + zníženie jasu zobrazenie oddialite.</tr
 <translation id="2959127025785722291">Vyskytol sa problém. Kontrolu sa nepodarilo dokončiť. Skúste to znova.</translation>
 <translation id="2959842337402130152">Nedá sa obnoviť pre nedostatok ukladacieho priestoru. Uvoľnite zo zariadenia <ph name="SPACE_REQUIRED" /> a skúste to znova.</translation>
 <translation id="2960208947600937804">Počas konfigurácie systému Linux sa vyskytla chyba. Kontaktujte správcu.</translation>
-<translation id="296026337010986570">Hotovo! Škodlivý softvér bol odstránený. Ak budete chcieť rozšírenia znova zapnúť, prejdite na stránku &lt;a href="chrome://extensions"&gt;Rozšírenia&lt;/a&gt;.</translation>
+<translation id="296026337010986570">Hotovo! Škodlivý softvér bol odstránený. Ak budete chcieť rozšírenia znova zapnúť, prejdite na stránku &lt;a href="gtx://extensions"&gt;Rozšírenia&lt;/a&gt;.</translation>
 <translation id="2961090598421146107"><ph name="CERTIFICATE_NAME" /> (poskytnuté rozšírením)</translation>
 <translation id="2961210776189273067">Oslovenie</translation>
 <translation id="2961695502793809356">Kliknutím prejdete dopredu. Pri dlhšom stlačení sa zobrazí história.</translation>
@@ -5020,7 +5020,7 @@ Tejto akcii môžete prideliť viacero prepínačov.</translation>
 <translation id="6227280783235722609">rozšírenie</translation>
 <translation id="6229849828796482487">Odpojiť sieť Wi-Fi</translation>
 <translation id="6231782223312638214">Navrhované</translation>
-<translation id="6231881193380278751">Pridajte do webovej adresy parameter dopytu na automatickú aktualizáciu stránky: chrome://device-log/?refresh=&lt;sec&gt;</translation>
+<translation id="6231881193380278751">Pridajte do webovej adresy parameter dopytu na automatickú aktualizáciu stránky: gtx://device-log/?refresh=&lt;sec&gt;</translation>
 <translation id="6232017090690406397">Batéria</translation>
 <translation id="6232116551750539448">Pripojenie k sieti <ph name="NAME" /> bolo prerušené</translation>
 <translation id="6233154960150021497">Predvolene používať namiesto klávesnice hlas</translation>
@@ -5310,7 +5310,7 @@ Tejto akcii môžete prideliť viacero prepínačov.</translation>
 <translation id="652948702951888897">História Chromu</translation>
 <translation id="6530186581263215931">Tieto nastavenia sú vynútené správcom</translation>
 <translation id="653031671361866334"><ph name="BEGIN_PARAGRAPH1" />V rámci poskytovania toho najlepšieho prostredia zariadenie <ph name="DEVICE_OS" /> zhromažďuje údaje o hardvéri zariadení a zdieľa ich s Googlom, aby bolo možné určiť, ktoré aktualizácie majú byť doručené. Voliteľne môžete Googlu povoliť používanie týchto údajov na ďalšie účely, napríklad na podporu a zlepšovanie prostredia a služieb zariadenia <ph name="DEVICE_OS" />.<ph name="END_PARAGRAPH1" />
-    <ph name="BEGIN_PARAGRAPH2" />V tomto zariadení sa môžete prihlásiť a prejsť do sekcie CLOUDREADY_HARDWARE_INFO na chrome://system, kde nájdete údaje odoslané Googlu na filtrovanie aktualizácií, ako aj ďalšie prípady, kedy ste povolili zdieľanie údajov s Googlom.<ph name="END_PARAGRAPH2" />
+    <ph name="BEGIN_PARAGRAPH2" />V tomto zariadení sa môžete prihlásiť a prejsť do sekcie CLOUDREADY_HARDWARE_INFO na gtx://system, kde nájdete údaje odoslané Googlu na filtrovanie aktualizácií, ako aj ďalšie prípady, kedy ste povolili zdieľanie údajov s Googlom.<ph name="END_PARAGRAPH2" />
     <ph name="BEGIN_PARAGRAPH3" />Viac o údajoch, ktoré zariadenie <ph name="DEVICE_OS" /> môže zdieľať s Googlom, a o tom, ako sú používané, nájdete na g.co/xxxxx.<ph name="END_PARAGRAPH3" /></translation>
 <translation id="6531282281159901044">Ponechať nebezpečný súbor</translation>
 <translation id="6532101170117367231">Uložiť do služby Disk Google</translation>

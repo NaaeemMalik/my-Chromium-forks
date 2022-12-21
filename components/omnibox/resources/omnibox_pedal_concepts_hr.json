@@ -506,7 +506,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://dino"
+      "url": "gtx://dino"
     },
     {
       "id": 28,
@@ -554,7 +554,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://settings"
+      "url": "gtx://settings"
     },
     {
       "id": 32,
@@ -570,7 +570,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://downloads"
+      "url": "gtx://downloads"
     },
     {
       "id": 33,
@@ -586,7 +586,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://history"
+      "url": "gtx://history"
     },
     {
       "id": 34,
@@ -618,7 +618,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://settings/accessibility"
+      "url": "gtx://settings/accessibility"
     },
     {
       "id": 36,
@@ -634,7 +634,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://settings/fonts"
+      "url": "gtx://settings/fonts"
     },
     {
       "id": 37,
@@ -650,7 +650,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://new-tab-page/?customize=backgrounds"
+      "url": "gtx://new-tab-page/?customize=backgrounds"
     },
     {
       "id": 38,
@@ -666,7 +666,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://settings/searchEngines"
+      "url": "gtx://settings/searchEngines"
     },
     {
       "id": 39,
@@ -682,7 +682,7 @@
         }
       ],
       "omnibox_ui_strings": null,
-      "url": "chrome://os-settings/manageAccessibility"
+      "url": "gtx://os-settings/manageAccessibility"
     }
   ],
   "ignore_group": {

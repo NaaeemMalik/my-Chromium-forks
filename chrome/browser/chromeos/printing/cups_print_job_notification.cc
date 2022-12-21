@@ -30,7 +30,7 @@ namespace chromeos {
 namespace {
 
 const char kCupsPrintJobNotificationId[] =
-    "chrome://settings/printing/cups-print-job-notification";
+    "gtx://settings/printing/cups-print-job-notification";
 
 const int64_t kSuccessTimeoutSeconds = 8;
 

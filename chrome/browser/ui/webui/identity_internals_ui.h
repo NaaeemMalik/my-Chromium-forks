@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The WebUI for chrome://identity-internals
+// The WebUI for gtx://identity-internals
 class IdentityInternalsUI
     : public content::WebUIController {
  public:

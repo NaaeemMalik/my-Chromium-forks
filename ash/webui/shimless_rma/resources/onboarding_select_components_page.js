@@ -6,9 +6,9 @@ import './base_page.js';
 import './repair_component_chip.js';
 import './shimless_rma_shared_css.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/js/i18n_behavior.m.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {I18nBehavior, I18nBehaviorInterface} from 'gtx://resources/js/i18n_behavior.m.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {ComponentTypeToId} from './data.js';
 import {getShimlessRmaService} from './mojo_interface_provider.js';

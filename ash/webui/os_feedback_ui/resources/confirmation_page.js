@@ -4,12 +4,12 @@
 
 import './help_resources_icons.js';
 import './os_feedback_shared_css.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/cr_elements/cr_link_row/cr_link_row.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
 import './os_feedback_shared_css.js';
 
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /**
  * @fileoverview

@@ -4,8 +4,8 @@
 
 import './manager.js';
 
-export {CrToastManagerElement} from 'chrome://resources/cr_elements/cr_toast/cr_toast_manager.js';
-export {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+export {CrToastManagerElement} from 'gtx://resources/cr_elements/cr_toast/cr_toast_manager.js';
+export {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 export {BrowserProxy} from './browser_proxy.js';
 export {DangerType, States} from './constants.js';
 export {MojomData} from './data.js';

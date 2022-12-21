@@ -6,11 +6,11 @@ import './strings.m.js';
 
 import './alert_indicators.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {CustomElement} from 'chrome://resources/js/custom_element.js';
-import {getFavicon} from 'chrome://resources/js/icon.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {isRTL} from 'chrome://resources/js/util.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {CustomElement} from 'gtx://resources/js/custom_element.js';
+import {getFavicon} from 'gtx://resources/js/icon.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {isRTL} from 'gtx://resources/js/util.m.js';
 
 import {AlertIndicatorsElement} from './alert_indicators.js';
 import {Tab, TabNetworkState} from './tab_strip.mojom-webui.js';

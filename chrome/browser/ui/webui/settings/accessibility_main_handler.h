@@ -19,7 +19,7 @@ class ListValue;
 namespace settings {
 
 // Settings handler for the main accessibility settings page,
-// chrome://settings/accessibility.
+// gtx://settings/accessibility.
 class AccessibilityMainHandler : public ::settings::SettingsPageUIHandler {
  public:
   AccessibilityMainHandler();

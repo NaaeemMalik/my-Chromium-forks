@@ -298,7 +298,7 @@ AddIconStatus AddIcon(NSString* installed_path, NSString* dmg_app_path) {
       NSArray* other_browser_app_names =
           [NSArray arrayWithObjects:
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-                       @"Chromium.app",  // Unbranded Google Chrome
+                       @"GTXBrowser.app",  // Unbranded Google Chrome
 #else
                        @"Google Chrome.app", @"Google Chrome Canary.app",
 #endif

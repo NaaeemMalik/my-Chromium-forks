@@ -3,10 +3,10 @@
 // found in the LICENSE file.
 
 /**
- * Javascript for AdapterPage, served from chrome://bluetooth-internals/.
+ * Javascript for AdapterPage, served from gtx://bluetooth-internals/.
  */
 
-import {$} from 'chrome://resources/js/util.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 import {ObjectFieldSet} from './object_fieldset.js';
 import {Page} from './page.js';
 

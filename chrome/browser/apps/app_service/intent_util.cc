@@ -381,11 +381,11 @@ std::vector<apps::mojom::IntentFilterPtr> CreateExtensionIntentFilters(
   for (const std::unique_ptr<FileBrowserHandler>& handler : *handler_list) {
     std::vector<std::string> patterns;
     for (const URLPattern& pattern : handler->file_url_patterns()) {
-      // "filesystem:chrome-extension://*/*.txt"
-      std::string path = "filesystem:chrome-extension://*" + pattern.path();
+      // "filesystem:gtx-extension://*/*.txt"
+      std::string path = "filesystem:gtx-extension://*" + pattern.path();
       base::ReplaceChars(path, ".", R"(\.)", &path);
       base::ReplaceChars(path, "*", ".*", &path);
-      // "filesystem:chrome-extension://.*/.*\.txt"
+      // "filesystem:gtx-extension://.*/.*\.txt"
       patterns.push_back(path);
     }
     filters.push_back(

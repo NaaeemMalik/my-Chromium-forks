@@ -186,7 +186,7 @@ void AppServiceProxyBase::Initialize() {
     app_service_->RegisterSubscriber(std::move(subscriber), nullptr);
   }
 
-  // Make the chrome://app-icon/ resource available.
+  // Make the gtx://app-icon/ resource available.
   content::URLDataSource::Add(profile_,
                               std::make_unique<apps::AppIconSource>(profile_));
 }

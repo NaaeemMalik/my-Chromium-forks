@@ -175,7 +175,7 @@ base::FilePath CreateDemoResourcesTermsPath(const base::FilePath& file_path) {
 
 // Loads bundled terms of service contents (Eula, OEM Eula, Play Store Terms).
 // The online version of terms is fetched in OOBE screen javascript. This is
-// intentional because chrome://terms runs in a privileged webui context and
+// intentional because gtx://terms runs in a privileged webui context and
 // should never load from untrusted places.
 class ChromeOSTermsHandler
     : public base::RefCountedThreadSafe<ChromeOSTermsHandler> {
@@ -522,7 +522,7 @@ bool isLacrosPrimaryOrCurrentBrowser() {
 void AppendBody(std::string* output) {
   if (isLacrosPrimaryOrCurrentBrowser()) {
     output->append(
-        "<link rel='stylesheet' href='chrome://resources/css/os_header.css'>\n"
+        "<link rel='stylesheet' href='gtx://resources/css/os_header.css'>\n"
 
         "</head>\n<body>\n"
 
@@ -545,7 +545,7 @@ void AppendBody(std::string* output) {
 void AppendFooter(std::string* output) {
   if (isLacrosPrimaryOrCurrentBrowser()) {
     output->append(
-        "<script type='module' src='chrome://resources/js/os_about.js'>"
+        "<script type='module' src='gtx://resources/js/os_about.js'>"
         "</script>\n");
   }
 
@@ -574,10 +574,10 @@ namespace {
 
 std::string ChromeURLs() {
   std::string html;
-  AppendHeader(&html, "Chrome URLs");
+  AppendHeader(&html, "GTX Browser URLs");
   AppendBody(&html);
 
-  html += "<h2>List of Chrome URLs</h2>\n<ul>\n";
+  html += "<h2>List of GTX Browser URLs</h2>\n<ul>\n";
   std::vector<std::string> hosts(
       chrome::kChromeHostURLs,
       chrome::kChromeHostURLs + chrome::kNumberOfChromeHostURLs);
@@ -586,7 +586,7 @@ std::string ChromeURLs() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   const bool is_lacros_primary = about_ui::isLacrosPrimaryOrCurrentBrowser();
   // If Lacros is active, the user can navigate by hand to os:// URL's but
-  // internally we will still navigate to chrome:// URL's. Note also that
+  // internally we will still navigate to gtx:// URL's. Note also that
   // only a subset of URLs might be available in this mode - so we have to
   // make sure that only allowed URLs are being presented.
   if (is_lacros_primary) {
@@ -595,9 +595,9 @@ std::string ChromeURLs() {
       // TODO(crbug/1271718): The refactor should make sure that the provided
       // list can be shown as is without filtering.
       if (WebUiControllerFactory->CanHandleUrl(GURL("os://" + host)) ||
-          WebUiControllerFactory->CanHandleUrl(GURL("chrome://" + host))) {
+          WebUiControllerFactory->CanHandleUrl(GURL("gtx://" + host))) {
         html +=
-            "<li><a href='chrome://" + host + "/'>os://" + host + "</a></li>\n";
+            "<li><a href='gtx://" + host + "/'>os://" + host + "</a></li>\n";
       }
     }
   } else {
@@ -605,12 +605,12 @@ std::string ChromeURLs() {
   {
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
     for (const std::string& host : hosts) {
-      html += "<li><a href='chrome://" + host + "/'>chrome://" + host +
+      html += "<li><a href='gtx://" + host + "/'>gtx://" + host +
               "</a></li>\n";
     }
 
     html +=
-        "</ul><a id=\"internals\"><h2>List of chrome://internals "
+        "</ul><a id=\"internals\"><h2>List of gtx://internals "
         "pages</h2></a>\n<ul>\n";
     std::vector<std::string> internals_paths(
         chrome::kChromeInternalsPathURLs,
@@ -618,8 +618,8 @@ std::string ChromeURLs() {
             chrome::kNumberOfChromeInternalsPathURLs);
     std::sort(internals_paths.begin(), internals_paths.end());
     for (const std::string& path : internals_paths) {
-      html += "<li><a href='chrome://internals/" + path +
-              "'>chrome://internals/" + path + "</a></li>\n";
+      html += "<li><a href='gtx://internals/" + path +
+              "'>gtx://internals/" + path + "</a></li>\n";
     }
   }
 
@@ -629,7 +629,7 @@ std::string ChromeURLs() {
       "them into the address bar if you need them.</p>\n<ul>";
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   // If Lacros is active, the user can navigate by hand to os:// URL's but
-  // internally we will still navigate to chrome:// URL's. Note also that
+  // internally we will still navigate to gtx:// URL's. Note also that
   // only a subset of URLs might be available in this mode - so we have to
   // make sure that only allowed URLs are being presented.
   if (is_lacros_primary) {
@@ -639,7 +639,7 @@ std::string ChromeURLs() {
       // list can be shown as is without filtering.
       const std::string host = GURL(chrome::kChromeDebugURLs[i]).host();
       if (WebUiControllerFactory->CanHandleUrl(GURL("os://" + host)) ||
-          WebUiControllerFactory->CanHandleUrl(GURL("chrome://" + host))) {
+          WebUiControllerFactory->CanHandleUrl(GURL("gtx://" + host))) {
         html += "<li>os://" + host + "</li>\n";
       }
     }
@@ -772,7 +772,7 @@ bool AboutUIHTMLSource::ShouldAddContentSecurityPolicy() {
 std::string AboutUIHTMLSource::GetAccessControlAllowOriginForOrigin(
     const std::string& origin) {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-  // Allow chrome://oobe to load chrome://terms via XHR.
+  // Allow gtx://oobe to load gtx://terms via XHR.
   if (source_name_ == chrome::kChromeUITermsHost &&
       base::StartsWith(chrome::kChromeUIOobeURL, origin,
                        base::CompareCase::SENSITIVE)) {
@@ -787,7 +787,7 @@ AboutUI::AboutUI(content::WebUI* web_ui, const std::string& name)
   Profile* profile = Profile::FromWebUI(web_ui);
 
 #if !defined(OS_ANDROID)
-  // Set up the chrome://theme/ source.
+  // Set up the gtx://theme/ source.
   content::URLDataSource::Add(profile, std::make_unique<ThemeSource>(profile));
 #endif
 

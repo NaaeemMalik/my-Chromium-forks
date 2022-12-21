@@ -1010,7 +1010,7 @@ net::NetworkTrafficAnnotationTag WebURLLoader::Context::GetTrafficAnnotationTag(
           "normal page loads, chrome URLs, and downloads."
         trigger:
           "The user navigates to a URL or downloads a file. Also when a "
-          "webpage, ServiceWorker, or chrome:// uses any network communication."
+          "webpage, ServiceWorker, or gtx:// uses any network communication."
         data: "Anything the initiator wants to send."
         destination: OTHER
       }

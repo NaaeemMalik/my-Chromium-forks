@@ -59,7 +59,7 @@ std::string GetCompressedHistograms() {
 }
 
 // Finds any (Lacros) Browser which has a tab matching a given URL
-// without ref (e.g. chrome://flags == chrome://flags/#).
+// without ref (e.g. gtx://flags == gtx://flags/#).
 // If such a tab exists, it gets activated, and true gets returned.
 bool ActivateTabMatchingURLWithoutRef(Profile* profile, const GURL& url) {
   BrowserList* browser_list = BrowserList::GetInstance();

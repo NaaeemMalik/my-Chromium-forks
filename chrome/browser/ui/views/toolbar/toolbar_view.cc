@@ -175,7 +175,7 @@ ToolbarView::ToolbarView(Browser* browser, BrowserView* browser_view)
       display_mode_(GetDisplayMode(browser)) {
   SetID(VIEW_ID_TOOLBAR);
 
-  UpgradeDetector::GetInstance()->AddObserver(this);
+  UpgradeDetector::GetInstance()->AddObserverXay(this);
 
   if (display_mode_ == DisplayMode::NORMAL) {
     SetBackground(std::make_unique<TopContainerBackground>(browser_view));
@@ -246,12 +246,16 @@ void ToolbarView::Init() {
       base::BindRepeating(callback, browser_, IDC_HOME), browser_);
 
   std::unique_ptr<ExtensionsToolbarContainer> extensions_container;
+  //std::unique_ptr<GtxWalletButton> gtx_wallet_button;
 
   // Do not create the extensions or browser actions container if it is a guest
   // profile (only regular and incognito profiles host extensions).
   if (!browser_->profile()->IsGuestSession()) {
     extensions_container =
         std::make_unique<ExtensionsToolbarContainer>(browser_);
+
+    //gtx_wallet_button =
+    //    std::make_unique<GtxWalletButton>(browser_);
   }
   std::unique_ptr<media_router::CastToolbarButton> cast;
   if (media_router::MediaRouterEnabled(browser_->profile()))
@@ -314,6 +318,9 @@ void ToolbarView::Init() {
 #endif  // BUILDFLAG(ENABLE_SIDE_SEARCH)
 
   location_bar_ = AddChildView(std::move(location_bar));
+
+  //if (gtx_wallet_button)
+  //  gtx_wallet_button_ = AddChildView(std::move(gtx_wallet_button));
 
   if (extensions_container)
     extensions_container_ = AddChildView(std::move(extensions_container));

@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/* Javascript module for chrome://weblayer. */
+/* Javascript module for gtx://weblayer. */
 
-import {isAndroid} from 'chrome://resources/js/cr.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {isAndroid} from 'gtx://resources/js/cr.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 import {PageHandler} from './weblayer_internals.mojom-webui.js';
 

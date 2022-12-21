@@ -64,7 +64,7 @@ class WorkerScriptLoader : public network::mojom::URLLoader,
   // intercepted by a feature like service worker. Typically it will load the
   // script from the NetworkService. However, it may internally contain
   // non-NetworkService factories used for non-http(s) URLs, e.g., a
-  // chrome-extension:// URL.
+  // gtx-extension:// URL.
   WorkerScriptLoader(
       int process_id,
       const DedicatedOrSharedWorkerToken& worker_token,

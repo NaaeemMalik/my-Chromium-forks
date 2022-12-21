@@ -12,12 +12,12 @@ D:\src\chromium\src\tools\win>dumpbin /headers "c:\Program Files (x86)\Google\Ch
           400000 image base (00400000 to 004D2FFF)
             0.00 image version
            D3000 size of image
-    54E3AECF cv           5D 0008DF80    8D380    Format: RSDS, {283A66AE-3EF3-4383-8798-F6617112B1F6}, 1, C:\b\build\slave\win\build\src\out\Release\initialexe\chrome.exe.pdb
+    54E3AECF cv           5D 0008DF80    8D380    Format: RSDS, {283A66AE-3EF3-4383-8798-F6617112B1F6}, 1, C:\b\build\slave\win\build\src\out\Release\initialexe\GTXBrowser.exe.pdb
 
-> RetrieveSymbols {283A66AE-3EF3-4383-8798-F6617112B1F6}, 1 chrome.exe.pdb
+> RetrieveSymbols {283A66AE-3EF3-4383-8798-F6617112B1F6}, 1 GTXBrowser.exe.pdb
 Parsing symbol data for a PDB file.
-Looking for 283A66AE3EF343838798F6617112B1F6 1 chrome.exe.pdb.
-Found symbol file - placed it in d:\src\symbols\chrome.exe.pdb\283A66AE3EF343838798F6617112B1F61\chrome.exe.pdb.
+Looking for 283A66AE3EF343838798F6617112B1F6 1 GTXBrowser.exe.pdb.
+Found symbol file - placed it in d:\src\symbols\GTXBrowser.exe.pdb\283A66AE3EF343838798F6617112B1F61\GTXBrowser.exe.pdb.
 
 > RetrieveSymbols 54E3AECF D3000 chrome.exe
 Parsing symbol data for a PE (.dll or .exe) file.

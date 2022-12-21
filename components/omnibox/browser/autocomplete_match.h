@@ -735,7 +735,7 @@ struct AutocompleteMatch {
   std::unique_ptr<TemplateURLRef::PostContent> post_content;
 
   // Information dictionary into which each provider can optionally record a
-  // property and associated value and which is presented in chrome://omnibox.
+  // property and associated value and which is presented in gtx://omnibox.
   AdditionalInfo additional_info;
 
   // A vector of matches culled during de-duplication process, sorted from

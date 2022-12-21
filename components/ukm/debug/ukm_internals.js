@@ -3,11 +3,11 @@
 // found in the LICENSE file.
 
 // <if expr="is_ios">
-import 'chrome://resources/js/ios/web_ui.js';
+import 'gtx://resources/js/ios/web_ui.js';
 // </if>
 
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
-import {$, createElementWithClassName} from 'chrome://resources/js/util.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
+import {$, createElementWithClassName} from 'gtx://resources/js/util.m.js';
 
 /**
  * @typedef {{

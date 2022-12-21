@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The WebUI for chrome://download-internals.
+// The WebUI for gtx://download-internals.
 class DownloadInternalsUI : public content::WebUIController {
  public:
   explicit DownloadInternalsUI(content::WebUI* web_ui);

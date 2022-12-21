@@ -399,7 +399,7 @@ ExtensionService::ExtensionService(Profile* profile,
   if (g_browser_process->profile_manager())
     profile_manager_observation_.Observe(g_browser_process->profile_manager());
 
-  UpgradeDetector::GetInstance()->AddObserver(this);
+  UpgradeDetector::GetInstance()->AddObserverXay(this);
 
   ExtensionManagementFactory::GetForBrowserContext(profile_)->AddObserver(this);
 
@@ -1116,7 +1116,7 @@ void ExtensionService::PostActivateExtension(
 
   const PermissionsData* permissions_data = extension->permissions_data();
 
-  // If the extension has permission to load chrome://favicon/ resources we need
+  // If the extension has permission to load gtx://favicon/ resources we need
   // to make sure that the FaviconSource is registered with the
   // ChromeURLDataManager.
   if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIFaviconURL))) {
@@ -1125,7 +1125,7 @@ void ExtensionService::PostActivateExtension(
                       profile_, chrome::FaviconUrlFormat::kFaviconLegacy));
   }
 
-  // Same for chrome://theme/ resources.
+  // Same for gtx://theme/ resources.
   if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIThemeURL))) {
     content::URLDataSource::Add(profile_,
                                 std::make_unique<ThemeSource>(profile_));
@@ -2133,7 +2133,7 @@ void ExtensionService::OnUpgradeRecommended() {
 void ExtensionService::PreAddExtension(const Extension* extension,
                                        const Extension* old_extension) {
   // An extension may have updated to no longer support incognito. When this
-  // is the case, we don't show the toggle in the chrome://extensions page.
+  // is the case, we don't show the toggle in the gtx://extensions page.
   // In order to ensure an extension doesn't keep an unrevokable permission,
   // reset the stored pref.
   if (old_extension && !IncognitoInfo::IsIncognitoAllowed(extension))

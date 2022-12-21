@@ -187,7 +187,7 @@ TEST_P(GcpGaiaCredentialGlsTest, GetUserGlsCommandLine) {
     SetGlobalFlagForTesting(L"ep_setup_url", L"http://login.com");
 
   GoogleChromePathForTesting google_chrome_path_for_testing(
-      base::FilePath(L"chrome.exe"));
+      base::FilePath(L"GTXBrowser.exe"));
   EXPECT_EQ(S_OK, test_cred->UseRealGlsBaseCommandLine(true));
   base::CommandLine command_line = test_cred->GetTestGlsCommandline();
   std::string gcpw_path =

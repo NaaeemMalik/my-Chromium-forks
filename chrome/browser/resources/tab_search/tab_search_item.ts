@@ -2,17 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'chrome://resources/cr_elements/cr_icons_css.m.js';
-import 'chrome://resources/cr_elements/mwb_shared_icons.js';
-import 'chrome://resources/cr_elements/mwb_shared_vars.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_icons_css.m.js';
+import 'gtx://resources/cr_elements/mwb_shared_icons.js';
+import 'gtx://resources/cr_elements/mwb_shared_vars.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
 import './strings.m.js';
 
-import {MouseHoverableMixin} from 'chrome://resources/cr_elements/mouse_hoverable_mixin.js';
-import {getFaviconForPageURL} from 'chrome://resources/js/icon.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {get as deepGet, html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {MouseHoverableMixin} from 'gtx://resources/cr_elements/mouse_hoverable_mixin.js';
+import {getFaviconForPageURL} from 'gtx://resources/js/icon.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {get as deepGet, html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {ariaLabel, TabData, TabItemType} from './tab_data.js';
 import {colorName} from './tab_group_color_helper.js';
@@ -76,7 +76,7 @@ export class TabSearchItem extends TabSearchItemBase {
     return tab.faviconUrl ?
         `url("${tab.faviconUrl.url}")` :
         getFaviconForPageURL(
-            tab.isDefaultFavicon ? 'chrome://newtab' : tab.url.url, false);
+            tab.isDefaultFavicon ? 'gtx://newtab' : tab.url.url, false);
   }
 
   /**
@@ -150,12 +150,12 @@ export class TabSearchItem extends TabSearchItemBase {
           }
         });
 
-    // Show chrome:// if it's a chrome internal url
+    // Show gtx:// if it's a chrome internal url
     let secondaryLabel = data.hostname;
     const protocol = new URL(data.tab.url.url).protocol;
     if (protocol === 'chrome:') {
-      this.$.secondaryText.prepend(document.createTextNode('chrome://'));
-      secondaryLabel = `chrome://${secondaryLabel}`;
+      this.$.secondaryText.prepend(document.createTextNode('gtx://'));
+      secondaryLabel = `gtx://${secondaryLabel}`;
     }
 
     if (data.tabGroup) {

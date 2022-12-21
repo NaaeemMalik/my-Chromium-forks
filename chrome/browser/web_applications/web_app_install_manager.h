@@ -136,7 +136,7 @@ class WebAppInstallManager final : public SyncInstallDelegate {
       const std::vector<AppId>& apps_to_uninstall) override;
 
   // Collects icon read/write errors (unbounded) if the |kRecordWebAppDebugInfo|
-  // flag is enabled to be used by: chrome://web-app-internals
+  // flag is enabled to be used by: gtx://web-app-internals
   using ErrorLog = base::Value::ListStorage;
   const ErrorLog* error_log() const { return error_log_.get(); }
 

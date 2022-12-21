@@ -156,7 +156,7 @@ namespace ChromeDebug {
       string file = Path.GetFileName(imagePath);
       if (file.Equals("delegate_execute.exe", StringComparison.CurrentCultureIgnoreCase))
         return ProcessCategory.DelegateExecute;
-      else if (file.Equals("chrome.exe", StringComparison.CurrentCultureIgnoreCase)) {
+      else if (file.Equals("GTXBrowser.exe", StringComparison.CurrentCultureIgnoreCase)) {
           if (cmdline.Contains("--type=renderer"))
               return ProcessCategory.Renderer;
           else if (cmdline.Contains("--type=plugin") || cmdline.Contains("--type=ppapi"))

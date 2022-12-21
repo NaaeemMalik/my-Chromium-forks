@@ -6,9 +6,9 @@
  * @fileoverview This extends List for use in the table.
  */
 
-import {getPropertyDescriptor} from 'chrome://resources/js/cr.m.js';
-import {List} from 'chrome://resources/js/cr/ui/list.m.js';
-import {ListItem} from 'chrome://resources/js/cr/ui/list_item.m.js';
+import {getPropertyDescriptor} from 'gtx://resources/js/cr.m.js';
+import {List} from 'gtx://resources/js/cr/ui/list.m.js';
+import {ListItem} from 'gtx://resources/js/cr/ui/list_item.m.js';
 
 import {Table} from './table.js';
 

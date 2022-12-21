@@ -141,7 +141,7 @@ content::WebUIDataSource* CreateBrowserSwitchUIHTMLSource(
       base::make_span(kBrowserSwitchResources, kBrowserSwitchResourcesSize),
       IDR_BROWSER_SWITCH_BROWSER_SWITCH_HTML);
 
-  // Setup chrome://browser-switch/internals debug UI.
+  // Setup gtx://browser-switch/internals debug UI.
   source->AddResourcePath(
       "internals/", IDR_BROWSER_SWITCH_INTERNALS_BROWSER_SWITCH_INTERNALS_HTML);
   source->AddResourcePath(
@@ -504,7 +504,7 @@ BrowserSwitchUI::BrowserSwitchUI(content::WebUI* web_ui)
     : WebUIController(web_ui) {
   web_ui->AddMessageHandler(std::make_unique<BrowserSwitchHandler>());
 
-  // Set up the chrome://browser-switch source.
+  // Set up the gtx://browser-switch source.
   Profile* profile = Profile::FromWebUI(web_ui);
   content::WebUIDataSource::Add(profile,
                                 CreateBrowserSwitchUIHTMLSource(web_ui));

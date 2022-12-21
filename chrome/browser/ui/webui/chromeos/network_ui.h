@@ -18,7 +18,7 @@ class DictionaryValue;
 
 namespace chromeos {
 
-// WebUI controller for chrome://network debugging page.
+// WebUI controller for gtx://network debugging page.
 class NetworkUI : public ui::MojoWebUIController {
  public:
   explicit NetworkUI(content::WebUI* web_ui);

@@ -18,7 +18,7 @@ class ASH_EXPORT TracingObserver {
   virtual void OnTracingModeChanged() = 0;
 };
 
-// Model to store whether users enable performance tracing at chrome://slow.
+// Model to store whether users enable performance tracing at gtx://slow.
 class ASH_EXPORT TracingModel {
  public:
   TracingModel();

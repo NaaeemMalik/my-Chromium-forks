@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {addWebUIListener} from 'chrome://resources/js/cr.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {addWebUIListener} from 'gtx://resources/js/cr.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 import {createElementFromText} from './utils.js';
 
 const nextTaskLogSeq = 1;

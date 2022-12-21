@@ -26,7 +26,7 @@ enum class GetRequestsResult;
 
 namespace offline_internals {
 
-// Class acting as a controller of the chrome://offline-internals WebUI.
+// Class acting as a controller of the gtx://offline-internals WebUI.
 class OfflineInternalsUIMessageHandler : public content::WebUIMessageHandler {
  public:
   OfflineInternalsUIMessageHandler();

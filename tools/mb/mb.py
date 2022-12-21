@@ -1538,7 +1538,7 @@ class MetaBuildWrapper(object):
           )) or (is_mac and f in (  # https://crbug.com/1000667
               'Chromium Framework.framework/',
               'Chromium Helper.app/',
-              'Chromium.app/',
+              'GTXBrowser.app/',
               'ChromiumUpdater.app/',
               'Content Shell.app/',
               'Google Chrome Framework.framework/',

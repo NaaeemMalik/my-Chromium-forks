@@ -28,7 +28,7 @@ bool IsNavigationInterceptable(const NavigateParams& params,
   const bool is_bookmark_navigation = PageTransitionCoreTypeIs(
       params.transition, ui::PAGE_TRANSITION_AUTO_BOOKMARK);
   // True if this is a navigation created by the user, clicking on a link on a
-  // page with the chrome:// scheme.
+  // page with the gtx:// scheme.
   const bool is_system_navigation =
       PageTransitionCoreTypeIs(params.transition, ui::PAGE_TRANSITION_LINK) &&
       source_url.SchemeIs(content::kChromeUIScheme);

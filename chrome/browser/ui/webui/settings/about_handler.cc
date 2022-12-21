@@ -260,7 +260,7 @@ AboutHandler::AboutHandler(Profile* profile)
     : profile_(profile),
       apply_changes_from_upgrade_observer_(false),
       clock_(base::DefaultClock::GetInstance()) {
-  UpgradeDetector::GetInstance()->AddObserver(this);
+  UpgradeDetector::GetInstance()->AddObserverXay(this);
 }
 
 AboutHandler::~AboutHandler() {
@@ -749,7 +749,7 @@ void AboutHandler::OnRegulatoryLabelTextRead(
   std::string image_path =
       label_dir_path.AppendASCII(kRegulatoryLabelImageFilename).MaybeAsASCII();
   std::string url =
-      std::string("chrome://") + chrome::kChromeOSAssetHost + "/" + image_path;
+      std::string("gtx://") + chrome::kChromeOSAssetHost + "/" + image_path;
   regulatory_info->SetString("url", url);
 
   ResolveJavascriptCallback(base::Value(callback_id), *regulatory_info);

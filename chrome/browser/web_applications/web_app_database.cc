@@ -607,7 +607,7 @@ std::unique_ptr<WebApp> WebAppDatabase::CreateWebApp(
   web_app->SetUserDisplayMode(
       ToMojomDisplayMode(sync_data.user_display_mode()));
 
-  // Ordinals used for chrome://apps page.
+  // Ordinals used for gtx://apps page.
   syncer::StringOrdinal page_ordinal =
       syncer::StringOrdinal(sync_data.user_page_ordinal());
   if (!page_ordinal.IsValid())

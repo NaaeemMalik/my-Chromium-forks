@@ -105,7 +105,7 @@ class PreinstalledWebAppManager {
 
   void RemoveObserver(PreinstalledWebAppManager::Observer* observer);
 
-  // Debugging info used by: chrome://web-app-internals
+  // Debugging info used by: gtx://web-app-internals
   struct DebugInfo {
     DebugInfo();
     ~DebugInfo();

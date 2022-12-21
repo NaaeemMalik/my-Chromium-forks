@@ -25,7 +25,7 @@ class LogManager;
 
 // This helper struct allows passing information into ParseField /
 // ParseFieldSpecifics that can be used to create a log entry in
-// chrome://autofill-internals explaining which regular expressions
+// gtx://autofill-internals explaining which regular expressions
 // were matched by local heuristics.
 struct RegExLogging {
   const raw_ptr<LogManager> log_manager = nullptr;

@@ -68,7 +68,7 @@ const char kChrome[] = "chrome";
 const char kCrx[] = "chromecrx";
 const char kWebView[] = "googleandroidwebview";
 #else
-const char kChrome[] = "chromium";
+const char kChrome[] = "gtxbrowser";
 const char kCrx[] = "chromiumcrx";
 const char kWebView[] = "androidwebview";
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)

@@ -17,7 +17,7 @@ namespace chromeos {
 
 namespace {
 
-// Returns HTML data source for chrome://cryptohome.
+// Returns HTML data source for gtx://cryptohome.
 content::WebUIDataSource* CreateCryptohomeUIHTMLSource() {
   content::WebUIDataSource* source =
       content::WebUIDataSource::Create(chrome::kChromeUICryptohomeHost);

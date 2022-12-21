@@ -239,7 +239,7 @@ chrome.test.runTests([
   },
 
   function newSpecificPage() {
-    runNewPageTest('/json/new?chrome://version/', "chrome://version/");
+    runNewPageTest('/json/new?gtx://version/', "gtx://version/");
   },
 
   function newDefaultPage() {

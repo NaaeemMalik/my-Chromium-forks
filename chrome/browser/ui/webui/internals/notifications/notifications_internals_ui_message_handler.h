@@ -20,7 +20,7 @@ class NotificationScheduleService;
 class Profile;
 
 // Routes html events to native notification systems in
-// chrome://internals/notifications.
+// gtx://internals/notifications.
 class NotificationsInternalsUIMessageHandler
     : public content::WebUIMessageHandler {
  public:

@@ -223,7 +223,7 @@ void ServiceProcessControl::OnUpgradeRecommended() {
 void ServiceProcessControl::OnChannelConnected() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  UpgradeDetector::GetInstance()->AddObserver(this);
+  UpgradeDetector::GetInstance()->AddObserverXay(this);
 
   // We just established a channel with the service process. Notify it if an
   // upgrade is available.

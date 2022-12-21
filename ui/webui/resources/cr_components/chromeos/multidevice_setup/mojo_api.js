@@ -3,12 +3,12 @@
 // found in the LICENSE file.
 
 // clang-format off
-// #import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
-// #import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-// #import 'chrome://resources/mojo/mojo/public/mojom/base/time.mojom-lite.js';
-// #import 'chrome://resources/mojo/chromeos/components/multidevice/mojom/multidevice_types.mojom-lite.js';
-// #import 'chrome://resources/mojo/chromeos/services/device_sync/public/mojom/device_sync.mojom-lite.js';
-// #import 'chrome://resources/mojo/chromeos/services/multidevice_setup/public/mojom/multidevice_setup.mojom-lite.js';
+// #import {addSingletonGetter} from 'gtx://resources/js/cr.m.js';
+// #import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+// #import 'gtx://resources/mojo/mojo/public/mojom/base/time.mojom-lite.js';
+// #import 'gtx://resources/mojo/chromeos/components/multidevice/mojom/multidevice_types.mojom-lite.js';
+// #import 'gtx://resources/mojo/chromeos/services/device_sync/public/mojom/device_sync.mojom-lite.js';
+// #import 'gtx://resources/mojo/chromeos/services/multidevice_setup/public/mojom/multidevice_setup.mojom-lite.js';
 // clang-format on
 
 cr.define('multidevice_setup', function() {

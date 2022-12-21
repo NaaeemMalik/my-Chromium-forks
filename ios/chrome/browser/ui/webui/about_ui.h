@@ -13,8 +13,8 @@ namespace web {
 class WebUIIOS;
 }
 
-// The WebUI controller for chrome://chrome-urls, chrome://histograms,
-// and chrome://credits.
+// The WebUI controller for gtx://gtx-urls, gtx://histograms,
+// and gtx://credits.
 class AboutUI : public web::WebUIIOSController {
  public:
   explicit AboutUI(web::WebUIIOS* web_ui, const std::string& name);

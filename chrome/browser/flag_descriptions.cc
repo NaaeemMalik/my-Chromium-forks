@@ -32,7 +32,7 @@ const char kAcceleratedVideoEncodeDescription[] =
 
 const char kEnableMediaInternalsName[] = "Media-internals page";
 const char kEnableMediaInternalsDescription[] =
-    "Enables the chrome://media-internals debug page.";
+    "Enables the gtx://media-internals debug page.";
 
 #if BUILDFLAG(ENABLE_PLUGINS)
 const char kAccessiblePDFFormName[] = "Accessible PDF Forms";
@@ -563,9 +563,9 @@ const char kChromeTipsInMainMenuNewBadgeDescription[] =
 #endif
 
 const char kChromeWhatsNewUIName[] =
-    "Show Chrome What's New page at chrome://whats-new";
+    "Show Chrome What's New page at gtx://whats-new";
 const char kChromeWhatsNewUIDescription[] =
-    "Enables Chrome What's New page at chrome://whats-new.";
+    "Enables Chrome What's New page at gtx://whats-new.";
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 const char kChromeWhatsNewInMainMenuNewBadgeName[] =
@@ -754,7 +754,7 @@ const char kEnableRawDrawDescription[] =
 const char kEnableRemovingAllThirdPartyCookiesName[] =
     "Enable removing SameSite=None cookies";
 const char kEnableRemovingAllThirdPartyCookiesDescription[] =
-    "Enables UI on chrome://settings/siteData to remove all third-party "
+    "Enables UI on gtx://settings/siteData to remove all third-party "
     "cookies and site data.";
 
 const char kEnableBrowsingDataLifetimeManagerName[] =
@@ -1013,7 +1013,7 @@ const char kEnableLazyImageLoadingDescription[] =
 const char kEnableNetworkLoggingToFileName[] = "Enable network logging to file";
 const char kEnableNetworkLoggingToFileDescription[] =
     "Enables network logging to a file named netlog.json in the user data "
-    "directory. The file can be imported into chrome://net-internals.";
+    "directory. The file can be imported into gtx://net-internals.";
 
 const char kEnableNewDownloadBackendName[] = "Enable new download backend";
 const char kEnableNewDownloadBackendDescription[] =
@@ -1107,10 +1107,10 @@ const char kMemlogDescription[] =
     "Starts heap profiling service that records sampled memory allocation "
     "profile having each sample attributed with a callstack. "
     "The sampling resolution is controlled with --memlog-sampling-rate flag. "
-    "Recorded heap dumps can be obtained at chrome://tracing "
-    "[category:memory-infra] and chrome://memory-internals. This setting "
+    "Recorded heap dumps can be obtained at gtx://tracing "
+    "[category:memory-infra] and gtx://memory-internals. This setting "
     "controls which processes will be profiled since their start. To profile "
-    "any given process at a later time use chrome://memory-internals page.";
+    "any given process at a later time use gtx://memory-internals page.";
 const char kMemlogModeMinimal[] = "Browser and GPU";
 const char kMemlogModeAll[] = "All processes";
 const char kMemlogModeAllRenderers[] = "All renderers";
@@ -1298,9 +1298,9 @@ const char kExtensionsMenuAccessControlDescription[] =
     "Enables a redesigned extensions menu that allows the user to control "
     "extensions site access.";
 
-const char kExtensionsOnChromeUrlsName[] = "Extensions on chrome:// URLs";
+const char kExtensionsOnChromeUrlsName[] = "Extensions on gtx:// URLs";
 const char kExtensionsOnChromeUrlsDescription[] =
-    "Enables running extensions on chrome:// URLs, where extensions explicitly "
+    "Enables running extensions on gtx:// URLs, where extensions explicitly "
     "request this permission.";
 
 const char kFilteringScrollPredictionName[] = "Filtering scroll prediction";
@@ -1454,7 +1454,7 @@ const char kTabSwitcherOnReturnDescription[] =
 
 const char kHttpsOnlyModeName[] = "HTTPS-First Mode Setting";
 const char kHttpsOnlyModeDescription[] =
-    "Adds a setting under chrome://settings/security to opt-in to HTTPS-First "
+    "Adds a setting under gtx://settings/security to opt-in to HTTPS-First "
     "Mode.";
 
 const char kIgnoreGpuBlocklistName[] = "Override software rendering list";
@@ -1666,7 +1666,7 @@ const char kOmniboxActiveSearchEnginesName[] =
     "Active Search Engines section on settings page";
 const char kOmniboxActiveSearchEnginesDescription[] =
     "Enables a 'Your Search Engines' section on "
-    "chrome://settings/searchEngines.";
+    "gtx://settings/searchEngines.";
 
 const char kOmniboxAdaptiveSuggestionsCountName[] =
     "Adaptive Omnibox Suggestions count";
@@ -2005,14 +2005,14 @@ const char kPermissionPredictionsDescription[] =
     "Use the Permission Predictions Service to surface permission requests "
     "using a quieter UI when the likelihood of the user granting the "
     "permission is predicted to be low. Requires "
-    "chrome://flags/#quiet-notification-prompts and `Safe Browsing` to be "
+    "gtx://flags/#quiet-notification-prompts and `Safe Browsing` to be "
     "enabled.";
 
 const char kPermissionQuietChipName[] = "Quiet Permission Chip Experiment";
 const char kPermissionQuietChipDescription[] =
     "Enables an experimental permission prompt that uses the quiet chip "
     "instead of the right-hand side address bar icon for quiet permission "
-    "prompts. Requires chrome://flags/#quiet-notification-prompts to be "
+    "prompts. Requires gtx://flags/#quiet-notification-prompts to be "
     "enabled.";
 
 const char kPersistentQuotaIsTemporaryQuotaName[] =
@@ -2116,7 +2116,7 @@ const char kReadLaterNewBadgePromoDescription[] =
 const char kRecordWebAppDebugInfoName[] = "Record web app debug info";
 const char kRecordWebAppDebugInfoDescription[] =
     "Enables recording additional web app related debugging data to be "
-    "displayed in: chrome://web-app-internals";
+    "displayed in: gtx://web-app-internals";
 
 const char kReduceUserAgentName[] = "Reduce User-Agent request header";
 const char kReduceUserAgentDescription[] =
@@ -3101,9 +3101,9 @@ const char kEnableAutofillRefreshStyleDescription[] =
     "Enable modernized style for Autofill on Android";
 
 const char kChromeManagementPageAndroidName[] =
-    "Enable chrome://management page on Android";
+    "Enable gtx://management page on Android";
 const char kChromeManagementPageAndroidDescription[] =
-    "Enable chrome://management page on Android, which aims to inform the user "
+    "Enable gtx://management page on Android, which aims to inform the user "
     "if their browser is managed by their employer along with other useful "
     "information.";
 
@@ -3507,7 +3507,7 @@ const char kStrictSiteIsolationDescription[] =
     "Security mode that enables site isolation for all sites (SitePerProcess). "
     "In this mode, each renderer process will contain pages from at most one "
     "site, using out-of-process iframes when needed. "
-    "Check chrome://process-internals to see the current isolation mode. "
+    "Check gtx://process-internals to see the current isolation mode. "
     "Setting this flag to 'Enabled' turns on site isolation regardless of the "
     "default. Here, 'Disabled' is a legacy value that actually means "
     "'Default,' in which case site isolation may be already enabled based on "
@@ -3648,7 +3648,7 @@ const char kEnableAccessibilityLiveCaptionName[] = "Live Caption";
 const char kEnableAccessibilityLiveCaptionDescription[] =
     "Enables the live caption feature which generates captions for "
     "media playing in Chrome. Turn the feature on in "
-    "chrome://settings/accessibility.";
+    "gtx://settings/accessibility.";
 
 const char kEnableAutoDisableAccessibilityName[] = "Auto-disable Accessibility";
 const char kEnableAutoDisableAccessibilityDescription[] =
@@ -3675,7 +3675,7 @@ const char kMuteNotificationSnoozeActionDescription[] =
 
 const char kNtpCacheOneGoogleBarName[] = "Cache OneGoogleBar";
 const char kNtpCacheOneGoogleBarDescription[] =
-    "Enables using the OneGoogleBar cached response in chrome://new-tab-page, "
+    "Enables using the OneGoogleBar cached response in gtx://new-tab-page, "
     "when available.";
 
 const char kNtpModulesName[] = "NTP Modules";
@@ -4120,9 +4120,9 @@ const char kAshEnableUnifiedDesktopDescription[] =
     "Enable unified desktop mode which allows a window to span multiple "
     "displays.";
 
-const char kAudioUrlName[] = "Enable chrome://audio";
+const char kAudioUrlName[] = "Enable gtx://audio";
 const char kAudioUrlDescription[] =
-    "Enable chrome://audio that is designed for debugging ChromeOS audio "
+    "Enable gtx://audio that is designed for debugging ChromeOS audio "
     "issues";
 
 const char kAutoFramingOverrideName[] = "Auto-framing control override";
@@ -4602,9 +4602,9 @@ const char kEnableOAuthIppDescription[] =
     "Enable OAuth when printing via the IPP protocol";
 
 const char kEnableRevenLogSourceName[] =
-    "Enable Reven Log Source on chrome://system and feedback logs";
+    "Enable Reven Log Source on gtx://system and feedback logs";
 const char kEnableRevenLogSourceDescription[] =
-    "Enable Reven Log Source on chrome://system and feedback logs";
+    "Enable Reven Log Source on gtx://system and feedback logs";
 
 const char kEnableSuggestedFilesName[] = "Enable Suggested Files";
 const char kEnableSuggestedFilesDescription[] =
@@ -4911,11 +4911,11 @@ const char kLockScreenNotificationDescription[] =
 
 const char kMediaAppHandlesAudioName[] = "Media App Handles Audio";
 const char kMediaAppHandlesAudioDescription[] =
-    "Enables opening audio files by default in chrome://media-app";
+    "Enables opening audio files by default in gtx://media-app";
 
 const char kMediaAppHandlesPdfName[] = "Media App Handles PDF";
 const char kMediaAppHandlesPdfDescription[] =
-    "Enables opening PDF files by default in chrome://media-app";
+    "Enables opening PDF files by default in gtx://media-app";
 
 const char kMeteredShowToggleName[] = "Show Metered Toggle";
 const char kMeteredShowToggleDescription[] =
@@ -5135,7 +5135,7 @@ const char kTouchscreenCalibrationName[] =
     "Enable/disable touchscreen calibration option in material design settings";
 const char kTouchscreenCalibrationDescription[] =
     "If enabled, the user can calibrate the touch screen displays in "
-    "chrome://settings/display.";
+    "gtx://settings/display.";
 
 const char kTrafficCountersSettingsUiName[] = "Traffic Counters Settings UI";
 const char kTrafficCountersSettingsUiDescription[] =
@@ -5150,7 +5150,7 @@ const char kUseFakeDeviceForMediaStreamDescription[] =
 const char kUiDevToolsName[] = "Enable native UI inspection";
 const char kUiDevToolsDescription[] =
     "Enables inspection of native UI elements. For local inspection use "
-    "chrome://inspect#other";
+    "gtx://inspect#other";
 
 const char kUiSlowAnimationsName[] = "Slow UI animations";
 const char kUiSlowAnimationsDescription[] = "Makes all UI animations slow.";
@@ -5244,8 +5244,8 @@ const char kAllowDefaultWebAppMigrationForChromeOsManagedUsersName[] =
     "Allow default web app migration for Chrome OS managed users";
 const char kAllowDefaultWebAppMigrationForChromeOsManagedUsersDescription[] =
     "The web app migration flags "
-    "(chrome://flags/#enable-migrate-default-chrome-app-to-web-apps-gsuite and "
-    "chrome://flags/#enable-migrate-default-chrome-app-to-web-apps-non-gsuite) "
+    "(gtx://flags/#enable-migrate-default-chrome-app-to-web-apps-gsuite and "
+    "gtx://flags/#enable-migrate-default-chrome-app-to-web-apps-non-gsuite) "
     "are ignored for managed Chrome OS users unless this feature is enabled.";
 
 const char kBluetoothAdvertisementMonitoringName[] =

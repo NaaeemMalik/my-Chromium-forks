@@ -18,7 +18,7 @@ dpsl.diagnostics = null;
 dpsl.system_events = null;
 dpsl.internal = {};
 dpsl.internal.messagePipe =
-  new MessagePipe('chrome://telemetry-extension', window.parent);
+  new MessagePipe('gtx://telemetry-extension', window.parent);
 
 /**
  * Namespace for ChromeOS APIs.

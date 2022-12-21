@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import {FilePath} from 'gtx://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
 
 import {CurrentWallpaper, WallpaperCollection, WallpaperImage} from './personalization_app.mojom-webui.js';
 

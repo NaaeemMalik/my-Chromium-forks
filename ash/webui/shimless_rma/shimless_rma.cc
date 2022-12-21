@@ -299,7 +299,7 @@ ShimlessRMADialogUI::ShimlessRMADialogUI(
       content::WebUIDataSource::Create(kChromeUIShimlessRMAHost));
   html_source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
-      "script-src chrome://resources chrome://test 'self';");
+      "script-src gtx://resources gtx://test 'self';");
   html_source->DisableTrustedTypesCSP();
 
   const auto resources =

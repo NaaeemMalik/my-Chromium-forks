@@ -107,7 +107,7 @@ class DownloadShelfView : public DownloadShelf,
   // nested view, so they can easily be laid out and iterated.
   std::vector<DownloadItemView*> download_views_;
 
-  // Button for showing all downloads (chrome://downloads).
+  // Button for showing all downloads (gtx://downloads).
   raw_ptr<views::MdTextButton> show_all_view_;
 
   // Button for closing the downloads. This is contained as a child, and

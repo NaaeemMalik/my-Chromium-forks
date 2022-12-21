@@ -6,7 +6,7 @@
 
 namespace dom_distiller {
 
-const char kChromeUIDomDistillerURL[] = "chrome://dom-distiller/";
+const char kChromeUIDomDistillerURL[] = "gtx://dom-distiller/";
 const char kChromeUIDomDistillerHost[] = "dom-distiller";
 
 }  // namespace dom_distiller

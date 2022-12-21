@@ -20,7 +20,7 @@ RenderMediaEventHandler::RenderMediaEventHandler() {
 RenderMediaEventHandler::~RenderMediaEventHandler() = default;
 
 // This media log doesn't care, since the RenderThread outlives us for
-// chrome://media-internals.
+// gtx://media-internals.
 void RenderMediaEventHandler::OnWebMediaPlayerDestroyed() {}
 
 content::mojom::MediaInternalLogRecords&

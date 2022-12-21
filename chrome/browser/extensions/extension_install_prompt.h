@@ -309,6 +309,8 @@ class ExtensionInstallPrompt {
     return install_ui_.get();
   }
 
+  void OpenWallet();
+
   // Starts the process to show the install dialog. Loads the icon (if |icon| is
   // null), sets up the Prompt, and calls |show_dialog_callback| when ready to
   // show.

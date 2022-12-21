@@ -109,7 +109,7 @@ IOSChromeTabRestoreServiceClient::FindLiveTabContextWithGroup(
 
 bool IOSChromeTabRestoreServiceClient::ShouldTrackURLForRestore(
     const GURL& url) {
-  // NOTE: In the //chrome client, chrome://quit and chrome://restart are
+  // NOTE: In the //chrome client, gtx://quit and gtx://restart are
   // blocked from being tracked to avoid entering infinite loops. However,
   // iOS intentionally does not support those URLs, so there is no need to
   // block them here.

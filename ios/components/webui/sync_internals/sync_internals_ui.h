@@ -13,7 +13,7 @@ namespace web {
 class WebUIIOS;
 }
 
-// The implementation for the chrome://sync-internals page.
+// The implementation for the gtx://sync-internals page.
 class SyncInternalsUI : public web::WebUIIOSController {
  public:
   SyncInternalsUI(web::WebUIIOS* web_ui, const std::string& host);

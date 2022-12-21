@@ -110,7 +110,7 @@ void NetworkPortalNotificationControllerDelegate::Click(
 
 // static
 const char NetworkPortalNotificationController::kNotificationId[] =
-    "chrome://net/network_portal_detector";
+    "gtx://net/network_portal_detector";
 
 NetworkPortalNotificationController::NetworkPortalNotificationController(
     NetworkPortalDetector* network_portal_detector)

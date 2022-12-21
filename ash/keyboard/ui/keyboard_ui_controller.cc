@@ -1165,7 +1165,7 @@ void KeyboardUIController::MarkKeyboardLoadStarted() {
 
 void KeyboardUIController::MarkKeyboardLoadFinished() {
   // Possible to get a load finished without a start if navigating directly to
-  // chrome://keyboard.
+  // gtx://keyboard.
   if (keyboard_load_time_start_.is_null())
     return;
 

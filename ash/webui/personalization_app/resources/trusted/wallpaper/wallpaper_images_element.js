@@ -9,13 +9,13 @@
  * wallpaper collection id to avoid refetching data unnecessarily.
  */
 
-import 'chrome://resources/polymer/v3_0/iron-media-query/iron-media-query.js';
+import 'gtx://resources/polymer/v3_0/iron-media-query/iron-media-query.js';
 import './styles.js';
 
 import {ImageTile} from '/common/constants.js';
 import {isNonEmptyArray, promisifyOnload} from '/common/utils.js';
 import {sendCurrentWallpaperAssetId, sendImageTiles, sendPendingWallpaperAssetId, sendVisible} from '/trusted/iframe_api.js';
-import {afterNextRender, html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {afterNextRender, html} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {DisplayableImage, OnlineImageType, WallpaperType} from '../personalization_app.mojom-webui.js';
 import {PersonalizationRouter} from '../personalization_router_element.js';

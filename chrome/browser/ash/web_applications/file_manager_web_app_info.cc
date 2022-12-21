@@ -26,7 +26,7 @@ using ash::file_manager::kChromeUIFileManagerURL;
 namespace {
 
 // Appends a file handler to `info`.
-// The handler action has the format: chrome://file-manager/?${ACTION_NAME}
+// The handler action has the format: gtx://file-manager/?${ACTION_NAME}
 // This means: For files with the given `file_extensions` or `mime_type` the
 // Files SWA is a candidate app to open/handle such files.
 void AppendFileHandler(WebApplicationInfo& info,

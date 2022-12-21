@@ -6,15 +6,15 @@
 
 namespace safe_browsing {
 
-const char kChromeUISafeBrowsingURL[] = "chrome://safe-browsing/";
+const char kChromeUISafeBrowsingURL[] = "gtx://safe-browsing/";
 const char kChromeUISafeBrowsingHost[] = "safe-browsing";
 const char kChromeUISafeBrowsingMatchBillingUrl[] =
-    "chrome://safe-browsing/match?type=billing";
+    "gtx://safe-browsing/match?type=billing";
 const char kChromeUISafeBrowsingMatchMalwareUrl[] =
-    "chrome://safe-browsing/match?type=malware";
+    "gtx://safe-browsing/match?type=malware";
 const char kChromeUISafeBrowsingMatchPhishingUrl[] =
-    "chrome://safe-browsing/match?type=phishing";
+    "gtx://safe-browsing/match?type=phishing";
 const char kChromeUISafeBrowsingMatchUnwantedUrl[] =
-    "chrome://safe-browsing/match?type=unwanted";
+    "gtx://safe-browsing/match?type=unwanted";
 
 }  // namespace safe_browsing

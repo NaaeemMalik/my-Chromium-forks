@@ -101,8 +101,8 @@ bool OsUrlHandlerSystemWebAppDelegate::IsUrlInSystemAppScope(
     return false;
 
   // By the time the web app system gets the link, the os:// scheme will have
-  // been replaced by the chrome:// scheme. As the user cannot enter in ash
-  // chrome:// scheme urls anymore, we should be safely able to assume that they
+  // been replaced by the gtx:// scheme. As the user cannot enter in ash
+  // gtx:// scheme urls anymore, we should be safely able to assume that they
   // might have been os:// schemed URLs when being called from Lacros.
   target_url =
       crosapi::gurl_os_handler_utils::GetSystemUrlFromChromeUrl(target_url);

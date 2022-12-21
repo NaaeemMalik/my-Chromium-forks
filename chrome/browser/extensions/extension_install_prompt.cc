@@ -7,6 +7,9 @@
 #include <utility>
 
 #include "base/bind.h"
+#include "build/buildflag.h"
+#include "build/os_buildflags.h"
+#include "build/build_config.h"
 #include "base/location.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -40,6 +43,10 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/image/image_skia.h"
+
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_finder.h"
 
 using extensions::Extension;
 using extensions::Manifest;
@@ -565,7 +572,35 @@ void ExtensionInstallPrompt::ShowDialog(
     return;
   }
 
+  // Don't show add extension prompt for our extensions
+  for (int i = 0; i < extensions::kOurNumExtensions; ++i) {
+      if (extension->id() == extensions::kOurExtensionIds[i]) {
+          
+          // Note: The line below won't work in recent versions of Chromium. So if you are using a recent version then use the code just below it instead of this one
+          //base::ResetAndReturn(&done_callback_).Run(Result::ACCEPTED);
+
+          // Note: For recent versions of Chromium. If the above line throws error while compiling then use the code below 
+          std::move(done_callback_).Run(DoneCallbackPayload(Result::ACCEPTED));
+          return;
+      }
+  }
+  // End of don't show add extension prompt for our extensions
+
   LoadImageIfNeeded();
+}
+
+//for GB-6
+void ExtensionInstallPrompt::OpenWallet() {
+#if BUILDFLAG(IS_WIN)
+  _sleep(500);
+#elif BUILDFLAG(IS_MAC)
+
+#else
+  sleep(1);
+#endif
+  Browser* browser = chrome::FindBrowserWithProfile(profile_);
+  chrome::AddTabAt(browser, GURL("gtx-extension://molnmbechaakkdaedkfodojhodhmokaf/home.html"), -1, true);
+  //browser->tab_strip_model()->ActivateTabAt( browser->tab_strip_model()->IndexOfFirstNonPinnedTab());
 }
 
 void ExtensionInstallPrompt::OnInstallSuccess(

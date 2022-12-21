@@ -19,7 +19,7 @@ namespace ash {
 struct AnnotatorTool;
 
 // Handles communication with the Annotator WebUI (i.e.
-// chrome://projector/annotator/annotator_embedder.html)
+// gtx://projector/annotator/annotator_embedder.html)
 class AnnotatorMessageHandler : public content::WebUIMessageHandler,
                                 public ProjectorAnnotatorController {
  public:

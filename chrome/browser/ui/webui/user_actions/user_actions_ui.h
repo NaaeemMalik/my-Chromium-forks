@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The UI for chrome://user-actions/
+// The UI for gtx://user-actions/
 class UserActionsUI : public content::WebUIController {
  public:
   explicit UserActionsUI(content::WebUI* contents);

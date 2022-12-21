@@ -599,7 +599,6 @@ if (is_mac) {
 
     outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
   }
-
   if (enable_plugins) {
     bundle_data("content_shell_framework_plugins") {
       sources = [

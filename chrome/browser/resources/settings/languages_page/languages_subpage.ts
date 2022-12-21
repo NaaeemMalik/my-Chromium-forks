@@ -7,20 +7,20 @@
  * for language and input method settings.
  */
 
-import 'chrome://resources/cr_components/managed_dialog/managed_dialog.js';
-import 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import 'chrome://resources/cr_elements/icons.m.js';
-import 'chrome://resources/cr_elements/policy/cr_policy_pref_indicator.m.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/js/action_link.js';
-import 'chrome://resources/cr_elements/action_link_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/cr_components/managed_dialog/managed_dialog.js';
+import 'gtx://resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/cr_elements/policy/cr_policy_pref_indicator.m.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/js/action_link.js';
+import 'gtx://resources/cr_elements/action_link_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import './add_languages_dialog.js';
 import './languages.js';
 import '../controls/settings_toggle_button.js';
@@ -29,16 +29,16 @@ import '../settings_shared_css.js';
 import '../settings_vars_css.js';
 
 import {CrActionMenuElement} from '//resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import {CrCheckboxElement} from 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
-import {CrLazyRenderElement} from 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {isWindows} from 'chrome://resources/js/cr.m.js';
-import {focusWithoutInk} from 'chrome://resources/js/cr/ui/focus_without_ink.m.js';
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrCheckboxElement} from 'gtx://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
+import {CrLazyRenderElement} from 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {isWindows} from 'gtx://resources/js/cr.m.js';
+import {focusWithoutInk} from 'gtx://resources/js/cr/ui/focus_without_ink.m.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 // <if expr="is_win">
-import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {flush} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 // </if>
 
 import {SettingsToggleButtonElement} from '../controls/settings_toggle_button.js';

@@ -32,7 +32,7 @@ std::unique_ptr<ui::AXTreeFormatter> AXInspectFactory::CreateFormatter(
     ui::AXApiType::Type type) {
   // Developer mode: crash immediately on any accessibility fatal error.
   // This only runs during integration tests, or if a developer is
-  // using an inspection tool, e.g. chrome://accessibility.
+  // using an inspection tool, e.g. gtx://accessibility.
   BrowserAccessibilityManager::AlwaysFailFast();
 
   switch (type) {
@@ -54,7 +54,7 @@ std::unique_ptr<ui::AXEventRecorder> AXInspectFactory::CreateRecorder(
     const ui::AXTreeSelector& selector) {
   // Developer mode: crash immediately on any accessibility fatal error.
   // This only runs during integration tests, or if a developer is
-  // using an inspection tool, e.g. chrome://accessibility.
+  // using an inspection tool, e.g. gtx://accessibility.
   BrowserAccessibilityManager::AlwaysFailFast();
 
   switch (type) {

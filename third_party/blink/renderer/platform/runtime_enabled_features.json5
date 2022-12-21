@@ -1067,7 +1067,7 @@
     },
     {
       // Also enabled when blink::features::kFileHandlingAPI is overridden
-      // on the command line (or via chrome://flags).
+      // on the command line (or via gtx://flags).
       name: "FileHandling",
       depends_on: ["FileSystemAccess"],
       status: {"Android": "test", "default": "experimental"},
@@ -1708,7 +1708,7 @@
     {
       // This flag enables the Manifest parser to handle URL Protocols.
       // Also enabled when blink::features::kWebAppEnableProtocolHandlers is
-      // overridden on the command line (or via chrome://flags).
+      // overridden on the command line (or via gtx://flags).
       name: "ParseUrlProtocolHandler",
       status: "experimental",
       origin_trial_feature_name: "ParseUrlProtocolHandler",
@@ -2452,7 +2452,7 @@
     {
       // This flag enables the Manifest parser to handle id field.
       // Also enabled when blink::features::kWebAppEnableManifestId is
-      // overridden on the command line (or via chrome://flags).
+      // overridden on the command line (or via gtx://flags).
       name: "WebAppManifestId",
       status: "experimental",
     },
@@ -2471,7 +2471,7 @@
     {
       // This flag enables the Manifest parser to handle URL Handlers.
       // Also enabled when blink::features::kWebAppEnableUrlHandlers is
-      // overridden on the command line (or via chrome://flags).
+      // overridden on the command line (or via gtx://flags).
       name: "WebAppUrlHandling",
       status: "experimental",
       origin_trial_feature_name: "WebAppUrlHandling",

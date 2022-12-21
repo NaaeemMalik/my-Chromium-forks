@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {decorate} from 'chrome://resources/js/cr/ui.m.js';
-import {TabBox} from 'chrome://resources/js/cr/ui/tabs.js';
+import {decorate} from 'gtx://resources/js/cr/ui.m.js';
+import {TabBox} from 'gtx://resources/js/cr/ui/tabs.js';
 
 import {ClientRenderer} from './client_renderer.js';
 import {initialize} from './main.js';

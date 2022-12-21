@@ -104,7 +104,7 @@ copy("copy_mojo_to_trusted") {
 }
 
 # This is to work around the problem untrusted/ cannot access shared resources
-# in chrome://. In the future when we merge trusted/ and untrusted/ we should
+# in gtx://. In the future when we merge trusted/ and untrusted/ we should
 # remove this.
 copy("copy_js_to_common") {
   deps = [ "//ui/webui/resources/js:modulize_local" ]

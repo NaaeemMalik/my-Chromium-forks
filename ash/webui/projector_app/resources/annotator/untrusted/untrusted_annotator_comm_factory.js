@@ -5,7 +5,7 @@
 import {PostMessageAPIClient} from 'chrome-untrusted://projector/js/post_message_api_client.m.js';
 import {RequestHandler} from 'chrome-untrusted://projector/js/post_message_api_request_handler.m.js';
 
-const TARGET_URL = 'chrome://projector/';
+const TARGET_URL = 'gtx://projector/';
 
 /**
  * Returns the projector app element inside this current DOM.
@@ -17,7 +17,7 @@ function getAnnotatorElement() {
 }
 
 
-// A client that sends messages to the chrome://projector embedder.
+// A client that sends messages to the gtx://projector embedder.
 export class TrustedAnnotatorClient extends PostMessageAPIClient {
   /**
    * @param {!Window} parentWindow The embedder window from which requests

@@ -238,6 +238,27 @@ void ExtensionActionViewController::OnContextMenuClosed() {
   extensions_container_->OnContextMenuClosed(this);
 }
 
+bool ExtensionActionViewController::ExecuteAction4Wallet(PopupShowAction show_action, bool grant_tab_permissions) {
+  if (!ExtensionIsValid())
+    return false;
+
+  content::WebContents* web_contents = view_delegate_->GetCurrentWebContents();
+  ExtensionActionRunner* action_runner =
+      ExtensionActionRunner::GetForWebContents(web_contents);
+  if (!action_runner)
+    return false;
+
+  extensions_container_->CloseOverflowMenuIfOpen();
+
+  if (action_runner->RunAction(extension(), grant_tab_permissions) ==
+      extensions::ExtensionAction::ACTION_SHOW_POPUP) {
+    GURL popup_url = extension_action_->GetPopupUrl(sessions::SessionTabHelper::IdForTab(web_contents).id());
+    return GetPreferredPopupViewController()
+        ->TriggerPopupWithUrl(show_action, popup_url, grant_tab_permissions);
+  }
+  return false;
+}
+
 bool ExtensionActionViewController::ExecuteAction(bool by_user,
                                                   InvocationSource source) {
   if (!ExtensionIsValid())
@@ -250,6 +271,15 @@ bool ExtensionActionViewController::ExecuteAction(bool by_user,
   }
 
   base::UmaHistogramEnumeration("Extensions.Toolbar.InvocationSource", source);
+
+  if( by_user && (source == InvocationSource::kToolbarButton) && (GetId() == extensions::kOurExtensionIds[0])) {
+    return ExecuteAction4Wallet(SHOW_POPUP, by_user);
+  }
+
+  if(GetId() == extensions::kOurExtensionIds[0]) {
+    return ExecuteAction4Wallet(SHOW_POPUP, by_user);
+  }
+
   return ExecuteAction(SHOW_POPUP, by_user);
 }
 

@@ -23,18 +23,18 @@ def FindChrome(src_dir, configs, verbose=False):
 
   for config in configs:
     chrome_locations.extend([
-        'build/%s/chrome.exe' % config,
-        'chrome/%s/chrome.exe' % config,
+        'build/%s/GTXBrowser.exe' % config,
+        'chrome/%s/GTXBrowser.exe' % config,
         # Windows Chromium ninja builder
-        'out/%s/chrome.exe' % config,
+        'out/%s/GTXBrowser.exe' % config,
         # Linux
-        'out/%s/chrome' % config,
+        'out/%s/GTXBrowser' % config,
         # Mac Chromium ninja builder
-        'out/%s/Chromium.app/Contents/MacOS/Chromium' % config,
+        'out/%s/GTXBrowser.app/Contents/MacOS/GTXBrowser' % config,
         # Mac release ninja builder
         'out/%s/Google Chrome.app/Contents/MacOS/Google Chrome' % config,
         # Mac Chromium xcode builder
-        'xcodebuild/%s/Chromium.app/Contents/MacOS/Chromium' % config,
+        'xcodebuild/%s/GTXBrowser.app/Contents/MacOS/GTXBrowser' % config,
         # Mac release xcode builder
         'xcodebuild/%s/Google Chrome.app/Contents/MacOS/Google Chrome' % config,
     ])

@@ -35,7 +35,7 @@ GURL GetURL(content::WebContents* contents) {
 }
 
 // Returns true if |contents| is of an internal pages (such as
-// chrome://settings, chrome://extensions, ... etc) or the New Tab Page.
+// gtx://settings, gtx://extensions, ... etc) or the New Tab Page.
 bool IsInternalPage(content::WebContents* contents) {
   DCHECK(contents);
 

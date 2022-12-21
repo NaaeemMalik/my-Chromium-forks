@@ -1064,7 +1064,7 @@ const base::Feature kReleaseNotesSuggestionChip{
     "ReleaseNotesSuggestionChip", base::FEATURE_ENABLED_BY_DEFAULT};
 
 // Enables or disables Reven Log Source on Chrome OS. This adds hardware
-// information to Feedback reports and chrome://system on CloudReady systems.
+// information to Feedback reports and gtx://system on CloudReady systems.
 const base::Feature kRevenLogSource{"RevenLogSource",
                                     base::FEATURE_ENABLED_BY_DEFAULT};
 

@@ -2,16 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/icons.m.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
 import './shimless_rma_shared_css.js';
 import './base_page.js';
 import './icons.js';
 
-import {I18nBehavior, I18nBehaviorInterface} from 'chrome://resources/js/i18n_behavior.m.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {I18nBehavior, I18nBehaviorInterface} from 'gtx://resources/js/i18n_behavior.m.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {getShimlessRmaService} from './mojo_interface_provider.js';
 import {HardwareVerificationStatusObserverInterface, HardwareVerificationStatusObserverReceiver, OsUpdateObserverInterface, OsUpdateObserverReceiver, OsUpdateOperation, ShimlessRmaServiceInterface, StateResult} from './shimless_rma_types.js';

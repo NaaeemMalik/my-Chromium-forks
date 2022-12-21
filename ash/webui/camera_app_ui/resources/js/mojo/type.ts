@@ -68,4 +68,4 @@ export {
     '/mojom-webui/media/capture/video/chromeos/mojom/camera_metadata_tags.mojom-webui.js';
 export {
   PointF,
-} from 'chrome://resources/mojo/ui/gfx/geometry/mojom/geometry.mojom-webui.js';
+} from 'gtx://resources/mojo/ui/gfx/geometry/mojom/geometry.mojom-webui.js';

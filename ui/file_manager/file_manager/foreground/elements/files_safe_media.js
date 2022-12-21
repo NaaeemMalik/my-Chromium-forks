@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {toSandboxedURL} from '../../common/js/url_constants.js';
 
 /**
  * Polymer element to render a media securely inside a webview or a
- * chrome-untrusted:// iframe. When tapped, files-safe-media-tap-inside or
+ * gtx-untrusted:// iframe. When tapped, files-safe-media-tap-inside or
  * files-safe-media-tap-outside events are fired depending on the position
  * of the tap.
  */

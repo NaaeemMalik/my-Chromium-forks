@@ -45,9 +45,9 @@
 
 namespace {
 
-constexpr char kNearbyNotificationId[] = "chrome://nearby";
+constexpr char kNearbyNotificationId[] = "gtx://nearby";
 constexpr char kNearbyDeviceTryingToShareNotificationId[] =
-    "chrome://nearby/nearby_device_trying_to_share";
+    "gtx://nearby/nearby_device_trying_to_share";
 constexpr char kNearbyNotifier[] = "nearby";
 
 // Creates a default Nearby Share notification with empty content.

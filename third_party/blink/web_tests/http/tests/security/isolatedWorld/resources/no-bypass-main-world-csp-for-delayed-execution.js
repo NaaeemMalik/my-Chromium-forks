@@ -26,7 +26,7 @@ function test(message) {
     }
 
     var permissiveCSP = "script-src * 'unsafe-eval' 'unsafe-inline'";
-    var securityOrigin = "chrome-extension://123";
+    var securityOrigin = "gtx-extension://123";
 
     switch (tests) {
         case 3:

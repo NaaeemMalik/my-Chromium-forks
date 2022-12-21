@@ -11,7 +11,7 @@
 #include "components/translate/translate_internals/translate_internals_handler.h"
 #include "content/public/browser/web_ui_message_handler.h"
 
-// The handler for JavaScript messages for chrome://translate-internals.
+// The handler for JavaScript messages for gtx://translate-internals.
 class ChromeTranslateInternalsHandler
     : public translate::TranslateInternalsHandler,
       public content::WebUIMessageHandler {

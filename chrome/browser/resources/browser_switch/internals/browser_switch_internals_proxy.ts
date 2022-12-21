@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 import '../strings.m.js';
 
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
 
 export type Decision = {
   action: 'stay'|'go';

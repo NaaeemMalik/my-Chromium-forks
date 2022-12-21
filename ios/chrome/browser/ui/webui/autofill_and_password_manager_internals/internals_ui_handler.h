@@ -25,8 +25,8 @@ namespace autofill {
 web::WebUIIOSDataSource* CreateInternalsHTMLSource(
     const std::string& source_name);
 
-// The implementation for chrome://password-manager-internals and
-// chrome://autofill-internals. Use the GetLogRouterFunction parameter of the
+// The implementation for gtx://password-manager-internals and
+// gtx://autofill-internals. Use the GetLogRouterFunction parameter of the
 // constructor to inject the corresponding LogRouter.
 class InternalsUIHandler : public web::WebUIIOSMessageHandler,
                            public autofill::LogReceiver {

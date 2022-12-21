@@ -98,8 +98,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bluetooth-pairing/*",
-      "chrome://os-settings/*"
+      "gtx://bluetooth-pairing/*",
+      "gtx://os-settings/*"
     ]
   }],
   "bluetoothLowEnergy": {
@@ -114,8 +114,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bluetooth-pairing/*",
-      "chrome://os-settings/*"
+      "gtx://bluetooth-pairing/*",
+      "gtx://os-settings/*"
     ]
   }],
   "bluetoothSocket": {
@@ -189,9 +189,9 @@
       "channel": "stable",
       "contexts": ["webui"],
       "matches": [
-        "chrome://feedback/*",
-        "chrome://cast-feedback/*",
-        "chrome://os-feedback/*"
+        "gtx://feedback/*",
+        "gtx://cast-feedback/*",
+        "gtx://os-feedback/*"
       ]
     }
   ],
@@ -204,7 +204,7 @@
       "channel": "stable",
       "contexts": ["webui"],
       "matches": [
-        "chrome://feedback/*"
+        "gtx://feedback/*"
       ]
     }
   ],
@@ -223,18 +223,18 @@
       "channel": "stable",
       "contexts": ["webui"],
       "matches": [
-        "chrome://add-supervision/*",
-        "chrome://assistant-optin/*",
-        "chrome://discards/*",
-        "chrome://extensions/*",
-        "chrome://home/*",
-        "chrome://chrome-signin/*",
-        "chrome://mobilesetup/*",
-        "chrome://oobe/*",
-        "chrome://os-settings/*",
-        "chrome://parent-access/*",
-        "chrome://password-change/*",
-        "chrome://lock-reauth/*"
+        "gtx://add-supervision/*",
+        "gtx://assistant-optin/*",
+        "gtx://discards/*",
+        "gtx://extensions/*",
+        "gtx://home/*",
+        "gtx://chrome-signin/*",
+        "gtx://mobilesetup/*",
+        "gtx://oobe/*",
+        "gtx://os-settings/*",
+        "gtx://parent-access/*",
+        "gtx://password-change/*",
+        "gtx://lock-reauth/*"
       ]
     }
   ],
@@ -269,8 +269,8 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://extensions/*",
-      "chrome://settings/*"
+      "gtx://extensions/*",
+      "gtx://settings/*"
     ]
   }],
   "management.getPermissionWarningsByManifest": {
@@ -316,30 +316,30 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*",
-      "chrome://download-shelf.top-chrome/*",
-      "chrome://eche-app/*",
-      "chrome://extensions/*",
-      "chrome://file-manager/*",
-      "chrome://help-app/*",
-      "chrome://history/*",
-      "chrome://new-tab-page/*",
-      "chrome://os-settings/*",
-      "chrome://profile-picker/*",
-      "chrome://read-later.top-chrome/*",
-      "chrome://settings/*",
-      "chrome://sync-confirmation/*",
-      "chrome://tab-search.top-chrome/*",
-      "chrome://tab-strip.top-chrome/*",
-      "chrome://welcome/*"
+      "gtx://bookmarks/*",
+      "gtx://download-shelf.top-chrome/*",
+      "gtx://eche-app/*",
+      "gtx://extensions/*",
+      "gtx://file-manager/*",
+      "gtx://help-app/*",
+      "gtx://history/*",
+      "gtx://new-tab-page/*",
+      "gtx://os-settings/*",
+      "gtx://profile-picker/*",
+      "gtx://read-later.top-chrome/*",
+      "gtx://settings/*",
+      "gtx://sync-confirmation/*",
+      "gtx://tab-search.top-chrome/*",
+      "gtx://tab-strip.top-chrome/*",
+      "gtx://welcome/*"
     ]
   }, {
     "channel": "stable",
     "contexts": ["webui_untrusted"],
     "matches": [
-      "chrome-untrusted://help-app/*",
-      "chrome-untrusted://media-app/*",
-      "chrome-untrusted://projector/*"
+      "gtx-untrusted://help-app/*",
+      "gtx-untrusted://media-app/*",
+      "gtx-untrusted://projector/*"
     ]
   }],
   "metricsPrivate.getIsCrashReportingEnabled": {
@@ -417,11 +417,11 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://network/*",
-      "chrome://oobe/*",
-      "chrome://internet-config-dialog/*",
-      "chrome://internet-detail-dialog/*",
-      "chrome://os-settings/*"
+      "gtx://network/*",
+      "gtx://oobe/*",
+      "gtx://internet-config-dialog/*",
+      "gtx://internet-detail-dialog/*",
+      "gtx://os-settings/*"
     ]
   }],
   "power": {
@@ -481,7 +481,7 @@
     "contexts": ["webui_untrusted"],
     "matches": [
       // Allow only nassh.html page in Terminal System Web App.
-      "chrome-untrusted://terminal/html/nassh.html"
+      "gtx-untrusted://terminal/html/nassh.html"
     ]
   }],
   "runtime.connectNative": {
@@ -543,15 +543,15 @@
   },{
     "contexts": ["webui"],
     "matches": [
-      "chrome://password-change/*",
-      "chrome://file-manager/*"
+      "gtx://password-change/*",
+      "gtx://file-manager/*"
     ]
   },{
     "channel": "dev",
     "contexts": ["webui_untrusted"],
     "matches": [
       // Allow only nassh.html page in Terminal System Web App.
-      "chrome-untrusted://terminal/html/nassh.html"
+      "gtx-untrusted://terminal/html/nassh.html"
     ]
   }],
   "runtime.sendNativeMessage": {
@@ -596,7 +596,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://os-settings/*"
+      "gtx://os-settings/*"
     ]
   }],
   "system.memory": {
@@ -630,15 +630,15 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://extensions/*",
+      "gtx://extensions/*",
       // System Web App version of File Manager.
-      "chrome://file-manager/*",
-      "chrome://test/*"
+      "gtx://file-manager/*",
+      "gtx://test/*"
     ]
   }, {
     "channel": "stable",
     "contexts": [ "webui_untrusted" ],
-    "matches": [ "chrome-untrusted://api-test/*" ]
+    "matches": [ "gtx-untrusted://api-test/*" ]
   }],
   "types": {
     "internal": true,
@@ -672,17 +672,17 @@
     "internal": true,
     "contexts": ["webui"],
     "matches": [
-      "chrome://add-supervision/*",
-      "chrome://assistant-optin/*",
-      "chrome://chrome-signin/*",
-      "chrome://discards/*",
-      "chrome://home/*",
-      "chrome://mobilesetup/*",
-      "chrome://oobe/*",
-      "chrome://os-settings/*",
-      "chrome://parent-access/*",
-      "chrome://password-change/*",
-      "chrome://lock-reauth/*"
+      "gtx://add-supervision/*",
+      "gtx://assistant-optin/*",
+      "gtx://chrome-signin/*",
+      "gtx://discards/*",
+      "gtx://home/*",
+      "gtx://mobilesetup/*",
+      "gtx://oobe/*",
+      "gtx://os-settings/*",
+      "gtx://parent-access/*",
+      "gtx://password-change/*",
+      "gtx://lock-reauth/*"
     ]
   }],
   "webViewInternal": [{
@@ -694,17 +694,17 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://add-supervision/*",
-      "chrome://assistant-optin/*",
-      "chrome://chrome-signin/*",
-      "chrome://discards/*",
-      "chrome://home/*",
-      "chrome://mobilesetup/*",
-      "chrome://oobe/*",
-      "chrome://os-settings/*",
-      "chrome://parent-access/*",
-      "chrome://password-change/*",
-      "chrome://lock-reauth/*"
+      "gtx://add-supervision/*",
+      "gtx://assistant-optin/*",
+      "gtx://chrome-signin/*",
+      "gtx://discards/*",
+      "gtx://home/*",
+      "gtx://mobilesetup/*",
+      "gtx://oobe/*",
+      "gtx://os-settings/*",
+      "gtx://parent-access/*",
+      "gtx://password-change/*",
+      "gtx://lock-reauth/*"
     ]
   }],
   "webViewRequest": [{
@@ -714,15 +714,15 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://add-supervision/*",
-      "chrome://assistant-optin/*",
-      "chrome://chrome-signin/*",
-      "chrome://discards/*",
-      "chrome://home/*",
-      "chrome://mobilesetup/*",
-      "chrome://oobe/*",
-      "chrome://os-settings/*",
-      "chrome://parent-access/*"
+      "gtx://add-supervision/*",
+      "gtx://assistant-optin/*",
+      "gtx://chrome-signin/*",
+      "gtx://discards/*",
+      "gtx://home/*",
+      "gtx://mobilesetup/*",
+      "gtx://oobe/*",
+      "gtx://os-settings/*",
+      "gtx://parent-access/*"
     ]
   }]
 }

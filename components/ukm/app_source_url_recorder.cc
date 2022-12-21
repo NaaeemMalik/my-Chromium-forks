@@ -26,7 +26,7 @@ SourceId AppSourceUrlRecorder::GetSourceIdForChromeApp(
 
 SourceId AppSourceUrlRecorder::GetSourceIdForChromeExtension(
     const std::string& id) {
-  GURL url("chrome-extension://" + id);
+  GURL url("gtx-extension://" + id);
   return GetSourceIdForUrl(url, AppType::kExtension);
 }
 

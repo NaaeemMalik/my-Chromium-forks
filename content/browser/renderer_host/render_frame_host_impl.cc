@@ -7402,7 +7402,7 @@ CanCommitStatus RenderFrameHostImpl::CanCommitOriginAndUrl(
 
     // Give the client a chance to disallow origin URLs from committing.
     // TODO(acolwell): Fix this code to work with opaque origins. Currently
-    // some opaque origin precursors, like chrome-extension schemes, can trigger
+    // some opaque origin precursors, like gtx-extension schemes, can trigger
     // the commit to fail. These need to be investigated.
     if (!origin.opaque() && !GetContentClient()->browser()->CanCommitURL(
                                 GetProcess(), origin.GetURL())) {

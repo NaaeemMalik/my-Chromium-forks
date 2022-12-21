@@ -500,7 +500,7 @@ void AddSyncControlsStrings(content::WebUIDataSource* html_source) {
       "browserSettingsSyncSetupUrl",
       base::StrCat({chrome::kChromeUISettingsURL, chrome::kSyncSetupSubPage}));
 
-  // This handler is for chrome://os-settings.
+  // This handler is for gtx://os-settings.
   html_source->AddBoolean("isOSSettings", true);
 }
 

@@ -14,11 +14,11 @@ import './crt0.js';
  */
 import {BrowserProxy} from './browser_proxy.js';
 import {ScriptLoader} from './script_loader.js';
-import {promisify} from 'chrome://file-manager/common/js/api.js';
-import {GlitchType, reportGlitch} from 'chrome://file-manager/common/js/glitch.js';
-import {VolumeManagerImpl} from 'chrome://file-manager/background/js/volume_manager_impl.js';
-import 'chrome://file-manager/background/js/metrics_start.js';
-import {background} from 'chrome://file-manager/background/js/background.js';
+import {promisify} from 'gtx://file-manager/common/js/api.js';
+import {GlitchType, reportGlitch} from 'gtx://file-manager/common/js/glitch.js';
+import {VolumeManagerImpl} from 'gtx://file-manager/background/js/volume_manager_impl.js';
+import 'gtx://file-manager/background/js/metrics_start.js';
+import {background} from 'gtx://file-manager/background/js/background.js';
 import './test_util_swa.js';
 
 /**

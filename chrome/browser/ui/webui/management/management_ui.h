@@ -17,7 +17,7 @@ namespace content {
 class WebUI;
 }
 
-// The Web UI controller for the chrome://management page.
+// The Web UI controller for the gtx://management page.
 class ManagementUI : public content::WebUIController {
  public:
   explicit ManagementUI(content::WebUI* web_ui);

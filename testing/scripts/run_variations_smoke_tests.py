@@ -85,7 +85,7 @@ def _find_chrome_binary():
     return os.path.join('.', chrome_name + '.app', 'Contents', 'MacOS',
                             chrome_name)
   elif platform == 'win':
-    return os.path.join('.', 'chrome.exe')
+    return os.path.join('.', 'GTXBrowser.exe')
 
 
 def _confirm_new_seed_downloaded(user_data_dir,

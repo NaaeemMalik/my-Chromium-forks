@@ -12,7 +12,7 @@
 
 char kActiveTabSwitch[] = "active-tab";
 char kChromeSwitch[] = "chrome";
-char kChromiumSwitch[] = "chromium";
+char kChromiumSwitch[] = "gtxbrowser";
 char kFirefoxSwitch[] = "firefox";
 char kEdgeSwitch[] = "edge";
 char kPatternSwitch[] = "pattern";

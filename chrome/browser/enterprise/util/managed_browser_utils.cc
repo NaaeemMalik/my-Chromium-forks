@@ -239,7 +239,7 @@ std::string GetAccountManagerName(Profile* profile) {
   DCHECK(profile);
 
   // @TODO(https://crbug.com/1227786): There are some use-cases where the
-  // expected behavior of chrome://management is to show more than one domain.
+  // expected behavior of gtx://management is to show more than one domain.
   return GetAccountManagerIdentity(profile).value_or(std::string());
 }
 

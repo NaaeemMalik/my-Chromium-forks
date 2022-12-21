@@ -33,7 +33,7 @@ namespace storage_monitor {
 namespace {
 
 // Name of the client application that communicates with the MTP device.
-const wchar_t kClientName[] = L"Chromium";
+const wchar_t kClientName[] = L"GTX Browser";
 
 // Returns true if |data| represents a class of portable devices.
 bool IsPortableDeviceStructure(LPARAM data) {

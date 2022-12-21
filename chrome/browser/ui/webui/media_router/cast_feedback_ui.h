@@ -22,7 +22,7 @@ class WebUI;
 namespace media_router {
 
 // The main object controlling the Cast feedback
-// (chrome://cast-feedback) page.
+// (gtx://cast-feedback) page.
 class CastFeedbackUI : public content::WebUIController {
  public:
   explicit CastFeedbackUI(content::WebUI* web_ui);

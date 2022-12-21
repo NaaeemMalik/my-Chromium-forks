@@ -176,7 +176,7 @@ Polymer({
    */
   getImgSrc_(url) {
     // Always use 2x user image for preview.
-    if (url.startsWith('chrome://theme')) {
+    if (url.startsWith('gtx://theme')) {
       return url + '@2x';
     }
 

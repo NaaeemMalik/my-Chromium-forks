@@ -13,7 +13,7 @@ namespace web {
 class WebUIIOS;
 }
 
-// The WebUI controller for chrome://translate-internals.
+// The WebUI controller for gtx://translate-internals.
 class TranslateInternalsUI : public web::WebUIIOSController {
  public:
   explicit TranslateInternalsUI(web::WebUIIOS* web_ui, const std::string& host);

@@ -30,7 +30,7 @@ trap cleanup 0
 
 LOCKFILE="${OUTPUTDIR}/snap-lock"
 TMPFILEDIR="${OUTPUTDIR}/snap-${CHANNEL}"
-STAGEDIR="${TMPFILEDIR}/chrome"
+STAGEDIR="${TMPFILEDIR}/gtxbrowser"
 mkdir -p "${STAGEDIR}"
 
 cp "${OUTPUTDIR}/installer/version.txt" "${TMPFILEDIR}/"
@@ -49,7 +49,7 @@ USR_BIN_SYMLINK_NAME= # unused, but needs to be set
 SHLIB_PERMS=644
 BRANDING="$(echo ${SNAPNAME} | tr '-' '_')"
 stage_install_common
-LAUNCHER_SCRIPT="${TMPFILEDIR}/chrome.launcher"
+LAUNCHER_SCRIPT="${TMPFILEDIR}/gtxbrowser.launcher"
 process_template "${SCRIPTDIR}/chrome.launcher.in" "${LAUNCHER_SCRIPT}"
 chmod +x "${LAUNCHER_SCRIPT}"
 process_template "${SCRIPTDIR}/snapcraft.yaml.in" "${TMPFILEDIR}/snapcraft.yaml"
@@ -67,7 +67,7 @@ cd "${TMPFILEDIR}"
 # Use flock to serialize all executions of snapcraft, as it currently
 # doesn't handle well concurrent builds for the same snap name
 # (https://bugs.launchpad.net/snapcraft/+bug/1869030).
-flock "${LOCKFILE}" snapcraft
+flock "${LOCKFILE}" snapcraft --destructive-mode
 
 mv "${SNAPNAME}_${VERSION}_${SNAP_ARCH}.snap" \
   "${OUTPUTDIR}/${SNAPNAME}-${CHANNEL}_${VERSION}_${SNAP_ARCH}.snap"

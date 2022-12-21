@@ -169,7 +169,7 @@ Value ArrayPolicyConversions::ToValue() {
 
 #if !defined(OS_CHROMEOS)
     // Precedence policies do not apply to Chrome OS, so the Policy Precedence
-    // table is not shown in chrome://policy.
+    // table is not shown in gtx://policy.
     all_policies.Append(GetPrecedencePolicies());
 #endif  // !defined(OS_CHROMEOS)
 

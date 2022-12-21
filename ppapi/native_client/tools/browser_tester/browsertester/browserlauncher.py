@@ -241,7 +241,7 @@ class ChromeLauncher(BrowserLauncher):
     if PLATFORM == 'mac':
       return 'Google Chrome'
     elif PLATFORM == 'windows':
-      return 'chrome.exe'
+      return 'GTXBrowser.exe'
     else:
       return 'chrome'
 

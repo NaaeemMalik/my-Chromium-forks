@@ -28,6 +28,8 @@ COMPONENT_EXPORT(URL) extern const char kFileSystemScheme[];
 COMPONENT_EXPORT(URL) extern const char kFtpScheme[];
 COMPONENT_EXPORT(URL) extern const char kHttpScheme[];
 COMPONENT_EXPORT(URL) extern const char kHttpsScheme[];
+COMPONENT_EXPORT(URL) extern const char kIpfsScheme[];
+COMPONENT_EXPORT(URL) extern const char kWalletScheme[];
 COMPONENT_EXPORT(URL) extern const char kJavaScriptScheme[];
 COMPONENT_EXPORT(URL) extern const char kMailToScheme[];
 COMPONENT_EXPORT(URL) extern const char kQuicTransportScheme[];

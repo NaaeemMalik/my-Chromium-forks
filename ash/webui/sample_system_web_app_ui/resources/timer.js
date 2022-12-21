@@ -4,7 +4,7 @@
 
 const workerUrlPolicy = trustedTypes.createPolicy(
     'worker-js-static',
-    {createScriptURL: () => 'chrome://sample-system-web-app/worker.js'});
+    {createScriptURL: () => 'gtx://sample-system-web-app/worker.js'});
 const myWorker = new SharedWorker(workerUrlPolicy.createScriptURL(''));
 
 myWorker.port.onmessage = (e) => {

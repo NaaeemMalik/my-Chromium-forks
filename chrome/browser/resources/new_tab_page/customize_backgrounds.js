@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/cr_grid/cr_grid.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/cr_grid/cr_grid.js';
 import './mini_page.js';
 import './iframe.js';
 
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {I18nBehavior, loadTimeData} from './i18n_setup.js';
 import {NewTabPageProxy} from './new_tab_page_proxy.js';
@@ -88,7 +88,7 @@ class CustomizeBackgroundsElement extends mixinBehaviors
   getCustomBackgroundClass_() {
     return this.theme && this.theme.backgroundImage &&
             this.theme.backgroundImage.url.url.startsWith(
-                'chrome-untrusted://new-tab-page/background.jpg') ?
+                'gtx-untrusted://new-tab-page/background.jpg') ?
         'selected' :
         '';
   }

@@ -164,7 +164,7 @@ class WebAppInstallTask : content::WebContentsObserver {
   void WebContentsDestroyed() override;
 
   // Collects install errors (unbounded) if the |kRecordWebAppDebugInfo|
-  // flag is enabled to be used by: chrome://web-app-internals
+  // flag is enabled to be used by: gtx://web-app-internals
   base::Value TakeErrorDict();
 
   void SetInstallFinalizerForTesting(WebAppInstallFinalizer* install_finalizer);

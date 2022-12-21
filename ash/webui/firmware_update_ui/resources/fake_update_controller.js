@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {FakeObservables} from 'chrome://resources/ash/common/fake_observables.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
+import {FakeObservables} from 'gtx://resources/ash/common/fake_observables.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
 
 import {fakeFirmwareUpdates, fakeInstallationProgress} from './fake_data.js';
 import {InstallationProgress, UpdateControllerInterface, UpdateProgressObserver, UpdateProviderInterface} from './firmware_update_types.js';

@@ -17,8 +17,8 @@ class RefCountedString;
 
 namespace chromeos {
 
-// This class provides the source for chrome://slow_trace/.  It needs to be a
-// separate handler that chrome://slow, because URLDataSource and
+// This class provides the source for gtx://slow_trace/.  It needs to be a
+// separate handler that gtx://slow, because URLDataSource and
 // WebUIDataSource are not descended from each other, and WebUIDataSource
 // doesn't allow the MimeType to be dynamically specified.
 class SlowTraceSource : public content::URLDataSource {

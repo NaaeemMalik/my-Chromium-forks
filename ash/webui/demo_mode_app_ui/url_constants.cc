@@ -7,6 +7,6 @@
 namespace ash {
 
 const char kChromeUIDemoModeAppHost[] = "demo-mode-app";
-const char kChromeUIDemoModeAppURL[] = "chrome://demo-mode-app/";
+const char kChromeUIDemoModeAppURL[] = "gtx://demo-mode-app/";
 
 }  // namespace ash

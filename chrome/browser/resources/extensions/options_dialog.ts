@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
 
-import {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {Debouncer, html, PolymerElement, timeOut} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {Debouncer, html, PolymerElement, timeOut} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {navigation, Page} from './navigation_helper.js';
 

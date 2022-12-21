@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {quoteString} from 'chrome://resources/js/util.m.js';
-import {get as deepGet} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {quoteString} from 'gtx://resources/js/util.m.js';
+import {get as deepGet} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import Fuse from './fuse.js';
 import {ItemData} from './tab_data.js';

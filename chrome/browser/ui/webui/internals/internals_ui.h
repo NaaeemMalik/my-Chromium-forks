@@ -21,8 +21,8 @@ namespace content {
 class WebUI;
 }  // namespace content
 
-// Client could put debug WebUI as sub-URL under chrome://internals/.
-// e.g. chrome://internals/your-feature.
+// Client could put debug WebUI as sub-URL under gtx://internals/.
+// e.g. gtx://internals/your-feature.
 class InternalsUI : public ui::MojoWebUIController {
  public:
   explicit InternalsUI(content::WebUI* web_ui);
@@ -39,10 +39,10 @@ class InternalsUI : public ui::MojoWebUIController {
   WEB_UI_CONTROLLER_TYPE_DECL();
 
 #if defined(OS_ANDROID)
-  // Add resources and message handler for chrome://internals/query-tiles.
+  // Add resources and message handler for gtx://internals/query-tiles.
   void AddQueryTilesInternals(content::WebUI* web_ui);
 
-  // Add resources and message handler for chrome://internals/lens.
+  // Add resources and message handler for gtx://internals/lens.
   void AddLensInternals(content::WebUI* web_ui);
 #endif  // defined(OS_ANDROID)
 

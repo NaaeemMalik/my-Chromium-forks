@@ -8,7 +8,7 @@
 
 /**
  * @fileoverview Externs for objects sent from C++ to
- * chrome-search://most-visited/title.html.
+ * gtx-search://most-visited/title.html.
  * @externs
  */
 

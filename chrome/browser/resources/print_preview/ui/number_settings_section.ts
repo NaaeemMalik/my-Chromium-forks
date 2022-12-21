@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
 import './print_preview_shared_css.js';
 import './print_preview_vars_css.js';
 import './settings_section.js';
 
-import {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {InputMixin} from './input_mixin.js';
 

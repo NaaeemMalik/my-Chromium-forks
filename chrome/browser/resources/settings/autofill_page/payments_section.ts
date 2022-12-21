@@ -7,12 +7,12 @@
  * credit cards for use in autofill and payments APIs.
  */
 
-import 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+import 'gtx://resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_link_row/cr_link_row.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '../settings_shared_css.js';
 import '../controls/settings_toggle_button.js';
 import '../prefs/prefs.js';
@@ -20,12 +20,12 @@ import './credit_card_edit_dialog.js';
 import './passwords_shared_css.js';
 import './payments_list.js';
 
-import {CrActionMenuElement} from 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {focusWithoutInk} from 'chrome://resources/js/cr/ui/focus_without_ink.m.js';
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrActionMenuElement} from 'gtx://resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import {CrButtonElement} from 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {focusWithoutInk} from 'gtx://resources/js/cr/ui/focus_without_ink.m.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {SettingsToggleButtonElement} from '../controls/settings_toggle_button.js';
 import {loadTimeData} from '../i18n_setup.js';

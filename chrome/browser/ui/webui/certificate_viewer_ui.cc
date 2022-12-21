@@ -52,7 +52,7 @@ content::WebUIDataSource* GetWebUIDataSource(const std::string& host) {
       "trusted-types static-types certificate-test-script;");
   html_source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
-      "script-src chrome://resources chrome://test 'self';");
+      "script-src gtx://resources gtx://test 'self';");
 
   html_source->UseStringsJs();
 
@@ -69,7 +69,7 @@ content::WebUIDataSource* GetWebUIDataSource(const std::string& host) {
 
 CertificateViewerUI::CertificateViewerUI(content::WebUI* web_ui)
     : ConstrainedWebDialogUI(web_ui) {
-  // Set up the chrome://view-cert source.
+  // Set up the gtx://view-cert source.
   Profile* profile = Profile::FromWebUI(web_ui);
   content::WebUIDataSource::Add(
       profile,

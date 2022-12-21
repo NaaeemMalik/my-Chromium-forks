@@ -20,7 +20,7 @@ const GuestTosScreenState = {
  * URL to use when online page is not available.
  * @type {string}
  */
-const GUEST_TOS_EULA_TERMS_URL = 'chrome://terms';
+const GUEST_TOS_EULA_TERMS_URL = 'gtx://terms';
 
 /**
  * @constructor

@@ -21,10 +21,10 @@
    * @type {Array<string>}
    */
   const ALLOWED_ORIGINS = [
-    'chrome://oobe',
-    'chrome://chrome-signin',
-    'chrome://password-change',
-    'chrome://lock-reauth'
+    'gtx://oobe',
+    'gtx://chrome-signin',
+    'gtx://password-change',
+    'gtx://lock-reauth'
   ];
 
   /** @const */

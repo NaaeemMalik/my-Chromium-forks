@@ -82,8 +82,8 @@ export class PDFScriptingAPI {
 
     window.addEventListener('message', event => {
       if (event.origin !==
-              'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai' &&
-          event.origin !== 'chrome://print') {
+              'gtx-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai' &&
+          event.origin !== 'gtx://print') {
         console.error(
             'Received message that was not from the extension: ' + event);
         return;

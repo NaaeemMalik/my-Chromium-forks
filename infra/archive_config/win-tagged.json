@@ -2,7 +2,7 @@
 	"archive_datas": [
         {
             "files": [
-                "chrome.exe",
+                "GTXBrowser.exe",
                 "chrome.dll",
                 "chrome_100_percent.pak",
                 "chrome_200_percent.pak",

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {$} from 'chrome://resources/js/util.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 import {SegmentationInternalsBrowserProxy} from './segmentation_internals_browser_proxy.js';
 

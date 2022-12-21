@@ -49,7 +49,7 @@ GURL GetParentAccessURL(std::string caller_id,
   const GURL base_url(url);
   GURL::Replacements replacements;
   std::string query_string = base::StringPrintf(
-      "callerid=%s&hl=%s&platform_version=%s&cros-origin=chrome://"
+      "callerid=%s&hl=%s&platform_version=%s&cros-origin=gtx://"
       "parent-access",
       caller_id.c_str(), language_code.c_str(), platform_version.c_str());
   replacements.SetQueryStr(query_string);
@@ -153,7 +153,7 @@ void ParentAccessUI::SetUpResources() {
 
   // Allows loading of local content into an iframe for testing.
   source->OverrideContentSecurityPolicy(
-      network::mojom::CSPDirectiveName::FrameSrc, "frame-src chrome://test/;");
+      network::mojom::CSPDirectiveName::FrameSrc, "frame-src gtx://test/;");
 
   content::WebUIDataSource::Add(profile, source.release());
 }

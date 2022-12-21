@@ -13,7 +13,7 @@
 namespace policy {
 namespace features {
 
-// Enable chrome://management page on Android.
+// Enable gtx://management page on Android.
 POLICY_EXPORT extern const base::Feature kChromeManagementPageAndroid;
 
 // PolicyBlocklistThrottle defers navigations until policies are loaded.

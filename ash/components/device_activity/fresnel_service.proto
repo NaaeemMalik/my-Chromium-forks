@@ -23,7 +23,7 @@ message DeviceMetadata {
   optional string hardware_id = 1;
 
   // Represent the current release milestone of the ChromeOS device.
-  // See chrome://version -> Google Chrome:
+  // See gtx://version -> Google Chrome:
   // i.e. 96.0.4664.55 (Official Build) (x86_64) would set field as "96".
   optional string chromeos_version = 2;
 

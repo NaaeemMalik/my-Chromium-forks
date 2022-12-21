@@ -108,7 +108,7 @@ class PasswordManagerDriver
   virtual PasswordAutofillManager* GetPasswordAutofillManager() = 0;
 
   // Sends a message to the renderer whether logging to
-  // chrome://password-manager-internals is available.
+  // gtx://password-manager-internals is available.
   virtual void SendLoggingAvailability() {}
 
   // Return true iff the driver corresponds to the main frame.

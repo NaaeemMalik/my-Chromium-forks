@@ -61,7 +61,7 @@ enum class NewScreencastPreconditionReason {
   kOthers = 8
 };
 
-// Handles messages from the Projector WebUIs (i.e. chrome://projector).
+// Handles messages from the Projector WebUIs (i.e. gtx://projector).
 class ProjectorMessageHandler : public content::WebUIMessageHandler,
                                 public ProjectorAppClient::Observer {
  public:

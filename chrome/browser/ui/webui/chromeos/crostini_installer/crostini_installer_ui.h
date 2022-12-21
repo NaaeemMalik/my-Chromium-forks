@@ -15,7 +15,7 @@ namespace chromeos {
 
 class CrostiniInstallerPageHandler;
 
-// The WebUI for chrome://crostini-installer
+// The WebUI for gtx://crostini-installer
 class CrostiniInstallerUI
     : public ui::MojoWebDialogUI,
       public chromeos::crostini_installer::mojom::PageHandlerFactory {

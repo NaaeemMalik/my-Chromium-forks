@@ -8,17 +8,17 @@
  * or out.
  */
 
-import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'chrome://resources/cr_elements/icons.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
 import '../settings_shared_css.js';
 import '../site_favicon.js';
 
-import {ListPropertyUpdateMixin} from 'chrome://resources/js/list_property_update_mixin.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {IronListElement} from 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {ListPropertyUpdateMixin} from 'gtx://resources/js/list_property_update_mixin.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {IronListElement} from 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {SiteSettingsMixin} from './site_settings_mixin.js';
 import {ZoomLevelEntry} from './site_settings_prefs_browser_proxy.js';

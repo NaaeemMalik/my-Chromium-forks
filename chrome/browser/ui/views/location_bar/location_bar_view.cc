@@ -799,10 +799,11 @@ void LocationBarView::Update(WebContents* contents) {
   RefreshPageActionIconViews();
   location_icon_view_->Update(/*suppress_animations=*/contents);
 
-  if (contents)
+  if (contents) {
     omnibox_view_->OnTabChanged(contents);
-  else
+  } else {
     omnibox_view_->Update();
+  }
 
   PageActionIconView* send_tab_to_self_icon =
       page_action_icon_controller_->GetIconView(

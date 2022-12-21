@@ -427,7 +427,7 @@ void NotificationHeaderView::UpdateColors() {
   if (expand_button_) {
     expand_button_->SetImage(
         gfx::CreateVectorIcon(is_expanded_ ? kNotificationExpandLessIcon
-                                           : kNotificationExpandMoreIcon,
+                                           : kNotificationExpandMoreIcon, 
                               kExpandIconSize, actual_color));
   }
 

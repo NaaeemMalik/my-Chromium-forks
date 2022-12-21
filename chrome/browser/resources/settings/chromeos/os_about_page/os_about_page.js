@@ -549,7 +549,7 @@ Polymer({
     switch (this.currentUpdateStatusEvent_.status) {
       case UpdateStatus.CHECKING:
       case UpdateStatus.UPDATING:
-        return 'chrome://resources/images/throbber_small.svg';
+        return 'gtx://resources/images/throbber_small.svg';
       default:
         return null;
     }
@@ -566,7 +566,7 @@ Polymer({
 
   /** @private */
   onManagementPageClick_() {
-    window.open('chrome://management');
+    window.open('gtx://management');
   },
 
   /**

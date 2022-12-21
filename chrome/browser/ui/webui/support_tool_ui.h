@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The C++ back-end for the chrome://support-tool webui page.
+// The C++ back-end for the gtx://support-tool webui page.
 class SupportToolUI : public content::WebUIController {
  public:
   explicit SupportToolUI(content::WebUI* web_ui);

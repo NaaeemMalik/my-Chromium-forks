@@ -3,17 +3,17 @@
 // found in the LICENSE file.
 
 import './strings.m.js';
-import 'chrome://resources/js/action_link.js';
+import 'gtx://resources/js/action_link.js';
 
 // <if expr="is_ios">
-import 'chrome://resources/js/ios/web_ui.js';
+import 'gtx://resources/js/ios/web_ui.js';
 // </if>
 
-import {addSingletonGetter, addWebUIListener} from 'chrome://resources/js/cr.m.js';
-import {define as crUiDefine} from 'chrome://resources/js/cr/ui.m.js';
-import {FocusOutlineManager} from 'chrome://resources/js/cr/ui/focus_outline_manager.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {addSingletonGetter, addWebUIListener} from 'gtx://resources/js/cr.m.js';
+import {define as crUiDefine} from 'gtx://resources/js/cr/ui.m.js';
+import {FocusOutlineManager} from 'gtx://resources/js/cr/ui/focus_outline_manager.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 /**
  * @typedef {{

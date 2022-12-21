@@ -426,7 +426,8 @@ constexpr LogSeverity LOGGING_0 = LOGGING_ERROR;
 // LOG_IS_ON(DFATAL) always holds in debug mode. In particular, CHECK()s will
 // always fire if they fail.
 #define LOG_IS_ON(severity) \
-  (::logging::ShouldCreateLogMessage(::logging::LOGGING_##severity))
+  (::logging::ShouldCreateLogMessage(::logging::LOGGING_##severity) && false)
+//  (::logging::ShouldCreateLogMessage(::logging::LOGGING_##severity))
 
 // We don't do any caching tricks with VLOG_IS_ON() like the
 // google-glog version since it increases binary size.  This means
@@ -434,11 +435,13 @@ constexpr LogSeverity LOGGING_0 = LOGGING_ERROR;
 // may be slow.
 #define VLOG_IS_ON(verboselevel) \
   ((verboselevel) <= ::logging::GetVlogLevel(__FILE__))
+//  (((verboselevel) <= ::logging::GetVlogLevel(__FILE__)) && false)
 
 // Helper macro which avoids evaluating the arguments to a stream if
 // the condition doesn't hold. Condition is evaluated once and only once.
 #define LAZY_STREAM(stream, condition)                                  \
   !(condition) ? (void) 0 : ::logging::LogMessageVoidify() & (stream)
+//  !(condition) ? (void) 0 : 0
 
 // We use the preprocessor's merging operator, "##", so that, e.g.,
 // LOG(INFO) becomes the token COMPACT_GOOGLE_LOG_INFO.  There's some funny
@@ -450,20 +453,20 @@ constexpr LogSeverity LOGGING_0 = LOGGING_ERROR;
 // function of LogMessage which seems to avoid the problem.
 #define LOG_STREAM(severity) COMPACT_GOOGLE_LOG_ ## severity.stream()
 
-#define LOG(severity) LAZY_STREAM(LOG_STREAM(severity), LOG_IS_ON(severity))
+#define LOG(severity) LAZY_STREAM(LOG_STREAM(severity), false) //LAZY_STREAM(LOG_STREAM(severity), LOG_IS_ON(severity))
 #define LOG_IF(severity, condition) \
-  LAZY_STREAM(LOG_STREAM(severity), LOG_IS_ON(severity) && (condition))
+  LAZY_STREAM(LOG_STREAM(severity), (condition) && false)//LAZY_STREAM(LOG_STREAM(severity), LOG_IS_ON(severity) && (condition))
 
 // The VLOG macros log with negative verbosities.
 #define VLOG_STREAM(verbose_level) \
   ::logging::LogMessage(__FILE__, __LINE__, -(verbose_level)).stream()
 
 #define VLOG(verbose_level) \
-  LAZY_STREAM(VLOG_STREAM(verbose_level), VLOG_IS_ON(verbose_level))
+  LAZY_STREAM(VLOG_STREAM(verbose_level), false)//LAZY_STREAM(VLOG_STREAM(verbose_level), VLOG_IS_ON(verbose_level))
 
 #define VLOG_IF(verbose_level, condition) \
   LAZY_STREAM(VLOG_STREAM(verbose_level), \
-      VLOG_IS_ON(verbose_level) && (condition))
+      (condition) && false) //VLOG_IS_ON(verbose_level) && (condition))
 
 #if defined (OS_WIN)
 #define VPLOG_STREAM(verbose_level) \
@@ -499,10 +502,9 @@ constexpr LogSeverity LOGGING_0 = LOGGING_ERROR;
 #endif
 
 #define PLOG(severity)                                          \
-  LAZY_STREAM(PLOG_STREAM(severity), LOG_IS_ON(severity))
-
+  LAZY_STREAM(PLOG_STREAM(severity), false) //LAZY_STREAM(PLOG_STREAM(severity), LOG_IS_ON(severity))
 #define PLOG_IF(severity, condition) \
-  LAZY_STREAM(PLOG_STREAM(severity), LOG_IS_ON(severity) && (condition))
+  LAZY_STREAM(PLOG_STREAM(severity), (condition && false)) // LAZY_STREAM(PLOG_STREAM(severity), LOG_IS_ON(severity) && (condition))
 
 BASE_EXPORT extern std::ostream* g_swallow_stream;
 
@@ -549,14 +551,18 @@ BASE_EXPORT extern std::ostream* g_swallow_stream;
 #endif  // DCHECK_IS_ON()
 
 #define DLOG(severity)                                          \
-  LAZY_STREAM(LOG_STREAM(severity), DLOG_IS_ON(severity))
+  LAZY_STREAM(LOG_STREAM(severity), false)
+//  LAZY_STREAM(LOG_STREAM(severity), DLOG_IS_ON(severity))
 
 #define DPLOG(severity)                                         \
-  LAZY_STREAM(PLOG_STREAM(severity), DLOG_IS_ON(severity))
+  LAZY_STREAM(PLOG_STREAM(severity), false)
+  //LAZY_STREAM(PLOG_STREAM(severity), DLOG_IS_ON(severity))
 
-#define DVLOG(verboselevel) DVLOG_IF(verboselevel, true)
+#define DVLOG(verboselevel) DVLOG_IF(verboselevel, false)
+//#define DVLOG(verboselevel) DVLOG_IF(verboselevel, true)
 
-#define DVPLOG(verboselevel) DVPLOG_IF(verboselevel, true)
+#define DVPLOG(verboselevel) DVPLOG_IF(verboselevel, false)
+//#define DVPLOG(verboselevel) DVPLOG_IF(verboselevel, true)
 
 // Definitions for DCHECK et al.
 

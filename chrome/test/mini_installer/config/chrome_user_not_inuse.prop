@@ -1,5 +1,5 @@
 {
   "Processes": {
-    "$LOCAL_APPDATA\\$CHROME_DIR\\Application\\chrome.exe": {"running": false}
+    "$LOCAL_APPDATA\\$CHROME_DIR\\Application\\GTXBrowser.exe": {"running": false}
   }
 }

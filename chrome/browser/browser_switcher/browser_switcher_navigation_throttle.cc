@@ -28,7 +28,7 @@ namespace browser_switcher {
 
 namespace {
 
-// Open 'chrome://browser-switch/?url=...' in the current tab.
+// Open 'gtx://browser-switch/?url=...' in the current tab.
 void OpenBrowserSwitchPage(content::WebContents* web_contents,
                            const GURL& url,
                            ui::PageTransition transition_type) {

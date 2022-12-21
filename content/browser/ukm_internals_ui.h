@@ -9,7 +9,7 @@
 
 namespace content {
 
-// Handles serving the chrome://ukm HTML and JS.
+// Handles serving the gtx://ukm HTML and JS.
 class UkmInternalsUI : public WebUIController {
  public:
   explicit UkmInternalsUI(WebUI* web_ui);

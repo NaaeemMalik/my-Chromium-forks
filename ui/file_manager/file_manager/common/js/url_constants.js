@@ -19,13 +19,13 @@ export const SWA_FILES_APP_HOST = 'file-manager';
  * @const {!URL}
  */
 export const LEGACY_FILES_APP_URL =
-    new URL(`chrome-extension://${LEGACY_FILES_EXTENSION_ID}`);
+    new URL(`gtx-extension://${LEGACY_FILES_EXTENSION_ID}`);
 
 /**
  * The URL of the System Web App version of File Manager.
  * @const {!URL}
  */
-export const SWA_FILES_APP_URL = new URL(`chrome://${SWA_FILES_APP_HOST}`);
+export const SWA_FILES_APP_URL = new URL(`gtx://${SWA_FILES_APP_HOST}`);
 
 /**
  * The path to the File Manager icon.
@@ -47,7 +47,7 @@ export function toFilesAppURL(path = '') {
  */
 export function toSandboxedURL(path = '') {
   const SANDBOXED_URL = window.isSWA ?
-      new URL(`chrome-untrusted://${SWA_FILES_APP_HOST}`) :
+      new URL(`gtx-untrusted://${SWA_FILES_APP_HOST}`) :
       LEGACY_FILES_APP_URL;
   return new URL(path, SANDBOXED_URL);
 }

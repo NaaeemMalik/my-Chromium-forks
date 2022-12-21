@@ -28,7 +28,7 @@ namespace tpm_firmware_update {
 namespace {
 
 constexpr char kTPMFirmwareUpdateNotificationId[] =
-    "chrome://tpm_firmware_update";
+    "gtx://tpm_firmware_update";
 
 class TPMFirmwareUpdateNotificationDelegate
     : public message_center::NotificationDelegate {

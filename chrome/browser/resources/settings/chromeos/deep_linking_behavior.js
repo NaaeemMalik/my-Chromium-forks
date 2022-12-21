@@ -9,13 +9,13 @@
  */
 
 // clang-format off
-// #import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js'
+// #import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js'
 // #import '../constants/setting.mojom-lite.js';
 
-// #import {afterNextRender, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-// #import {assert} from 'chrome://resources/js/assert.m.js';
+// #import {afterNextRender, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// #import {assert} from 'gtx://resources/js/assert.m.js';
 // #import {getSettingIdParameter} from '../setting_id_param_util.js';
-// #import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+// #import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 // #import {Router} from '../router.js';
 // clang-format on
 

@@ -37,7 +37,7 @@ function testFetch(expectBlocked, redirect) {
 }
 
 const isolatedWorldId = 1;
-const isolatedWorldSecurityOrigin = 'chrome-extensions://123';
+const isolatedWorldSecurityOrigin = 'gtx-extensions://123';
 
 function testFetchInIsolatedWorld(expectBlocked, redirect) {
   const expectBlockedStr = expectBlocked ? 'true' : 'false';

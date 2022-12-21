@@ -22,8 +22,8 @@ namespace {
 
 // Various schemes which we use and which are not defined anywhere.
 const char kChromeScheme[] = "chrome";
-const char kChromeUrlPrefix[] = "chrome://";
-const char kChromeUntrustedScheme[] = "chrome-untrusted";
+const char kChromeUrlPrefix[] = "gtx://";
+const char kChromeUntrustedScheme[] = "gtx-untrusted";
 
 const char kFileManagerHost[] = "file-manager";
 
@@ -34,7 +34,7 @@ bool IsFileManagerUrl(const GURL& url) {
           url.scheme() == kChromeUntrustedScheme);
 }
 
-// Show a chrome:// (os://) app for a given URL.
+// Show a gtx:// (os://) app for a given URL.
 void ShowOsAppForProfile(Profile* profile,
                          const GURL& gurl,
                          web_app::SystemAppType app_type) {

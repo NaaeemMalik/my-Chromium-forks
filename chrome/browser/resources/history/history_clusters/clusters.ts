@@ -4,22 +4,22 @@
 
 import './cluster.js';
 import './shared_style.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
-import 'chrome://resources/polymer/v3_0/iron-scroll-threshold/iron-scroll-threshold.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import 'gtx://resources/cr_elements/cr_toast/cr_toast.js';
+import 'gtx://resources/polymer/v3_0/iron-scroll-threshold/iron-scroll-threshold.js';
 
-import {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import {CrLazyRenderElement} from 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import {CrToastElement} from 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {FocusOutlineManager} from 'chrome://resources/js/cr/ui/focus_outline_manager.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {Time} from 'chrome://resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
-import {IronListElement} from 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import {IronScrollThresholdElement} from 'chrome://resources/polymer/v3_0/iron-scroll-threshold/iron-scroll-threshold.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import {CrLazyRenderElement} from 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import {CrToastElement} from 'gtx://resources/cr_elements/cr_toast/cr_toast.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {FocusOutlineManager} from 'gtx://resources/js/cr/ui/focus_outline_manager.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {Time} from 'gtx://resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
+import {IronListElement} from 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
+import {IronScrollThresholdElement} from 'gtx://resources/polymer/v3_0/iron-scroll-threshold/iron-scroll-threshold.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {BrowserProxyImpl} from './browser_proxy.js';
 import {Cluster, PageCallbackRouter, PageHandlerRemote, QueryParams, QueryResult, URLVisit} from './history_clusters.mojom-webui.js';

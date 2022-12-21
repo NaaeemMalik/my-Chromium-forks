@@ -9,7 +9,7 @@
 
 #include "ios/web/public/webui/web_ui_ios_controller.h"
 
-// The UI for chrome://user-actions/
+// The UI for gtx://user-actions/
 class UserActionsUI : public web::WebUIIOSController {
  public:
   explicit UserActionsUI(web::WebUIIOS* web_ui, const std::string& host);

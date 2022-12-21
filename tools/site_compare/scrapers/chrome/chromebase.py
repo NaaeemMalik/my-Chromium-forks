@@ -15,7 +15,7 @@ from drivers import windowing
 
 # TODO: this has moved, use some logic to find it. For now,
 # expects a subst k:.
-DEFAULT_PATH = r"k:\chrome.exe"
+DEFAULT_PATH = r"k:\GTXBrowser.exe"
 
 
 def InvokeBrowser(path):

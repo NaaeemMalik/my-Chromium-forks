@@ -6,7 +6,7 @@
  * @fileoverview Utility functions to be used in trusted code.
  */
 
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import {FilePath} from 'gtx://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
 
 import {WallpaperImage, WallpaperLayout} from '../trusted/personalization_app.mojom-webui.js';
 

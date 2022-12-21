@@ -547,7 +547,7 @@ goog.html.SafeUrl.fromSshUrl = function(sshUrl) {
 goog.html.SafeUrl.sanitizeChromeExtensionUrl = function(url, extensionId) {
   'use strict';
   return goog.html.SafeUrl.sanitizeExtensionUrl_(
-      /^chrome-extension:\/\/([^\/]+)\//, url, extensionId);
+      /^gtx-extension:\/\/([^\/]+)\//, url, extensionId);
 };
 
 /**

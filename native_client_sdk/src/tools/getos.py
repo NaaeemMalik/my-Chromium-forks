@@ -23,7 +23,7 @@ import oshelpers
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROME_DEFAULT_PATH = {
-  'win': r'c:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+  'win': r'c:\Program Files (x86)\Google\Chrome\Application\GTXBrowser.exe',
   'mac': '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   'linux': '/usr/bin/google-chrome',
 }

@@ -99,7 +99,7 @@ void LaunchReleaseNotesImpl(Profile* profile,
                             apps::mojom::LaunchSource source) {
   base::RecordAction(UserMetricsAction("ReleaseNotes.ShowReleaseNotes"));
   web_app::SystemAppLaunchParams params;
-  params.url = GURL("chrome://help-app/updates");
+  params.url = GURL("gtx://help-app/updates");
   params.launch_source = source;
   LaunchSystemWebAppAsync(profile, web_app::SystemAppType::HELP, params);
 }
@@ -281,7 +281,7 @@ void ShowChromeTips(Browser* browser) {
 }
 
 void ShowChromeWhatsNew(Browser* browser) {
-  ShowSingletonTab(browser, GURL(kChromeUIWhatsNewURL));
+  //ShowSingletonTab(browser, GURL(kChromeUIWhatsNewURL));
 }
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 

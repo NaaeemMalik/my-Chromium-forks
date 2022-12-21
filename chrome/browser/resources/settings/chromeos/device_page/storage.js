@@ -165,7 +165,7 @@ Polymer({
    * @private
    */
   onBrowsingDataTap_() {
-    window.open('chrome://settings/clearBrowserData');
+    window.open('gtx://settings/clearBrowserData');
   },
 
   /**
@@ -173,7 +173,7 @@ Polymer({
    * @private
    */
   onAppsTap_() {
-    window.location = 'chrome://os-settings/app-management';
+    window.location = 'gtx://os-settings/app-management';
   },
 
   /**

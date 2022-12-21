@@ -138,7 +138,7 @@ def ExitIfNotFound(path, error_message=None):
 def main():
   # Parse arguments and check that file paths received are valid.
   args, chrome_args = ParseArgs()
-  ExitIfNotFound(os.path.join(args.chrome_dir, 'chrome.exe'),
+  ExitIfNotFound(os.path.join(args.chrome_dir, 'GTXBrowser.exe'),
                  'Build target "chrome" to generate it first.')
   chromedriver_exe = os.path.join(args.chrome_dir, 'chromedriver.exe')
   ExitIfNotFound(chromedriver_exe,

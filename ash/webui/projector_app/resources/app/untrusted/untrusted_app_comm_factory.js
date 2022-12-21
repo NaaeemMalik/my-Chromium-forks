@@ -7,7 +7,7 @@ import {RequestHandler} from 'chrome-untrusted://projector/js/post_message_api_r
 
 import {ProjectorError} from '../../communication/message_types.js';
 
-const TARGET_URL = 'chrome://projector/';
+const TARGET_URL = 'gtx://projector/';
 
 /**
  * Returns the projector app element inside this current DOM.

@@ -76,7 +76,7 @@ void ShowToast(const std::string& id, const std::u16string& text) {
 ExtensionInstallUIDefault::ExtensionInstallUIDefault(
     content::BrowserContext* context)
     : profile_(Profile::FromBrowserContext(context)),
-      skip_post_install_ui_(false),
+      skip_post_install_ui_(true),
       use_app_installed_bubble_(false) {}
 
 ExtensionInstallUIDefault::~ExtensionInstallUIDefault() {}
@@ -156,7 +156,7 @@ void ExtensionInstallUIDefault::SetUseAppInstalledBubble(bool use_bubble) {
 }
 
 void ExtensionInstallUIDefault::SetSkipPostInstallUI(bool skip_ui) {
-  skip_post_install_ui_ = skip_ui;
+  //skip_post_install_ui_ = skip_ui;
 }
 
 gfx::NativeWindow ExtensionInstallUIDefault::GetDefaultInstallDialogParent() {

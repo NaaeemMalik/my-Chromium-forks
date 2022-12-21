@@ -6,12 +6,12 @@
  * @fileoverview
  * 'settings-main' displays the selected settings page.
  */
-import 'chrome://resources/cr_components/managed_footnote/managed_footnote.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/icons.m.js';
-import 'chrome://resources/js/search_highlight_utils.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/cr_components/managed_footnote/managed_footnote.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/js/search_highlight_utils.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import '../about_page/about_page.js';
 import '../basic_page/basic_page.js';
 import '../prefs/prefs.js';
@@ -19,9 +19,9 @@ import '../search_settings.js';
 import '../settings_shared_css.js';
 import '../settings_vars_css.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {IronA11yAnnouncer} from 'chrome://resources/polymer/v3_0/iron-a11y-announcer/iron-a11y-announcer.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {IronA11yAnnouncer} from 'gtx://resources/polymer/v3_0/iron-a11y-announcer/iron-a11y-announcer.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 import {PageVisibility} from '../page_visibility.js';

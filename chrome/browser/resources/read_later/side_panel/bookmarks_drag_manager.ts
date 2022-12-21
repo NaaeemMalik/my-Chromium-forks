@@ -4,8 +4,8 @@
 
 import '../strings.m.js';
 
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 
 import {getBookmarkFromElement, isBookmarkFolderElement, isValidDropTarget} from './bookmark_folder.js';
 

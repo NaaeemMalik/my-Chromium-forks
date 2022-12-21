@@ -204,7 +204,7 @@ class AutofillDownloadManager {
   // Callback function to retrieve API key.
   const std::string api_key_;
 
-  // Access to leave log messages for chrome://autofill-internals, may be null.
+  // Access to leave log messages for gtx://autofill-internals, may be null.
   const raw_ptr<LogManager> log_manager_;  // WEAK
 
   // The autofill server URL root: scheme://host[:port]/path excluding the

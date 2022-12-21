@@ -45,7 +45,7 @@ content::WebUIDataSource* CreateProjectorHTMLSource(
       base::make_span(kWebuiGeneratedResources, kWebuiGeneratedResourcesSize));
 
 #if BUILDFLAG(ENABLE_CROS_MEDIA_APP)
-  // Loads WASM resources shipped to Chromium by chrome://media-app.
+  // Loads WASM resources shipped to Chromium by gtx://media-app.
   source->AddResourcePath("annotator/ink_engine_ink.worker.js",
                           IDR_MEDIA_APP_INK_ENGINE_INK_WORKER_JS);
   source->AddResourcePath("annotator/ink_engine_ink.wasm",

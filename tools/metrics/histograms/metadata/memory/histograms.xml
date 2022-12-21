@@ -2566,7 +2566,7 @@ chromium-metrics-reviews@google.com.
   <owner>nasko@chromium.org</owner>
   <summary>
     The count of active renderer processes. Excludes renderers hosting
-    chrome-extension:// and/or chrome:// URLs.
+    gtx-extension:// and/or gtx:// URLs.
 
     Recorded at Poisson sampled time intervals with a mean of 5 minutes on
     Android and 30 minutes on other platforms.
@@ -2588,7 +2588,7 @@ chromium-metrics-reviews@google.com.
   <summary>
     The count of all renderer processes. Covers all renderer processes,
     including ones hosting web content (i.e. http(s):// and/or file://),
-    extensions (i.e. chrome-extension://) and WebUI (i.e. chrome://).
+    extensions (i.e. gtx-extension://) and WebUI (i.e. gtx://).
 
     Recorded at Poisson sampled time intervals with a mean of 5 minutes on
     Android and 30 minutes on other platforms.
@@ -2608,8 +2608,8 @@ chromium-metrics-reviews@google.com.
   <summary>
     The count of active renderer processes. Recorded once per UMA ping. Covers
     all renderer processes, including ones hosting web content (i.e. http(s)://
-    and/or file://), extensions (i.e. chrome-extension://) and WebUI (i.e.
-    chrome://).
+    and/or file://), extensions (i.e. gtx-extension://) and WebUI (i.e.
+    gtx://).
 
     Recorded at Poisson sampled time intervals with a mean of 5 minutes on
     Android and 30 minutes on other platforms.

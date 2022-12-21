@@ -17,7 +17,7 @@ namespace image_editor {
 
 ImageEditorUI::ImageEditorUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui), profile_(Profile::FromWebUI(web_ui)) {
-  // Set up the chrome://image-editor source.
+  // Set up the gtx://image-editor source.
   content::WebUIDataSource* html_source =
       content::WebUIDataSource::Create(chrome::kChromeUIImageEditorHost);
   html_source->SetDefaultResource(IDR_IMAGE_EDITOR_HTML);

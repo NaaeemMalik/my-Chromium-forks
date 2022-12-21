@@ -16,7 +16,7 @@ class OmniboxPageHandler;
 class OmniboxPopupHandler;
 #endif
 
-// The UI for chrome://omnibox/
+// The UI for gtx://omnibox/
 class OmniboxUI : public ui::MojoWebUIController {
  public:
   explicit OmniboxUI(content::WebUI* contents);

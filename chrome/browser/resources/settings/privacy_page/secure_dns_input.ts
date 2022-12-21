@@ -7,10 +7,10 @@
  * with the secure DNS setting to configure custom servers. It is based on
  * `home-url-input`.
  */
-import 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
 
-import {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 

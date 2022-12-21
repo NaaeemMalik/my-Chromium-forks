@@ -2,7 +2,7 @@
 	"archive_datas": [
         {
             "files": [
-                "chrome.exe",
+                "GTXBrowser.exe",
                 "chrome.dll",
                 "chrome_100_percent.pak",
                 "chrome_200_percent.pak",
@@ -53,7 +53,7 @@
         {
             "files": [
                 "chrome.dll.pdb",
-                "chrome.exe.pdb",
+                "GTXBrowser.exe.pdb",
                 "chrome_elf.dll.pdb",
                 "chrome_proxy.exe.pdb",
                 "chrome_pwa_launcher.exe.pdb",

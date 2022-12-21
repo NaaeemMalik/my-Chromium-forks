@@ -41,7 +41,7 @@ CHROME_PATH = os.path.join(os.environ['USERPROFILE'],
                            'Google',
                            'Chrome SxS',
                            'Application',
-                           'chrome.exe')
+                           'GTXBrowser.exe')
 NVDA_PATH = os.path.join(os.getcwd(),
                          'nvdaPortable',
                          'nvda_noUIAccess.exe')

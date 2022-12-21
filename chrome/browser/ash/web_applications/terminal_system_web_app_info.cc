@@ -34,7 +34,7 @@ constexpr gfx::Size TERMINAL_SETTINGS_DEFAULT_SIZE(768, 512);
 std::unique_ptr<WebApplicationInfo> CreateWebAppInfoForTerminalSystemWebApp() {
   auto info = std::make_unique<WebApplicationInfo>();
   // URL used for crostini::kCrostiniTerminalSystemAppId.
-  const GURL terminal_url("chrome-untrusted://terminal/html/terminal.html");
+  const GURL terminal_url("gtx-untrusted://terminal/html/terminal.html");
   info->start_url = terminal_url;
   info->scope = GURL(chrome::kChromeUIUntrustedTerminalURL);
   info->title = l10n_util::GetStringUTF16(IDS_CROSTINI_TERMINAL_APP_NAME);

@@ -27,7 +27,7 @@ enum class SchedulerClientType {
 
   // Default value of client type.
   kUnknown = 0,
-  // Client used in chrome://notifications-internals for debugging.
+  // Client used in gtx://notifications-internals for debugging.
   kWebUI = 1,
   // Chrome update notification.
   kChromeUpdate = 2,

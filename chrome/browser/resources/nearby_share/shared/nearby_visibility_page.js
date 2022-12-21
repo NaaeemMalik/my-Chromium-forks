@@ -8,8 +8,8 @@
  * Share onboarding flow. It allows users to setup their visibility preference
  * while enabling the feature for the first time.
  *
- * It is embedded in chrome://os-settings, chrome://settings and as a standalone
- * dialog via chrome://nearby.
+ * It is embedded in gtx://os-settings, gtx://settings and as a standalone
+ * dialog via gtx://nearby.
  */
 Polymer({
   is: 'nearby-visibility-page',

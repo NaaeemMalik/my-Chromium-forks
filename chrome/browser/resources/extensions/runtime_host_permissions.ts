@@ -2,27 +2,27 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'chrome://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
-import 'chrome://resources/cr_elements/cr_radio_button/cr_radio_button.m.js';
-import 'chrome://resources/cr_elements/icons.m.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/js/action_link.js';
-import 'chrome://resources/cr_elements/action_link_css.m.js';
-import 'chrome://resources/cr_elements/md_select_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
+import 'gtx://resources/cr_elements/cr_radio_button/cr_radio_button.m.js';
+import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/js/action_link.js';
+import 'gtx://resources/cr_elements/action_link_css.m.js';
+import 'gtx://resources/cr_elements/md_select_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import './runtime_hosts_dialog.js';
 import './shared_style.js';
 import './strings.m.js';
 
-import {CrActionMenuElement} from 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import {CrRadioGroupElement} from 'chrome://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {focusWithoutInk} from 'chrome://resources/js/cr/ui/focus_without_ink.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrActionMenuElement} from 'gtx://resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import {CrRadioGroupElement} from 'gtx://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {focusWithoutInk} from 'gtx://resources/js/cr/ui/focus_without_ink.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {ItemDelegate} from './item.js';
 

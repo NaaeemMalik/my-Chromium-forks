@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 // clang-format off
-// #import {getESimManagerRemote} from 'chrome://resources/cr_components/chromeos/cellular_setup/mojo_interface_provider.m.js';
-// #import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+// #import {getESimManagerRemote} from 'gtx://resources/cr_components/chromeos/cellular_setup/mojo_interface_provider.m.js';
+// #import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 // clang-format on
 
 cr.define('cellular_setup', function() {

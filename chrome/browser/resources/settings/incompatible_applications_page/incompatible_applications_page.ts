@@ -8,16 +8,16 @@
  * the list of incompatible applications.
  */
 
-import 'chrome://resources/cr_elements/icons.m.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import '../settings_shared_css.js';
 import './incompatible_application_item.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 

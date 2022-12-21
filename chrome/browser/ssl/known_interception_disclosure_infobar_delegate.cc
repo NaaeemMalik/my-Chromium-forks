@@ -107,7 +107,7 @@ std::u16string KnownInterceptionDisclosureInfoBarDelegate::GetLinkText() const {
 }
 
 GURL KnownInterceptionDisclosureInfoBarDelegate::GetLinkURL() const {
-  return GURL("chrome://connection-monitoring-detected/");
+  return GURL("gtx://connection-monitoring-detected/");
 }
 
 bool KnownInterceptionDisclosureInfoBarDelegate::ShouldExpire(

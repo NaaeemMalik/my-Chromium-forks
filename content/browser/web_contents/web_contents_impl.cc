@@ -4325,7 +4325,7 @@ std::string WebContentsImpl::DumpAccessibilityTree(
 
   // Developer mode: crash immediately on any accessibility fatal error.
   // This only runs during integration tests, or if a developer is
-  // using an inspection tool, e.g. chrome://accessibility.
+  // using an inspection tool, e.g. gtx://accessibility.
   BrowserAccessibilityManager::AlwaysFailFast();
 
   std::unique_ptr<ui::AXTreeFormatter> formatter =

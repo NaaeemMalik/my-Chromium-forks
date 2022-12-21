@@ -9,8 +9,8 @@
  * that may have multiple sizes, not large rectangular svgs.
  */
 
-import {I18nBehavior} from 'chrome://resources/js/i18n_behavior.m.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 const WithI18n: {new (): PolymerElement&I18nBehavior} =
     mixinBehaviors([I18nBehavior], PolymerElement);

@@ -197,7 +197,7 @@ std::u16string GetDisplayAddedMessage(int64_t added_display_id,
 }  // namespace
 
 const char ScreenLayoutObserver::kNotificationId[] =
-    "chrome://settings/display";
+    "gtx://settings/display";
 
 ScreenLayoutObserver::ScreenLayoutObserver() {
   Shell::Get()->window_tree_host_manager()->AddObserver(this);

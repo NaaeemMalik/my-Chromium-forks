@@ -75,7 +75,7 @@ class FeatureCache {
 
   // The cache of WebUI-related features. These shouldn't need to be
   // invalidated (since WebUI permissions don't change), and are cached by
-  // origin. These covers chrome:// and chrome-untrusted:// URLs.
+  // origin. These covers gtx:// and gtx-untrusted:// URLs.
   WebUICacheMap webui_cache_;
 };
 

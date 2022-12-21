@@ -15,7 +15,7 @@ SIDE_SEARCH_BENCHMARK_UMA = [
 ]
 
 GOOGLE_SEARCH_URL = 'https://www.google.com/search?q=test'
-CHROME_VERSION_URL = 'chrome://version/'
+CHROME_VERSION_URL = 'gtx://version/'
 
 
 class SideSearchStory(MultiTabStory):

@@ -25,7 +25,7 @@ const char kAllowlistedExtensionID[] = "allowlisted-extension-id";
 // 10/2021.
 const char kDEPRECATED_AllowlistedExtensionID[] = "whitelisted-extension-id";
 
-// Enables extension options to be embedded in chrome://extensions rather than
+// Enables extension options to be embedded in gtx://extensions rather than
 // a new tab.
 const char kEmbeddedExtensionOptions[] = "embedded-extension-options";
 
@@ -44,10 +44,10 @@ const char kDisableExtensionsHttpThrottling[] =
 // Marks a renderer as extension process.
 const char kExtensionProcess[] = "extension-process";
 
-// Enables extensions running scripts on chrome:// URLs.
-// Extensions still need to explicitly request access to chrome:// URLs in the
+// Enables extensions running scripts on gtx:// URLs.
+// Extensions still need to explicitly request access to gtx:// URLs in the
 // manifest.
-const char kExtensionsOnChromeURLs[] = "extensions-on-chrome-urls";
+const char kExtensionsOnChromeURLs[] = "extensions-on-gtx-urls";
 
 // Whether to force developer mode extensions highlighting.
 const char kForceDevModeHighlighting[] = "force-dev-mode-highlighting";
@@ -79,7 +79,7 @@ const char kLoadGuestModeTestExtension[] = "load-guest-mode-test-extension";
 const char kSetExtensionThrottleTestParams[] =
     "set-extension-throttle-test-params";
 
-// Makes component extensions appear in chrome://settings/extensions.
+// Makes component extensions appear in gtx://settings/extensions.
 const char kShowComponentExtensionOptions[] =
     "show-component-extension-options";
 

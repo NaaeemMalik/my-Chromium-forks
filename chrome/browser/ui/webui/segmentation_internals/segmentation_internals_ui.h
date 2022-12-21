@@ -12,7 +12,7 @@
 class Profile;
 class SegmentationInternalsPageHandlerImpl;
 
-// The WebUI controller for chrome://segmentation-internals.
+// The WebUI controller for gtx://segmentation-internals.
 class SegmentationInternalsUI
     : public ui::MojoWebUIController,
       public segmentation_internals::mojom::PageHandlerFactory {

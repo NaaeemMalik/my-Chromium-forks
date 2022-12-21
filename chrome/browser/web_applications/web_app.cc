@@ -509,7 +509,7 @@ base::Value WebApp::AsDebugValue() const {
   root.SetKey("additional_search_terms", ConvertList(additional_search_terms_));
 
   root.SetStringKey("app_service_icon_url",
-                    base::StrCat({"chrome://app-icon/", app_id_, "/32"}));
+                    base::StrCat({"gtx://app-icon/", app_id_, "/32"}));
 
   root.SetKey("allowed_launch_protocols",
               ConvertList(allowed_launch_protocols_));

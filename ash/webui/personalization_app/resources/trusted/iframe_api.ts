@@ -8,8 +8,8 @@
  * functions in this file.
  */
 
-import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {FilePath} from 'gtx://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
 
 import * as constants from '../common/constants.js';
 import {isNonEmptyArray} from '../common/utils.js';

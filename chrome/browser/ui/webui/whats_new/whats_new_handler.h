@@ -11,7 +11,7 @@ namespace base {
 class ListValue;
 }
 
-// Page handler for chrome://whats-new.
+// Page handler for gtx://whats-new.
 class WhatsNewHandler : public content::WebUIMessageHandler {
  public:
   WhatsNewHandler();

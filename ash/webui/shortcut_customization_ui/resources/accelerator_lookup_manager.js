@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {addSingletonGetter} from 'gtx://resources/js/cr.m.js';
 
 import {fakeActionNames} from './fake_data.js';
 import {AcceleratorConfig, AcceleratorInfo, AcceleratorKeys, AcceleratorSource, AcceleratorState, AcceleratorType, LayoutInfo, LayoutInfoList} from './shortcut_types.js';

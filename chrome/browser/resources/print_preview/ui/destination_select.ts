@@ -8,21 +8,21 @@
  * Chrome OS and non-Chrome OS.
  */
 
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/cr_elements/md_select_css.m.js';
-import 'chrome://resources/js/util.m.js';
-import 'chrome://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/md_select_css.m.js';
+import 'gtx://resources/js/util.m.js';
+import 'gtx://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
 import './destination_select_css.js';
 import './icons.js';
 import './print_preview_shared_css.js';
 import './throbber_css.js';
 import '../strings.m.js';
 
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {IronMeta} from 'chrome://resources/polymer/v3_0/iron-meta/iron-meta.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {IronMeta} from 'gtx://resources/polymer/v3_0/iron-meta/iron-meta.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {Destination, DestinationOrigin, GooglePromotedDestinationId, PDF_DESTINATION_KEY, RecentDestination} from '../data/destination.js';
 import {getSelectDropdownBackground} from '../print_preview_utils.js';

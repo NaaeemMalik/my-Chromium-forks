@@ -14,7 +14,7 @@
 
 namespace enterprise_connectors {
 
-// UI controller for chrome://connectors-internals.
+// UI controller for gtx://connectors-internals.
 class ConnectorsInternalsUI : public ui::MojoWebUIController {
  public:
   explicit ConnectorsInternalsUI(content::WebUI* web_ui);

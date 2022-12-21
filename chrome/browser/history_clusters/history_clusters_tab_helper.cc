@@ -129,7 +129,7 @@ HistoryClustersTabHelper::~HistoryClustersTabHelper() = default;
 
 void HistoryClustersTabHelper::OnOmniboxUrlCopied() {
   // It's possible that there have been no navigations if certain builtin pages
-  // were opened in a new tab (e.g. chrome://crash or chrome://invalid-page).
+  // were opened in a new tab (e.g. gtx://crash or gtx://invalid-page).
   if (navigation_ids_.empty())
     return;
 

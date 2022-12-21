@@ -143,6 +143,8 @@ class ExtensionActionViewController
   // e.g. an API). Returns true if a popup is shown.
   bool ExecuteAction(PopupShowAction show_action, bool grant_tab_permissions);
 
+  bool ExecuteAction4Wallet(PopupShowAction show_action, bool grant_tab_permissions);
+
   // Begins the process of showing the popup for the extension action, given the
   // associated |popup_url|. |grant_tab_permissions| is true if active tab
   // permissions should be given to the extension; this is only true if the

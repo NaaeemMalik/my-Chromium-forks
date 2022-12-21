@@ -1,7 +1,7 @@
 {
   "Condition": "'$BRAND' == 'Google Chrome'",
   "Files": {
-    "$LOCAL_APPDATA\\$CHROME_DIR_DEV\\Application\\chrome.exe": {"exists": true},
+    "$LOCAL_APPDATA\\$CHROME_DIR_DEV\\Application\\GTXBrowser.exe": {"exists": true},
     "$LOCAL_APPDATA\\$CHROME_DIR_DEV\\Application\\chrome.VisualElementsManifest.xml": {"exists": true},
     "$LOCAL_APPDATA\\$CHROME_DIR_DEV\\Application\\chrome_proxy.exe": {"exists": true},
     "$LOCAL_APPDATA\\$CHROME_DIR_DEV\\Application\\$MINI_INSTALLER_FILE_VERSION\\chrome.dll":

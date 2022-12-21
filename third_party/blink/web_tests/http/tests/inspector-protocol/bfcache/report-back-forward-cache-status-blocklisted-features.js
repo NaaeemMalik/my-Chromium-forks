@@ -16,7 +16,7 @@
   });`);
 
   // Navigate to Page B.
-  await page.navigate('chrome://version');
+  await page.navigate('gtx://version');
 
   const {result: history} = await dp.Page.getNavigationHistory();
 

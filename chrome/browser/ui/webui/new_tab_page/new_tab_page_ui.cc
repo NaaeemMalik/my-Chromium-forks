@@ -102,8 +102,7 @@ content::WebUIDataSource* CreateNewTabPageUiHtmlSource(Profile* profile) {
       base::FeatureList::IsEnabled(ntp_features::kNtpOneGoogleBar));
   source->AddBoolean("shortcutsEnabled",
                      base::FeatureList::IsEnabled(ntp_features::kNtpShortcuts));
-  source->AddBoolean("logoEnabled",
-                     base::FeatureList::IsEnabled(ntp_features::kNtpLogo));
+  source->AddBoolean("logoEnabled", false);
   source->AddBoolean(
       "middleSlotPromoEnabled",
       base::FeatureList::IsEnabled(ntp_features::kNtpMiddleSlotPromo));
@@ -319,7 +318,7 @@ content::WebUIDataSource* CreateNewTabPageUiHtmlSource(Profile* profile) {
       IDR_NEW_TAB_PAGE_NEW_TAB_PAGE_HTML);
 
   // Allow embedding of iframes for the doodle and
-  // chrome-untrusted://new-tab-page for other external content and resources.
+  // gtx-untrusted://new-tab-page for other external content and resources.
   // NOTE: Use caution when overriding content security policies as that cean
   // lead to subtle security bugs such as https://crbug.com/1251541.
   source->OverrideContentSecurityPolicy(
@@ -605,7 +604,7 @@ void NewTabPageUI::OnCustomBackgroundImageUpdated() {
       "backgroundImageUrl",
       encoded_url.length() > 0
           ? base::StrCat(
-                {"chrome-untrusted://new-tab-page/custom_background_image?url=",
+                {"gtx-untrusted://new-tab-page/custom_background_image?url=",
                  std::string(encoded_url.data(), encoded_url.length())})
           : "");
   content::WebUIDataSource::Update(profile_, chrome::kChromeUINewTabPageHost,

@@ -29,7 +29,7 @@ FileManagerUI::FileManagerUI(content::WebUI* web_ui,
   auto* trusted_source = CreateTrustedAppDataSource();
   content::WebUIDataSource::Add(browser_context, trusted_source);
 
-  // Add ability to request chrome-untrusted: URLs
+  // Add ability to request gtx-untrusted: URLs
   web_ui->AddRequestableScheme(content::kChromeUIUntrustedScheme);
 
   LOG(WARNING) << "Starting FileManagerUI";
@@ -39,10 +39,10 @@ content::WebUIDataSource* FileManagerUI::CreateTrustedAppDataSource() {
   content::WebUIDataSource* source =
       content::WebUIDataSource::Create(kChromeUIFileManagerHost);
 
-  // Setup chrome://file-manager main and default page.
+  // Setup gtx://file-manager main and default page.
   source->AddResourcePath("", IDR_FILE_MANAGER_SWA_MAIN_HTML);
 
-  // Add chrome://file-manager content.
+  // Add gtx://file-manager content.
   source->AddResourcePaths(
       base::make_span(kFileManagerSwaResources, kFileManagerSwaResourcesSize));
 
@@ -59,18 +59,18 @@ content::WebUIDataSource* FileManagerUI::CreateTrustedAppDataSource() {
   // Script security policy.
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
-      "script-src chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp "
-      "chrome://resources "
+      "script-src gtx-extension://pmfjbimdmchhbnneeidfognadeopoehp "
+      "gtx://resources "
       "'self' ;");
 
   // Metadata Shared Worker security policy.
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::WorkerSrc, "worker-src 'self' ;");
 
-  // Allow using the chrome-untrusted:// scheme in the host.
+  // Allow using the gtx-untrusted:// scheme in the host.
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::FrameSrc,
-      "frame-src chrome-untrusted://file-manager "
+      "frame-src gtx-untrusted://file-manager "
       "'self';");
 
   // TODO(crbug.com/1098685): Trusted Type remaining WebUI.

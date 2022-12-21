@@ -93,7 +93,7 @@ void WaitForDebugger(const std::string& label) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   std::string title = "Google Chrome";
 #else   // BUILDFLAG(CHROMIUM_BRANDING)
-  std::string title = "Chromium";
+  std::string title = "GTX Browser";
 #endif  // BUILDFLAG(CHROMIUM_BRANDING)
   title += " ";
   title += label;  // makes attaching to process easier

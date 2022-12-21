@@ -11,7 +11,7 @@
 namespace ash {
 namespace eche_app {
 
-// The WebUI for chrome://eche-app/.
+// The WebUI for gtx://eche-app/.
 class EcheAppUI : public ui::MojoWebUIController {
  public:
   using BindSignalingMessageExchangerCallback = base::RepeatingCallback<void(

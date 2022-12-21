@@ -8,7 +8,7 @@
  */
 (function() {
 function oktaDetectSuccess() {
-  const PARENT_ORIGIN = 'chrome://password-change';
+  const PARENT_ORIGIN = 'gtx://password-change';
 
   let messageFromParent;
   function onMessageReceived(event) {

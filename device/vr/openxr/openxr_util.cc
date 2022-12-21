@@ -110,7 +110,7 @@ XrResult CreateInstance(
 
   error = strcpy_s(instance_create_info.applicationInfo.engineName,
                    base::size(instance_create_info.applicationInfo.engineName),
-                   "Chromium");
+                   "GTX Browser");
   DCHECK_EQ(error, 0);
 
   // engine version should be the build number of chromium

@@ -58,37 +58,37 @@ InternalsUI::InternalsUI(content::WebUI* web_ui)
       base::make_span(kInternalsResources, kInternalsResourcesSize));
   source_->DisableTrustedTypesCSP();
 
-  // chrome://internals/
-  // Redirects to: chrome://chrome-urls/#internals
+  // gtx://internals/
+  // Redirects to: gtx://gtx-urls/#internals
   source_->AddResourcePath("", IDR_INTERNALS_INTERNALS_HTML);
 
   // Add your sub-URL internals WebUI here.
   // Keep this set of sub-URLs in sync with |kChromeInternalsPathURLs|.
 #if defined(OS_ANDROID)
-  // chrome://internals/lens
+  // gtx://internals/lens
   AddLensInternals(web_ui);
-  // chrome://internals/notifications
+  // gtx://internals/notifications
   source_->AddResourcePath(
       "notifications",
       IDR_NOTIFICATIONS_INTERNALS_NOTIFICATIONS_INTERNALS_HTML);
   web_ui->AddMessageHandler(
       std::make_unique<NotificationsInternalsUIMessageHandler>(profile_));
 
-  // chrome://internals/query-tiles
+  // gtx://internals/query-tiles
   if (!profile_->IsOffTheRecord())
     AddQueryTilesInternals(web_ui);
 #else
   source_->AddResourcePath("user-education",
                            IDR_USER_EDUCATION_INTERNALS_INDEX_HTML);
 
-  // chrome://internals/web-app
-  // This page has moved to chrome://web-app-internals, see
+  // gtx://internals/web-app
+  // This page has moved to gtx://web-app-internals, see
   // WebAppInternalsSource.
   // TODO(crbug.com/1226263): Clean up this redirect after M94 goes stable.
   source_->AddResourcePath("web-app", IDR_WEB_APP_INTERNALS_HTML);
 #endif  // defined(OS_ANDROID)
 
-  // chrome://internals/session-service
+  // gtx://internals/session-service
   source_->SetRequestFilter(
       base::BindRepeating(&ShouldHandleWebUIRequestCallback),
       base::BindRepeating(&HandleWebUIRequestCallback, profile_));

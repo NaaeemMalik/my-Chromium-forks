@@ -262,7 +262,7 @@ class TestOmniboxPedalClearBrowsingData : public OmniboxPedal {
                 IDS_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUGGESTION_CONTENTS,
                 IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA_SUFFIX,
                 IDS_ACC_OMNIBOX_PEDAL_CLEAR_BROWSING_DATA),
-            GURL("chrome://settings/clearBrowserData")) {}
+            GURL("gtx://settings/clearBrowserData")) {}
 
  protected:
   ~TestOmniboxPedalClearBrowsingData() override = default;

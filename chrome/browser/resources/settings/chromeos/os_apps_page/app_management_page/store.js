@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
-import {Store} from 'chrome://resources/js/cr/ui/store.js';
+import {addSingletonGetter} from 'gtx://resources/js/cr.m.js';
+import {Store} from 'gtx://resources/js/cr/ui/store.js';
 
 import {reduceAction} from './reducers.js';
 import {createEmptyState} from './util.js';

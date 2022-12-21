@@ -135,7 +135,7 @@ using RebootOnSignOutPolicy =
     ::enterprise_management::DeviceRebootOnUserSignoutProto;
 
 const char kAutoLaunchNotificationId[] =
-    "chrome://managed_guest_session/auto_launch";
+    "gtx://managed_guest_session/auto_launch";
 
 const char kAutoLaunchNotifierId[] = "ash.managed_guest_session-auto_launch";
 

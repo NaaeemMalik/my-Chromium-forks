@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// Handler for chrome://interstitials demonstration pages. This class is not
+// Handler for gtx://interstitials demonstration pages. This class is not
 // used in displaying any real interstitials.
 class InterstitialUI : public content::WebUIController {
  public:

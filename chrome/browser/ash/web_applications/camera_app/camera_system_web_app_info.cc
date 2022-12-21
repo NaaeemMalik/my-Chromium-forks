@@ -61,9 +61,9 @@ CameraSystemAppDelegate::CameraSystemAppDelegate(Profile* profile)
     : web_app::SystemWebAppDelegate(
           web_app::SystemAppType::CAMERA,
           "Camera",
-          GURL("chrome://camera-app/views/main.html"),
+          GURL("gtx://camera-app/views/main.html"),
           profile,
-          web_app::OriginTrialsMap({{web_app::GetOrigin("chrome://camera-app"),
+          web_app::OriginTrialsMap({{web_app::GetOrigin("gtx://camera-app"),
                                      {"FileHandling"}}})) {}
 
 std::unique_ptr<WebApplicationInfo> CameraSystemAppDelegate::GetWebAppInfo()

@@ -7,15 +7,15 @@
  * a security key PIN.
  */
 
-import 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
 import '../settings_shared_css.js';
 import '../i18n_setup.js';
 
-import {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {IronA11yAnnouncer} from 'chrome://resources/polymer/v3_0/iron-a11y-announcer/iron-a11y-announcer.js';
-import {afterNextRender, html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {IronA11yAnnouncer} from 'gtx://resources/polymer/v3_0/iron-a11y-announcer/iron-a11y-announcer.js';
+import {afterNextRender, html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /**
  * A function that submits a PIN to a security key. It returns a Promise which

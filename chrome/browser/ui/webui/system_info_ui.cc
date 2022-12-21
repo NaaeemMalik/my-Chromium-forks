@@ -153,7 +153,7 @@ void SystemInfoHandler::OnSystemInfo(
 SystemInfoUI::SystemInfoUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   web_ui->AddMessageHandler(std::make_unique<SystemInfoHandler>());
 
-  // Set up the chrome://system/ source.
+  // Set up the gtx://system/ source.
   content::WebUIDataSource::Add(Profile::FromWebUI(web_ui),
                                 CreateSystemInfoUIDataSource());
 }

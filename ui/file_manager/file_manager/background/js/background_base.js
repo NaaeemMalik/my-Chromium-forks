@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 
 import {resolveIsolatedEntries} from '../../common/js/api.js';
 import {util} from '../../common/js/util.js';

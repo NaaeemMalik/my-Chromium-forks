@@ -1034,7 +1034,7 @@ base::FilePath::StringType GetInstallParentDirectoryName() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   return FILE_PATH_LITERAL("Google");
 #else
-  return FILE_PATH_LITERAL("Chromium");
+  return FILE_PATH_LITERAL("GTX Browser");
 #endif
 }
 

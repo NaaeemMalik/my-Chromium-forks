@@ -499,7 +499,7 @@ def AddHistoryPageActions(actions):
 
 def AddAutomaticResetBannerActions(actions):
   """Add actions that are used for the automatic profile settings reset banners
-  in chrome://settings.
+  in gtx://settings.
 
   Arguments
     actions: set of actions to add to.

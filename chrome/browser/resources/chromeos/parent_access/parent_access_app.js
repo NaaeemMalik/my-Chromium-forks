@@ -5,8 +5,8 @@
 import './parent_access_after.js';
 import './parent_access_ui.js';
 
-import {CrViewManagerElement} from 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
-import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrViewManagerElement} from 'gtx://resources/cr_elements/cr_view_manager/cr_view_manager.js';
+import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /** @enum {string} */
 export const Screens = {

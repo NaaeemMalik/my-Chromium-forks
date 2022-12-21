@@ -4,11 +4,11 @@
 
 
 // <if expr="is_ios">
-import 'chrome://resources/js/ios/web_ui.js';
+import 'gtx://resources/js/ios/web_ui.js';
 // </if>
 
-import {addSingletonGetter, addWebUIListener} from 'chrome://resources/js/cr.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {addSingletonGetter, addWebUIListener} from 'gtx://resources/js/cr.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 /**
  * Main entry point called once the page has loaded.

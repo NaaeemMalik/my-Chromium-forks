@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {$} from 'chrome://resources/js/util.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 const MAX_NUMBER_OF_STATE_CHANGES_DISPLAYED = 10;
 /**
@@ -83,7 +83,7 @@ export class PeerConnectionUpdateTable {
     row.appendChild(timeItem);
 
     // `type` is a display variant of update.type which does not get serialized
-    // into chrome://webrtc-internals.
+    // into gtx://webrtc-internals.
     let type = update.type;
 
     if (update.value.length === 0) {

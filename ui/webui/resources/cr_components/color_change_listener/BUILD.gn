@@ -16,7 +16,7 @@ js_type_check("closure_compile") {
 mojom("mojom") {
   sources = [ "color_change_listener.mojom" ]
   public_deps = [ "//mojo/public/mojom/base" ]
-  webui_module_path = "chrome://resources/cr_components/color_change_listener/"
+  webui_module_path = "gtx://resources/cr_components/color_change_listener/"
 }
 
 js_library("browser_proxy") {

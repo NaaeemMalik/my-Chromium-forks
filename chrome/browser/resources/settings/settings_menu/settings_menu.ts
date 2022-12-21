@@ -6,22 +6,22 @@
  * @fileoverview
  * 'settings-menu' shows a menu with a hardcoded set of pages and subpages.
  */
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_icons_css.m.js';
-import 'chrome://resources/cr_elements/cr_menu_selector/cr_menu_selector.js';
-import 'chrome://resources/cr_elements/cr_nav_menu_item_style.js';
-import 'chrome://resources/cr_elements/icons.m.js';
-import 'chrome://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/polymer/v3_0/iron-selector/iron-selector.js';
-import 'chrome://resources/polymer/v3_0/paper-ripple/paper-ripple.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_icons_css.m.js';
+import 'gtx://resources/cr_elements/cr_menu_selector/cr_menu_selector.js';
+import 'gtx://resources/cr_elements/cr_nav_menu_item_style.js';
+import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/polymer/v3_0/iron-selector/iron-selector.js';
+import 'gtx://resources/polymer/v3_0/paper-ripple/paper-ripple.js';
 import '../icons.js';
 import '../settings_shared_css.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {IronCollapseElement} from 'chrome://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
-import {IronSelectorElement} from 'chrome://resources/polymer/v3_0/iron-selector/iron-selector.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {IronCollapseElement} from 'gtx://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
+import {IronSelectorElement} from 'gtx://resources/polymer/v3_0/iron-selector/iron-selector.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {PageVisibility} from '../page_visibility.js';
 import {Route, RouteObserverMixin, RouteObserverMixinInterface, Router} from '../router.js';

@@ -14,7 +14,7 @@
 namespace content {
 
 // Implementation of the ProcessInternalsHandler interface, which is used to
-// communicate between the chrome://process-internals/ WebUI and the browser
+// communicate between the gtx://process-internals/ WebUI and the browser
 // process.
 class ProcessInternalsHandlerImpl : public ::mojom::ProcessInternalsHandler {
  public:

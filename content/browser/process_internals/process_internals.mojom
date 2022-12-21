@@ -56,7 +56,7 @@ struct IsolatedOriginInfo {
   string source;
 };
 
-// Interface used by chrome://process-internals to query data from the
+// Interface used by gtx://process-internals to query data from the
 // browser process.
 interface ProcessInternalsHandler {
 

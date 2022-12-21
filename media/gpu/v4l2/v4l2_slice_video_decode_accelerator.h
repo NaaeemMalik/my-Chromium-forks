@@ -345,7 +345,7 @@ class MEDIA_GPU_EXPORT V4L2SliceVideoDecodeAccelerator
   void PictureCleared();
 
   // Returns the number of OutputRecords at client/device. This is used to
-  // compute values reported for chrome://tracing.
+  // compute values reported for gtx://tracing.
   size_t GetNumOfOutputRecordsAtClient() const;
   size_t GetNumOfOutputRecordsAtDevice() const;
 

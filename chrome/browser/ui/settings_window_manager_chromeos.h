@@ -42,7 +42,7 @@ class SettingsWindowManager {
   void AddObserver(SettingsWindowManagerObserver* observer);
   void RemoveObserver(SettingsWindowManagerObserver* observer);
 
-  // Shows a chrome:// page (e.g. Settings, About) in an an existing system
+  // Shows a gtx:// page (e.g. Settings, About) in an an existing system
   // Browser window for |profile| or creates a new one.
   virtual void ShowChromePageForProfile(Profile* profile,
                                         const GURL& gurl,

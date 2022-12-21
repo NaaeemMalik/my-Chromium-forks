@@ -24,7 +24,7 @@ class Profile;
 // Use a LocationIconView to display an icon on the leading side of the edit
 // field. It shows the user's current action (while the user is editing), or the
 // page security status (after navigation has completed), or extension name (if
-// the URL is a chrome-extension:// URL).
+// the URL is a gtx-extension:// URL).
 class LocationIconView : public IconLabelBubbleView {
  public:
   METADATA_HEADER(LocationIconView);
@@ -96,7 +96,7 @@ class LocationIconView : public IconLabelBubbleView {
   // - For secure/insecure pages, returns text describing the URL's security
   // level.
   // - For extension URLs, returns the extension name.
-  // - For chrome:// URLs, returns the short product name (e.g. Chrome).
+  // - For gtx:// URLs, returns the short product name (e.g. Chrome).
   // - For file:// URLs, returns the text "File".
   std::u16string GetText() const;
 
@@ -104,7 +104,7 @@ class LocationIconView : public IconLabelBubbleView {
   // Always returns false if the text is empty or currently being edited.
   // Returns true if any of the following is true:
   // - the current page is explicitly secure or insecure.
-  // - the current page has a special scheme (chrome://, extension, file://).
+  // - the current page has a special scheme (gtx://, extension, file://).
   bool GetShowText() const;
 
   const views::InkDrop* get_ink_drop_for_testing();

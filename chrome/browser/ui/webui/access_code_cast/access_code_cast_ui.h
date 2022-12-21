@@ -49,7 +49,7 @@ class AccessCodeCastDialog : public ui::WebDialogDelegate {
   media_router::MediaCastMode cast_mode_;
 };
 
-// The WebUI controller for chrome://access-code-cast.
+// The WebUI controller for gtx://access-code-cast.
 class AccessCodeCastUI : public ui::MojoWebDialogUI,
                          public access_code_cast::mojom::PageHandlerFactory {
  public:

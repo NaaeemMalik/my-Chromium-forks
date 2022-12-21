@@ -14,18 +14,18 @@
  * by PrivacyPageBrowserProxy and describe the new host resolver configuration.
  */
 
-import 'chrome://resources/cr_elements/cr_radio_button/cr_radio_button.m.js';
-import 'chrome://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
-import 'chrome://resources/cr_elements/md_select_css.m.js';
+import 'gtx://resources/cr_elements/cr_radio_button/cr_radio_button.m.js';
+import 'gtx://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
+import 'gtx://resources/cr_elements/md_select_css.m.js';
 import '../controls/settings_toggle_button.js';
 import '../prefs/prefs.js';
 import '../settings_shared_css.js';
 import './secure_dns_input.js';
 
-import {CrRadioGroupElement} from 'chrome://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
-import {assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrRadioGroupElement} from 'gtx://resources/cr_elements/cr_radio_group/cr_radio_group.m.js';
+import {assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {SettingsToggleButtonElement} from '../controls/settings_toggle_button.js';
 import {loadTimeData} from '../i18n_setup.js';

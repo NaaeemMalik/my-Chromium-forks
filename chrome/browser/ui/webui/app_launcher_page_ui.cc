@@ -161,16 +161,16 @@ AppLauncherPageUI::AppLauncherPageUI(content::WebUI* web_ui)
 
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
-      "script-src chrome://resources 'self' 'unsafe-eval' "
+      "script-src gtx://resources 'self' 'unsafe-eval' "
       "'unsafe-inline';");
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::StyleSrc,
-      "style-src 'self' chrome://resources chrome://theme "
+      "style-src 'self' gtx://resources gtx://theme "
       "'unsafe-inline';");
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ImgSrc,
-      "img-src 'self' chrome://extension-icon chrome://app-icon chrome://theme "
-      "chrome://resources data:;");
+      "img-src 'self' gtx://extension-icon gtx://app-icon gtx://theme "
+      "gtx://resources data:;");
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::TrustedTypes,
       "trusted-types apps-page-js cr-ui-bubble-js-static "

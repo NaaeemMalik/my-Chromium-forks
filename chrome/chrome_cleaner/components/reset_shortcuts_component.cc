@@ -118,7 +118,7 @@ ResetShortcutsComponent::ResetShortcutsComponent(
   std::set<base::FilePath> chrome_exe_directories;
   ListChromeExeDirectories(&chrome_exe_directories);
   for (const auto& path : chrome_exe_directories) {
-    chrome_exe_file_path_set_.Insert(path.Append(L"chrome.exe"));
+    chrome_exe_file_path_set_.Insert(path.Append(L"GTXBrowser.exe"));
   }
 }
 

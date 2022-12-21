@@ -718,7 +718,7 @@ class RTCPeerConnectionHandler::WebRtcSetDescriptionObserverImpl
     auto current_remote_description =
         std::move(states.current_remote_description);
 
-    // Track result in chrome://webrtc-internals/.
+    // Track result in gtx://webrtc-internals/.
     if (tracker && handler_) {
       StringBuilder value;
       if (action_ ==
@@ -1597,7 +1597,7 @@ void RTCPeerConnectionHandler::AddIceCandidate(
              current_remote_description,
          CrossThreadPersistent<RTCIceCandidatePlatform> candidate,
          webrtc::RTCError result, RTCVoidRequest* request) {
-        // Inform tracker (chrome://webrtc-internals).
+        // Inform tracker (gtx://webrtc-internals).
         // Note that because the WTF::CrossThreadBindOnce() below uses a
         // CrossThreadWeakPersistent when binding |tracker_ptr| this lambda may
         // be invoked with a null |tracker_ptr| so we have to guard against it.
@@ -2296,7 +2296,7 @@ void RTCPeerConnectionHandler::OnSessionDescriptionsUpdated(
           : nullptr);
 }
 
-// Note: This function is purely for chrome://webrtc-internals/ tracking
+// Note: This function is purely for gtx://webrtc-internals/ tracking
 // purposes. The JavaScript visible event and attribute is processed together
 // with transceiver or receiver changes.
 void RTCPeerConnectionHandler::TrackSignalingChange(
@@ -2549,7 +2549,7 @@ void RTCPeerConnectionHandler::OnModifyTransceivers(
         blink::TransceiverStateUpdateMode::kSetDescription);
 
     // Log a "transceiverAdded" or "transceiverModified" event in
-    // chrome://webrtc-internals if new or modified.
+    // gtx://webrtc-internals if new or modified.
     if (peer_connection_tracker_ &&
         (transceiver_is_new || transceiver_was_modified)) {
       size_t transceiver_index = GetTransceiverIndex(*platform_transceivers[i]);

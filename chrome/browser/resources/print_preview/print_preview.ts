@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-export {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-export {CrCheckboxElement} from 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
-export {PluralStringProxyImpl as PrintPreviewPluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
-export {IronMeta} from 'chrome://resources/polymer/v3_0/iron-meta/iron-meta.js';
+export {CrButtonElement} from 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+export {CrCheckboxElement} from 'gtx://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
+export {PluralStringProxyImpl as PrintPreviewPluralStringProxyImpl} from 'gtx://resources/js/plural_string_proxy.js';
+export {IronMeta} from 'gtx://resources/polymer/v3_0/iron-meta/iron-meta.js';
 export {CloudPrintInterface, CloudPrintInterfaceEventType} from './cloud_print_interface.js';
 export {CloudPrintInterfaceImpl} from './cloud_print_interface_impl.js';
 export {Cdd, MediaSizeCapability, MediaSizeOption, VendorCapabilityValueType} from './data/cdd.js';

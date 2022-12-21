@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-import 'chrome://resources/mojo/url/mojom/url.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+import 'gtx://resources/mojo/url/mojom/url.mojom-lite.js';
 
 import {PageHandlerFactory, PageHandlerRemote} from './reader_mode.mojom-webui.js';
 

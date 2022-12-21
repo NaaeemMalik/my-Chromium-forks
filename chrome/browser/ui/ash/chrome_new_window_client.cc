@@ -151,8 +151,8 @@ constexpr std::pair<arc::mojom::ChromePage, const char*>
 
 constexpr std::pair<arc::mojom::ChromePage, const char*> kAboutPagesMapping[] =
     {{ChromePage::ABOUTBLANK, url::kAboutBlankURL},
-     {ChromePage::ABOUTDOWNLOADS, "chrome://downloads/"},
-     {ChromePage::ABOUTHISTORY, "chrome://history/"}};
+     {ChromePage::ABOUTDOWNLOADS, "gtx://downloads/"},
+     {ChromePage::ABOUTHISTORY, "gtx://history/"}};
 
 void RestoreTabUsingProfile(Profile* profile) {
   sessions::TabRestoreService* service =
@@ -179,7 +179,7 @@ GURL ConvertArcUrlToExternalFileUrlIfNeeded(const GURL& url) {
 }
 
 // Returns URL path and query without the "/" prefix. For example, for the URL
-// "chrome://settings/networks/?type=WiFi" returns "networks/?type=WiFi".
+// "gtx://settings/networks/?type=WiFi" returns "networks/?type=WiFi".
 std::string GetPathAndQuery(const GURL& url) {
   std::string result = url.path();
   if (!result.empty() && result[0] == '/')
@@ -708,7 +708,7 @@ content::WebContents* ChromeNewWindowClient::OpenUrlImpl(
   Profile* profile = ProfileManager::GetActiveUserProfile();
   if ((url.SchemeIs(url::kAboutScheme) ||
        url.SchemeIs(content::kChromeUIScheme))) {
-    // Show browser settings (e.g. chrome://settings). This may open in a window
+    // Show browser settings (e.g. gtx://settings). This may open in a window
     // or a tab depending on feature SplitSettings.
     if (url.host() == chrome::kChromeUISettingsHost) {
       std::string sub_page = GetPathAndQuery(url);

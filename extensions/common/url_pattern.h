@@ -46,7 +46,7 @@ class GURL;
 // - http://foo.*.bar/baz -- * must be first component
 // - http:/bar -- scheme separator not found
 // - foo://* -- invalid scheme
-// - chrome:// -- we don't support chrome internal URLs
+// - gtx:// -- we don't support chrome internal URLs
 class URLPattern {
  public:
   // A collection of scheme bitmasks for use with valid_schemes.
@@ -66,7 +66,7 @@ class URLPattern {
     SCHEME_UUID_IN_PACKAGE = 1 << 11,
 
     // IMPORTANT!
-    // SCHEME_ALL will match every scheme, including chrome://, chrome-
+    // SCHEME_ALL will match every scheme, including gtx://, chrome-
     // extension://, about:, etc. Because this has lots of security
     // implications, third-party extensions should usually not be able to get
     // access to URL patterns initialized this way. If there is a reason

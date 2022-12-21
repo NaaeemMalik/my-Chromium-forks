@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 
 import {AsyncUtil} from '../../common/js/async_util.js';
 import {FileType} from '../../common/js/file_type.js';
@@ -1272,7 +1272,7 @@ function isFilesAppId(appId) {
 }
 
 /**
- * The SWA actionId is prefixed with chrome://file-manager/?ACTION_ID, just the
+ * The SWA actionId is prefixed with gtx://file-manager/?ACTION_ID, just the
  * sub-string compatible with the extension/legacy e.g.: "view-pdf".
  *
  * @param {string} actionId

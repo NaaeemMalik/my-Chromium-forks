@@ -824,7 +824,7 @@ struct BrowserInitParams {
   [MinVersion=32]
   array<string>? ash_capabilities@31;
 
-  // Internal chrome:// URLs which can be handled by Ash. These are sent from
+  // Internal gtx:// URLs which can be handled by Ash. These are sent from
   // Ash to Lacros at startup so Lacros knows which URLs are OK to forward.
   // Added in M97.
   [MinVersion=33]

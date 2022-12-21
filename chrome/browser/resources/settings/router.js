@@ -4,9 +4,9 @@
 
 import './i18n_setup.js';
 
-import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {dedupingMixin} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {dedupingMixin} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
   /**
    * @typedef {{
@@ -79,7 +79,7 @@ import {dedupingMixin} from 'chrome://resources/polymer/v3_0/polymer/polymer_bun
 
     /**
      * Returns the absolute path string for this Route, assuming this function
-     * has been called from within chrome://settings.
+     * has been called from within gtx://settings.
      * @return {string}
      */
     getAbsolutePath() {
@@ -351,7 +351,7 @@ import {dedupingMixin} from 'chrome://resources/polymer/v3_0/polymer/polymer_bun
      * @param {string} urlPath The url path (only).
      */
     recordMetrics(urlPath) {
-      assert(!urlPath.startsWith('chrome://'));
+      assert(!urlPath.startsWith('gtx://'));
       assert(!urlPath.startsWith('settings'));
       assert(urlPath.startsWith('/'));
       assert(!urlPath.match(/\?/g));

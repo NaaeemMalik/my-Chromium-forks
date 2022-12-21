@@ -72,25 +72,25 @@ ts_library("build_ts") {
   out_dir = "$target_gen_dir/tsc"
   tsconfig_base = "tsconfig_base.json"
   path_mappings = [
-    "chrome://profile-picker/*|" + rebase_path(
+    "gtx://profile-picker/*|" + rebase_path(
             "$root_gen_dir/chrome/browser/resources/signin/profile_picker/tsc/*",
             target_gen_dir),
-    "chrome://signin-dice-web-intercept/*|" + rebase_path(
+    "gtx://signin-dice-web-intercept/*|" + rebase_path(
             "$root_gen_dir/chrome/browser/resources/signin/tsc/dice_web_signin_intercept/*",
             target_gen_dir),
-    "chrome://enterprise-profile-welcome/*|" + rebase_path(
+    "gtx://enterprise-profile-welcome/*|" + rebase_path(
             "$root_gen_dir/chrome/browser/resources/signin/tsc/enterprise_profile_welcome/*",
             target_gen_dir),
-    "chrome://profile-customization/*|" + rebase_path(
+    "gtx://profile-customization/*|" + rebase_path(
             "$root_gen_dir/chrome/browser/resources/signin/tsc/profile_customization/*",
             target_gen_dir),
-    "chrome://sync-confirmation/*|" + rebase_path(
+    "gtx://sync-confirmation/*|" + rebase_path(
             "$root_gen_dir/chrome/browser/resources/signin/tsc/sync_confirmation/*",
             target_gen_dir),
-    "chrome://signin-reauth/*|" + rebase_path(
+    "gtx://signin-reauth/*|" + rebase_path(
             "$root_gen_dir/chrome/browser/resources/signin/tsc/signin_reauth/*",
             target_gen_dir),
-    "chrome://webui-test/*|" +
+    "gtx://webui-test/*|" +
         rebase_path("$root_gen_dir/chrome/test/data/webui/tsc/*",
                     target_gen_dir),
   ]

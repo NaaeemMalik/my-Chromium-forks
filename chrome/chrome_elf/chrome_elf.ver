@@ -1,2 +1,2 @@
-INTERNAL_NAME=chrome_elf_dll
-ORIGINAL_FILENAME=chrome_elf.dll
+INTERNAL_NAME=gtx_browser_elf_dll
+ORIGINAL_FILENAME=gtx_browser_elf.dll

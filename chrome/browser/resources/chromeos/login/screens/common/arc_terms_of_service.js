@@ -365,7 +365,7 @@ class ArcTermsOfService extends ArcTermsOfserviceBase {
    */
   showUrlOverlay(targetUrl) {
     if (this.usingOfflineTerms_) {
-      const TERMS_URL = 'chrome://terms/arc/privacy_policy';
+      const TERMS_URL = 'gtx://terms/arc/privacy_policy';
       WebViewHelper.loadUrlContentToWebView(
           this.$.arcTosOverlayWebview, TERMS_URL,
           WebViewHelper.ContentType.PDF);
@@ -663,7 +663,7 @@ class ArcTermsOfService extends ArcTermsOfserviceBase {
     // If in demo mode fallback to offline Terms of Service copy.
     if (this.isDemoModeSetup_()) {
       this.usingOfflineTerms_ = true;
-      const TERMS_URL = 'chrome://terms/arc/terms';
+      const TERMS_URL = 'gtx://terms/arc/terms';
       var webView = this.$.arcTosView;
       WebViewHelper.loadUrlContentToWebView(
           webView, TERMS_URL, WebViewHelper.ContentType.HTML);

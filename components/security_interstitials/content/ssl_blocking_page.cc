@@ -82,7 +82,7 @@ SSLBlockingPage::SSLBlockingPage(
                                                  time_triggered,
                                                  support_url,
                                                  controller())) {
-  // Creating an interstitial without showing (e.g. from chrome://interstitials)
+  // Creating an interstitial without showing (e.g. from gtx://interstitials)
   // it leaks memory, so don't create it here.
 }
 

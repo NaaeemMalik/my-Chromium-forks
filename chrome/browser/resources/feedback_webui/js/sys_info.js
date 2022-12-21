@@ -4,8 +4,8 @@
 
 import '../strings.m.js';
 
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 /**
  * A queue of a sequence of closures that will incrementally build the sys info

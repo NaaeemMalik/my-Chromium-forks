@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {FakeObservables} from 'chrome://resources/ash/common/fake_observables.js';
+import {FakeObservables} from 'gtx://resources/ash/common/fake_observables.js';
 
 import {FirmwareUpdate, UpdateObserver, UpdateProviderInterface} from './firmware_update_types.js';
 

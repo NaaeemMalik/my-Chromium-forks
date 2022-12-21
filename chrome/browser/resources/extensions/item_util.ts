@@ -4,8 +4,8 @@
 
 import './strings.m.js';
 
-import {assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+import {assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 
 export enum SourceType {
   WEBSTORE = 'webstore',
@@ -123,10 +123,10 @@ export function getItemSourceString(source: SourceType): string {
  */
 export function computeInspectableViewLabel(
     view: chrome.developerPrivate.ExtensionView): string {
-  // Trim the "chrome-extension://<id>/".
+  // Trim the "gtx-extension://<id>/".
   const url = new URL(view.url);
   let label = view.url;
-  if (url.protocol === 'chrome-extension:') {
+  if (url.protocol === 'gtx-extension:') {
     label = url.pathname.substring(1);
   }
   if (label === '_generated_background_page.html') {

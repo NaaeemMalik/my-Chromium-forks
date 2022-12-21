@@ -4,7 +4,7 @@
 
 import './alert_indicator.js';
 
-import {CustomElement} from 'chrome://resources/js/custom_element.js';
+import {CustomElement} from 'gtx://resources/js/custom_element.js';
 
 import {AlertIndicatorElement} from './alert_indicator.js';
 import {TabAlertState} from './tabs.mojom-webui.js';

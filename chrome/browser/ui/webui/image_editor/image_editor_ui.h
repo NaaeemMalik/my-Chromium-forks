@@ -15,8 +15,8 @@
 class Profile;
 
 namespace image_editor {
-// This UI and the chrome://image-editor page acts as a wrapper, using an
-// <iframe> to display an app hosted from chrome-untrusted://image-editor. The
+// This UI and the gtx://image-editor page acts as a wrapper, using an
+// <iframe> to display an app hosted from gtx-untrusted://image-editor. The
 // mojo interface to handle the user-generated screenshot content will exist
 // on the chrome-untrusted page. Note the actual editor app and library is
 // reviewed and controlled by us.

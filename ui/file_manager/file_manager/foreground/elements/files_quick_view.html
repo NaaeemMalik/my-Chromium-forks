@@ -3,7 +3,7 @@
   -- found in the LICENSE file.
 -->
 
-<link rel="stylesheet" href="chrome://resources/css/text_defaults.css">
+<link rel="stylesheet" href="gtx://resources/css/text_defaults.css">
 <link rel="stylesheet" href="foreground/css/common.css">
 <link rel="stylesheet" href="foreground/elements/files_quick_view.css">
 
@@ -37,7 +37,7 @@
             <webview style="color: transparent; background: transparent;" on-contentload='applyTextCss' class="content text-content" src="[[generateBrowsableUrl_(sourceContent, subtype)]]"></webview>
           </template>
           <template is="dom-if" if="[[!isLegacy]]">
-            <iframe id="untrusted" style="color: transparent; background: transparent; width: 100%; height: 100%; border: 0px;" on-load="refreshUntrustedIframe_" class="content text-content" src="chrome-untrusted://file-manager/untrusted_resources/files_browsable_content.html"></iframe>
+            <iframe id="untrusted" style="color: transparent; background: transparent; width: 100%; height: 100%; border: 0px;" on-load="refreshUntrustedIframe_" class="content text-content" src="gtx-untrusted://file-manager/untrusted_resources/files_browsable_content.html"></iframe>
           </template>
         </template>
         <!-- document/HTML -->

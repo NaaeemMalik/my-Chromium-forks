@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // <if expr="chromeos">
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
 // </if>
 
 export interface DownloadsBrowserProxy {

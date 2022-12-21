@@ -24,7 +24,7 @@ namespace {
 // URL of the multidevice settings page with the URL parameter that will
 // start up the opt-in-flow.
 constexpr char kMultideviceSettingsUrl[] =
-    "chrome://os-settings/multidevice/"
+    "gtx://os-settings/multidevice/"
     "features?showNotificationAccessSetupDialog";
 
 }  // namespace

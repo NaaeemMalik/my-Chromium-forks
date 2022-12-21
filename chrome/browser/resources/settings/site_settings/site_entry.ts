@@ -6,22 +6,22 @@
  * @fileoverview
  * 'site-entry' is an element representing a single eTLD+1 site entity.
  */
-import 'chrome://resources/cr_elements/cr_action_menu/cr_action_menu.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
+import 'gtx://resources/cr_elements/cr_action_menu/cr_action_menu.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
 import '../settings_shared_css.js';
 import '../site_favicon.js';
 
-import {CrIconButtonElement} from 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import {CrLazyRenderElement} from 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {FocusRowBehavior} from 'chrome://resources/js/cr/ui/focus_row_behavior.m.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {I18nMixin, I18nMixinInterface} from 'chrome://resources/js/i18n_mixin.js';
-import {IronCollapseElement} from 'chrome://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrIconButtonElement} from 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import {CrLazyRenderElement} from 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {FocusRowBehavior} from 'gtx://resources/js/cr/ui/focus_row_behavior.m.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {I18nMixin, I18nMixinInterface} from 'gtx://resources/js/i18n_mixin.js';
+import {IronCollapseElement} from 'gtx://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {BaseMixin, BaseMixinInterface} from '../base_mixin.js';
 import {loadTimeData} from '../i18n_setup.js';

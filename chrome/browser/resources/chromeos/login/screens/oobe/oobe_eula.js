@@ -49,7 +49,7 @@ const ONLINE_EULA_RETRY_BACKOFF_TIMEOUT_IN_MS = 1000;
  * URL to use when online page is not available.
  * @type {string}
  */
-const EULA_TERMS_URL = 'chrome://terms';
+const EULA_TERMS_URL = 'gtx://terms';
 
 // EulaLoader assists on the process of loading an URL into a webview.
 // It listens for events from the webRequest API for the given URL and
@@ -360,7 +360,7 @@ class EulaScreen extends EulaScreenBase {
 
   /**
    * Event handler that is invoked when EULA is loaded. Either online version or
-   * 'chrome://terms' fallback.
+   * 'gtx://terms' fallback.
    */
   onFrameLoad_() {
     // Get the already created EulaLoader instance.
@@ -380,10 +380,10 @@ class EulaScreen extends EulaScreenBase {
 
   /**
    * Load Eula into the given webview. Online version is attempted first with
-   * a timeout. If it fails to load, fallback to chrome://terms. The loaded
+   * a timeout. If it fails to load, fallback to gtx://terms. The loaded
    * terms contents is then set to the webview via data url. Webview is
    * used as a sandbox for both online and local contents. Data url is
-   * used for chrome://terms so that webview never needs to have the
+   * used for gtx://terms so that webview never needs to have the
    * privileged webui bindings.
    *
    * @param {!Object} webview Webview element to host the terms.

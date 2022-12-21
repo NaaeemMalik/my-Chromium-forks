@@ -82,7 +82,7 @@ enum class SystemAppType {
   // will have a mock page.
   PROJECTOR = 20,
 
-  // OsUrlHandler is called by Lacros to show Ash internal chrome:// pages as
+  // OsUrlHandler is called by Lacros to show Ash internal gtx:// pages as
   // applications to the user. Note that these pages are accessible to the user
   // as os://<page> through search.
   // contact: skuhne@google.com
@@ -95,7 +95,7 @@ enum class SystemAppType {
   // Contact: cros-peripherals@google.com
   FIRMWARE_UPDATE = 22,
 
-  // OsFlags is called by Lacros to show the chrome://flags page as
+  // OsFlags is called by Lacros to show the gtx://flags page as
   // applications to the user. Note that this page is accessible to the user
   // as os://flags through search.
   // contact: skuhne@google.com

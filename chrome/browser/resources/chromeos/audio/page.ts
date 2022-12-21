@@ -1,4 +1,4 @@
-import {$} from 'chrome://resources/js/util.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 export class Page {
   pageName: string;

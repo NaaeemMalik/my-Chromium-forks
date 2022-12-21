@@ -12,15 +12,15 @@ import '../../settings_shared_css.js';
 import '//resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
 import '//resources/cr_elements/icons.m.js';
 import '//resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/cr_components/chromeos/bluetooth/bluetooth_icon.js';
-import 'chrome://resources/cr_components/chromeos/bluetooth/bluetooth_device_battery_info.js';
+import 'gtx://resources/cr_components/chromeos/bluetooth/bluetooth_icon.js';
+import 'gtx://resources/cr_components/chromeos/bluetooth/bluetooth_device_battery_info.js';
 
 import {I18nBehavior, I18nBehaviorInterface} from '//resources/js/i18n_behavior.m.js';
 import {html, mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {BatteryType} from 'chrome://resources/cr_components/chromeos/bluetooth/bluetooth_types.js';
-import {getBatteryPercentage, getDeviceName, hasAnyDetailedBatteryInfo} from 'chrome://resources/cr_components/chromeos/bluetooth/bluetooth_utils.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {FocusRowBehavior, FocusRowBehaviorInterface} from 'chrome://resources/js/cr/ui/focus_row_behavior.m.js';
+import {BatteryType} from 'gtx://resources/cr_components/chromeos/bluetooth/bluetooth_types.js';
+import {getBatteryPercentage, getDeviceName, hasAnyDetailedBatteryInfo} from 'gtx://resources/cr_components/chromeos/bluetooth/bluetooth_utils.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {FocusRowBehavior, FocusRowBehaviorInterface} from 'gtx://resources/js/cr/ui/focus_row_behavior.m.js';
 
 import {Router} from '../../router.js';
 import {routes} from '../os_route.m.js';

@@ -13,8 +13,8 @@ import './settings_fast_pair_toggle.js';
 
 import {I18nBehavior, I18nBehaviorInterface} from '//resources/js/i18n_behavior.m.js';
 import {html, mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {getBluetoothConfig} from 'chrome://resources/cr_components/chromeos/bluetooth/cros_bluetooth_config.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+import {getBluetoothConfig} from 'gtx://resources/cr_components/chromeos/bluetooth/cros_bluetooth_config.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 
 const mojom = chromeos.bluetoothConfig.mojom;
 

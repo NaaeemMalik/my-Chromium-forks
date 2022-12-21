@@ -47,12 +47,12 @@ using phone_hub_metrics::NotificationInteraction;
 using phonehub::proto::CameraRollItemMetadata;
 
 namespace {
-const char kNotifierId[] = "chrome://phonehub";
+const char kNotifierId[] = "gtx://phonehub";
 const char kNotifierIdSeparator[] = "-";
 const char kPhoneHubInstantTetherNotificationId[] =
-    "chrome://phonehub-instant-tether";
+    "gtx://phonehub-instant-tether";
 const char kPhoneHubCameraRollNotificationId[] =
-    "chrome://phonehub-camera-roll";
+    "gtx://phonehub-camera-roll";
 const char kNotificationCustomViewType[] = "phonehub";
 const char kNotificationCustomCallViewType[] = "phonehub-call";
 const int kReplyButtonIndex = 0;

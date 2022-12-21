@@ -23,9 +23,9 @@ const ConsolidatedConsentScreenState = {
  * URL to use when online page is not available.
  * @type {string}
  */
-const GOOGLE_EULA_TERMS_URL = 'chrome://terms';
-const ARC_TERMS_URL = 'chrome://terms/arc/terms';
-const PRIVACY_POLICY_URL = 'chrome://terms/arc/privacy_policy';
+const GOOGLE_EULA_TERMS_URL = 'gtx://terms';
+const ARC_TERMS_URL = 'gtx://terms/arc/terms';
+const PRIVACY_POLICY_URL = 'gtx://terms/arc/privacy_policy';
 
 /**
  * @constructor

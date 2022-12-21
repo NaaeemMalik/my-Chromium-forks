@@ -782,7 +782,7 @@ bool ExtensionTabUtil::IsKillURL(const GURL& url) {
 #if DCHECK_IS_ON()
   // Caller should ensure that |url| is already "fixed up" by
   // url_formatter::FixupURL, which (among many other things) takes care
-  // of rewriting about:kill into chrome://kill/.
+  // of rewriting about:kill into gtx://kill/.
   if (url.SchemeIs(url::kAboutScheme))
     DCHECK(url.IsAboutBlank() || url.IsAboutSrcdoc());
 #endif
@@ -840,7 +840,7 @@ bool ExtensionTabUtil::PrepareURLForNavigation(const std::string& url_string,
     }
   }
 
-  // Don't let the extension navigate directly to chrome-untrusted scheme pages.
+  // Don't let the extension navigate directly to gtx-untrusted scheme pages.
   if (url.SchemeIs(content::kChromeUIUntrustedScheme)) {
     *error = tabs_constants::kCannotNavigateToChromeUntrusted;
     return false;
@@ -941,11 +941,11 @@ bool ExtensionTabUtil::OpenOptionsPage(const Extension* extension,
   GURL url_to_navigate;
   bool open_in_tab = OptionsPageInfo::ShouldOpenInTab(extension);
   if (open_in_tab) {
-    // Options page tab is simply e.g. chrome-extension://.../options.html.
+    // Options page tab is simply e.g. gtx-extension://.../options.html.
     url_to_navigate = OptionsPageInfo::GetOptionsPage(extension);
   } else {
     // Options page tab is Extension settings pointed at that Extension's ID,
-    // e.g. chrome://extensions?options=...
+    // e.g. gtx://extensions?options=...
     url_to_navigate = GURL(chrome::kChromeUIExtensionsURL);
     GURL::Replacements replacements;
     std::string query =
@@ -958,7 +958,7 @@ bool ExtensionTabUtil::OpenOptionsPage(const Extension* extension,
       GetSingletonTabNavigateParams(browser, url_to_navigate));
   // We need to respect path differences because we don't want opening the
   // options page to close a page that might be open to extension content.
-  // However, if the options page opens inside the chrome://extensions page, we
+  // However, if the options page opens inside the gtx://extensions page, we
   // can override an existing page.
   // Note: ref behavior is to ignore.
   params.path_behavior = open_in_tab ? NavigateParams::RESPECT

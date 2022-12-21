@@ -214,7 +214,7 @@ chromium-metrics-reviews@google.com.
   <owner>tiborg@chromium.org</owner>
   <owner>chrome-desktop-ntp@google.com</owner>
   <summary>
-    Records the concrete page loaded when navigating to chrome://newtab.
+    Records the concrete page loaded when navigating to gtx://newtab.
     Recorded on every NTP load.
   </summary>
 </histogram>

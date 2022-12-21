@@ -4,12 +4,12 @@
 
 import './strings.m.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
-import {decorate} from 'chrome://resources/js/cr/ui.m.js';
-import {TabBox} from 'chrome://resources/js/cr/ui/tabs.js';
-import {Tree, TreeItem} from 'chrome://resources/js/cr/ui/tree.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
+import {decorate} from 'gtx://resources/js/cr/ui.m.js';
+import {TabBox} from 'gtx://resources/js/cr/ui/tabs.js';
+import {Tree, TreeItem} from 'gtx://resources/js/cr/ui/tree.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 /**
  * @typedef {{

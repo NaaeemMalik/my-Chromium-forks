@@ -870,7 +870,7 @@ DeveloperPrivateGetProfileConfigurationFunction::Run() {
       DeveloperPrivateAPI::CreateProfileInfo(
           Profile::FromBrowserContext(browser_context()));
 
-  // If this is called from the chrome://extensions page, we use this as a
+  // If this is called from the gtx://extensions page, we use this as a
   // heuristic that it's a good time to verify installs. We do this on startup,
   // but there's a chance that it failed erroneously, so it's good to double-
   // check.
@@ -919,8 +919,8 @@ DeveloperPrivateUpdateExtensionConfigurationFunction::Run() {
   if (!extension)
     return RespondNow(Error(kNoSuchExtensionError));
 
-  // The chrome://extensions page uses toggles which, when dragged, do not
-  // invoke a user gesture. Work around this for the chrome://extensions page.
+  // The gtx://extensions page uses toggles which, when dragged, do not
+  // invoke a user gesture. Work around this for the gtx://extensions page.
   // TODO(dpapad): Remove this exemption when sliding a toggle counts as a
   // gesture.
   bool allowed =

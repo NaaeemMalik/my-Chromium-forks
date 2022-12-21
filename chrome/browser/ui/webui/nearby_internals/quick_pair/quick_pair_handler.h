@@ -23,7 +23,7 @@ class FastPairImageDecoder;
 }  // namespace ash
 
 // WebUIMessageHandler for the Quick Pair debug page at
-// chrome://nearby-internals
+// gtx://nearby-internals
 class QuickPairHandler : public content::WebUIMessageHandler,
                          public ash::quick_pair::LogBuffer::Observer {
  public:

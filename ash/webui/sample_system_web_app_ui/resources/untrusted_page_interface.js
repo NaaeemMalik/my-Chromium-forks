@@ -5,7 +5,7 @@
 import {ChildUntrustedPageReceiver, ParentTrustedPageRemote} from '/ash/webui/sample_system_web_app_ui/mojom/sample_system_web_app_shared_ui.mojom-webui.js';
 import {UntrustedPageInterfacesFactory} from '/ash/webui/sample_system_web_app_ui/mojom/sample_system_web_app_untrusted_ui.mojom-webui.js';
 
-export const PARENT_PAGE_ORIGIN = 'chrome://sample-system-web-app';
+export const PARENT_PAGE_ORIGIN = 'gtx://sample-system-web-app';
 
 /**
  * Implements ChildUntrustedPage interface to handle requests from the parent

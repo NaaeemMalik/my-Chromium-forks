@@ -9,7 +9,7 @@
 
 namespace content {
 
-// The implementation for the chrome://webrtc-internals page.
+// The implementation for the gtx://webrtc-internals page.
 class WebRTCInternalsUI : public WebUIController {
  public:
   explicit WebRTCInternalsUI(WebUI* web_ui);

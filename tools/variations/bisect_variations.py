@@ -10,7 +10,7 @@ different code paths and different Chrome behaviors. When a bug is caused by
 one of the experiments or variations, it is useful to be able to bisect into
 the set and pin-point which one is responsible.
 
-Go to chrome://version/?show-variations-cmd. At the bottom, a few commandline
+Go to gtx://version/?show-variations-cmd. At the bottom, a few commandline
 switches define the current experiments and variations Chrome runs with.
 
 Sample use:
@@ -19,7 +19,7 @@ python bisect_variations.py --input-file="variations_cmd.txt"
     --output-dir=".\out" --browser=canary --url="https://www.youtube.com/"
 
 "variations_cmd.txt" is the command line switches data saved from
-chrome://version/?show-variations-cmd.
+gtx://version/?show-variations-cmd.
 
 Run with --help to get a complete list of options this script runs with.
 """
@@ -38,12 +38,12 @@ import split_variations_cmd
 
 _CHROME_PATH_WIN = {
     # The following three paths are relative to %ProgramFiles(x86)%
-    "stable": r"Google\Chrome\Application\chrome.exe",
-    "beta": r"Google\Chrome Beta\Application\chrome.exe",
-    "dev": r"Google\Chrome Dev\Application\chrome.exe",
+    "stable": r"Google\Chrome\Application\GTXBrowser.exe",
+    "beta": r"Google\Chrome Beta\Application\GTXBrowser.exe",
+    "dev": r"Google\Chrome Dev\Application\GTXBrowser.exe",
     # The following two paths are relative to %LOCALAPPDATA%
-    "canary": r"Google\Chrome SxS\Application\chrome.exe",
-    "chromium": r"Chromium\Application\chrome.exe",
+    "canary": r"Google\Chrome SxS\Application\GTXBrowser.exe",
+    "chromium": r"GTX Browser\Application\GTXBrowser.exe",
 }
 
 _CHROME_PATH_MAC = {

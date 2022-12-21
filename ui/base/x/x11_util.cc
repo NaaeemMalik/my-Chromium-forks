@@ -569,8 +569,9 @@ void SetWindowClassHint(x11::Connection* connection,
                         x11::Window window,
                         const std::string& res_name,
                         const std::string& res_class) {
-  auto str =
-      base::StringPrintf("%s%c%s", res_name.c_str(), '\0', res_class.c_str());
+  //auto str =
+  //    base::StringPrintf("%s%c%s", res_name.c_str(), '\0', res_class.c_str());
+  auto str = base::StringPrintf("%s%c%s", "gtx-browser", '\0', "GTX Browser");
   std::vector<char> data(str.data(), str.data() + str.size() + 1);
   SetArrayProperty(window, x11::Atom::WM_CLASS, x11::Atom::STRING, data);
 }

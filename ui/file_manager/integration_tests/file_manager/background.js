@@ -58,7 +58,7 @@ import {BASIC_CROSTINI_ENTRY_SET, BASIC_DRIVE_ENTRY_SET, BASIC_LOCAL_ENTRY_SET, 
  * @type {string}
  * @const
  */
-export const FILE_MANAGER_SWA_ID = 'chrome://file-manager';
+export const FILE_MANAGER_SWA_ID = 'gtx://file-manager';
 
 export {FILE_MANAGER_EXTENSIONS_ID};
 
@@ -95,7 +95,7 @@ export async function openNewWindow(initialRoot, appState = {}) {
           `filesystem:${FILE_MANAGER_SWA_ID}/${tail}`;
     } else {
       appState.currentDirectoryURL =
-          `filesystem:chrome-extension://${FILE_MANAGER_EXTENSIONS_ID}/${tail}`;
+          `filesystem:gtx-extension://${FILE_MANAGER_EXTENSIONS_ID}/${tail}`;
     }
   }
 

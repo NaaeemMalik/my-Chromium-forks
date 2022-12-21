@@ -4,12 +4,12 @@
 
 import './settings_ui/settings_ui.js';
 
-export {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-export {CrDrawerElement} from 'chrome://resources/cr_elements/cr_drawer/cr_drawer.js';
-export {CrLinkRowElement} from 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
-export {CrToolbarElement} from 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar.js';
-export {CrToolbarSearchFieldElement} from 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
-export {PluralStringProxyImpl as SettingsPluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
+export {CrButtonElement} from 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+export {CrDrawerElement} from 'gtx://resources/cr_elements/cr_drawer/cr_drawer.js';
+export {CrLinkRowElement} from 'gtx://resources/cr_elements/cr_link_row/cr_link_row.js';
+export {CrToolbarElement} from 'gtx://resources/cr_elements/cr_toolbar/cr_toolbar.js';
+export {CrToolbarSearchFieldElement} from 'gtx://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
+export {PluralStringProxyImpl as SettingsPluralStringProxyImpl} from 'gtx://resources/js/plural_string_proxy.js';
 export {SettingsAboutPageElement} from './about_page/about_page.js';
 export {AboutPageBrowserProxy, AboutPageBrowserProxyImpl, UpdateStatus} from './about_page/about_page_browser_proxy.js';
 // <if expr="_google_chrome and is_macosx">

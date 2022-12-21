@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
-import {decorate, toCssPx} from 'chrome://resources/js/cr/ui.m.js';
-import {contextMenuHandler} from 'chrome://resources/js/cr/ui/context_menu_handler.m.js';
-import {Menu} from 'chrome://resources/js/cr/ui/menu.m.js';
-import {MenuItem} from 'chrome://resources/js/cr/ui/menu_item.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {$, appendParam, findAncestorByClass} from 'chrome://resources/js/util.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {addSingletonGetter} from 'gtx://resources/js/cr.m.js';
+import {decorate, toCssPx} from 'gtx://resources/js/cr/ui.m.js';
+import {contextMenuHandler} from 'gtx://resources/js/cr/ui/context_menu_handler.m.js';
+import {Menu} from 'gtx://resources/js/cr/ui/menu.m.js';
+import {MenuItem} from 'gtx://resources/js/cr/ui/menu_item.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {$, appendParam, findAncestorByClass} from 'gtx://resources/js/util.m.js';
 
 import {AppInfo} from './app_info.js';
 import {getAppsPageIndex, getCardSlider} from './new_tab.js';

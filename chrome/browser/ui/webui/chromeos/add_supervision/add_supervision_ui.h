@@ -62,7 +62,7 @@ class AddSupervisionDialog : public SystemWebDialogDelegate {
   bool should_close_on_escape_ = true;
 };
 
-// Controller for chrome://add-supervision
+// Controller for gtx://add-supervision
 class AddSupervisionUI : public ui::MojoWebUIController,
                          public AddSupervisionHandler::Delegate {
  public:

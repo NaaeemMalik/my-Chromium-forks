@@ -45,7 +45,7 @@ WEBUI_TAB_STRIP_CUSTOM_METRIC_NAMES = [
     'TabStripPageHandler:TabGroupedStateChanged',
 ]
 
-WEBUI_TAB_STRIP_URL = 'chrome://tab-strip.top-chrome/'
+WEBUI_TAB_STRIP_URL = 'gtx://tab-strip.top-chrome/'
 
 
 class WebUITabStripStory(MultiTabStory):

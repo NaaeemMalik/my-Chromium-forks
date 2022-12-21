@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assertInstanceof} from 'chrome://resources/js/assert.m.js';
-import {decorate, define as crUiDefine} from 'chrome://resources/js/cr/ui.m.js';
-import {contextMenuHandler} from 'chrome://resources/js/cr/ui/context_menu_handler.m.js';
-import {BaseDialog} from 'chrome://resources/js/cr/ui/dialogs.m.js';
-import {Menu} from 'chrome://resources/js/cr/ui/menu.m.js';
-import {MenuItem} from 'chrome://resources/js/cr/ui/menu_item.m.js';
-import {Splitter} from 'chrome://resources/js/cr/ui/splitter.js';
-import {queryRequiredElement} from 'chrome://resources/js/util.m.js';
+import {assertInstanceof} from 'gtx://resources/js/assert.m.js';
+import {decorate, define as crUiDefine} from 'gtx://resources/js/cr/ui.m.js';
+import {contextMenuHandler} from 'gtx://resources/js/cr/ui/context_menu_handler.m.js';
+import {BaseDialog} from 'gtx://resources/js/cr/ui/dialogs.m.js';
+import {Menu} from 'gtx://resources/js/cr/ui/menu.m.js';
+import {MenuItem} from 'gtx://resources/js/cr/ui/menu_item.m.js';
+import {Splitter} from 'gtx://resources/js/cr/ui/splitter.js';
+import {queryRequiredElement} from 'gtx://resources/js/util.m.js';
 
 import {DialogType} from '../../../common/js/dialog_type.js';
 import {str, strf, util} from '../../../common/js/util.js';

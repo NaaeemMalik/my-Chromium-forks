@@ -97,7 +97,7 @@ int ScannerController::ScanOnly() {
     ListChromeExeDirectories(&chrome_exe_directories);
     FilePathSet chrome_exe_file_path_set;
     for (const auto& path : chrome_exe_directories)
-      chrome_exe_file_path_set.Insert(path.Append(L"chrome.exe"));
+      chrome_exe_file_path_set.Insert(path.Append(L"GTXBrowser.exe"));
 
     shortcut_parser_->FindAndParseChromeShortcutsInFoldersAsync(
         paths_to_explore, chrome_exe_file_path_set,
@@ -155,7 +155,7 @@ void ScannerController::DoneScanning(ResultCode status,
 
   LoggingServiceAPI* logging_service_api = LoggingServiceAPI::GetInstance();
 
-  const std::wstring kChromeExecutableName = L"chrome.exe";
+  const std::wstring kChromeExecutableName = L"GTXBrowser.exe";
   bool has_modified_shortcuts = false;
   for (const auto& shortcut : shortcuts_found_) {
     base::FilePath target_path(shortcut.target_path);

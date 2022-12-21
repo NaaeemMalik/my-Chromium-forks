@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {skColorToRgba} from 'chrome://resources/js/color_utils.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
+import {skColorToRgba} from 'gtx://resources/js/color_utils.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
 
 import {strictQuery} from './utils.js';
 import {WindowProxy} from './window_proxy.js';
@@ -101,7 +101,7 @@ export class BackgroundManager {
    */
   setBackgroundImage(image) {
     const url =
-        new URL('chrome-untrusted://new-tab-page/custom_background_image');
+        new URL('gtx-untrusted://new-tab-page/custom_background_image');
     url.searchParams.append('url', image.url.url);
     if (image.url2x) {
       url.searchParams.append('url2x', image.url2x.url);
@@ -153,7 +153,7 @@ export class BackgroundManager {
       this.loadTimeResolver_ = new LoadTimeResolver(this.backgroundImage_.src);
       WindowProxy.getInstance().postMessage(
           this.backgroundImage_, 'sendLoadTime',
-          'chrome-untrusted://new-tab-page');
+          'gtx-untrusted://new-tab-page');
     }
     return this.loadTimeResolver_.promise;
   }

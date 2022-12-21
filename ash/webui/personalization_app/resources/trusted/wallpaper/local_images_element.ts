@@ -9,16 +9,16 @@
  * wallpaper collection id to avoid refetching data unnecessarily.
  */
 
-import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
-import 'chrome://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
+import 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
+import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'gtx://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
 import './styles.js';
 import '../../common/icons.js';
 import '../../common/styles.js';
 
-import {assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
-import {afterNextRender, html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {FilePath} from 'gtx://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import {afterNextRender, html} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {getLoadingPlaceholderAnimationDelay} from '../../common/utils.js';
 import {isSelectionEvent} from '../../common/utils.js';

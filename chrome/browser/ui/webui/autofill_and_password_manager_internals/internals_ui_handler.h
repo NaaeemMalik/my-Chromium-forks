@@ -52,8 +52,8 @@ class AutofillCacheResetter : public content::BrowsingDataRemover::Observer {
   Callback callback_;
 };
 
-// UI handler for chrome://password-manager-internals and
-// chrome://autofill-internals that takes care of subscribing to the autofill
+// UI handler for gtx://password-manager-internals and
+// gtx://autofill-internals that takes care of subscribing to the autofill
 // logging instance.
 class InternalsUIHandler : public content::WebUIMessageHandler,
                            public autofill::LogReceiver {

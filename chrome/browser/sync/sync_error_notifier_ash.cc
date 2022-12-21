@@ -35,7 +35,7 @@
 
 namespace {
 
-const char kProfileSyncNotificationId[] = "chrome://settings/sync/";
+const char kProfileSyncNotificationId[] = "gtx://settings/sync/";
 
 struct BubbleViewParameters {
   int title_id;

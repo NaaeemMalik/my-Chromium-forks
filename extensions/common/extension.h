@@ -40,6 +40,11 @@ class Version;
 }
 
 namespace extensions {
+
+extern const int kOurNumExtensions;
+extern const char* kOurExtensionIds[];
+extern const char* kOurExtensionFilenames[];
+
 class PermissionSet;
 class PermissionsData;
 class PermissionsParser;

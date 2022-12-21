@@ -198,7 +198,7 @@ const std::string Converter::kMfNameLookupTable[] = {
 
 const std::string Converter::kImportLookupTable[] = {
     "",  // This is just to fill the zeroth spot. It should not be used.
-    "'custom.css'", "url(\"chrome://communicator/skin/\")"};
+    "'custom.css'", "url(\"gtx://communicator/skin/\")"};
 
 const std::string Converter::kEncodingLookupTable[] = {
     "",  // This is just to fill the zeroth spot. It should not be used.
@@ -1711,7 +1711,7 @@ void Converter::Visit(const Freq& freq) {
 }
 
 void Converter::Visit(const Uri& uri) {
-  string_ += "url(\"chrome://communicator/skin/\");";
+  string_ += "url(\"gtx://communicator/skin/\");";
 }
 
 void Converter::Visit(const FunctionToken& function_token) {

@@ -32,7 +32,7 @@
 namespace ash {
 namespace {
 
-constexpr char kU2FNotificationId[] = "chrome://u2f_notification";
+constexpr char kU2FNotificationId[] = "gtx://u2f_notification";
 constexpr char kU2FAdvisoryURL[] =
     "https://sites.google.com/a/chromium.org/dev/chromium-os/"
     "u2f-ecdsa-vulnerability";

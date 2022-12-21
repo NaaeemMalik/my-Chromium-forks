@@ -420,7 +420,7 @@ void ChromeWebClient::CleanupNativeRestoreURLs(web::WebState* web_state) const {
     web::NavigationItem* item = navigationManager->GetItemAtIndex(i);
     NewTabPageTabHelper::UpdateItem(item);
 
-    // The WKWebView URL underneath a forced-offline page is chrome://offline,
+    // The WKWebView URL underneath a forced-offline page is gtx://offline,
     // which has an embedded entry URL. Apply that entryURL to the virtualURL
     // here.
     if (item->GetVirtualURL().host() == kChromeUIOfflineHost) {

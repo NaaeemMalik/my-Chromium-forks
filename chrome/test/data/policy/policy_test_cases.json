@@ -14578,11 +14578,11 @@
       {
         "note": "Simple value.",
         "policies": {
-          "BrowserSwitcherChromePath": "chrome.exe"
+          "BrowserSwitcherChromePath": "GTXBrowser.exe"
         },
         "prefs": {
           "browser_switcher.chrome_path": {
-            "value": "chrome.exe"
+            "value": "GTXBrowser.exe"
           }
         }
       }

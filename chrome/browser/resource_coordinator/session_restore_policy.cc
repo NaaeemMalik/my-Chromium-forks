@@ -45,14 +45,14 @@ namespace resource_coordinator {
 namespace {
 
 bool IsApp(content::WebContents* contents) {
-  static constexpr char kInternalUrlPrefix[] = "chrome-extension://";
+  static constexpr char kInternalUrlPrefix[] = "gtx-extension://";
   const GURL& url = contents->GetLastCommittedURL();
   return strncmp(url.spec().c_str(), kInternalUrlPrefix,
                  base::size(kInternalUrlPrefix));
 }
 
 bool IsInternalPage(content::WebContents* contents) {
-  static constexpr char kInternalUrlPrefix[] = "chrome://";
+  static constexpr char kInternalUrlPrefix[] = "gtx://";
   const GURL& url = contents->GetLastCommittedURL();
   return strncmp(url.spec().c_str(), kInternalUrlPrefix,
                  base::size(kInternalUrlPrefix));

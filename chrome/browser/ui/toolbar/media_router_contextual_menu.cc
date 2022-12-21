@@ -177,6 +177,6 @@ void MediaRouterContextualMenu::ToggleMediaRemoting() {
 void MediaRouterContextualMenu::ReportIssue() {
   ShowSingletonTab(
       browser_,
-      GURL(base::StrCat({"chrome://", chrome::kChromeUICastFeedbackHost})));
+      GURL(base::StrCat({"gtx://", chrome::kChromeUICastFeedbackHost})));
 }
 #endif

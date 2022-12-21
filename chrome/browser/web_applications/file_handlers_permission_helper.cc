@@ -32,9 +32,9 @@ FileHandlerUpdateAction FileHandlersPermissionHelper::WillUpdateApp(
   const GURL& url = web_app_info.scope;
 
   // Keep in sync with chromeos::kChromeUIMediaAppURL.
-  const char kChromeUIMediaAppURL[] = "chrome://media-app/";
+  const char kChromeUIMediaAppURL[] = "gtx://media-app/";
   // Keep in sync with chromeos::kChromeUICameraAppURL.
-  const char kChromeUICameraAppURL[] = "chrome://camera-app/";
+  const char kChromeUICameraAppURL[] = "gtx://camera-app/";
 
   // Omit file handler removal and permission downgrade for the ChromeOS Media
   // and Camera System Web Apps (SWAs), which have permissions granted by

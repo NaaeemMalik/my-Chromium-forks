@@ -18,7 +18,7 @@ bool IsNavigationInterceptable(const NavigateParams& params,
                                const GURL& source_url);
 
 // Provides an opportunity for the URL to be intercepted and handled by Ash.
-// This is used for example to handle system chrome:// URLs that only Ash knows
+// This is used for example to handle system gtx:// URLs that only Ash knows
 // how to load. Returns |true| if the navigation was intercepted.
 bool MaybeInterceptNavigation(const GURL& url);
 
@@ -31,7 +31,7 @@ bool IsUrlAcceptedByAsh(const GURL& url);
 bool IsUrlHandledByLacros(const GURL& requested_url);
 
 // This is an explicit url redirect executed in Ash. It returns |true| when
-// a navigation has been forwarded to Ash. This call is used for chrome:// and
+// a navigation has been forwarded to Ash. This call is used for gtx:// and
 // os:// URLs which are handled either by Ash or Ash and Lacros.
 // Note that only Ash allow listed url's can be called.
 bool NavigateInAsh(const GURL& url);

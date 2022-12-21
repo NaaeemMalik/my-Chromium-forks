@@ -61,7 +61,7 @@ const wchar_t kHttpsPrefix[] = L"https://";
 const wchar_t kFilePrefix[] = L"file://";
 
 const wchar_t kChromeKey[] =
-    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe";
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\GTXBrowser.exe";
 
 // TODO(crbug/950039): Add other varnames (${firefox}, ${opera}, ...)
 const wchar_t kChromeVarName[] = L"${chrome}";

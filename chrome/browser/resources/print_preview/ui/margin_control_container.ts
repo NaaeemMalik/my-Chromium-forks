@@ -4,9 +4,9 @@
 
 import './margin_control.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {Coordinate2d} from '../data/coordinate2d.js';
 import {CustomMarginsOrientation, Margins, MarginsSetting, MarginsType} from '../data/margins.js';

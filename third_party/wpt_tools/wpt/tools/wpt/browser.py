@@ -626,8 +626,8 @@ class Chrome(Browser):
 
     def find_nightly_binary(self, dest):
         if uname[0] == "Darwin":
-            return find_executable("Chromium",
-                                   os.path.join(dest, self._chromium_package_name(), "Chromium.app", "Contents", "MacOS"))
+            return find_executable("GTXBrowser",
+                                   os.path.join(dest, self._chromium_package_name(), "GTXBrowser.app", "Contents", "MacOS"))
         # find_executable will add .exe on Windows automatically.
         return find_executable("chrome", os.path.join(dest, self._chromium_package_name()))
 
@@ -651,9 +651,9 @@ class Chrome(Browser):
                 suffix = " " + channel.capitalize()
             return "/Applications/Google Chrome%s.app/Contents/MacOS/Google Chrome%s" % (suffix, suffix)
         if uname[0] == "Windows":
-            path = os.path.expandvars(r"$SYSTEMDRIVE\Program Files (x86)\Google\Chrome\Application\chrome.exe")
+            path = os.path.expandvars(r"$SYSTEMDRIVE\Program Files (x86)\Google\Chrome\Application\GTXBrowser.exe")
             if not os.path.exists(path):
-                path = os.path.expandvars(r"$SYSTEMDRIVE\Program Files\Google\Chrome\Application\chrome.exe")
+                path = os.path.expandvars(r"$SYSTEMDRIVE\Program Files\Google\Chrome\Application\GTXBrowser.exe")
             return path
         self.logger.warning("Unable to find the browser binary.")
         return None

@@ -6,12 +6,12 @@ import './strings.m.js';
 import './tab.js';
 import './tab_group.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {addWebUIListener, removeWebUIListener, WebUIListener} from 'chrome://resources/js/cr.m.js';
-import {FocusOutlineManager} from 'chrome://resources/js/cr/ui/focus_outline_manager.m.js';
-import {CustomElement} from 'chrome://resources/js/custom_element.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {isRTL} from 'chrome://resources/js/util.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {addWebUIListener, removeWebUIListener, WebUIListener} from 'gtx://resources/js/cr.m.js';
+import {FocusOutlineManager} from 'gtx://resources/js/cr/ui/focus_outline_manager.m.js';
+import {CustomElement} from 'gtx://resources/js/custom_element.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {isRTL} from 'gtx://resources/js/util.m.js';
 
 import {DragManager, DragManagerDelegate} from './drag_manager.js';
 import {isTabElement, TabElement} from './tab.js';

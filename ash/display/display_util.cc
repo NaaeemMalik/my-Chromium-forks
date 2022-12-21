@@ -45,7 +45,7 @@
 namespace ash {
 namespace {
 
-const char kDisplayErrorNotificationId[] = "chrome://settings/display/error";
+const char kDisplayErrorNotificationId[] = "gtx://settings/display/error";
 const char kNotifierDisplayError[] = "ash.display.error";
 
 void ConvertPointFromScreenToNative(aura::WindowTreeHost* host,

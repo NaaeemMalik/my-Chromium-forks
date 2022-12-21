@@ -107,14 +107,14 @@ void AddInfoBarsIfNecessary(Browser* browser,
         browser->tab_strip_model()->GetActiveWebContents();
     DCHECK(web_contents);
 
-    if (show_bad_flags_security_warnings)
-      chrome::ShowBadFlagsPrompt(web_contents);
+    //if (show_bad_flags_security_warnings)
+    //  chrome::ShowBadFlagsPrompt(web_contents);
 
     infobars::ContentInfoBarManager* infobar_manager =
         infobars::ContentInfoBarManager::FromWebContents(web_contents);
 
-    if (!google_apis::HasAPIKeyConfigured())
-      GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
+    // if (!google_apis::HasAPIKeyConfigured())
+    //   GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
 
     if (ObsoleteSystem::IsObsoleteNowOrSoon()) {
       PrefService* local_state = g_browser_process->local_state();

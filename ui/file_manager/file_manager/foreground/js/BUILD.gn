@@ -94,8 +94,8 @@ js_type_check("closure_compile_jsmodules") {
   closure_flags = default_closure_args + [
                     "js_module_root=gen/ui/file_manager/",
                     "js_module_root=../../ui/file_manager/",
-                    "browser_resolver_prefix_replacements=\"chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj/=./file_manager/\"",
-                    "browser_resolver_prefix_replacements=\"chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp/=./image_loader/\"",
+                    "browser_resolver_prefix_replacements=\"gtx-extension://hhaomjibdihmijegdhdafkllkbggdgoj/=./file_manager/\"",
+                    "browser_resolver_prefix_replacements=\"gtx-extension://pmfjbimdmchhbnneeidfognadeopoehp/=./image_loader/\"",
                   ]
 
   deps = [
@@ -1317,9 +1317,9 @@ js_test_gen_html("js_test_gen_html_modules") {
                     "js_module_root=../../ui/file_manager/",
                     "js_module_root=./gen/ui/file_manager/",
                     "jscomp_off=duplicate",
-                    "browser_resolver_prefix_replacements=\"chrome://test/=./\"",
-                    "browser_resolver_prefix_replacements=\"chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj/=./file_manager/\"",
-                    "browser_resolver_prefix_replacements=\"chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp/=./image_loader/\"",
+                    "browser_resolver_prefix_replacements=\"gtx://test/=./\"",
+                    "browser_resolver_prefix_replacements=\"gtx-extension://hhaomjibdihmijegdhdafkllkbggdgoj/=./file_manager/\"",
+                    "browser_resolver_prefix_replacements=\"gtx-extension://pmfjbimdmchhbnneeidfognadeopoehp/=./image_loader/\"",
                     "hide_warnings_for=third_party/",
                   ]
 }
@@ -1352,8 +1352,8 @@ optimize_webui("build") {
   ]
 
   external_paths = [
-    "chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj|$files_app_path",
-    "chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp|$image_loader_path",
+    "gtx-extension://hhaomjibdihmijegdhdafkllkbggdgoj|$files_app_path",
+    "gtx-extension://pmfjbimdmchhbnneeidfognadeopoehp|$image_loader_path",
   ]
 
   deps = [
@@ -1373,8 +1373,8 @@ optimize_webui("build_worker") {
   js_out_files = [ "metadata_dispatcher.rollup.js" ]
 
   external_paths = [
-    "chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj|$files_app_path",
-    "chrome-extension://pmfjbimdmchhbnneeidfognadeopoehp|$image_loader_path",
+    "gtx-extension://hhaomjibdihmijegdhdafkllkbggdgoj|$files_app_path",
+    "gtx-extension://pmfjbimdmchhbnneeidfognadeopoehp|$image_loader_path",
   ]
 
   deps = [

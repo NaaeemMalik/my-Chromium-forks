@@ -47,6 +47,8 @@ struct SchemeRegistry {
       {kWsScheme, SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION},  // WebSocket.
       {kFileSystemScheme, SCHEME_WITHOUT_AUTHORITY},
       {kQuicTransportScheme, SCHEME_WITH_HOST_AND_PORT},
+      {kIpfsScheme, SCHEME_WITH_HOST_AND_PORT},
+      {kWalletScheme, SCHEME_WITH_HOST},
   };
 
   // Schemes that are allowed for referrers.
@@ -218,6 +220,7 @@ bool DoCanonicalize(const CHAR* spec,
                     CanonOutput* output,
                     Parsed* output_parsed) {
   // Trim leading C0 control characters and spaces.
+  
   int begin = 0;
   TrimURL(spec, &begin, &spec_len, trim_path_end);
   DCHECK(0 <= begin && begin <= spec_len);

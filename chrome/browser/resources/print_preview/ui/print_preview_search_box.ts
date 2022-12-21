@@ -2,17 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_icons_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
+import 'gtx://resources/cr_elements/cr_icons_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
 import './print_preview_shared_css.js';
 
-import {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
-import {CrSearchFieldBehavior} from 'chrome://resources/cr_elements/cr_search_field/cr_search_field_behavior.js';
-import {stripDiacritics} from 'chrome://resources/js/search_highlight_utils.js';
-import {WebUIListenerMixin, WebUIListenerMixinInterface} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
+import {CrSearchFieldBehavior} from 'gtx://resources/cr_elements/cr_search_field/cr_search_field_behavior.js';
+import {stripDiacritics} from 'gtx://resources/js/search_highlight_utils.js';
+import {WebUIListenerMixin, WebUIListenerMixinInterface} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 declare global {
   interface HTMLElementEventMap {

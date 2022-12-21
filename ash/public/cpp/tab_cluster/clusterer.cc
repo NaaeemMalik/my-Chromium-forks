@@ -14,7 +14,7 @@ namespace {
 
 // Returns true if the source is irrelevant to the clusterer.
 bool ShouldSkip(const std::string& source) {
-  // "about: and chrome:// are not recorded as host"
+  // "about: and gtx:// are not recorded as host"
   return source.empty() || source == "blank" || source == "newtab/";
 }
 

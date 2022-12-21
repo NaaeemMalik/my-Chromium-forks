@@ -5519,7 +5519,7 @@ test("unit_tests") {
       "../common/conflicts/remote_module_watcher_win_unittest.cc",
     ]
 
-    data += [ "$root_out_dir/chrome.exe" ]
+    data += [ "$root_out_dir/GTXBrowser.exe" ]
 
     data_deps += [
       "//chrome",
@@ -9667,7 +9667,7 @@ if (is_win) {
     # the //chrome target to bundle up both initial/chrome.exe and chrome.exe.
     # As a workaround, explicitly include a data dep on just chrome.exe, and
     # add //chrome to deps above to make sure it's been built.
-    data = [ "$root_out_dir/chrome.exe" ]
+    data = [ "$root_out_dir/GTXBrowser.exe" ]
 
     # Don't want the test-specific dependencies to affect load tests.
     # In particular, a few system DLLs cause user32 to be loaded, which is bad.

@@ -21,7 +21,7 @@ namespace chromeos {
 
 namespace multidevice {
 
-// Handles messages from the chrome://proximity-auth page.
+// Handles messages from the gtx://proximity-auth page.
 class ProximityAuthWebUIHandler
     : public content::WebUIMessageHandler,
       public multidevice::LogBuffer::Observer,

@@ -13,7 +13,7 @@
 #endif
 
 // Serves HTML for displaying suggestions for 3P remote NTPs using iframes
-// of chrome-search://most-visited/title.html.
+// of gtx-search://most-visited/title.html.
 class MostVisitedIframeSource : public content::URLDataSource {
  public:
   MostVisitedIframeSource();

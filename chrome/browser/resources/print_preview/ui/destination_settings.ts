@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
 // <if expr="not chromeos and not lacros">
 import './destination_dialog.js';
 // </if>
@@ -24,13 +24,13 @@ import './settings_section.js';
 import '../data/user_manager.js';
 import '../strings.m.js';
 
-import {CrLazyRenderElement} from 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {WebUIListenerMixin} from 'chrome://resources/js/web_ui_listener_mixin.js';
-import {beforeNextRender, html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrLazyRenderElement} from 'gtx://resources/cr_elements/cr_lazy_render/cr_lazy_render.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {beforeNextRender, html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {CloudPrintInterfaceImpl} from '../cloud_print_interface_impl.js';
 import {CloudOrigins, createDestinationKey, createRecentDestinationKey, Destination, DestinationOrigin, GooglePromotedDestinationId, makeRecentDestination, RecentDestination} from '../data/destination.js';

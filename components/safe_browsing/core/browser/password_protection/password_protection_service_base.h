@@ -337,7 +337,7 @@ class PasswordProtectionServiceBase : public history::HistoryServiceObserver {
   // If Safe browsing endpoint is not enabled in the country.
   virtual bool IsInExcludedCountry() = 0;
 
-  // Determines if we should show chrome://reset-password interstitial based on
+  // Determines if we should show gtx://reset-password interstitial based on
   // the reused |password_type| and the |main_frame_url|.
   virtual bool CanShowInterstitial(ReusedPasswordAccountType password_type,
                                    const GURL& main_frame_url) = 0;

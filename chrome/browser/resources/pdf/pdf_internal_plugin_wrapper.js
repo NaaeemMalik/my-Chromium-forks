@@ -12,9 +12,9 @@ const plugin =
 
 const srcUrl = new URL(plugin.getAttribute('src'));
 let parentOrigin = srcUrl.origin;
-if (parentOrigin === 'chrome-untrusted://print') {
+if (parentOrigin === 'gtx-untrusted://print') {
   // Within Print Preview, the source origin differs from the parent origin.
-  parentOrigin = 'chrome://print';
+  parentOrigin = 'gtx://print';
 }
 
 // Plugin-to-parent message handlers. All messages are passed through, but some
@@ -63,7 +63,7 @@ channel.port1.onmessage = e => {
       // Snoop on "viewport" message to support real RTL scrolling in Print
       // Preview.
       // TODO(crbug.com/1158670): Support real RTL scrolling in the PDF viewer.
-      if (parentOrigin === 'chrome://print' && e.data.layoutOptions) {
+      if (parentOrigin === 'gtx://print' && e.data.layoutOptions) {
         switch (e.data.layoutOptions.direction) {
           case 1:
             document.dir = 'rtl';
@@ -181,7 +181,7 @@ document.addEventListener('keypress', e => {
   }
 });
 
-// TODO(crbug.com/1252096): Load from chrome://resources/js/util.m.js instead.
+// TODO(crbug.com/1252096): Load from gtx://resources/js/util.m.js instead.
 /**
  * @param {!Event} e
  * @return {boolean}

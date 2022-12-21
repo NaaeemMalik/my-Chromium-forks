@@ -5,23 +5,23 @@
 import './strings.m.js';
 import './item.js';
 import './toolbar.js';
-import 'chrome://resources/cr_components/managed_footnote/managed_footnote.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_page_host_style_css.js';
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
+import 'gtx://resources/cr_components/managed_footnote/managed_footnote.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_page_host_style_css.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
 
-import {CrA11yAnnouncerElement} from 'chrome://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
-import {getToastManager} from 'chrome://resources/cr_elements/cr_toast/cr_toast_manager.js';
-import {FindShortcutMixin} from 'chrome://resources/cr_elements/find_shortcut_mixin.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
-import {IronListElement} from 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-import {Debouncer, html, PolymerElement, timeOut} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrA11yAnnouncerElement} from 'gtx://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
+import {getToastManager} from 'gtx://resources/cr_elements/cr_toast/cr_toast_manager.js';
+import {FindShortcutMixin} from 'gtx://resources/cr_elements/find_shortcut_mixin.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
+import {IronListElement} from 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
+import {Debouncer, html, PolymerElement, timeOut} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {BrowserProxy} from './browser_proxy.js';
 import {States} from './constants.js';
@@ -118,7 +118,7 @@ export class DownloadsManagerElement extends DownloadsManagerElementBase {
     // trailing slash in three different groups.
     const CANONICAL_PATH_REGEX = /(^\/)([\/-\w]+)(\/$)/;
     const path = location.pathname.replace(CANONICAL_PATH_REGEX, '$1$2');
-    if (path !== '/') {  // There are no subpages in chrome://downloads.
+    if (path !== '/') {  // There are no subpages in gtx://downloads.
       window.history.replaceState(undefined /* stateObject */, '', '/');
     }
   }

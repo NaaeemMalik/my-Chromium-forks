@@ -10,7 +10,7 @@
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 // Helper function for writing system logs used in Feedback reports. Currently
-// used by chrome://net-internals#chromeos for manual uploading of system logs.
+// used by gtx://net-internals#chromeos for manual uploading of system logs.
 
 namespace ash {
 namespace system_logs_writer {

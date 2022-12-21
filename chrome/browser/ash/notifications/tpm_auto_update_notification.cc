@@ -18,9 +18,9 @@
 namespace ash {
 
 constexpr char kTPMPlannedAutoUpdateNotificationId[] =
-    "chrome://tpm_planned_firmware_auto_update";
+    "gtx://tpm_planned_firmware_auto_update";
 constexpr char kTPMAutoUpdateOnRebootNotificationId[] =
-    "chrome://tpm_firmware_auto_update_on_reboot";
+    "gtx://tpm_firmware_auto_update_on_reboot";
 
 void ShowAutoUpdateNotification(
     TpmAutoUpdateUserNotification notification_type) {

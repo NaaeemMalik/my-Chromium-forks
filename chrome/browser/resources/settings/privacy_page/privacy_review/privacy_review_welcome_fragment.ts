@@ -7,11 +7,11 @@
  * 'privacy-review-welcome-fragment' is the fragment in a privacy review
  * card that contains the welcome screen and its description.
  */
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
 import '../../controls/settings_checkbox.js';
 import './privacy_review_fragment_shared_css.js';
 
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 export interface PrivacyReviewWelcomeFragmentElement {
   $: {

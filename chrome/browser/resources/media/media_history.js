@@ -2,22 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-import 'chrome://resources/mojo/mojo/public/mojom/base/big_buffer.mojom-lite.js';
-import 'chrome://resources/mojo/mojo/public/mojom/base/string16.mojom-lite.js';
-import 'chrome://resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-lite.js';
-import 'chrome://resources/mojo/mojo/public/mojom/base/time.mojom-lite.js';
-import 'chrome://resources/mojo/url/mojom/url.mojom-lite.js';
-import 'chrome://resources/mojo/url/mojom/origin.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+import 'gtx://resources/mojo/mojo/public/mojom/base/big_buffer.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/mojom/base/string16.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/mojom/base/time.mojom-lite.js';
+import 'gtx://resources/mojo/url/mojom/url.mojom-lite.js';
+import 'gtx://resources/mojo/url/mojom/origin.mojom-lite.js';
 import './ui/gfx/geometry/mojom/geometry.mojom-lite.js';
 import './media_session.mojom-lite.js';
 import './media_history_store.mojom-lite.js';
 
-import {assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {decorate} from 'chrome://resources/js/cr/ui.m.js';
-import {TabBox} from 'chrome://resources/js/cr/ui/tabs.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {decorate} from 'gtx://resources/js/cr/ui.m.js';
+import {TabBox} from 'gtx://resources/js/cr/ui/tabs.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 import {MediaDataTable, MediaDataTableDelegate} from './media_data_table.js';
 

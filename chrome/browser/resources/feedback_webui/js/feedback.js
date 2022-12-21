@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 import {FEEDBACK_LANDING_PAGE, FEEDBACK_LANDING_PAGE_TECHSTOP, FEEDBACK_LEGAL_HELP_URL, FEEDBACK_PRIVACY_POLICY_URL, FEEDBACK_TERM_OF_SERVICE_URL, openUrlInAppWindow} from './feedback_util.js';
 import {domainQuestions} from './questionnaire.js';
@@ -315,10 +315,10 @@ function setupLinkHandlers(anchorElement, url, useAppWindow) {
 }
 
 /**
- * Opens a new window with chrome://slow_trace, downloading performance data.
+ * Opens a new window with gtx://slow_trace, downloading performance data.
  */
 function openSlowTraceWindow() {
-  window.open('chrome://slow_trace/tracing.zip#' + feedbackInfo.traceId);
+  window.open('gtx://slow_trace/tracing.zip#' + feedbackInfo.traceId);
 }
 
 /**

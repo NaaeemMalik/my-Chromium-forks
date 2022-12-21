@@ -376,7 +376,7 @@ size_t TypeValueFormFillingLimit(ServerFieldType field_type) {
 }
 
 // Logs the reason for suppressing autofill suggestions to
-// chrome://autofill-internals.
+// gtx://autofill-internals.
 void LogSuppressReason(LogManager* log_manager, const std::string& reason) {
   if (!log_manager)
     return;

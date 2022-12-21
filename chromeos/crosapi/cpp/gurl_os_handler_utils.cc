@@ -14,8 +14,8 @@ namespace {
 
 const char kOsScheme[] = "os";
 const char kOsUrlPrefix[] = "os://";
-const char kChromeUIScheme[] = "chrome";
-const char kChromeUrlPrefix[] = "chrome://";
+const char kChromeUIScheme[] = "gtx";
+const char kChromeUrlPrefix[] = "gtx://";
 
 // The start of the host portion of a GURL which starts with the os scheme.
 const size_t kHostStart = sizeof(kOsUrlPrefix) - 1;
@@ -37,7 +37,7 @@ std::string GetValidHostAndSubhostFromOsUrl(GURL url, bool include_path) {
     return url_spec.substr(kHostStart);
 
   if (url_spec[valid_spec_end] == '/' && include_path) {
-    // A sub URL is allowed (e.g. chrome://settings/network) - so we skip the
+    // A sub URL is allowed (e.g. gtx://settings/network) - so we skip the
     // "/" with +1 and parse till we find the next terminating character.
     const std::size_t sub_host_end =
         url_spec.find_first_of(kTerminatingCharacters, valid_spec_end + 1);
@@ -134,13 +134,13 @@ std::string AshOsUrlHost(const GURL& url) {
   return GetValidHostAndSubhostFromOsUrl(url, /*include_path=*/true);
 }
 
-// Convert a passed GURL from os:// to chrome://.
+// Convert a passed GURL from os:// to gtx://.
 GURL GetSystemUrlFromChromeUrl(const GURL& url) {
   DCHECK(url.SchemeIs(kChromeUIScheme));
   return GURL(kOsUrlPrefix + url.host());
 }
 
-// Convert a passed GURL from chrome:// to os://.
+// Convert a passed GURL from gtx:// to os://.
 GURL GetChromeUrlFromSystemUrl(const GURL& url) {
   DCHECK(IsAshOsUrl(url));
   return GURL(kChromeUrlPrefix + AshOsUrlHost(url));

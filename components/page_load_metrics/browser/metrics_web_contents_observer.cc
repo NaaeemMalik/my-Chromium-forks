@@ -1023,7 +1023,7 @@ bool MetricsWebContentsObserver::ShouldTrackMainFrameNavigation(
   DCHECK(navigation_handle->IsInMainFrame());
   DCHECK(!navigation_handle->HasCommitted() ||
          !navigation_handle->IsSameDocument());
-  // Ignore non-HTTP schemes (e.g. chrome://).
+  // Ignore non-HTTP schemes (e.g. gtx://).
   if (!navigation_handle->GetURL().SchemeIsHTTPOrHTTPS())
     return false;
 

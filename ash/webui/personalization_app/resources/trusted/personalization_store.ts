@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {Action, Store} from 'chrome://resources/js/cr/ui/store.js';
-import {StoreClient, StoreClientInterface} from 'chrome://resources/js/cr/ui/store_client.js';
-import {I18nBehavior} from 'chrome://resources/js/i18n_behavior.m.js';
-import {IronResizableBehavior} from 'chrome://resources/polymer/v3_0/iron-resizable-behavior/iron-resizable-behavior.js';
-import {mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {Action, Store} from 'gtx://resources/js/cr/ui/store.js';
+import {StoreClient, StoreClientInterface} from 'gtx://resources/js/cr/ui/store_client.js';
+import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
+import {IronResizableBehavior} from 'gtx://resources/polymer/v3_0/iron-resizable-behavior/iron-resizable-behavior.js';
+import {mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {reduce} from './personalization_reducers.js';
 import {emptyState, PersonalizationState} from './personalization_state.js';

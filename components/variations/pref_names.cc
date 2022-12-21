@@ -45,7 +45,7 @@ const char kVariationsPermanentConsistencyCountry[] =
 
 // A country code string representing the country used for filtering permanent
 // consistency studies. This is not updated when Chrome is updated, but it can
-// be changed via chrome://translate-internals and is intended for testing and
+// be changed via gtx://translate-internals and is intended for testing and
 // developer use.
 const char kVariationsPermanentOverriddenCountry[] =
     "variations_permanent_overridden_country";

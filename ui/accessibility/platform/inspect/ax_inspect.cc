@@ -10,7 +10,7 @@ std::string AXTreeSelector::AppName() const {
   if (types & Chrome)
     return "Chrome";
   if (types & Chromium)
-    return "Chromium";
+    return "GTX Browser";
   if (types & Edge)
     return "Edge";
   if (types & Firefox)

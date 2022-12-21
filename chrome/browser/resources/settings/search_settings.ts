@@ -3,12 +3,12 @@
 // found in the LICENSE file.
 
 // clang-format off
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
-import {createEmptySearchBubble, findAndRemoveHighlights, highlight, removeHighlights, stripDiacritics} from 'chrome://resources/js/search_highlight_utils.js';
-import {findAncestor} from 'chrome://resources/js/util.m.js';
-import {DomIf, microTask} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
+import {createEmptySearchBubble, findAndRemoveHighlights, highlight, removeHighlights, stripDiacritics} from 'gtx://resources/js/search_highlight_utils.js';
+import {findAncestor} from 'gtx://resources/js/util.m.js';
+import {DomIf, microTask} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {SettingsSectionElement} from './settings_page/settings_section.js';
 import {SettingsSubpageElement} from './settings_page/settings_subpage.js';

@@ -52,7 +52,7 @@ let RunRoutineResponsePromise;
 /**
  * Proxying diagnostics requests between DiagnosticsRequester on
  * chrome-untrusted:// side with WebIDL types and DiagnosticsService on
- * chrome:// side with Mojo types.
+ * gtx:// side with Mojo types.
  */
 class DiagnosticsProxy {
   constructor() {
@@ -589,7 +589,7 @@ const diagnosticsProxy = new DiagnosticsProxy();
 
 /**
  * Proxying telemetry requests between TelemetryRequester on
- * chrome-untrusted:// side with WebIDL types and ProbeService on chrome://
+ * chrome-untrusted:// side with WebIDL types and ProbeService on gtx://
  * side with Mojo types.
  */
 class TelemetryProxy {
@@ -857,7 +857,7 @@ const telemetryProxy = new TelemetryProxy();
 /**
  * Proxying event requests between SystemEventsRequester on
  * chrome-untrusted:// side with WebIDL types and SystemEventsService on
- * chrome:// side with Mojo types.
+ * gtx:// side with Mojo types.
  */
 class SystemEventsProxy {
   /**

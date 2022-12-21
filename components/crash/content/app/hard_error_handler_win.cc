@@ -57,7 +57,7 @@ void RaiseHardErrorMsg(DWORD nt_status,
   // The MB_SERVICE_NOTIFICATION causes this message to be displayed by
   // csrss. This means that we are not creating windows or pumping WM messages
   // in this process.
-  ::MessageBox(nullptr, message.c_str(), L"chrome.exe",
+  ::MessageBox(nullptr, message.c_str(), L"GTXBrowser.exe",
                MB_OK | MB_SERVICE_NOTIFICATION);
   ::LocalFree(msg_template);
 }

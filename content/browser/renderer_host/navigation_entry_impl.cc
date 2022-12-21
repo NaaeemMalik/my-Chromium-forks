@@ -578,7 +578,7 @@ const std::u16string& NavigationEntryImpl::GetTitleForDisplay() {
       title = title.substr(slashpos + 1);
 
   } else if (GetURL().SchemeIs(kChromeUIUntrustedScheme)) {
-    // For chrome-untrusted:// URLs, leave title blank until the page loads.
+    // For gtx-untrusted:// URLs, leave title blank until the page loads.
     title = std::u16string();
 
   } else if (base::i18n::StringContainsStrongRTLChars(title)) {

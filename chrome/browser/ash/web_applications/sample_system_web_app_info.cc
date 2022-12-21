@@ -42,14 +42,14 @@ std::unique_ptr<WebApplicationInfo> CreateWebAppInfoForSampleSystemWebApp() {
     WebAppShortcutsMenuItemInfo shortcut;
     shortcut.name = u"Inter Frame Communication Demo";
     shortcut.url =
-        GURL("chrome://sample-system-web-app/inter_frame_communication.html");
+        GURL("gtx://sample-system-web-app/inter_frame_communication.html");
     info->shortcuts_menu_item_infos.push_back(std::move(shortcut));
   }
   {
     WebAppShortcutsMenuItemInfo shortcut;
     shortcut.name = u"Component Playground";
     shortcut.url =
-        GURL("chrome://sample-system-web-app/component_playground.html");
+        GURL("gtx://sample-system-web-app/component_playground.html");
     info->shortcuts_menu_item_infos.push_back(std::move(shortcut));
   }
 
@@ -60,12 +60,12 @@ SampleSystemAppDelegate::SampleSystemAppDelegate(Profile* profile)
     : web_app::SystemWebAppDelegate(
           web_app::SystemAppType::SAMPLE,
           "Sample",
-          GURL("chrome://sample-system-web-app/pwa.html"),
+          GURL("gtx://sample-system-web-app/pwa.html"),
           profile,
           web_app::OriginTrialsMap(
-              {{web_app::GetOrigin("chrome://sample-system-web-app"),
+              {{web_app::GetOrigin("gtx://sample-system-web-app"),
                 {"Frobulate"}},
-               {web_app::GetOrigin("chrome-untrusted://sample-system-web-app"),
+               {web_app::GetOrigin("gtx-untrusted://sample-system-web-app"),
                 {"Frobulate"}}})) {}
 
 std::unique_ptr<WebApplicationInfo> SampleSystemAppDelegate::GetWebAppInfo()
@@ -88,5 +88,5 @@ bool SampleSystemAppDelegate::ShouldReuseExistingWindow() const {
 absl::optional<web_app::SystemAppBackgroundTaskInfo>
 SampleSystemAppDelegate::GetTimerInfo() const {
   return web_app::SystemAppBackgroundTaskInfo(
-      base::Seconds(30), GURL("chrome://sample-system-web-app/timer.html"));
+      base::Seconds(30), GURL("gtx://sample-system-web-app/timer.html"));
 }

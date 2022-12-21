@@ -7,7 +7,7 @@
 
 #include "chrome/browser/ui/webui/constrained_web_dialog_ui.h"
 
-// The WebUI for chrome://view-cert
+// The WebUI for gtx://view-cert
 class CertificateViewerUI : public ConstrainedWebDialogUI {
  public:
   explicit CertificateViewerUI(content::WebUI* web_ui);

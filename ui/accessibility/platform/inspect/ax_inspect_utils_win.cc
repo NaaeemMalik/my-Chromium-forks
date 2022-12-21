@@ -22,7 +22,7 @@ namespace ui {
 namespace {
 
 constexpr wchar_t kChromeTitle[] = L"Google Chrome";
-constexpr wchar_t kChromiumTitle[] = L"Chromium";
+constexpr wchar_t kChromiumTitle[] = L"GTX Browser";
 constexpr wchar_t kEdgeTitle[] = L"Edge";
 constexpr wchar_t kFirefoxTitle[] = L"Mozilla Firefox";
 

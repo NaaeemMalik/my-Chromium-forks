@@ -3,9 +3,9 @@
 // found in the LICENSE file.
 
 var newTabUrls = [
-  'chrome://newtab/',
+  'gtx://newtab/',
   // The tab URL for to the Local New Tab Page.
-  'chrome-search://local-ntp/local-ntp.html',
+  'gtx-search://local-ntp/local-ntp.html',
 ];
 
 var secondWindowId;
@@ -21,13 +21,13 @@ function clickLink(id) {
 chrome.test.runTests([
 
   function setupTwoWindows() {
-    createWindow(["about:blank", "chrome://newtab/", pageUrl("a")], {},
+    createWindow(["about:blank", "gtx://newtab/", pageUrl("a")], {},
                  pass(function(winId, tabIds) {
       waitForAllTabs(pass(function() {
         secondWindowId = winId;
         testTabId = tabIds[2];
 
-        createWindow(["chrome://newtab/", pageUrl("b")], {},
+        createWindow(["gtx://newtab/", pageUrl("b")], {},
                      pass(function(winId, tabIds) {
           waitForAllTabs(pass(function() {
             thirdWindowId = winId;

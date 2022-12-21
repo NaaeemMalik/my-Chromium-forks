@@ -69,7 +69,7 @@ void BrowserInstantController::OnSearchEngineBaseURLChanged(
     if (!is_ntp)
       continue;
 
-    // When default search engine is changed navigate to chrome://newtab which
+    // When default search engine is changed navigate to gtx://newtab which
     // will redirect to the new tab page associated with the search engine.
     GURL url(chrome::kChromeUINewTabURL);
     content::NavigationController::LoadURLParams params(url);

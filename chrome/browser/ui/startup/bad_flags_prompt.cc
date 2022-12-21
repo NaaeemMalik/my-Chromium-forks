@@ -62,7 +62,7 @@ static const char* kBadFlags[] = {
     sandbox::policy::switches::kDisableGpuSandbox,
     sandbox::policy::switches::kDisableSeccompFilterSandbox,
     sandbox::policy::switches::kDisableSetuidSandbox,
-    sandbox::policy::switches::kNoSandbox,
+    //sandbox::policy::switches::kNoSandbox,
 #if defined(OS_WIN)
     sandbox::policy::switches::kAllowThirdPartyModules,
 #endif
@@ -186,7 +186,7 @@ void ShowBadFlagsPrompt(content::WebContents* web_contents) {
 #if !defined(OS_ANDROID)
   for (const char* flag : kBadFlags) {
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(flag)) {
-      ShowBadFlagsInfoBar(web_contents, IDS_BAD_FLAGS_WARNING_MESSAGE, flag);
+      //ShowBadFlagsInfoBar(web_contents, IDS_BAD_FLAGS_WARNING_MESSAGE, flag);
       return;
     }
   }

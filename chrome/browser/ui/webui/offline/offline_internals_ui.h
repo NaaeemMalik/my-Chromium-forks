@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The WebUI for chrome://offline-internals.
+// The WebUI for gtx://offline-internals.
 class OfflineInternalsUI : public content::WebUIController {
  public:
   explicit OfflineInternalsUI(content::WebUI* web_ui);

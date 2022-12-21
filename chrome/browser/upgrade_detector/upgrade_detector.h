@@ -174,7 +174,7 @@ class UpgradeDetector {
   // resets the override so that the policy settings take effect.
   void OverrideRelaunchNotificationToRequired(bool overridden);
 
-  void AddObserver(UpgradeObserver* observer);
+  void AddObserverXay(UpgradeObserver* observer);
 
   void RemoveObserver(UpgradeObserver* observer);
 

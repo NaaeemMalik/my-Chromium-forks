@@ -9,7 +9,7 @@
 
 #include "ios/web/public/webui/web_ui_ios_controller.h"
 
-// The WebUI handler for chrome://version.
+// The WebUI handler for gtx://version.
 class VersionUI : public web::WebUIIOSController {
  public:
   explicit VersionUI(web::WebUIIOS* web_ui, const std::string& host);

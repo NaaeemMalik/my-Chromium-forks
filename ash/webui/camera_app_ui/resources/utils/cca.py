@@ -219,7 +219,7 @@ def get_tsc_paths(board):
     return {
         '/mojom-webui/*': [os.path.relpath(webui_dir)],
         '//resources/*': [os.path.relpath(resources_dir)],
-        'chrome://resources/*': [os.path.relpath(resources_dir)],
+        'gtx://resources/*': [os.path.relpath(resources_dir)],
     }
 
 

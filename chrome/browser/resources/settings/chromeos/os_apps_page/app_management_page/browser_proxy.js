@@ -2,18 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-import 'chrome://resources/mojo/skia/public/mojom/image_info.mojom-lite.js';
-import 'chrome://resources/mojo/skia/public/mojom/bitmap.mojom-lite.js';
-import 'chrome://resources/mojo/url/mojom/url.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+import 'gtx://resources/mojo/skia/public/mojom/image_info.mojom-lite.js';
+import 'gtx://resources/mojo/skia/public/mojom/bitmap.mojom-lite.js';
+import 'gtx://resources/mojo/url/mojom/url.mojom-lite.js';
 import '/app-management/file_path.mojom-lite.js';
 import '/app-management/image.mojom-lite.js';
 import '/app-management/safe_base_name.mojom-lite.js';
 import '/app-management/types.mojom-lite.js';
 import '/app-management/app_management.mojom-lite.js';
 
-import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+import {addSingletonGetter} from 'gtx://resources/js/cr.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 
 import {PermissionType, TriState} from '../permission_constants.js';
 

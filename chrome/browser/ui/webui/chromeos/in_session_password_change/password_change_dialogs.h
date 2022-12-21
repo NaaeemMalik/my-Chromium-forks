@@ -45,7 +45,7 @@ class PasswordChangeDialog : public BasePasswordDialog {
   ~PasswordChangeDialog() override;
 };
 
-// System dialog wrapping chrome://confirm-password-change
+// System dialog wrapping gtx://confirm-password-change
 class ConfirmPasswordChangeDialog : public BasePasswordDialog {
  public:
   ConfirmPasswordChangeDialog(const ConfirmPasswordChangeDialog&) = delete;
@@ -77,7 +77,7 @@ class ConfirmPasswordChangeDialog : public BasePasswordDialog {
   bool show_spinner_initially_ = false;
 };
 
-// System dialog wrapping chrome://urgent-password-expiry-notification
+// System dialog wrapping gtx://urgent-password-expiry-notification
 class UrgentPasswordExpiryNotificationDialog : public BasePasswordDialog {
  public:
   UrgentPasswordExpiryNotificationDialog(

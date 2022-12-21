@@ -163,7 +163,7 @@ void AppServiceProxyLacros::Initialize() {
     web_apps_publisher_host_->Init();
   }
 
-  // Make the chrome://app-icon/ resource available.
+  // Make the gtx://app-icon/ resource available.
   content::URLDataSource::Add(profile_,
                               std::make_unique<apps::AppIconSource>(profile_));
 

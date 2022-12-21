@@ -227,7 +227,7 @@ sk_sp<SkDocument> MakePdfDocument(const std::string& creator,
   metadata.fCreation = now;
   metadata.fModified = now;
   metadata.fCreator = creator.empty()
-                          ? SkString("Chromium")
+                          ? SkString("GTX Browser")
                           : SkString(creator.c_str(), creator.size());
   metadata.fRasterDPI = 300.0f;
 

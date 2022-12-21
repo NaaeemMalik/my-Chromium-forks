@@ -8,8 +8,8 @@
  * mojom data and mocking out the implementation for testing.
  */
 
-import 'chrome://resources/mojo/mojo/public/js/bindings.js';
-import 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
+import 'gtx://resources/mojo/mojo/public/js/bindings.js';
+import 'gtx://resources/mojo/url/mojom/url.mojom-webui.js';
 
 import {WallpaperProvider, WallpaperProviderInterface} from '../personalization_app.mojom-webui.js';
 

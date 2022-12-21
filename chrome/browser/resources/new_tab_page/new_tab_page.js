@@ -10,7 +10,7 @@
  * things tests need.
  */
 
-export {BrowserCommandProxy} from 'chrome://resources/js/browser_command/browser_command_proxy.js';
+export {BrowserCommandProxy} from 'gtx://resources/js/browser_command/browser_command_proxy.js';
 export {NtpElement} from './app.js';
 export {BackgroundManager} from './background_manager.js';
 export {CustomizeDialogPage} from './customize_dialog_types.js';

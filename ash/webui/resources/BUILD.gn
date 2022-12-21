@@ -32,13 +32,13 @@ template("ash_generated_grit") {
   }
 }
 
-# Resources used by chrome://camera-app.
+# Resources used by gtx://camera-app.
 ash_generated_grit("camera_app_resources") {
   source = "$root_gen_dir/ash/webui/camera_app_ui/ash_camera_app_resources.grd"
   deps = [ "//ash/webui/camera_app_ui:build_grd" ]
 }
 
-# Resources used by chrome://os-feedback
+# Resources used by gtx://os-feedback
 ash_generated_grit("os_feedback_resources") {
   os_feedback_gen_dir = "$root_gen_dir/ash/webui/os_feedback_ui/resources"
   source = "$os_feedback_gen_dir/ash_os_feedback_resources.grd"
@@ -63,7 +63,7 @@ ash_generated_grit("shimless_rma_resources") {
   deps = [ "//ash/webui/shimless_rma/resources:build_grd" ]
 }
 
-# Resources used by chrome://personalization SWA.
+# Resources used by gtx://personalization SWA.
 ash_generated_grit("personalization_app_resources") {
   source = "$root_gen_dir/ash/webui/personalization_app/resources/ash_personalization_app_resources.grd"
   deps = [ "//ash/webui/personalization_app/resources:build_grd" ]
@@ -77,13 +77,13 @@ ash_generated_grit("firmware_update_app_resources") {
 }
 
 if (!is_official_build) {
-  # Resources used by chrome://demo-mode-app
+  # Resources used by gtx://demo-mode-app
   ash_generated_grit("demo_mode_app_resources") {
     source = "$root_gen_dir/ash/webui/demo_mode_app_ui/ash_demo_mode_app_resources.grd"
     deps = [ "//ash/webui/demo_mode_app_ui:build_grd" ]
   }
 
-  # Resources used by chrome://sample-system-web-app
+  # Resources used by gtx://sample-system-web-app
   ash_generated_grit("sample_system_web_app_resources") {
     source = "$root_gen_dir/ash/webui/sample_system_web_app_ui/ash_sample_system_web_app_resources.grd"
     deps = [ "//ash/webui/sample_system_web_app_ui:build_trusted_grd" ]
@@ -133,7 +133,7 @@ grit("diagnostics_app_resources") {
   output_dir = "$root_gen_dir/ash"
 }
 
-# Resources used by chrome://telemetry-extension
+# Resources used by gtx://telemetry-extension
 grit("telemetry_extension_resources") {
   source = "//ash/webui/telemetry_extension_ui/resources/telemetry_extension_resources.grd"
 
@@ -149,7 +149,7 @@ grit("telemetry_extension_resources") {
   output_dir = "$root_gen_dir/ash"
 }
 
-# Resources used by chrome://help-app, and parts of the sandboxed app it hosts
+# Resources used by gtx://help-app, and parts of the sandboxed app it hosts
 # that do not come from the app bundle (below).
 grit("help_app_resources") {
   source = "//ash/webui/help_app_ui/resources/help_app_resources.grd"
@@ -171,7 +171,7 @@ grit("help_app_resources") {
   ]
 }
 
-# Resources automatically served by the chrome://help-app bundle, obtained via DEPS.
+# Resources automatically served by the gtx://help-app bundle, obtained via DEPS.
 grit("help_app_bundle_resources") {
   if (enable_cros_help_app) {
     # Obtained via an internal CIPD package in src/DEPS.
@@ -214,7 +214,7 @@ grit("help_app_kids_magazine_bundle_resources") {
   output_dir = "$root_gen_dir/chromeos"
 }
 
-# Resources used by chrome://media-app, and parts of the sandboxed app it hosts
+# Resources used by gtx://media-app, and parts of the sandboxed app it hosts
 # that do not come from the app bundle (below).
 grit("media_app_resources") {
   source = "//ash/webui/media_app_ui/resources/media_app_resources.grd"
@@ -235,7 +235,7 @@ grit("media_app_resources") {
   ]
 }
 
-# Resources automatically served by the chrome://media-app bundle, obtained via DEPS.
+# Resources automatically served by the gtx://media-app bundle, obtained via DEPS.
 grit("media_app_bundle_resources") {
   if (enable_cros_media_app) {
     # Obtained via an internal CIPD package in src/DEPS.
@@ -283,7 +283,7 @@ ash_generated_grit("projector_app_untrusted_resources") {
   deps = [ "//ash/webui/projector_app/resources:build_untrusted_grd" ]
 }
 
-# Resources used by chrome://projector SWA.
+# Resources used by gtx://projector SWA.
 ash_generated_grit("projector_app_trusted_resources") {
   source = "$root_gen_dir/ash/webui/projector_app/resources/ash_projector_app_trusted_resources.grd"
   deps = [ "//ash/webui/projector_app/resources:build_trusted_grd" ]
@@ -311,13 +311,13 @@ grit("projector_app_bundle_resources") {
   output_dir = "$root_gen_dir/chromeos"
 }
 
-# Resources used by chrome://eche-app
+# Resources used by gtx://eche-app
 ash_generated_grit("eche_app_resources") {
   source = "$root_gen_dir/ash/webui/eche_app_ui/ash_eche_app_resources.grd"
   deps = [ "//ash/webui/eche_app_ui:build_grd" ]
 }
 
-# Resources automatically served by the chrome://eche-app bundle, obtained via DEPS.
+# Resources automatically served by the gtx://eche-app bundle, obtained via DEPS.
 grit("eche_bundle_resources") {
   # Obtained via an internal CIPD package in src/DEPS.
   if (enable_cros_eche_app) {
@@ -339,7 +339,7 @@ grit("eche_bundle_resources") {
   output_dir = "$root_gen_dir/ash"
 }
 
-# Resources used by chrome://connectivity-diagnostics
+# Resources used by gtx://connectivity-diagnostics
 grit("connectivity_diagnostics_resources") {
   # These arguments are needed since the grd is generated at build time.
   enable_input_discovery_for_gn_analyze = false

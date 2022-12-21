@@ -55,6 +55,7 @@ std::u16string TabUIHelper::GetTitle() const {
 }
 
 gfx::Image TabUIHelper::GetFavicon() const {
+
   if (ShouldUseFaviconFromHistory() && tab_ui_data_)
     return tab_ui_data_->favicon;
   return favicon::TabFaviconFromWebContents(web_contents());

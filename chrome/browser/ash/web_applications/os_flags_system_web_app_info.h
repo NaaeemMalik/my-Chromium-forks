@@ -10,7 +10,7 @@
 class Profile;
 
 // This is the web app Flags which is called from Lacros and serves Ash's
-// chrome:// URLs as web applications.
+// gtx:// URLs as web applications.
 // To allow users to call Ash's pages directly, they can use os://<url> which
 // will then be handled by this app.
 class OsFlagsSystemWebAppDelegate : public web_app::SystemWebAppDelegate {

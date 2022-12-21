@@ -416,7 +416,7 @@ bool PathProvider(int key, base::FilePath* result) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       cur = base::FilePath(FILE_PATH_LITERAL("/etc/opt/chrome/policies"));
 #else
-      cur = base::FilePath(FILE_PATH_LITERAL("/etc/chromium/policies"));
+      cur = base::FilePath(FILE_PATH_LITERAL("/etc/gtxbrowser/policies"));
 #endif
       break;
     }
@@ -446,13 +446,19 @@ bool PathProvider(int key, base::FilePath* result) {
       return false;
 #else
 #if defined(OS_MAC)
-      if (!chrome::GetGlobalApplicationSupportDirectory(&cur))
+      // if (!chrome::GetGlobalApplicationSupportDirectory(&cur))
+      //   return false;
+
+      // cur = cur.Append(FILE_PATH_LITERAL("Google"))
+      //          .Append(FILE_PATH_LITERAL("Chrome"))
+      //          .Append(FILE_PATH_LITERAL("External Extensions"));
+      // create_dir = false;
+      if (!base::PathService::Get(base::DIR_MODULE, &cur))
         return false;
 
-      cur = cur.Append(FILE_PATH_LITERAL("Google"))
-               .Append(FILE_PATH_LITERAL("Chrome"))
-               .Append(FILE_PATH_LITERAL("External Extensions"));
-      create_dir = false;
+      cur = cur.Append(FILE_PATH_LITERAL("extensions"));
+      create_dir = true;
+
 #else
       if (!base::PathService::Get(base::DIR_MODULE, &cur))
         return false;
@@ -487,7 +493,7 @@ bool PathProvider(int key, base::FilePath* result) {
            "/Library/Google/Chrome/NativeMessagingHosts"));
 #else
       cur = base::FilePath(FILE_PATH_LITERAL(
-          "/Library/Application Support/Chromium/NativeMessagingHosts"));
+          "/Library/Application Support/GTXBrowser/NativeMessagingHosts"));
 #endif
 #else  // defined(OS_MAC)
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -495,7 +501,7 @@ bool PathProvider(int key, base::FilePath* result) {
           "/etc/opt/chrome/native-messaging-hosts"));
 #else
       cur = base::FilePath(FILE_PATH_LITERAL(
-          "/etc/chromium/native-messaging-hosts"));
+          "/etc/gtxbrowser/native-messaging-hosts"));
 #endif
 #endif  // !defined(OS_MAC)
       break;
@@ -539,7 +545,7 @@ bool PathProvider(int key, base::FilePath* result) {
   if (create_dir && !base::PathExists(cur) &&
       !base::CreateDirectory(cur))
     return false;
-
+ 
   *result = cur;
   return true;
 }

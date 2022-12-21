@@ -110,10 +110,10 @@ chrome.test.getConfig(config => chrome.test.runTests([
   },
 
   async function attachToWebUI() {
-    const tab = await openTab('chrome://version');
+    const tab = await openTab('gtx://version');
     const debuggee = {tabId: tab.id};
     chrome.debugger.attach(debuggee, protocolVersion,
-        fail("Cannot access a chrome:// URL"));
+        fail("Cannot access a gtx:// URL"));
     chrome.tabs.remove(tab.id);
   },
 
@@ -142,7 +142,7 @@ chrome.test.getConfig(config => chrome.test.runTests([
       chrome.test.assertNoLastError();
       chrome.debugger.onDetach.addListener(onDetach);
       chrome.debugger.sendCommand(
-        debuggee, "Page.navigate", {url: "chrome://version"}, onResponse);
+        debuggee, "Page.navigate", {url: "gtx://version"}, onResponse);
     });
   },
 

@@ -43,7 +43,7 @@ const wchar_t kOperaKey[] =
 const wchar_t kSafariKey[] =
     L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\safari.exe";
 const wchar_t kChromeKey[] =
-    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe";
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\GTXBrowser.exe";
 const wchar_t kEdgeKey[] =
     L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe";
 
@@ -57,7 +57,7 @@ const wchar_t kSafariVarName[] = L"${safari}";
 const wchar_t kEdgeVarName[] = L"${edge}";
 
 // Case-insensitive, typical filenames for popular browsers' executables.
-const wchar_t kChromeTypicalExecutable[] = L"chrome.exe";
+const wchar_t kChromeTypicalExecutable[] = L"GTXBrowser.exe";
 const wchar_t kIETypicalExecutable[] = L"iexplore.exe";
 const wchar_t kFirefoxTypicalExecutable[] = L"firefox.exe";
 const wchar_t kOperaTypicalExecutable[] = L"launcher.exe";

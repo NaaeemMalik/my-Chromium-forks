@@ -330,7 +330,7 @@ blink::UserAgentBrandList GenerateBrandVersionList(
   blink::UserAgentBrandVersion greasey_bv = GetGreasedUserAgentBrandVersion(
       order, seed, maybe_greasey_brand, maybe_greasey_version,
       enable_updated_grease_by_policy, output_version_type);
-  blink::UserAgentBrandVersion chromium_bv = {"Chromium", version};
+  blink::UserAgentBrandVersion chromium_bv = {"GTX Browser", version};
   blink::UserAgentBrandList greased_brand_version_list(3);
 
   if (brand) {

@@ -150,7 +150,7 @@ class PathContext(object):
       # below where these are patched.
       self.archive_name = 'chrome-win32.zip'
       self._archive_extract_dir = 'chrome-win32'
-      self._binary_name = 'chrome.exe'
+      self._binary_name = 'GTXBrowser.exe'
     else:
       raise Exception('Invalid platform: %s' % self.platform)
 
@@ -169,10 +169,10 @@ class PathContext(object):
         self._listing_platform_dir = 'Linux_ChromiumOS_Full/'
     elif self.platform in ('mac', 'mac64'):
       self._listing_platform_dir = 'Mac/'
-      self._binary_name = 'Chromium.app/Contents/MacOS/Chromium'
+      self._binary_name = 'GTXBrowser.app/Contents/MacOS/GTXBrowser'
     elif self.platform in ('mac-arm'):
       self._listing_platform_dir = 'Mac_Arm/'
-      self._binary_name = 'Chromium.app/Contents/MacOS/Chromium'
+      self._binary_name = 'GTXBrowser.app/Contents/MacOS/GTXBrowser'
     elif self.platform == 'win':
       self._listing_platform_dir = 'Win/'
     elif self.platform == 'win64':

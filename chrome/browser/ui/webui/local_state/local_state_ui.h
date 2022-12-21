@@ -24,7 +24,7 @@ void FilterPrefs(const std::vector<std::string>& valid_prefixes,
 
 }  // namespace internal
 
-// Controller for chrome://local-state/ page.
+// Controller for gtx://local-state/ page.
 class LocalStateUI : public content::WebUIController {
  public:
   explicit LocalStateUI(content::WebUI* web_ui);

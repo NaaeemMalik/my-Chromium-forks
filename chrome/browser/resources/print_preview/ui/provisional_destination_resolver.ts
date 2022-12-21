@@ -2,20 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
 import './print_preview_shared_css.js';
 import './print_preview_vars_css.js';
 import '../strings.m.js';
 import './throbber_css.js';
 
-import {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {I18nMixin} from 'chrome://resources/js/i18n_mixin.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
-import {html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
+import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {Destination} from '../data/destination.js';
 import {DestinationStore} from '../data/destination_store.js';
@@ -96,9 +96,9 @@ export class PrintPreviewProvisionalDestinationResolverElement extends
     const icon =
         this.shadowRoot!.querySelector('.extension-icon')! as HTMLElement;
     icon.style.backgroundImage = '-webkit-image-set(' +
-        'url(chrome://extension-icon/' + this.destination_!.extensionId +
+        'url(gtx://extension-icon/' + this.destination_!.extensionId +
         '/24/1) 1x,' +
-        'url(chrome://extension-icon/' + this.destination_!.extensionId +
+        'url(gtx://extension-icon/' + this.destination_!.extensionId +
         '/48/1) 2x)';
     this.promiseResolver_ = new PromiseResolver();
     return this.promiseResolver_!.promise;

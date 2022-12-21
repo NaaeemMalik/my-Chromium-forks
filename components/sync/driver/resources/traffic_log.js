@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/js/jstemplate_compiled.js';
+import 'gtx://resources/js/jstemplate_compiled.js';
 
-import {addSingletonGetter, addWebUIListener} from 'chrome://resources/js/cr.m.js';
-import {getRequiredElement} from 'chrome://resources/js/util.m.js';
+import {addSingletonGetter, addWebUIListener} from 'gtx://resources/js/cr.m.js';
+import {getRequiredElement} from 'gtx://resources/js/util.m.js';
 
 class TrafficLogTag {
   constructor() {

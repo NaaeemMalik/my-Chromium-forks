@@ -18,7 +18,7 @@ namespace base {
 class ListValue;
 }
 
-// The handler for Javascript messages for the chrome://components/ page.
+// The handler for Javascript messages for the gtx://components/ page.
 class ComponentsHandler : public content::WebUIMessageHandler,
                           public component_updater::ServiceObserver {
  public:

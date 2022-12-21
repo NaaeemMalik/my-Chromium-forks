@@ -11,10 +11,10 @@
 
 class Profile;
 
-// Serves chrome-untrusted://image-editor/* sources which can return
+// Serves gtx-untrusted://image-editor/* sources which can return
 // user-generated content from outside the chromium codebase. The
-// chrome-untrusted://image-editor/* sources can only be embedded in
-// the chrome://image-editor by using an <iframe>.
+// gtx-untrusted://image-editor/* sources can only be embedded in
+// the gtx://image-editor by using an <iframe>.
 //
 class EditorUntrustedSource : public content::URLDataSource {
  public:

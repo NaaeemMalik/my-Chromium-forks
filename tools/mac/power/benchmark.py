@@ -67,7 +67,7 @@ def main():
   parser.add_argument('--chromium-path',
                       dest='chromium_path',
                       action='store',
-                      help='The path to Chromium.app')
+                      help='The path to GTXBrowser.app')
 
   parser.add_argument('--verbose',
                       action='store_true',

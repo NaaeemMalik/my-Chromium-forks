@@ -94,7 +94,7 @@ static void atk_util_auralinux_class_init(AtkUtilAuraLinuxClass *klass) {
   AtkUtilClass* atk_class = ATK_UTIL_CLASS(g_type_class_peek(ATK_TYPE_UTIL));
 
   atk_class->get_root = AtkUtilAuraLinuxGetRoot;
-  atk_class->get_toolkit_name = []() { return "Chromium"; };
+  atk_class->get_toolkit_name = []() { return "GTX Browser"; };
   atk_class->get_toolkit_version = []() { return "1.0"; };
   atk_class->add_key_event_listener = AtkUtilAuraLinuxAddKeyEventListener;
   atk_class->remove_key_event_listener = AtkUtilAuraLinuxRemoveKeyEventListener;

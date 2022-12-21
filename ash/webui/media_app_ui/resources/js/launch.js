@@ -4,7 +4,7 @@
 
 import './strings.m.js';
 
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
 
 import * as error_reporter from './error_reporter.js';
 import {assertCast, MessagePipe} from './message_pipe.m.js';
@@ -127,7 +127,7 @@ let currentDirectoryHandle = null;
 
 /**
  * Map of file tokens. Persists across new launch requests from the file
- * manager when chrome://media-app has not been closed.
+ * manager when gtx://media-app has not been closed.
  * @type {!Map<number, !FileSystemFileHandle>}
  */
 const tokenMap = new Map();

@@ -24,7 +24,7 @@ class AccessibilityFeatures;
 
 class ScanningAppDelegate;
 
-// The WebUI for chrome://scanning.
+// The WebUI for gtx://scanning.
 class ScanningUI : public ui::MojoWebUIController {
  public:
   using BindScanServiceCallback = base::RepeatingCallback<void(

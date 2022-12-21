@@ -1,7 +1,7 @@
-COMPANY_FULLNAME=The Chromium Authors
-COMPANY_SHORTNAME=The Chromium Authors
-PRODUCT_FULLNAME=Chrome Cleanup Tool
-PRODUCT_SHORTNAME=Chrome Cleanup Tool
-PRODUCT_INSTALLER_FULLNAME=Chrome Cleanup Tool Installer
-PRODUCT_INSTALLER_SHORTNAME=Chrome Cleanup Tool Installer
-COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Chromium Authors. All rights reserved.
+COMPANY_FULLNAME=The GTX Browser Authors
+COMPANY_SHORTNAME=The GTX Browser Authors
+PRODUCT_FULLNAME=GTX Browser Cleanup Tool
+PRODUCT_SHORTNAME=GTX Browser Cleanup Tool
+PRODUCT_INSTALLER_FULLNAME=GTX Browser Cleanup Tool Installer
+PRODUCT_INSTALLER_SHORTNAME=GTX Browser Cleanup Tool Installer
+COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The GTX Browser Authors. All rights reserved.

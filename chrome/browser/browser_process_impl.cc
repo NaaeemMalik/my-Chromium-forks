@@ -1108,7 +1108,7 @@ void BrowserProcessImpl::CreateProfileManager() {
 void BrowserProcessImpl::PreCreateThreads(
     const base::CommandLine& command_line) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  // chrome-extension:// URLs are safe to request anywhere, but may only
+  // gtx-extension:// URLs are safe to request anywhere, but may only
   // commit (including in iframes) in extension processes.
   ChildProcessSecurityPolicy::GetInstance()->RegisterWebSafeIsolatedScheme(
       extensions::kExtensionScheme, true);

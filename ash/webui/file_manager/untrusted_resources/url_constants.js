@@ -6,9 +6,9 @@
  * @const {string}
  */
 const LEGACY_FILES_APP_ORIGIN =
-    'chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj';
+    'gtx-extension://hhaomjibdihmijegdhdafkllkbggdgoj';
 
 /**
  * @const {string}
  */
-const FILES_APP_SWA_ORIGIN = 'chrome://file-manager';
+const FILES_APP_SWA_ORIGIN = 'gtx://file-manager';

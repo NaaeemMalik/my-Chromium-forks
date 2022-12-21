@@ -67,14 +67,14 @@ except ImportError as error:
 import gpu_tests.ipg_utils as ipg_utils
 
 CHROME_STABLE_PATH_WIN = (
-    r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe")
+    r"C:\Program Files (x86)\Google\Chrome\Application\GTXBrowser.exe")
 CHROME_BETA_PATH_WIN = (
-    r"C:\Program Files (x86)\Google\Chrome Beta\Application\chrome.exe")
+    r"C:\Program Files (x86)\Google\Chrome Beta\Application\GTXBrowser.exe")
 CHROME_DEV_PATH_WIN = (
-    r"C:\Program Files (x86)\Google\Chrome Dev\Application\chrome.exe")
+    r"C:\Program Files (x86)\Google\Chrome Dev\Application\GTXBrowser.exe")
 # The following two paths are relative to the LOCALAPPDATA
-CHROME_CANARY_PATH_WIN = r"Google\Chrome SxS\Application\chrome.exe"
-CHROMIUM_PATH_WIN = r"Chromium\Application\chrome.exe"
+CHROME_CANARY_PATH_WIN = r"Google\Chrome SxS\Application\GTXBrowser.exe"
+CHROMIUM_PATH_WIN = r"GTX Browser\Application\GTXBrowser.exe"
 
 CHROME_STABLE_PATH_MAC = (
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")

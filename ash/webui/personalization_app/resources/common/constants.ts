@@ -7,15 +7,15 @@
  */
 
 
-import {FilePath} from 'chrome://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
+import {FilePath} from 'gtx://resources/mojo/mojo/public/mojom/base/file_path.mojom-webui.js';
 
-import {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
+import {Url} from 'gtx://resources/mojo/url/mojom/url.mojom-webui.js';
 
 import {WallpaperCollection} from '../trusted/personalization_app.mojom-webui.js';
 
 export const untrustedOrigin = 'chrome-untrusted://personalization';
 
-export const trustedOrigin = 'chrome://personalization';
+export const trustedOrigin = 'gtx://personalization';
 
 export const kMaximumLocalImagePreviews = 3;
 

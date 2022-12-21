@@ -382,7 +382,7 @@ goog.dom.asserts.getWindow_ = function(o) {
   'use strict';
   try {
     var doc = o && o.ownerDocument;
-    // This can throw “Blocked a frame with origin "chrome-extension://..." from
+    // This can throw “Blocked a frame with origin "gtx-extension://..." from
     // accessing a cross-origin frame” in Chrome extension.
     var win =
         doc && /** @type {?Window} */ (doc.defaultView || doc.parentWindow);

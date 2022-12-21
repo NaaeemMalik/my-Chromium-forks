@@ -86,7 +86,7 @@ content::WebUIDataSource* CreateWebRtcLogsUIHTMLSource() {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// The handler for Javascript messages for the chrome://webrtc-logs/ page.
+// The handler for Javascript messages for the gtx://webrtc-logs/ page.
 class WebRtcLogsDOMHandler final : public WebUIMessageHandler {
  public:
   explicit WebRtcLogsDOMHandler(Profile* profile);
@@ -120,7 +120,7 @@ class WebRtcLogsDOMHandler final : public WebUIMessageHandler {
       const std::string& callback_id,
       const std::vector<UploadList::UploadInfo>& event_logs);
 
-  // Update the chrome://webrtc-logs/ page.
+  // Update the gtx://webrtc-logs/ page.
   void UpdateUI(const std::string& callback_id);
 
   // Update the text/event logs part of the forementioned page.
@@ -471,6 +471,6 @@ WebRtcLogsUI::WebRtcLogsUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   Profile* profile = Profile::FromWebUI(web_ui);
   web_ui->AddMessageHandler(std::make_unique<WebRtcLogsDOMHandler>(profile));
 
-  // Set up the chrome://webrtc-logs/ source.
+  // Set up the gtx://webrtc-logs/ source.
   content::WebUIDataSource::Add(profile, CreateWebRtcLogsUIHTMLSource());
 }

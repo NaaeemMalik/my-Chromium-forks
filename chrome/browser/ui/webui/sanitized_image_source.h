@@ -36,7 +36,7 @@ class SimpleURLLoader;
 // PNG and sending the now sanitized image back to the requesting WebUI. You can
 // reach the image source via:
 //
-//   chrome://image?<external image URL>
+//   gtx://image?<external image URL>
 //
 class SanitizedImageSource : public content::URLDataSource {
  public:

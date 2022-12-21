@@ -16,7 +16,7 @@
 class AutocompleteProviderClient;
 
 // This is the provider for built-in URLs, such as about:settings and
-// chrome://version.
+// gtx://version.
 class BuiltinProvider : public AutocompleteProvider {
  public:
   explicit BuiltinProvider(AutocompleteProviderClient* client);

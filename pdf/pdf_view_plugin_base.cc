@@ -89,7 +89,7 @@ constexpr base::TimeDelta kAccessibilityPageDelay = base::Milliseconds(100);
 constexpr base::TimeDelta kFindResultCooldown = base::Milliseconds(100);
 
 constexpr char kChromeExtensionHost[] =
-    "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/";
+    "gtx-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/";
 
 // Same value as printing::COMPLETE_PREVIEW_DOCUMENT_INDEX.
 constexpr int kCompletePDFIndex = -1;
@@ -125,7 +125,7 @@ bool IsPrintPreviewUrl(base::StringPiece url) {
 }
 
 int ExtractPrintPreviewPageIndex(base::StringPiece src_url) {
-  // Sample `src_url` format: chrome-untrusted://print/id/page_index/print.pdf
+  // Sample `src_url` format: gtx-untrusted://print/id/page_index/print.pdf
   // The page_index is zero-based, but can be negative with special meanings.
   std::vector<base::StringPiece> url_substr = base::SplitStringPiece(
       src_url.substr(PdfViewPluginBase::kChromeUntrustedPrintHost.size()), "/",

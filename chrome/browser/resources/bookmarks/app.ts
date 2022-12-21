@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_components/managed_footnote/managed_footnote.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/cr_elements/cr_button/cr_button.m.js';
-import 'chrome://resources/cr_elements/cr_toast/cr_toast_manager.js';
-import 'chrome://resources/cr_elements/cr_splitter/cr_splitter.js';
+import 'gtx://resources/cr_components/managed_footnote/managed_footnote.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_toast/cr_toast_manager.js';
+import 'gtx://resources/cr_elements/cr_splitter/cr_splitter.js';
 import './folder_node.js';
 import './list.js';
 import './router.js';
@@ -16,12 +16,12 @@ import './strings.m.js';
 import './command_manager.js';
 import './toolbar.js';
 
-import {CrSplitterElement} from 'chrome://resources/cr_elements/cr_splitter/cr_splitter.js';
-import {FindShortcutMixin, FindShortcutMixinInterface} from 'chrome://resources/cr_elements/find_shortcut_mixin.js';
-import {EventTracker} from 'chrome://resources/js/event_tracker.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {IronScrollTargetBehavior} from 'chrome://resources/polymer/v3_0/iron-scroll-target-behavior/iron-scroll-target-behavior.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrSplitterElement} from 'gtx://resources/cr_elements/cr_splitter/cr_splitter.js';
+import {FindShortcutMixin, FindShortcutMixinInterface} from 'gtx://resources/cr_elements/find_shortcut_mixin.js';
+import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {IronScrollTargetBehavior} from 'gtx://resources/polymer/v3_0/iron-scroll-target-behavior/iron-scroll-target-behavior.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {setSearchResults} from './actions.js';
 import {destroy as destroyApiListener, init as initApiListener} from './api_listener.js';

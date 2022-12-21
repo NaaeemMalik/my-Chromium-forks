@@ -277,7 +277,7 @@ Polymer({
       return '';
     }
     // Format: 'This account is managed by
-    //          <a target="_blank" href="chrome://management">google.com</a>'.
+    //          <a target="_blank" href="gtx://management">google.com</a>'.
     // Where href will be set by <localized-link>.
     return loadTimeData.getStringF(
         'accountManagerManagementDescription',

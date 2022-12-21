@@ -3,18 +3,18 @@
 // found in the LICENSE file.
 
 import './app_notification_row.js';
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
-import 'chrome://resources/mojo/skia/public/mojom/image_info.mojom-lite.js';
-import 'chrome://resources/mojo/skia/public/mojom/bitmap.mojom-lite.js';
-import 'chrome://resources/mojo/url/mojom/url.mojom-lite.js';
+import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+import 'gtx://resources/mojo/skia/public/mojom/image_info.mojom-lite.js';
+import 'gtx://resources/mojo/skia/public/mojom/bitmap.mojom-lite.js';
+import 'gtx://resources/mojo/url/mojom/url.mojom-lite.js';
 import '/app-management/file_path.mojom-lite.js';
 import '/app-management/image.mojom-lite.js';
 import '/app-management/safe_base_name.mojom-lite.js';
 import '/app-management/types.mojom-lite.js';
 import '/os_apps_page/app_notification_handler.mojom-lite.js';
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {html, mixinBehaviors, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {html, mixinBehaviors, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {Route, Router} from '../../../router.js';
 import {DeepLinkingBehavior, DeepLinkingBehaviorInterface} from '../../deep_linking_behavior.m.js';

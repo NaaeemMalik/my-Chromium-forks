@@ -6,10 +6,10 @@
  * @fileoverview
  * 'settings-basic-page' is the settings page containing the actual settings.
  */
-import 'chrome://resources/cr_elements/hidden_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_style_css.m.js';
-import 'chrome://resources/cr_elements/shared_vars_css.m.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
+import 'gtx://resources/cr_elements/hidden_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '../appearance_page/appearance_page.js';
 import '../privacy_page/privacy_page.js';
 import '../privacy_page/privacy_review_promo.js';
@@ -23,7 +23,7 @@ import '../search_page/search_page.js';
 import '../settings_page/settings_section.js';
 import '../settings_page_css.js';
 // <if expr="chromeos or lacros">
-import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
 // </if>
 
 // <if expr="not chromeos and not lacros">
@@ -31,8 +31,8 @@ import '../default_browser_page/default_browser_page.js';
 
 // </if>
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {beforeNextRender, html, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {beforeNextRender, html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {SettingsIdleLoadElement} from '../controls/settings_idle_load.js';
 import {loadTimeData} from '../i18n_setup.js';
@@ -323,7 +323,7 @@ export class SettingsBasicPageElement extends SettingsBasicPageElementBase {
     const chromeOSLanguagesSettingsPath =
         loadTimeData.getString('chromeOSLanguagesSettingsPath');
     window.location.href =
-        `chrome://os-settings/${chromeOSLanguagesSettingsPath}`;
+        `gtx://os-settings/${chromeOSLanguagesSettingsPath}`;
   }
   // </if>
 

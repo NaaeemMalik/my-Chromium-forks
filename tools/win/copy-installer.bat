@@ -49,7 +49,7 @@ EXIT 1
 SET FROM=%FROM%\%OUTPUT%\%BUILDTYPE%%ARCH%
 SET TO=\%OUTPUT%\%BUILDTYPE%%ARCH%
 
-SET TOCOPY=mini_installer.exe *.dll.pdb chrome.exe.pdb mini_installer.exe.pdb^
+SET TOCOPY=mini_installer.exe *.dll.pdb GTXBrowser.exe.pdb mini_installer.exe.pdb^
            setup.exe.pdb
 
 CALL :_copyfiles

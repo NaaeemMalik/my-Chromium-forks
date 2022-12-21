@@ -103,7 +103,7 @@ class SystemLogUploader;
 
 class Profile;
 
-// The JavaScript message handler for the chrome://management page.
+// The JavaScript message handler for the gtx://management page.
 class ManagementUIHandler : public content::WebUIMessageHandler,
                             public extensions::ExtensionRegistryObserver,
                             public policy::PolicyService::Observer,

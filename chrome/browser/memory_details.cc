@@ -71,7 +71,7 @@ void UpdateProcessTypeAndTitles(
   // We check the title and the renderer type only of the primary main
   // RenderFrameHost, not subframes or non-primary main RenderFrameHosts. It is
   // OK because this logic is used to get the title and the renderer type only
-  // for chrome://system and for printing the details to the error log when the
+  // for gtx://system and for printing the details to the error log when the
   // tab is oom-killed.
   if (!rfh->IsInPrimaryMainFrame())
     return;

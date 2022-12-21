@@ -102,11 +102,11 @@ bool IsValidWebAppUrl(const GURL& app_url) {
   if (app_url.is_empty() || app_url.inner_url())
     return false;
 
-  // TODO(crbug.com/1253234): Remove chrome-extension scheme and use
+  // TODO(crbug.com/1253234): Remove gtx-extension scheme and use
   // SchemeIsHTTPOrHTTPS() instead of IsValidWebAppUrl();
   return app_url.SchemeIs(url::kHttpScheme) ||
          app_url.SchemeIs(url::kHttpsScheme) ||
-         app_url.SchemeIs("chrome-extension");
+         app_url.SchemeIs("gtx-extension");
 }
 
 absl::optional<AppId> FindInstalledAppWithUrlInScope(Profile* profile,

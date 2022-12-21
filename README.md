@@ -1,21 +1,344 @@
-# ![Logo](chrome/app/theme/chromium/product_logo_64.png) Chromium
+# ![Logo](chrome/app/theme/chromium/product_logo_64.png) GTX BROWSER
 
-Chromium is an open-source browser project that aims to build a safer, faster,
-and more stable way for all users to experience the web.
+## System requirements
 
-The project's web site is https://www.chromium.org.
+* A 64-bit Intel machine with at least 8GB of RAM. More than 16GB is highly
+  recommended.
+* At least 100GB of free disk space on an NTFS-formatted hard drive. FAT32
+  will not work, as some of the Git packfiles are larger than 4GB.
+* An appropriate version of Visual Studio, as described below.
+* Windows 10 or newer.
 
-To check out the source code locally, don't use `git clone`! Instead,
-follow [the instructions on how to get the code](docs/get_the_code.md).
+## Setting up Windows
 
-Documentation in the source is rooted in [docs/README.md](docs/README.md).
+### Visual Studio
 
-Learn how to [Get Around the Chromium Source Code Directory Structure
-](https://www.chromium.org/developers/how-tos/getting-around-the-chrome-source-code).
+Chromium requires [Visual Studio 2017](https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes) (>=15.7.2)
+to build, but [Visual Studio 2019](https://docs.microsoft.com/en-us/visualstudio/releases/2019/release-notes) (>=16.0.0)
+is preferred. Visual Studio can also be used to debug Chromium, and version 2019 is
+preferred for this as it handles Chromium's large debug information much better.
+The clang-cl compiler is used but Visual Studio's header files, libraries, and
+some tools are required. Visual Studio Community Edition should work if its
+license is appropriate for you. You must install the "Desktop development with
+C++" component and the "MFC/ATL support" sub-components. This can be done from
+the command line by passing these arguments to the Visual Studio installer (see
+below for ARM64 instructions):
+```shell
+$ PATH_TO_INSTALLER.EXE ^
+--add Microsoft.VisualStudio.Workload.NativeDesktop ^
+--add Microsoft.VisualStudio.Component.VC.ATLMFC ^
+--includeRecommended
+```
 
-For historical reasons, there are some small top level directories. Now the
-guidance is that new top level directories are for product (e.g. Chrome,
-Android WebView, Ash). Even if these products have multiple executables, the
-code should be in subdirectories of the product.
+If you want to build for ARM64 Win32 then some extra arguments are needed. The
+full set for that case is:
+```shell
+$ PATH_TO_INSTALLER.EXE ^
+--add Microsoft.VisualStudio.Workload.NativeDesktop ^
+--add Microsoft.VisualStudio.Component.VC.ATLMFC ^
+--add Microsoft.VisualStudio.Component.VC.Tools.ARM64 ^
+--add Microsoft.VisualStudio.Component.VC.MFC.ARM64 ^
+--includeRecommended
+```
 
-If you found a bug, please file it at https://crbug.com/new.
+-You must have the version 10.0.19041 or higher [Windows 10 SDK](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/)
+installed. This
+can be installed separately or by checking the appropriate box in the Visual
+Studio Installer.
+
+The SDK Debugging Tools must also be installed. If the Windows 10 SDK was
+installed via the Visual Studio installer, then they can be installed by going
+to: Control Panel → Programs → Programs and Features → Select the "Windows
+Software Development Kit" → Change → Change → Check "Debugging Tools For
+Windows" → Change. Or, you can download the standalone SDK installer and use it
+to install the Debugging Tools.
+
+## Install `depot_tools`
+
+Download the [depot_tools bundle](https://storage.googleapis.com/chrome-infra/depot_tools.zip)
+and extract it somewhere.
+
+*** note
+**Warning:** **DO NOT** use drag-n-drop or copy-n-paste extract from Explorer,
+this will not extract the hidden “.git” folder which is necessary for
+depot_tools to autoupdate itself. You can use “Extract all…” from the
+context menu though.
+***
+
+Add depot_tools to the start of your PATH (must be ahead of any installs of
+Python). Assuming you unzipped the bundle to C:\src\depot_tools, open:
+
+Control Panel → System and Security → System → Advanced system settings
+
+If you have Administrator access, Modify the PATH system variable and
+put `C:\src\depot_tools` at the front (or at least in front of any directory
+that might already have a copy of Python or Git).
+
+If you don't have Administrator access, you can add a user-level PATH
+environment variable and put `C:\src\depot_tools` at the front, but
+if your system PATH has a Python in it, you will be out of luck.
+
+Also, add a DEPOT_TOOLS_WIN_TOOLCHAIN system variable in the same way, and set
+it to 0. This tells depot_tools to use your locally installed version of Visual
+Studio (by default, depot_tools will try to use a google-internal version).
+
+You may also have to set variable `vs2017_install` or `vs2019_install` to your
+installation path of Visual Studio 2017 or 19, like
+`set vs2019_install=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional`
+for Visual Studio 2019.
+
+From a cmd.exe shell, run:
+
+```shell
+$ gclient
+```
+
+On first run, gclient will install all the Windows-specific bits needed to work
+with the code, including msysgit and python.
+
+* If you run gclient from a non-cmd shell (e.g., cygwin, PowerShell),
+  it may appear to run properly, but msysgit, python, and other tools
+  may not get installed correctly.
+* If you see strange errors with the file system on the first run of gclient,
+  you may want to [disable Windows Indexing](http://tortoisesvn.tigris.org/faq.html#cantmove2).
+
+## Check python install
+
+After running gclient open a command prompt and type `where python` and
+confirm that the depot_tools `python.bat` comes ahead of any copies of
+python.exe. Failing to ensure this can lead to overbuilding when
+using gn - see [crbug.com/611087](https://crbug.com/611087).
+
+[App Execution Aliases](https://docs.microsoft.com/en-us/windows/apps/desktop/modernize/desktop-to-uwp-extensions#alias)
+can conflict with other installations of python on the system so disable
+these for 'python.exe' and 'python3.exe' by opening 'App execution aliases'
+section of Control Panel and unticking the boxes next to both of these
+that point to 'App Installer'.
+
+## Get the code
+
+First, clone gtx-browser repository (https://github.com/OSITA-Consulting/gtx-browser.git) in directory where you want to implement project(ex. "D://GtxBrowser").
+
+```shell
+$ git clone https://github.com/OSITA-Consulting/gtx-browser.git
+```
+
+```shell
+$ cd gtx-browser
+```
+
+## Install additional build dependencies
+
+- For windows
+```shell
+$ gclient sync
+$ gclient sync --with_branch_heads --with_tags
+$ gclient runhooks
+```
+
+- For Linux
+```shell
+$ ./build/install-build-deps.sh
+$ gclient runhooks
+```
+
+- For Mac OS
+```shell
+$ gclient sync -D
+```
+
+## Setting up the build
+
+Chromium uses [Ninja](https://ninja-build.org) as its main build tool along with
+a tool called [GN](https://gn.googlesource.com/gn/+/main/docs/quick_start.md)
+to generate `.ninja` files. You can create any number of *build directories*
+with different configurations. To create a build directory:
+
+```shell
+$ gn gen out/Default
+```
+
+* You only have to run this once for each new build directory, Ninja will
+  update the build files as needed.
+* You can replace `Default` with another name, but
+  it should be a subdirectory of `out`.
+* For other build arguments, including release settings or using an alternate
+  version of Visual Studio, see [GN build
+  configuration](https://www.chromium.org/developers/gn-build-configuration).
+  The default will be a debug component build matching the current host
+  operating system and CPU.
+* For more info on GN, run `gn help` on the command line or read the [quick
+  start guide](https://gn.googlesource.com/gn/+/main/docs/quick_start.md).
+
+### Faster builds
+
+* Reduce file system overhead by excluding build directories from
+  antivirus and indexing software.
+* Store the build tree on a fast disk (preferably SSD).
+* The more cores the better (20+ is not excessive) and lots of RAM is needed
+(64 GB is not excessive).
+
+There are some gn flags that can improve build speeds. You can specify these
+in the editor that appears when you create your output directory
+(`gn args out/Default`) or on the gn gen command line
+(`gn gen out/Default --args="is_component_build = true is_debug = true"`).
+Some helpful settings to consider using include:
+* `is_component_build = true` - this uses more, smaller DLLs, and incremental
+linking.
+* `enable_nacl = false` - this disables Native Client which is usually not
+needed for local builds.
+* `target_cpu = "x86"` - x86 builds are slightly faster than x64 builds and
+support incremental linking for more targets. Note that if you set this but
+don't' set enable_nacl = false then build times may get worse.
+* `blink_symbol_level = 0` - turn off source-level debugging for
+blink to reduce build times, appropriate if you don't plan to debug blink.
+* `v8_symbol_level = 0` - turn off source-level debugging for v8 to reduce
+build times, appropriate if you don't plan to debug v8.
+
+In order to speed up linking you can set `symbol_level = 1` or
+`symbol_level = 0` - these options reduce the work the compiler and linker have
+to do. With `symbol_level = 1` the compiler emits file name and line number
+information so you can still do source-level debugging but there will be no
+local variable or type information. With `symbol_level = 0` there is no
+source-level debugging but call stacks still have function names. Changing
+`symbol_level` requires recompiling everything.
+
+In addition, Google employees should use goma, a distributed compilation system.
+Detailed information is available internally but the relevant gn arg is:
+* `use_goma = true`
+
+To get any benefit from goma it is important to pass a large -j value to ninja.
+A good default is 10\*numCores to 20\*numCores. If you run autoninja then it
+will automatically pass an appropriate -j value to ninja for goma or not.
+
+```shell
+$ autoninja -C out\Default chrome
+```
+
+When invoking ninja specify 'chrome' as the target to avoid building all test
+binaries as well.
+
+Still, builds will take many hours on many machines.
+
+
+### Why is my build slow?
+
+Many things can make builds slow, with Windows Defender slowing process startups
+being a frequent culprit. Have you ensured that the entire Chromium src
+directory is excluded from antivirus scanning (on Google machines this means
+putting it in a ``src`` directory in the root of a drive)? Have you tried the
+different settings listed above, including different link settings and -j
+values? Have you asked on the chromium-dev mailing list to see if your build is
+slower than expected for your machine's specifications?
+
+The next step is to gather some data. If you set the ``NINJA_SUMMARIZE_BUILD``
+environment variable to 1 then ``autoninja`` will do three things. First, it
+will set the [NINJA_STATUS](https://ninja-build.org/manual.html#_environment_variables)
+environment variable so that ninja will print additional information while
+building Chrome. It will show how many build processes are running at any given
+time, how many build steps have completed, how many build steps have completed
+per second, and how long the build has been running, as shown here:
+
+```shell
+$ set NINJA_SUMMARIZE_BUILD=1
+$ autoninja -C out\Default base
+ninja: Entering directory `out\Default'
+[1 processes, 86/86 @ 2.7/s : 31.785s ] LINK(DLL) base.dll base.dll.lib base.dll.pdb
+```
+
+This makes slow process creation immediately obvious and lets you tell quickly
+if a build is running more slowly than normal.
+
+In addition, setting ``NINJA_SUMMARIZE_BUILD=1`` tells ``autoninja`` to print a
+build performance summary when the build completes, showing the slowest build
+steps and slowest build-step types, as shown here:
+
+```shell
+$ set NINJA_SUMMARIZE_BUILD=1
+$ autoninja -C out\Default base
+Longest build steps:
+       0.1 weighted s to build obj/base/base/trace_log.obj (6.7 s elapsed time)
+       0.2 weighted s to build nasm.exe, nasm.exe.pdb (0.2 s elapsed time)
+       0.3 weighted s to build obj/base/base/win_util.obj (12.4 s elapsed time)
+       1.2 weighted s to build base.dll, base.dll.lib (1.2 s elapsed time)
+Time by build-step type:
+       0.0 s weighted time to generate 6 .lib files (0.3 s elapsed time sum)
+       0.1 s weighted time to generate 25 .stamp files (1.2 s elapsed time sum)
+       0.2 s weighted time to generate 20 .o files (2.8 s elapsed time sum)
+       1.7 s weighted time to generate 4 PEFile (linking) files (2.0 s elapsed
+time sum)
+      23.9 s weighted time to generate 770 .obj files (974.8 s elapsed time sum)
+26.1 s weighted time (982.9 s elapsed time sum, 37.7x parallelism)
+839 build steps completed, average of 32.17/s
+```
+
+The "weighted" time is the elapsed time of each build step divided by the number
+of tasks that were running in parallel. This makes it an excellent approximation
+of how "important" a slow step was. A link that is entirely or mostly serialized
+will have a weighted time that is the same or similar to its elapsed time. A
+compile that runs in parallel with 999 other compiles will have a weighted time
+that is tiny.
+
+You can also generate these reports by manually running the script after a build:
+
+```shell
+$ python depot_tools\post_build_ninja_summary.py -C out\Default
+```
+
+Finally, setting ``NINJA_SUMMARIZE_BUILD=1`` tells autoninja to tell Ninja to
+report on its own overhead by passing "-d stats". This can be helpful if, for
+instance, process creation (which shows up in the StartEdge metric) is making
+builds slow, perhaps due to antivirus interference due to clang-cl not being in
+an excluded directory:
+
+```shell
+$ set NINJA_SUMMARIZE_BUILD=1
+$ autoninja -C out\Default base
+"c:\src\depot_tools\ninja.exe" -C out\Default base -j 10 -d stats
+metric                  count   avg (us)        total (ms)
+.ninja parse            3555    1539.4          5472.6
+canonicalize str        1383032 0.0             12.7
+canonicalize path       1402349 0.0             11.2
+lookup node             1398245 0.0             8.1
+.ninja_log load         2       118.0           0.2
+.ninja_deps load        2       67.5            0.1
+node stat               2516    29.6            74.4
+depfile load            2       1132.0          2.3
+StartEdge               88      3508.1          308.7
+FinishCommand           87      1670.9          145.4
+CLParser::Parse         45      1889.1          85.0
+```
+
+You can also get a visual report of the build performance with
+[ninjatracing](https://github.com/nico/ninjatracing). This converts the
+.ninja_log file into a .json file which can be loaded into chrome://tracing:
+
+```shell
+$ python ninjatracing out\Default\.ninja_log >build.json
+```
+
+## Build GTX Browser
+
+Build GTX Browser (the "chrome" target) with Ninja using the command:
+
+```shell
+$ autoninja -C out\Default chrome
+```
+
+`autoninja` is a wrapper that automatically provides optimal values for the
+arguments passed to `ninja`.
+
+You can get a list of all of the other build targets from GN by running
+`gn ls out/Default` from the command line. To compile one, pass to Ninja
+the GN label with no preceding "//" (so for `//chrome/test:unit_tests`
+use ninja -C out/Default chrome/test:unit_tests`).
+
+## Run GTX Browser
+
+Once it is built, you can simply run the browser:
+
+```shell
+$ out\Default\GTXBrowser.exe
+```
+
+(The ".exe" suffix in the command is actually optional).

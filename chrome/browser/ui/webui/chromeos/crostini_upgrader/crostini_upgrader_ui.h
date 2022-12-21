@@ -16,7 +16,7 @@ namespace chromeos {
 
 class CrostiniUpgraderPageHandler;
 
-// The WebUI for chrome://crostini-upgrader
+// The WebUI for gtx://crostini-upgrader
 class CrostiniUpgraderUI
     : public ui::MojoWebDialogUI,
       public chromeos::crostini_upgrader::mojom::PageHandlerFactory {

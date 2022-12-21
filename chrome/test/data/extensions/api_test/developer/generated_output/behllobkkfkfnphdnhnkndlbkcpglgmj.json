@@ -46,13 +46,13 @@
       "renderProcessId": 42,
       "renderViewId": 88,
       "type": "TAB_CONTENTS",
-      "url": "chrome-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/bar.html"
+      "url": "gtx-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/bar.html"
    }, {
       "isIframe": true,
       "incognito": false,
       "renderProcessId": 0,
       "renderViewId": 0,
       "type": "TAB_CONTENTS",
-      "url": "chrome-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/dog.html"
+      "url": "gtx-extension://behllobkkfkfnphdnhnkndlbkcpglgmj/dog.html"
    } ]
 }

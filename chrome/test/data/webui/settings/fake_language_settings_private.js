@@ -7,10 +7,10 @@
  * for testing.
  */
 
-import {assert, assertNotReached} from 'chrome://resources/js/assert.m.js';
-import {isChromeOS} from 'chrome://resources/js/cr.m.js';
-import {SettingsPrefsElement} from 'chrome://settings/settings.js';
-import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
+import {isChromeOS} from 'gtx://resources/js/cr.m.js';
+import {SettingsPrefsElement} from 'gtx://settings/settings.js';
+import {TestBrowserProxy} from 'gtx://webui-test/test_browser_proxy.js';
 import {FakeChromeEvent} from '../fake_chrome_event.js';
 
 /**

@@ -1215,7 +1215,7 @@ class PCScan::PCScanThread final {
                   static constexpr const char* kThreadName = "PCScan";
                   // Ideally we should avoid mixing base:: and std:: API for
                   // threading, but this is useful for visualizing the pcscan
-                  // thread in chrome://tracing.
+                  // thread in gtx://tracing.
                   base::PlatformThread::SetName(kThreadName);
                   instance->TaskLoop();
                 },

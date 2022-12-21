@@ -2553,7 +2553,7 @@ bool IsSigninForcedByPolicy() {
   }
 }
 
-// Checks the target BVC's current tab's URL. If this URL is chrome://newtab,
+// Checks the target BVC's current tab's URL. If this URL is gtx://newtab,
 // loads |urlLoadParams| in this tab. Otherwise, open |urlLoadParams| in a new
 // tab in the target BVC. |tabDisplayedCompletion| will be called on the new tab
 // (if not nil).
@@ -2568,7 +2568,7 @@ bool IsSigninForcedByPolicy() {
   web::WebState* currentWebState =
       targetInterface.browser->GetWebStateList()->GetActiveWebState();
 
-  // Don't call loadWithParams for chrome://newtab when it's already loaded.
+  // Don't call loadWithParams for gtx://newtab when it's already loaded.
   // Note that it's safe to use -GetVisibleURL here, as it doesn't matter if the
   // NTP hasn't finished loading.
   if (currentWebState && IsURLNtp(currentWebState->GetVisibleURL()) &&

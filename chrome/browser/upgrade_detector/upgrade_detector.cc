@@ -116,7 +116,7 @@ void UpgradeDetector::OverrideRelaunchNotificationToRequired(bool overridden) {
   NotifyRelaunchOverriddenToRequired(overridden);
 }
 
-void UpgradeDetector::AddObserver(UpgradeObserver* observer) {
+void UpgradeDetector::AddObserverXay(UpgradeObserver* observer) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   observer_list_.AddObserver(observer);
 }

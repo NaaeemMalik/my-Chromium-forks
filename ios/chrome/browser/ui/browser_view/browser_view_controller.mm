@@ -3290,7 +3290,7 @@ NSString* const kBrowserViewControllerSnackbarCategory =
   // Deactivate the NTP immediately on a load to hide the NTP quickly, but
   // after calling UrlLoadingService::Load.  Otherwise, if the
   // webState has never been visible (such as during startup with an NTP), it's
-  // possible the webView can trigger a unnecessary load for chrome://newtab.
+  // possible the webView can trigger a unnecessary load for gtx://newtab.
   if (self.currentWebState->GetVisibleURL() != kChromeUINewTabURL) {
     if (self.isNTPActiveForCurrentWebState) {
       NewTabPageTabHelper::FromWebState(self.currentWebState)->Deactivate();

@@ -103,7 +103,7 @@ class AwaitBorealisStartup : public BorealisTask {
   base::WeakPtrFactory<AwaitBorealisStartup> weak_factory_{this};
 };
 
-// Updates the value of some chrome://flags in the VM.
+// Updates the value of some gtx://flags in the VM.
 class UpdateChromeFlags : public BorealisTask {
  public:
   explicit UpdateChromeFlags(Profile* profile);

@@ -36,7 +36,7 @@ SampleSystemWebAppUI::SampleSystemWebAppUI(content::WebUI* web_ui)
   trusted_source->SetDefaultResource(IDR_ASH_SAMPLE_SYSTEM_WEB_APP_INDEX_HTML);
 #endif  // !DCHECK_IS_ON()
 
-  // We need a CSP override to use the chrome-untrusted:// scheme in the host.
+  // We need a CSP override to use the gtx-untrusted:// scheme in the host.
   std::string csp =
       std::string("frame-src ") + kChromeUIUntrustedSampleSystemWebAppURL + ";";
   trusted_source->OverrideContentSecurityPolicy(
@@ -52,10 +52,10 @@ SampleSystemWebAppUI::SampleSystemWebAppUI(content::WebUI* web_ui)
   auto* browser_context = web_ui->GetWebContents()->GetBrowserContext();
   content::WebUIDataSource::Add(browser_context, trusted_source.release());
 
-  // Add ability to request chrome-untrusted: URLs
+  // Add ability to request gtx-untrusted: URLs
   web_ui->AddRequestableScheme(content::kChromeUIUntrustedScheme);
 
-  // Register common permissions for chrome-untrusted:// pages.
+  // Register common permissions for gtx-untrusted:// pages.
   // TODO(https://crbug.com/1113568): Remove this after common permissions are
   // granted by default.
   auto* webui_allowlist = WebUIAllowlist::GetOrCreate(browser_context);

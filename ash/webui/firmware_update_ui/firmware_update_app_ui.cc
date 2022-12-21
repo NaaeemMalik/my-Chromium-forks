@@ -60,7 +60,7 @@ FirmwareUpdateAppUI::FirmwareUpdateAppUI(content::WebUI* web_ui)
       content::WebUIDataSource::Create(kChromeUIFirmwareUpdateAppHost));
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
-      "script-src chrome://resources chrome://test 'self';");
+      "script-src gtx://resources gtx://test 'self';");
   source->DisableTrustedTypesCSP();
 
   const auto resources = base::make_span(kAshFirmwareUpdateAppResources,

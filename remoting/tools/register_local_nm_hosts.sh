@@ -68,7 +68,7 @@ register_hosts_for_all_channels() {
     register_hosts "${build_dir}" \
         "${HOME}/Library/Application Support/Google/Chrome/NativeMessagingHosts"
     register_hosts "${build_dir}" \
-        "${HOME}/Library/Application Support/Chromium/NativeMessagingHosts"
+        "${HOME}/Library/Application Support/GTXBrowser/NativeMessagingHosts"
   else
     register_hosts "${build_dir}" \
         "${HOME}/.config/google-chrome/NativeMessagingHosts"
@@ -77,7 +77,7 @@ register_hosts_for_all_channels() {
     register_hosts "${build_dir}" \
         "${HOME}/.config/google-chrome-unstable/NativeMessagingHosts"
     register_hosts "${build_dir}" \
-        "${HOME}/.config/chromium/NativeMessagingHosts"
+        "${HOME}/.config/gtxbrowser/NativeMessagingHosts"
   fi
 }
 
@@ -96,13 +96,13 @@ unregister_hosts_for_all_channels() {
     unregister_hosts \
         "${HOME}/Library/Application Support/Google/Chrome/NativeMessagingHosts"
     unregister_hosts \
-        "${HOME}/Library/Application Support/Chromium/NativeMessagingHosts"
+        "${HOME}/Library/Application Support/GTXBrowser/NativeMessagingHosts"
   else
     unregister_hosts "${HOME}/.config/google-chrome/NativeMessagingHosts"
     unregister_hosts "${HOME}/.config/google-chrome-beta/NativeMessagingHosts"
     unregister_hosts \
         "${HOME}/.config/google-chrome-unstable/NativeMessagingHosts"
-    unregister_hosts "${HOME}/.config/chromium/NativeMessagingHosts"
+    unregister_hosts "${HOME}/.config/gtxbrowser/NativeMessagingHosts"
   fi
 }
 

@@ -6,25 +6,25 @@
  * @type {string}
  */
 const SRC_SET_URL_1_LIGHT =
-    'chrome://resources/cr_components/chromeos/multidevice_setup/all_set_1x_light.svg';
+    'gtx://resources/cr_components/chromeos/multidevice_setup/all_set_1x_light.svg';
 
 /**
  * @type {string}
  */
 const SRC_SET_URL_2_LIGHT =
-    'chrome://resources/cr_components/chromeos/multidevice_setup/all_set_2x_light.svg';
+    'gtx://resources/cr_components/chromeos/multidevice_setup/all_set_2x_light.svg';
 
 /**
  * @type {string}
  */
 const SRC_SET_URL_1_DARK =
-    'chrome://resources/cr_components/chromeos/multidevice_setup/all_set_1x_dark.svg';
+    'gtx://resources/cr_components/chromeos/multidevice_setup/all_set_1x_dark.svg';
 
 /**
  * @type {string}
  */
 const SRC_SET_URL_2_DARK =
-    'chrome://resources/cr_components/chromeos/multidevice_setup/all_set_2x_dark.svg';
+    'gtx://resources/cr_components/chromeos/multidevice_setup/all_set_2x_dark.svg';
 
 Polymer({
   is: 'setup-succeeded-page',

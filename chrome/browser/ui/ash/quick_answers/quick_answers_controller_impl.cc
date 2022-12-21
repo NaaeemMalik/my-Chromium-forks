@@ -25,7 +25,7 @@ using ::ash::quick_answers::QuickAnswersRequest;
 using ::ash::quick_answers::ResultType;
 
 constexpr char kQuickAnswersSettingsUrl[] =
-    "chrome://os-settings/osSearch/search";
+    "gtx://os-settings/osSearch/search";
 
 constexpr char kQuickAnswersExitPoint[] = "QuickAnswers.ExitPoint";
 

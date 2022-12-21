@@ -602,7 +602,7 @@
 // Clears default browser promo data to restart capping for the promos.
 + (void)clearDefaultBrowserPromoData;
 
-// Copies a chrome:// URL that doesn't require internet connection.
+// Copies a gtx:// URL that doesn't require internet connection.
 + (void)copyURLToPasteBoard;
 
 // Disables default browser promo. If a test needs to check a message drop down

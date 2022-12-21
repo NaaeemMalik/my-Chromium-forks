@@ -44,9 +44,9 @@ struct SearchConcept {
   // change a setting associated with the tag. This string can also contain
   // URL parameters.
   //
-  // Example 1 - Display settings (chrome://os-settings/device/display):
+  // Example 1 - Display settings (gtx://os-settings/device/display):
   //             ==> "device/display".
-  // Example 2 - Wi-Fi settings (chrome://os-settings/networks?type=WiFi):
+  // Example 2 - Wi-Fi settings (gtx://os-settings/networks?type=WiFi):
   //             ==> "networks?type=WiFi"
   const char* url_path_with_parameters;
 

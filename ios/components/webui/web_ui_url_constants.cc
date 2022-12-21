@@ -4,6 +4,6 @@
 
 #include "ios/components/webui/web_ui_url_constants.h"
 
-const char kChromeUIScheme[] = "chrome";
+const char kChromeUIScheme[] = "gtx";
 
 const char kChromeUISyncInternalsHost[] = "sync-internals";

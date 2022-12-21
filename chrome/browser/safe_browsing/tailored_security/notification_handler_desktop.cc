@@ -42,9 +42,9 @@ const char kTailoredSecurityDisableNotificationId[] =
 const char kTailoredSecurityUnconsentedPromotionNotificationId[] =
     "TailoredSecurityUnconsentedPromotionNotification";
 const char kTailoredSecurityNotifierId[] =
-    "chrome://settings/security/notification/id-notifier";
+    "gtx://settings/security/notification/id-notifier";
 const char kTailoredSecurityNotificationOrigin[] =
-    "chrome://settings/security?q=enhanced";
+    "gtx://settings/security?q=enhanced";
 
 // |is_esb_enabled_in_sync| records if ESB was enabled in sync with Account-ESB
 void ChangeSafeBrowsingStateAndOpenSettings(Profile* profile,

@@ -22,6 +22,8 @@ const char kFileSystemScheme[] = "filesystem";
 const char kFtpScheme[] = "ftp";
 const char kHttpScheme[] = "http";
 const char kHttpsScheme[] = "https";
+const char kIpfsScheme[] = "ipfs";
+const char kWalletScheme[] = "wallet";
 const char kJavaScriptScheme[] = "javascript";
 const char kMailToScheme[] = "mailto";
 // This is for QuicTransport (https://wicg.github.io/web-transport/).

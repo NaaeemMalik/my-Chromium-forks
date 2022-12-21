@@ -69,7 +69,7 @@ chromium-metrics-reviews@google.com.
   <obsolete>
     Deprecated 10/2021. This feature (using the older archivemount program
     instead of newer fuse-archive) was never enabled-by-default, although some
-    people opted into the chrome://flags/#files-archivemount flag anyway.
+    people opted into the gtx://flags/#files-archivemount flag anyway.
   </obsolete>
   <owner>fdegros@chromium.org</owner>
   <owner>src/ui/file_manager/OWNERS</owner>

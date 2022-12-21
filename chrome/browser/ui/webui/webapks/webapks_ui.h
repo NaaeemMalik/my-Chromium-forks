@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The WebUI handler for chrome://webapks.
+// The WebUI handler for gtx://webapks.
 class WebApksUI : public content::WebUIController {
  public:
   explicit WebApksUI(content::WebUI* web_ui);

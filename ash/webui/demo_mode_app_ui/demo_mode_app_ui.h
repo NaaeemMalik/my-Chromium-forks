@@ -13,7 +13,7 @@
 
 namespace ash {
 
-// The WebUI for chrome://demo-mode-app
+// The WebUI for gtx://demo-mode-app
 class DemoModeAppUI : public ui::MojoWebUIController,
                       public mojom::demo_mode::PageHandlerFactory {
  public:

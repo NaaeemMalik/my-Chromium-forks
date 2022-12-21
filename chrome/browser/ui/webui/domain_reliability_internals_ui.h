@@ -17,7 +17,7 @@ class ListValue;
 class Value;
 }  // namespace base
 
-// The WebUI for chrome://domain-reliability-internals
+// The WebUI for gtx://domain-reliability-internals
 class DomainReliabilityInternalsUI : public content::WebUIController {
  public:
   explicit DomainReliabilityInternalsUI(content::WebUI* web_ui);

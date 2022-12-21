@@ -8,6 +8,6 @@ namespace ash {
 
 const char kChromeUIConnectivityDiagnosticsHost[] = "connectivity-diagnostics";
 const char kChromeUIConnectivityDiagnosticsUrl[] =
-    "chrome://connectivity-diagnostics";
+    "gtx://connectivity-diagnostics";
 
 }  // namespace ash

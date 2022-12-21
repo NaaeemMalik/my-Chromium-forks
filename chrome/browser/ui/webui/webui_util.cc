@@ -34,8 +34,8 @@ namespace webui {
 void SetJSModuleDefaults(content::WebUIDataSource* source) {
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
-      "script-src chrome://resources chrome://test "
-      "chrome://webui-test 'self';");
+      "script-src gtx://resources gtx://test "
+      "gtx://webui-test 'self';");
   // TODO(crbug.com/1098690): Trusted Type Polymer
   source->DisableTrustedTypesCSP();
   source->UseStringsJs();

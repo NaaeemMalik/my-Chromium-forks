@@ -1983,7 +1983,7 @@ base::Value SerializeDeepScanDebugData(const std::string& token,
 
 SafeBrowsingUI::SafeBrowsingUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
-  // Set up the chrome://safe-browsing source.
+  // Set up the gtx://safe-browsing source.
 
   content::WebUIDataSource* html_source = content::WebUIDataSource::Create(
       safe_browsing::kChromeUISafeBrowsingHost);

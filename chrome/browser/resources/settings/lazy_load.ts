@@ -40,7 +40,7 @@ import './people_page/signout_dialog.js';
 import './people_page/sync_controls.js';
 import './people_page/sync_page.js';
 // <if expr="use_nss_certs">
-import 'chrome://resources/cr_components/certificate_manager/certificate_manager.js';
+import 'gtx://resources/cr_components/certificate_manager/certificate_manager.js';
 // </if>
 
 // Sections
@@ -59,11 +59,11 @@ import './languages_page/edit_dictionary_page.js';
 
 // </if>
 
-export {CrCheckboxElement} from 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
-export {CrIconButtonElement} from 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-export {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.m.js';
-export {CrSliderElement} from 'chrome://resources/cr_elements/cr_slider/cr_slider.js';
-export {getToastManager} from 'chrome://resources/cr_elements/cr_toast/cr_toast_manager.js';
+export {CrCheckboxElement} from 'gtx://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
+export {CrIconButtonElement} from 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+export {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
+export {CrSliderElement} from 'gtx://resources/cr_elements/cr_slider/cr_slider.js';
+export {getToastManager} from 'gtx://resources/cr_elements/cr_toast/cr_toast_manager.js';
 export {SettingsAppearanceFontsPageElement} from './appearance_page/appearance_fonts_page.js';
 export {FontsBrowserProxy, FontsBrowserProxyImpl, FontsData} from './appearance_page/fonts_browser_proxy.js';
 export {CountryDetailManager, CountryDetailManagerImpl, SettingsAddressEditDialogElement} from './autofill_page/address_edit_dialog.js';

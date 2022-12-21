@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The WebUI handler for chrome://device-emulator
+// The WebUI handler for gtx://device-emulator
 class DeviceEmulatorUI : public content::WebUIController {
  public:
   explicit DeviceEmulatorUI(content::WebUI* web_ui);

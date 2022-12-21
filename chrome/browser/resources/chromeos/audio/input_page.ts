@@ -1,4 +1,4 @@
-import {$} from 'chrome://resources/js/util.m.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 import {AudioBroker} from './audio_broker.js';
 import {Page, PageNavigator} from './page.js';

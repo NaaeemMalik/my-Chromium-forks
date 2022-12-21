@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {getTrustedHTML} from 'chrome://resources/js/static_types.js';
-import {$, getRequiredElement} from 'chrome://resources/js/util.m.js';
-import {Origin} from 'chrome://resources/mojo/url/mojom/origin.mojom-webui.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {getTrustedHTML} from 'gtx://resources/js/static_types.js';
+import {$, getRequiredElement} from 'gtx://resources/js/util.m.js';
+import {Origin} from 'gtx://resources/mojo/url/mojom/origin.mojom-webui.js';
 
 import {AttributionInternalsHandler, AttributionInternalsHandlerRemote, AttributionInternalsObserverInterface, AttributionInternalsObserverReceiver, SourceType, WebUIAttributionReport, WebUIAttributionReport_Status, WebUIAttributionSource, WebUIAttributionSource_Attributability} from './attribution_internals.mojom-webui.js';
 

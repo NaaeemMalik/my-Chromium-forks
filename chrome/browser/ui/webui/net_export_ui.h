@@ -7,7 +7,7 @@
 
 #include "content/public/browser/web_ui_controller.h"
 
-// The C++ back-end for the chrome://net-export webui page.
+// The C++ back-end for the gtx://net-export webui page.
 class NetExportUI : public content::WebUIController {
  public:
   explicit NetExportUI(content::WebUI* web_ui);

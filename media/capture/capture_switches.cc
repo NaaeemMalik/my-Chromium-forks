@@ -14,8 +14,8 @@ const char kVideoCaptureUseGpuMemoryBuffer[] =
 
 // This is for the same feature controlled by kVideoCaptureUseGpuMemoryBuffer.
 // kVideoCaptureUseGpuMemoryBuffer is settled by chromeos overlays. This flag is
-// necessary to overwrite the settings via chrome:// flag. The behavior of
-// chrome://flag#zero-copy-video-capture is as follows;
+// necessary to overwrite the settings via gtx:// flag. The behavior of
+// gtx://flag#zero-copy-video-capture is as follows;
 // Default  : Respect chromeos overlays settings.
 // Enabled  : Force to enable kVideoCaptureUseGpuMemoryBuffer.
 // Disabled : Force to disable kVideoCaptureUseGpuMemoryBuffer.

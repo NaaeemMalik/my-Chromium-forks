@@ -15,7 +15,7 @@
 //
 // Lacros is sending some special system os:// URLs to Ash.
 // The system OS URLs will be (only) detected in the omnibox and directly sent
-// to Ash where they get converted into chrome:// URLs for navigation.
+// to Ash where they get converted into gtx:// URLs for navigation.
 // Note:
 //   - These utility functions do add the functionality to handle the os://
 //     scheme without registering "os" as scheme as this should not be treated
@@ -34,9 +34,9 @@ namespace gurl_os_handler_utils {
 // Sanitize the URL according to security requests (only scheme, host and
 // path). The path can also be removed if |include_path| is false.
 // Example:
-// chrome://settings/network?query would return
-//       |include_path| false: chrome://settings/
-//       |include_path| true:  chrome://settings/network
+// gtx://settings/network?query would return
+//       |include_path| false: gtx://settings/
+//       |include_path| true:  gtx://settings/network
 COMPONENT_EXPORT(CROSAPI)
 GURL SanitizeAshURL(const GURL& url, bool include_path = true);
 
@@ -58,10 +58,10 @@ COMPONENT_EXPORT(CROSAPI) bool IsAshOsAsciiScheme(const base::StringPiece& url);
 // Get the host from the given os:// URL.
 COMPONENT_EXPORT(CROSAPI) std::string AshOsUrlHost(const GURL& url);
 
-// Convert a passed GURL from os:// scheme to chrome:// scheme.
+// Convert a passed GURL from os:// scheme to gtx:// scheme.
 COMPONENT_EXPORT(CROSAPI) GURL GetSystemUrlFromChromeUrl(const GURL& url);
 
-// Convert a passed GURL from chrome:// scheme to os:// scheme.
+// Convert a passed GURL from gtx:// scheme to os:// scheme.
 COMPONENT_EXPORT(CROSAPI) GURL GetChromeUrlFromSystemUrl(const GURL& url);
 
 }  // namespace gurl_os_handler_utils

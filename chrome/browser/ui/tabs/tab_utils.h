@@ -25,7 +25,7 @@ enum class TabMutedReason {
   NONE,                    // The tab has never been muted or unmuted.
   EXTENSION,               // Mute state changed via extension API.
   CONTENT_SETTING,         // The sound content setting was set to BLOCK.
-  CONTENT_SETTING_CHROME,  // Mute toggled on chrome:// URL.
+  CONTENT_SETTING_CHROME,  // Mute toggled on gtx:// URL.
 };
 
 struct LastMuteMetadata

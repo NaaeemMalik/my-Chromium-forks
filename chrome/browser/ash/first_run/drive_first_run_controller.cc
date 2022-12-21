@@ -65,7 +65,7 @@ const char kDriveOfflineEndpointUrl[] =
 const char kDriveHostedAppId[] = "apdfllckaahabafndbhieahigkjlhalf";
 
 // Id of the notification shown when offline mode is enabled.
-const char kDriveOfflineNotificationId[] = "chrome://drive/enable-offline";
+const char kDriveOfflineNotificationId[] = "gtx://drive/enable-offline";
 
 // The URL of the support page opened when the notification button is clicked.
 const char kDriveOfflineSupportUrl[] =

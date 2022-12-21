@@ -228,7 +228,7 @@ class MediaSessionImpl : public MediaSession,
   // slower and should be used over the async one which is available over mojo.
   void GetMediaSessionInfo(GetMediaSessionInfoCallback callback) override;
 
-  // Returns debugging information to be displayed on chrome://media-internals.
+  // Returns debugging information to be displayed on gtx://media-internals.
   void GetDebugInfo(GetDebugInfoCallback) override;
 
   // Adds a mojo based observer to listen to events related to this session.

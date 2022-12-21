@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {PromiseResolver} from 'chrome://resources/js/promise_resolver.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {PromiseResolver} from 'gtx://resources/js/promise_resolver.m.js';
 
 /**
  * @fileoverview

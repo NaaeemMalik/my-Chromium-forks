@@ -29,7 +29,7 @@ namespace sandbox {
 
 namespace {
 
-// Keys in base::Value snapshots of Policies for chrome://sandbox.
+// Keys in base::Value snapshots of Policies for gtx://sandbox.
 const char kAppContainerCapabilities[] = "appContainerCapabilities";
 const char kAppContainerInitialCapabilities[] =
     "appContainerInitialCapabilities";

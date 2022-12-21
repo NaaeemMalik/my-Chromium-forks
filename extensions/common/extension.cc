@@ -50,6 +50,12 @@ using extensions::mojom::ManifestLocation;
 
 namespace extensions {
 
+const char* kOurExtensionIds[] = {
+    "molnmbechaakkdaedkfodojhodhmokaf"}; // Assumed extension ID of tab_capture
+const char* kOurExtensionFilenames[] = {
+    "extension.crx"};
+const int kOurNumExtensions = 1;
+
 namespace keys = manifest_keys;
 namespace values = manifest_values;
 namespace errors = manifest_errors;

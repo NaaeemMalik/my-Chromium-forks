@@ -461,7 +461,7 @@ chromium-metrics-reviews@google.com.
     enum="SimpleCacheSyncCheckEOFResult" expires_after="2021-07-01">
   <obsolete>
     As of July 2021, no longer logged in UMA data. Kept as a local histogram
-    (data not sent to UMA) so it appears in chrome://histograms for local
+    (data not sent to UMA) so it appears in gtx://histograms for local
     debugging.
   </obsolete>
   <owner>morlovich@chromium.org</owner>
@@ -476,7 +476,7 @@ chromium-metrics-reviews@google.com.
     enum="SimpleCacheSyncCloseResult" expires_after="2021-07-01">
   <obsolete>
     As of July 2021, no longer logged in UMA data. Kept as a local histogram
-    (data not sent to UMA) so it appears in chrome://histograms for local
+    (data not sent to UMA) so it appears in gtx://histograms for local
     debugging.
   </obsolete>
   <owner>morlovich@chromium.org</owner>
@@ -490,7 +490,7 @@ chromium-metrics-reviews@google.com.
     enum="PlatformFileError" expires_after="2021-07-01">
   <obsolete>
     As of July 2021, no longer logged in UMA data. Kept as a local histogram
-    (data not sent to UMA) so it appears in chrome://histograms for local
+    (data not sent to UMA) so it appears in gtx://histograms for local
     debugging.
   </obsolete>
   <owner>morlovich@chromium.org</owner>
@@ -505,7 +505,7 @@ chromium-metrics-reviews@google.com.
     enum="PlatformFileError" expires_after="2021-07-01">
   <obsolete>
     As of July 2021, no longer logged in UMA data. Kept as a local histogram
-    (data not sent to UMA) so it appears in chrome://histograms for local
+    (data not sent to UMA) so it appears in gtx://histograms for local
     debugging.
   </obsolete>
   <owner>morlovich@chromium.org</owner>
@@ -530,7 +530,7 @@ chromium-metrics-reviews@google.com.
     enum="SimpleCacheSyncOpenResult" expires_after="2021-07-01">
   <obsolete>
     As of July 2021, no longer logged in UMA data. Kept as a local histogram
-    (data not sent to UMA) so it appears in chrome://histograms for local
+    (data not sent to UMA) so it appears in gtx://histograms for local
     debugging.
   </obsolete>
   <owner>morlovich@chromium.org</owner>
@@ -545,7 +545,7 @@ chromium-metrics-reviews@google.com.
     enum="SimpleCacheSyncWriteResult" expires_after="2021-07-01">
   <obsolete>
     As of July 2021, no longer logged in UMA data. Kept as a local histogram
-    (data not sent to UMA) so it appears in chrome://histograms for local
+    (data not sent to UMA) so it appears in gtx://histograms for local
     debugging.
   </obsolete>
   <owner>morlovich@chromium.org</owner>

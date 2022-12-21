@@ -91,9 +91,11 @@ GURL GetWebUIStartupURL() {
 namespace {
 
 void AddWhatsNewTab(Browser* browser) {
+  /*
   chrome::AddTabAt(browser, GetWebUIStartupURL(), 0, true);
   browser->tab_strip_model()->ActivateTabAt(
       browser->tab_strip_model()->IndexOfFirstNonPinnedTab());
+      */
 }
 
 class WhatsNewFetcher : public BrowserListObserver {

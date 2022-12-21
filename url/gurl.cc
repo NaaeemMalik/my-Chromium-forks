@@ -355,7 +355,11 @@ bool GURL::SchemeIs(base::StringPiece lower_ascii_scheme) const {
 }
 
 bool GURL::SchemeIsHTTPOrHTTPS() const {
-  return SchemeIs(url::kHttpScheme) || SchemeIs(url::kHttpsScheme);
+  return SchemeIs(url::kHttpScheme) || SchemeIs(url::kHttpsScheme) || SchemeIs(url::kIpfsScheme);
+}
+
+bool GURL::SchemeIsIpfs() const {
+  return SchemeIs(url::kIpfsScheme);
 }
 
 bool GURL::SchemeIsWSOrWSS() const {
@@ -545,4 +549,15 @@ bool operator!=(const GURL& x, const base::StringPiece& spec) {
 
 bool operator!=(const base::StringPiece& spec, const GURL& x) {
   return !(x == spec);
+}
+
+std::string GURL::scheme() const {
+  //if( parsed_.scheme == url::kIpfsScheme)
+  //  return url::kHttpsScheme;
+  return ComponentString(parsed_.scheme);
+}
+base::StringPiece GURL::scheme_piece() const {
+  //if( parsed_.scheme == url::kIpfsScheme)
+  //  return url::kHttpsScheme;
+  return ComponentStringPiece(parsed_.scheme);
 }

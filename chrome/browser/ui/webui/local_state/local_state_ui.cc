@@ -33,7 +33,7 @@ namespace {
 #define ENABLE_FILTERING false
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-// UI Handler for chrome://local-state. Displays the Local State file as JSON.
+// UI Handler for gtx://local-state. Displays the Local State file as JSON.
 class LocalStateUIHandler : public content::WebUIMessageHandler {
  public:
   LocalStateUIHandler();
@@ -116,7 +116,7 @@ void FilterPrefs(const std::vector<std::string>& valid_prefixes,
 }  // namespace internal
 
 LocalStateUI::LocalStateUI(content::WebUI* web_ui) : WebUIController(web_ui) {
-  // Set up the chrome://local-state source.
+  // Set up the gtx://local-state source.
   content::WebUIDataSource* html_source =
       content::WebUIDataSource::Create(chrome::kChromeUILocalStateHost);
   html_source->SetDefaultResource(IDR_LOCAL_STATE_HTML);

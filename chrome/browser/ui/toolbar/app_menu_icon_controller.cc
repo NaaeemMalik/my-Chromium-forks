@@ -89,7 +89,7 @@ AppMenuIconController::AppMenuIconController(UpgradeDetector* upgrade_detector,
   global_error_observation_.Observe(
       GlobalErrorServiceFactory::GetForProfile(profile_));
 
-  upgrade_detector_->AddObserver(this);
+  upgrade_detector_->AddObserverXay(this);
 }
 
 AppMenuIconController::~AppMenuIconController() {

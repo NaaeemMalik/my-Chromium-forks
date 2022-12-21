@@ -9,26 +9,26 @@
 #include "base/cxx17_backports.h"
 #include "ios/components/webui/web_ui_url_constants.h"
 
-const char kChromeUIChromeURLsURL[] = "chrome://chrome-urls/";
-const char kChromeUICookiesSettingsURL[] = "chrome://settings/coookies";
-const char kChromeUICreditsURL[] = "chrome://credits/";
-const char kChromeUIFlagsURL[] = "chrome://flags/";
-const char kChromeUIHistoryURL[] = "chrome://history/";
-const char kChromeUIInspectURL[] = "chrome://inspect/";
-const char kChromeUIIntersitialsURL[] = "chrome://interstitials";
-const char kChromeUIManagementURL[] = "chrome://management";
-const char kChromeUINewTabURL[] = "chrome://newtab/";
-const char kChromeUINTPTilesInternalsURL[] = "chrome://ntp-tiles-internals/";
-const char kChromeUIOfflineURL[] = "chrome://offline/";
-const char kChromeUIPolicyURL[] = "chrome://policy/";
-const char kChromeUISettingsURL[] = "chrome://settings/";
-const char kChromeUITermsURL[] = "chrome://terms/";
-const char kChromeUIVersionURL[] = "chrome://version/";
+const char kChromeUIChromeURLsURL[] = "gtx://gtx-urls/";
+const char kChromeUICookiesSettingsURL[] = "gtx://settings/coookies";
+const char kChromeUICreditsURL[] = "gtx://credits/";
+const char kChromeUIFlagsURL[] = "gtx://flags/";
+const char kChromeUIHistoryURL[] = "gtx://history/";
+const char kChromeUIInspectURL[] = "gtx://inspect/";
+const char kChromeUIIntersitialsURL[] = "gtx://interstitials";
+const char kChromeUIManagementURL[] = "gtx://management";
+const char kChromeUINewTabURL[] = "gtx://newtab/";
+const char kChromeUINTPTilesInternalsURL[] = "gtx://ntp-tiles-internals/";
+const char kChromeUIOfflineURL[] = "gtx://offline/";
+const char kChromeUIPolicyURL[] = "gtx://policy/";
+const char kChromeUISettingsURL[] = "gtx://settings/";
+const char kChromeUITermsURL[] = "gtx://terms/";
+const char kChromeUIVersionURL[] = "gtx://version/";
 
 const char kChromeUIAutofillInternalsHost[] = "autofill-internals";
 const char kChromeUIBrowserCrashHost[] = "inducebrowsercrashforrealz";
 const char kChromeUICrashHost[] = "crash";
-const char kChromeUIChromeURLsHost[] = "chrome-urls";
+const char kChromeUIChromeURLsHost[] = "gtx-urls";
 const char kChromeUICrashesHost[] = "crashes";
 const char kChromeUICreditsHost[] = "credits";
 const char kChromeUIDinoHost[] = "dino";
@@ -57,7 +57,7 @@ const char kChromeUIURLKeyedMetricsHost[] = "ukm";
 const char kChromeUIUserActionsHost[] = "user-actions";
 const char kChromeUIVersionHost[] = "version";
 
-// Add hosts here to be included in chrome://chrome-urls (about:about).
+// Add hosts here to be included in gtx://gtx-urls (about:about).
 // These hosts will also be suggested by BuiltinProvider.
 // 'histograms' is chrome WebUI on iOS, content WebUI on other platforms.
 const char* const kChromeHostURLs[] = {
@@ -126,7 +126,7 @@ const char kGoogleMyAccountDeviceActivityURL[] =
     "https://myaccount.google.com/device-activity?utm_source=chrome";
 
 const char kReadingListReferrerURL[] =
-    "chrome://do_not_consider_for_most_visited/reading_list";
+    "gtx://do_not_consider_for_most_visited/reading_list";
 
 const char kChromeUIAboutNewTabURL[] = "about://newtab/";
 

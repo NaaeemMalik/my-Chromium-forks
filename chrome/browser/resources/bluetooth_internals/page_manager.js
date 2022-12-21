@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {addSingletonGetter} from 'chrome://resources/js/cr.m.js';
-import {FocusOutlineManager} from 'chrome://resources/js/cr/ui/focus_outline_manager.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {addSingletonGetter} from 'gtx://resources/js/cr.m.js';
+import {FocusOutlineManager} from 'gtx://resources/js/cr/ui/focus_outline_manager.m.js';
 
 import {Page} from './page.js';
 

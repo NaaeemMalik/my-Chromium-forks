@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {isMac} from 'chrome://resources/js/cr.m.js';
-import {List} from 'chrome://resources/js/cr/ui/list.m.js';
-import {ListItem} from 'chrome://resources/js/cr/ui/list_item.m.js';
-import {ListSelectionController} from 'chrome://resources/js/cr/ui/list_selection_controller.m.js';
-import {ListSelectionModel} from 'chrome://resources/js/cr/ui/list_selection_model.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {isMac} from 'gtx://resources/js/cr.m.js';
+import {List} from 'gtx://resources/js/cr/ui/list.m.js';
+import {ListItem} from 'gtx://resources/js/cr/ui/list_item.m.js';
+import {ListSelectionController} from 'gtx://resources/js/cr/ui/list_selection_controller.m.js';
+import {ListSelectionModel} from 'gtx://resources/js/cr/ui/list_selection_model.m.js';
 
 import {FileType} from '../../../common/js/file_type.js';
 import {str, strf, util} from '../../../common/js/util.js';

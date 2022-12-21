@@ -13,7 +13,7 @@ namespace web {
 class WebUIIOS;
 }
 
-// The WebUIIOS for chrome://gcm-internals.
+// The WebUIIOS for gtx://gcm-internals.
 class GCMInternalsUI : public web::WebUIIOSController {
  public:
   explicit GCMInternalsUI(web::WebUIIOS* web_ui, const std::string& host);

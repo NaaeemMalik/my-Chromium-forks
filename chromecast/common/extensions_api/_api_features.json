@@ -85,7 +85,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*"
+      "gtx://bookmarks/*"
     ]
   }],
   "loginState": {
@@ -99,7 +99,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://settings/*"
+      "gtx://settings/*"
     ]
   }],
   "tabs": [{
@@ -110,7 +110,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*"
+      "gtx://bookmarks/*"
     ]
   }],
   "tts": {
@@ -128,7 +128,7 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://bookmarks/*"
+      "gtx://bookmarks/*"
     ]
   }]
 }

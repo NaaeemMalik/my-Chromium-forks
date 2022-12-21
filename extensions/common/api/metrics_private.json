@@ -54,7 +54,7 @@
     "functions": [
       {
         "name": "getHistogram",
-        "description": "Get details about a histogram displayed at chrome://histogram.",
+        "description": "Get details about a histogram displayed at gtx://histogram.",
         "type": "function",
         "parameters": [
           {

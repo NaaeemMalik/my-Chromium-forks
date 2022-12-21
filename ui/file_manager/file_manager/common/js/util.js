@@ -8,10 +8,10 @@
  * which allows finer-grained control over introducing dependencies.
  */
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {decorate} from 'chrome://resources/js/cr/ui.m.js';
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {queryRequiredElement} from 'chrome://resources/js/util.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {decorate} from 'gtx://resources/js/cr/ui.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {queryRequiredElement} from 'gtx://resources/js/util.m.js';
 
 import {promisify} from '../../common/js/api.js';
 import {EntryLocation} from '../../externs/entry_location.js';

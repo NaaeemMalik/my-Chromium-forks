@@ -640,6 +640,9 @@ using plugins::ChromeContentBrowserClientPluginsPart;
 
 namespace {
 
+const char kGtxWalletHomePageExtensionURL[] =
+    "gtx-extension://molnmbechaakkdaedkfodojhodhmokaf/home.html";
+
 #if defined(OS_WIN) && !defined(COMPONENT_BUILD) && !defined(ADDRESS_SANITIZER)
 // Enables pre-launch Code Integrity Guard (CIG) for Chrome renderers, when
 // running on Windows 10 1511 and above. See
@@ -770,6 +773,90 @@ bool HandleNewTabPageLocationOverride(
 
   *url = GURL(ntp_location);
   return true;
+}
+
+// Handles the rewriting of the gtx://wallet.
+bool HandleChromeWalletPageOverride(
+    GURL* url,
+    content::BrowserContext* browser_context) {
+
+  if (url->SchemeIs("wallet")) {
+    *url = GURL(kGtxWalletHomePageExtensionURL);
+    return true;
+  }
+
+  if (url->SchemeIs(content::kChromeUIScheme) && // url->SchemeIs("ipfs") &&
+      url->host() == chrome::kChromeGtxWalletHost) {
+    *url = GURL(kGtxWalletHomePageExtensionURL);
+    return true;
+  }
+
+  return false;
+}
+
+
+// Handles the rewriting of the ipfs://
+bool HandleIpfsUrlOverride(
+    GURL* url,
+    content::BrowserContext* browser_context) {
+
+  if (url->SchemeIs(url::kIpfsScheme)) {
+    std::string url_string = url->spec();
+    std::string aaa = "ipfs://";
+    url_string.replace(0, aaa.length(), "https://cloudflare-ipfs.com/ipfs/");
+    *url = GURL(url_string);
+    return true;
+  }
+
+  return false;
+}
+
+// Handles the rewriting of the eth, tfuel, theta, gworld
+bool HandleUrlRewritingOverride(
+    GURL* url,
+    content::BrowserContext* browser_context) {
+
+#define REWRITE_COUNT 4
+
+  bool result = false;
+  if (url->SchemeIs(url::kHttpScheme) || url->SchemeIs(url::kHttpsScheme)) {
+
+    std::string rewrite_item[REWRITE_COUNT][4] = {
+      {"eth", ".eth", "eth.limo", ".eth.limo"},
+      {"theta", ".theta", "theta.tfuel.com", ".theta.tfuel.com"},
+      {"tfuel", ".tfuel", "tfuel.com", ".tfuel.com"},
+      {"gworld", ".gworld", "gworld.com", ".gworld.com"}
+    };
+
+    int i = 0;
+    std::string url_string;
+    for( i = 0; i<REWRITE_COUNT; i++) {
+      url_string = url->spec();
+      std::string host = url->host();
+      if( host == rewrite_item[i][0]) { //"tfuel"
+        size_t ix = url_string.find(host);
+        url_string.replace(ix, host.length(), rewrite_item[i][2]);
+        result = true; break;
+      } else {
+        size_t host_len = host.length();
+        size_t item_len = rewrite_item[i][1].length();
+        if( ( host_len > item_len) && ( host.substr(host_len - item_len, item_len) == rewrite_item[i][1])) {
+          std::string newhost = host;
+          newhost.replace(host_len - item_len, item_len, rewrite_item[i][3]); //".tfuel.com"
+          size_t ix = url_string.find(host);
+          url_string.replace(ix, host.length(), newhost);
+          result = true; break;
+        }
+      }
+    }
+
+    if( result) {
+      *url = GURL(url_string);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 #if !defined(OS_ANDROID)
@@ -1706,8 +1793,8 @@ bool ChromeContentBrowserClient::DoesWebUISchemeRequireProcessLock(
   // Note: This method can be called from multiple threads. It is not safe to
   // assume it runs only on the UI thread.
 
-  // chrome-search: documents commit only in the NTP instant process and are not
-  // locked to chrome-search: origin.  Locking to chrome-search would kill
+  // gtx-search: documents commit only in the NTP instant process and are not
+  // locked to gtx-search: origin.  Locking to gtx-search would kill
   // processes upon legitimate requests for cookies from the search engine's
   // domain.
   if (scheme == chrome::kChromeSearchScheme)
@@ -1720,12 +1807,12 @@ bool ChromeContentBrowserClient::DoesWebUISchemeRequireProcessLock(
 bool ChromeContentBrowserClient::ShouldTreatURLSchemeAsFirstPartyWhenTopLevel(
     base::StringPiece scheme,
     bool is_embedded_origin_secure) {
-  // This is needed to bypass the normal SameSite rules for any chrome:// page
+  // This is needed to bypass the normal SameSite rules for any gtx:// page
   // embedding a secure origin, regardless of the registrable domains of any
   // intervening frames. For example, this is needed for browser UI to interact
   // with SameSite cookies on accounts.google.com, which are used for logging
-  // into Cloud Print from chrome://print, for displaying a list of available
-  // accounts on the NTP (chrome://new-tab-page), etc.
+  // into Cloud Print from gtx://print, for displaying a list of available
+  // accounts on the NTP (gtx://new-tab-page), etc.
   if (is_embedded_origin_secure && scheme == content::kChromeUIScheme)
     return true;
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -3416,7 +3503,7 @@ void ChromeContentBrowserClient::OverrideWebkitPrefs(
     web_prefs->strict_powerful_feature_restrictions = true;
   }
 
-  // See crbug.com/1238157: the Native Client flag (chrome://flags/#enable-nacl)
+  // See crbug.com/1238157: the Native Client flag (gtx://flags/#enable-nacl)
   // can be manually re-enabled. In that case, we also need to return the full
   // plugins list, for compat.
   web_prefs->allow_non_empty_navigator_plugins |=
@@ -3682,16 +3769,16 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
   for (size_t i = 0; i < extra_parts_.size(); ++i)
     extra_parts_[i]->BrowserURLHandlerCreated(handler);
 
-  // Handler to rewrite chrome://about and chrome://sync URLs.
+  // Handler to rewrite gtx://about and gtx://sync URLs.
   handler->AddHandlerPair(&HandleChromeAboutAndChromeSyncRewrite,
                           BrowserURLHandler::null_handler());
 
 #if defined(OS_ANDROID)
-  // Handler to rewrite chrome://newtab on Android.
+  // Handler to rewrite gtx://newtab on Android.
   handler->AddHandlerPair(&chrome::android::HandleAndroidNativePageURL,
                           BrowserURLHandler::null_handler());
 #else   // defined(OS_ANDROID)
-  // Handler to rewrite chrome://newtab for InstantExtended.
+  // Handler to rewrite gtx://newtab for InstantExtended.
   handler->AddHandlerPair(&search::HandleNewTabURLRewrite,
                           &search::HandleNewTabURLReverseRewrite);
 #endif  // defined(OS_ANDROID)
@@ -3699,6 +3786,17 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
   // chrome: & friends.
   handler->AddHandlerPair(&ChromeContentBrowserClient::HandleWebUI,
                           &ChromeContentBrowserClient::HandleWebUIReverse);
+
+  // gtx://wallet
+  handler->AddHandlerPair(&HandleChromeWalletPageOverride,
+                          BrowserURLHandler::null_handler());
+  // ipfs://
+  handler->AddHandlerPair(&HandleIpfsUrlOverride,
+                          BrowserURLHandler::null_handler());
+
+  // rewriting of the eth, tfuel, theta, gworld
+  handler->AddHandlerPair(&HandleUrlRewritingOverride,
+                          BrowserURLHandler::null_handler());
 }
 
 base::FilePath ChromeContentBrowserClient::GetDefaultDownloadDirectory() {
@@ -4858,7 +4956,7 @@ bool IsSystemFeatureURLDisabled(const GURL& url) {
   if (!url.SchemeIs(content::kChromeUIScheme))
     return false;
 
-  // chrome://os-settings/pwa.html shouldn't be replaced to let the settings app
+  // gtx://os-settings/pwa.html shouldn't be replaced to let the settings app
   // installation complete successfully.
   if (url.DomainIs(chrome::kChromeUIOSSettingsHost) &&
       url.path() != "/pwa.html") {
@@ -4920,9 +5018,9 @@ void ChromeContentBrowserClient::
   InstantService* instant_service =
       InstantServiceFactory::GetForProfile(profile);
   // The test below matches when a remote 3P NTP is loaded. The effective
-  // URL is chrome-search://remote-ntp. This is to allow the use of the NTP
+  // URL is gtx-search://remote-ntp. This is to allow the use of the NTP
   // public api and to embed most-visited tiles
-  // (chrome-search://most-visited/title.html).
+  // (gtx-search://most-visited/title.html).
   if (instant_service->IsInstantProcess(render_process_id)) {
     factories->emplace(
         chrome::kChromeSearchScheme,
@@ -4946,11 +5044,11 @@ void ChromeContentBrowserClient::
     return;
 
   std::vector<std::string> allowed_webui_hosts;
-  // Support for chrome:// scheme if appropriate.
+  // Support for gtx:// scheme if appropriate.
   if ((extension->is_extension() || extension->is_platform_app()) &&
       Manifest::IsComponentLocation(extension->location())) {
     // Components of chrome that are implemented as extensions or platform apps
-    // are allowed to use chrome://resources/ and chrome://theme/ URLs.
+    // are allowed to use gtx://resources/ and gtx://theme/ URLs.
     allowed_webui_hosts.emplace_back(content::kChromeUIResourcesHost);
     allowed_webui_hosts.emplace_back(chrome::kChromeUIThemeHost);
   }
@@ -4958,7 +5056,7 @@ void ChromeContentBrowserClient::
       (extension->is_platform_app() &&
        Manifest::IsComponentLocation(extension->location()))) {
     // Extensions, legacy packaged apps, and component platform apps are allowed
-    // to use chrome://favicon/, chrome://extension-icon/ and chrome://app-icon
+    // to use gtx://favicon/, gtx://extension-icon/ and gtx://app-icon
     // URLs. Hosted apps are not allowed because they are served via web servers
     // (and are generally never given access to Chrome APIs).
     allowed_webui_hosts.emplace_back(chrome::kChromeUIExtensionIconHost);
@@ -5581,7 +5679,7 @@ bool ChromeContentBrowserClient::HandleWebUI(
     content::BrowserContext* browser_context) {
   DCHECK(browser_context);
 
-  // Rewrite chrome://help to chrome://settings/help.
+  // Rewrite gtx://help to gtx://settings/help.
   if (url->SchemeIs(content::kChromeUIScheme) &&
       url->host() == chrome::kChromeUIHelpHost) {
     *url = ReplaceURLHostAndPath(*url, chrome::kChromeUISettingsHost,
@@ -5672,7 +5770,7 @@ bool ChromeContentBrowserClient::HandleWebUIReverse(
 #if defined(OS_WIN)
   // TODO(crbug.com/1003960): Remove when issue is resolved.
   // No need to actually reverse-rewrite the URL, but return true to update the
-  // displayed URL when rewriting chrome://welcome-win10 to chrome://welcome.
+  // displayed URL when rewriting gtx://welcome-win10 to gtx://welcome.
   if (url->SchemeIs(content::kChromeUIScheme) &&
       url->host() == chrome::kChromeUIWelcomeHost) {
     return true;
@@ -5680,7 +5778,7 @@ bool ChromeContentBrowserClient::HandleWebUIReverse(
 #endif  // defined(OS_WIN)
 
   // No need to actually reverse-rewrite the URL, but return true to update the
-  // displayed URL when rewriting chrome://help to chrome://settings/help.
+  // displayed URL when rewriting gtx://help to gtx://settings/help.
   return url->SchemeIs(content::kChromeUIScheme) &&
          url->host() == chrome::kChromeUISettingsHost;
 }

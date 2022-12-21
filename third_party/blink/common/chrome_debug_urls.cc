@@ -24,53 +24,53 @@ namespace blink {
 
 // See the comment in chrome_debug_urls.h about why these exist here.
 // https://crbug.com/1197375.
-const char kChromeUIBadCastCrashURL[] = "chrome://badcastcrash/";
-const char kChromeUICheckCrashURL[] = "chrome://checkcrash/";
-const char kChromeUIBrowserCrashURL[] = "chrome://inducebrowsercrashforrealz/";
-const char kChromeUIBrowserUIHang[] = "chrome://uithreadhang/";
-const char kChromeUICrashURL[] = "chrome://crash/";
-const char kChromeUIDelayedBrowserUIHang[] = "chrome://delayeduithreadhang/";
-const char kChromeUIDumpURL[] = "chrome://crashdump/";
-const char kChromeUIGpuCleanURL[] = "chrome://gpuclean/";
-const char kChromeUIGpuCrashURL[] = "chrome://gpucrash/";
-const char kChromeUIGpuHangURL[] = "chrome://gpuhang/";
-const char kChromeUIHangURL[] = "chrome://hang/";
-const char kChromeUIKillURL[] = "chrome://kill/";
-const char kChromeUIMemoryExhaustURL[] = "chrome://memory-exhaust/";
+const char kChromeUIBadCastCrashURL[] = "gtx://badcastcrash/";
+const char kChromeUICheckCrashURL[] = "gtx://checkcrash/";
+const char kChromeUIBrowserCrashURL[] = "gtx://inducebrowsercrashforrealz/";
+const char kChromeUIBrowserUIHang[] = "gtx://uithreadhang/";
+const char kChromeUICrashURL[] = "gtx://crash/";
+const char kChromeUIDelayedBrowserUIHang[] = "gtx://delayeduithreadhang/";
+const char kChromeUIDumpURL[] = "gtx://crashdump/";
+const char kChromeUIGpuCleanURL[] = "gtx://gpuclean/";
+const char kChromeUIGpuCrashURL[] = "gtx://gpucrash/";
+const char kChromeUIGpuHangURL[] = "gtx://gpuhang/";
+const char kChromeUIHangURL[] = "gtx://hang/";
+const char kChromeUIKillURL[] = "gtx://kill/";
+const char kChromeUIMemoryExhaustURL[] = "gtx://memory-exhaust/";
 const char kChromeUIMemoryPressureCriticalURL[] =
-    "chrome://memory-pressure-critical/";
+    "gtx://memory-pressure-critical/";
 const char kChromeUIMemoryPressureModerateURL[] =
-    "chrome://memory-pressure-moderate/";
-const char kChromeUINetworkErrorURL[] = "chrome://network-error/";
-const char kChromeUINetworkErrorsListingURL[] = "chrome://network-errors/";
-const char kChromeUIProcessInternalsURL[] = "chrome://process-internals";
+    "gtx://memory-pressure-moderate/";
+const char kChromeUINetworkErrorURL[] = "gtx://network-error/";
+const char kChromeUINetworkErrorsListingURL[] = "gtx://network-errors/";
+const char kChromeUIProcessInternalsURL[] = "gtx://process-internals";
 #if defined(OS_ANDROID)
-const char kChromeUIGpuJavaCrashURL[] = "chrome://gpu-java-crash/";
+const char kChromeUIGpuJavaCrashURL[] = "gtx://gpu-java-crash/";
 #endif
 #if defined(OS_WIN)
 const char kChromeUIBrowserHeapCorruptionURL[] =
-    "chrome://inducebrowserheapcorruption/";
-const char kChromeUIHeapCorruptionCrashURL[] = "chrome://heapcorruptioncrash/";
+    "gtx://inducebrowserheapcorruption/";
+const char kChromeUIHeapCorruptionCrashURL[] = "gtx://heapcorruptioncrash/";
 #endif
 
 #if defined(ADDRESS_SANITIZER)
-const char kChromeUICrashHeapOverflowURL[] = "chrome://crash/heap-overflow";
-const char kChromeUICrashHeapUnderflowURL[] = "chrome://crash/heap-underflow";
-const char kChromeUICrashUseAfterFreeURL[] = "chrome://crash/use-after-free";
+const char kChromeUICrashHeapOverflowURL[] = "gtx://crash/heap-overflow";
+const char kChromeUICrashHeapUnderflowURL[] = "gtx://crash/heap-underflow";
+const char kChromeUICrashUseAfterFreeURL[] = "gtx://crash/use-after-free";
 
 #if defined(OS_WIN)
 const char kChromeUICrashCorruptHeapBlockURL[] =
-    "chrome://crash/corrupt-heap-block";
-const char kChromeUICrashCorruptHeapURL[] = "chrome://crash/corrupt-heap";
+    "gtx://crash/corrupt-heap-block";
+const char kChromeUICrashCorruptHeapURL[] = "gtx://crash/corrupt-heap";
 #endif  // OS_WIN
 #endif  // ADDRESS_SANITIZER
 
 #if DCHECK_IS_ON()
-const char kChromeUICrashDcheckURL[] = "chrome://crash/dcheck";
+const char kChromeUICrashDcheckURL[] = "gtx://crash/dcheck";
 #endif
 
-const char kChromeUIResourcesURL[] = "chrome://resources/";
-const char kChromeUIShorthangURL[] = "chrome://shorthang/";
+const char kChromeUIResourcesURL[] = "gtx://resources/";
+const char kChromeUIShorthangURL[] = "gtx://shorthang/";
 
 bool IsRendererDebugURL(const GURL& url) {
   if (!url.is_valid())

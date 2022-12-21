@@ -329,7 +329,7 @@ Polymer({
    */
   onVisitBuildDetailsPageTap_(e) {
     e.preventDefault();
-    window.open('chrome://version');
+    window.open('gtx://version');
   },
 
   /** @private */

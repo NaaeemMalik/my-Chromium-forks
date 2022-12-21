@@ -20,7 +20,8 @@ class Redact {
   explicit Redact(const base::FilePath& path) : path_(path) {}
 
   friend std::ostream& operator<<(std::ostream& out, const Redact&& r) {
-    return LOG_IS_ON(INFO) ? out << "'" << r.path_ << "'" : out << "(redacted)";
+    return ::logging::ShouldCreateLogMessage(::logging::LOGGING_INFO) ? out << "'" << r.path_ << "'" : out << "(redacted)";
+    //return LOG_IS_ON(INFO) ? out << "'" << r.path_ << "'" : out << "(redacted)";
   }
 
  private:

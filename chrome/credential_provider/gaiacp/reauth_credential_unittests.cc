@@ -369,7 +369,7 @@ TEST_P(GcpReauthCredentialGlsTest, GetUserGlsCommandLine) {
     SetGlobalFlagForTesting(L"ep_reauth_url", L"http://login.com");
 
   GoogleChromePathForTesting google_chrome_path_for_testing(
-      base::FilePath(L"chrome.exe"));
+      base::FilePath(L"GTXBrowser.exe"));
   EXPECT_EQ(S_OK, test_cred->UseRealGlsBaseCommandLine(true));
   base::CommandLine command_line = test_cred->GetTestGlsCommandline();
 

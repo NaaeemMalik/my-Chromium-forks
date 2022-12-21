@@ -17,7 +17,7 @@ namespace ui {
 namespace {
 
 const char kChromeTitle[] = "Google Chrome";
-const char kChromiumTitle[] = "Chromium";
+const char kChromiumTitle[] = "GTX Browser";
 const char kFirefoxTitle[] = "Firefox";
 
 struct PlatformConstantToNameEntry {

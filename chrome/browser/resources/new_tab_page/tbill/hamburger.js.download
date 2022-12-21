@@ -1,0 +1,2 @@
+menuOpen=false;hamburger=document.getElementById('hamburger');header=document.getElementById('header');toggleMenu=(e,open)=>{if(typeof open==='undefined')open=!menuOpen;if(!open){header.classList.remove('open');}else{header.classList.add('open');}
+menuOpen=open;e.stopPropagation();return false;};hamburger.onclick=toggleMenu;header.onclick=(e)=>{console.log('header');toggleMenu(e,false)};

@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import './strings.m.js';
-import 'chrome://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
+import 'gtx://resources/mojo/mojo/public/js/mojo_bindings_lite.js';
 import './parent_access_ui.mojom-lite.js';
 
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {WebviewManager} from 'chrome://resources/js/webview_manager.js';
-import {html, Polymer} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {WebviewManager} from 'gtx://resources/js/webview_manager.js';
+import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {ParentAccessController} from './parent_access_controller.js';
 
 const parentAccessUIHandler =

@@ -6,9 +6,9 @@
  * WebUI to monitor File Metadata per Extension ID.
  */
 
-import {sendWithPromise} from 'chrome://resources/js/cr.m.js';
-import {getImage} from 'chrome://resources/js/icon.js';
-import {$} from 'chrome://resources/js/util.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
+import {getImage} from 'gtx://resources/js/icon.js';
+import {$} from 'gtx://resources/js/util.m.js';
 
 import {createElementFromDictionary, createElementFromText} from './utils.js';
 
@@ -119,9 +119,9 @@ function createFileIconCell(type) {
   const img = document.createElement('div');
   const lowerType = type.toLowerCase();
   if (lowerType == 'file') {
-    img.style.content = getImage('chrome://theme/IDR_DEFAULT_FAVICON');
+    img.style.content = getImage('gtx://theme/IDR_DEFAULT_FAVICON');
   } else if (lowerType == 'folder') {
-    img.style.content = getImage('chrome://theme/IDR_FOLDER_CLOSED');
+    img.style.content = getImage('gtx://theme/IDR_FOLDER_CLOSED');
     img.className = 'folder-image';
   }
 

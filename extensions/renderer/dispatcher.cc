@@ -294,7 +294,7 @@ Dispatcher::Dispatcher(std::unique_ptr<DispatcherDelegate> delegate)
   // this enabled-ness is too late.
   WorkerThreadDispatcher::Get()->Init(RenderThread::Get());
 
-  // Register WebSecurityPolicy allowlists for the chrome-extension:// scheme.
+  // Register WebSecurityPolicy allowlists for the gtx-extension:// scheme.
   WebString extension_scheme(WebString::FromASCII(kExtensionScheme));
 
   // Extension resources are HTTP-like and safe to expose to the fetch API. The
@@ -306,7 +306,7 @@ Dispatcher::Dispatcher(std::unique_ptr<DispatcherDelegate> delegate)
   WebSecurityPolicy::RegisterURLSchemeAsFirstPartyWhenTopLevel(
       extension_scheme);
 
-  // Disallow running javascript URLs on the chrome-extension scheme.
+  // Disallow running javascript URLs on the gtx-extension scheme.
   WebSecurityPolicy::RegisterURLSchemeAsNotAllowingJavascriptURLs(
       extension_scheme);
 
@@ -316,7 +316,7 @@ Dispatcher::Dispatcher(std::unique_ptr<DispatcherDelegate> delegate)
         extension_scheme);
   }
 
-  // chrome-extension: resources should be allowed to register ServiceWorkers.
+  // gtx-extension: resources should be allowed to register ServiceWorkers.
   WebSecurityPolicy::RegisterURLSchemeAsAllowingServiceWorkers(
       extension_scheme);
 
@@ -484,7 +484,7 @@ void Dispatcher::WillEvaluateServiceWorkerOnWorkerThread(
   // TODO(crbug/961821): We may want to give service workers not registered
   // by extensions minimal bindings, the same as other webpage-like contexts.
   if (!script_url.SchemeIs(kExtensionScheme)) {
-    // Early-out if this isn't a chrome-extension:// scheme, because looking up
+    // Early-out if this isn't a gtx-extension:// scheme, because looking up
     // the extension registry is unnecessary if it's not. Checking this will
     // also skip over hosted apps, which is the desired behavior - hosted app
     // service workers are not our concern.

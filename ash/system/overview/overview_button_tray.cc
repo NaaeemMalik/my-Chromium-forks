@@ -55,7 +55,7 @@ bool ShouldButtonBeVisible() {
   // which is running as an experiment now. It is only enabled for a specific
   // group of existing desks users, see `kUserHasUsedDesksRecently` for more
   // details. But we also want to enable it if the user has explicitly enabled
-  // `kOverviewButton` from chrome://flags or from the command line. Even though
+  // `kOverviewButton` from gtx://flags or from the command line. Even though
   // the user is not in the group of existing desks users. Note, can be removed
   // once the experiment is done. Note, only check whether the feature is
   // overridden from command line if the FeatureList is initialized.

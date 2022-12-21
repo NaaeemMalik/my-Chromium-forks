@@ -1054,14 +1054,14 @@ void PopulateChromeWebUIFrameInterfaceBrokers(
     content::WebUIBrowserInterfaceBrokerRegistry& registry) {
   // This function is broken up into sections based on WebUI types.
 
-  // --- Section 1: chrome:// WebUIs:
+  // --- Section 1: gtx:// WebUIs:
 
 #if BUILDFLAG(IS_CHROMEOS_ASH) && !defined(OFFICIAL_BUILD)
   registry.ForWebUI<ash::SampleSystemWebAppUI>()
       .Add<ash::mojom::sample_swa::PageHandlerFactory>();
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH) && !defined(OFFICIAL_BUILD)
 
-  // --- Section 2: chrome-untrusted:// WebUIs:
+  // --- Section 2: gtx-untrusted:// WebUIs:
 
 #if BUILDFLAG(IS_CHROMEOS_ASH) && !defined(OFFICIAL_BUILD)
   registry.ForWebUI<ash::UntrustedSampleSystemWebAppUI>()

@@ -29,7 +29,7 @@ class TrustSafetySentimentService : public KeyedService,
   virtual void OpenedNewTabPage();
 
   // Called when the user interacts with the privacy settings on
-  // chrome://settings in |web_contents|. Interaction in this context could be
+  // gtx://settings in |web_contents|. Interaction in this context could be
   // using a link row on the privacy settings card. Calling this allows the
   // service to monitor |web_contents| to determine if the user stays on
   // settings for the required time. Virtual to allow mocking in tests.
@@ -56,7 +56,7 @@ class TrustSafetySentimentService : public KeyedService,
   // action is recorded.
   virtual void PageInfoClosed();
 
-  // Called when the user visits chrome://settings/passwords. Calling this
+  // Called when the user visits gtx://settings/passwords. Calling this
   // allows the service to monitor |web_contents| to determine if the user
   // remains on settings after visiting the page for the required time. Virtual
   // to allow mocking in tests.

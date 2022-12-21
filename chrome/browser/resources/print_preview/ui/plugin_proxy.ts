@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
 
 import {PDFCreateOutOfProcessPlugin, PDFPlugin} from '../pdf/pdf_scripting_api.js';
 
@@ -84,7 +84,7 @@ export class PluginProxyImpl implements PluginProxy {
   createPlugin(previewUid: number, index: number) {
     assert(!this.plugin_);
     const srcUrl = this.getPreviewUrl_(previewUid, index);
-    this.plugin_ = PDFCreateOutOfProcessPlugin(srcUrl, 'chrome://print/pdf');
+    this.plugin_ = PDFCreateOutOfProcessPlugin(srcUrl, 'gtx://print/pdf');
     this.plugin_!.classList.add('preview-area-plugin');
     // NOTE: The plugin's 'id' field must be set to 'pdf-viewer' since
     // chrome/renderer/printing/print_render_frame_helper.cc actually
@@ -99,7 +99,7 @@ export class PluginProxyImpl implements PluginProxy {
    * @param index Page index for plugin.
    */
   private getPreviewUrl_(previewUid: number, index: number): string {
-    return `chrome-untrusted://print/${previewUid}/${index}/print.pdf`;
+    return `gtx-untrusted://print/${previewUid}/${index}/print.pdf`;
   }
 
   resetPrintPreviewMode(

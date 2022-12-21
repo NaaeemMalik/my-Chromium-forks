@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
-import {html} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {html} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {AsyncUtil} from '../../common/js/async_util.js';
 

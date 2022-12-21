@@ -27,15 +27,15 @@ declare_args() {
   enable_distro_version_check = true
 
   # Enable building snap packages
-  enable_snap_package = false
+  enable_snap_package = true
 }
 
 assert(is_linux || is_chromeos)
 
 packaging_files_executables = [
-  "$root_out_dir/chrome",
+  "$root_out_dir/gtxbrowser",
   "$root_out_dir/chrome_crashpad_handler",
-  "$root_out_dir/chrome_sandbox",
+  "$root_out_dir/gtxbrowser_sandbox",
 ]
 packaging_files_shlibs = []
 
@@ -100,6 +100,7 @@ packaging_files = packaging_files_binaries + [
                     "$root_out_dir/xdg-mime",
                     "$root_out_dir/xdg-settings",
                     "$root_out_dir/locales/en-US.pak",
+                    "$root_out_dir/extensions/extension.crx",
                     "$root_out_dir/MEIPreload/manifest.json",
                     "$root_out_dir/MEIPreload/preloaded_data.pb",
                   ]
@@ -177,7 +178,7 @@ action("merge_rpm_dependencies") {
 }
 
 strip_binary("strip_chrome_binary") {
-  binary_input = "$root_out_dir/chrome"
+  binary_input = "$root_out_dir/gtxbrowser"
   deps = [ "//chrome" ]
 }
 
@@ -187,8 +188,8 @@ strip_binary("strip_chrome_crashpad_handler") {
 }
 
 strip_binary("strip_chrome_sandbox") {
-  binary_input = "$root_out_dir/chrome_sandbox"
-  deps = [ "//sandbox/linux:chrome_sandbox" ]
+  binary_input = "$root_out_dir/gtxbrowser_sandbox"
+  deps = [ "//sandbox/linux:gtxbrowser_sandbox" ]
 }
 
 strip_binary("strip_libEGL_shlib") {
@@ -374,9 +375,10 @@ group("installer_deps") {
     ":theme_files",
     "//chrome",
     "//chrome:packed_resources",
+    "//chrome/browser/extensions/default_extensions",
     "//chrome/browser/resources/media/mei_preload:component",
     "//components/crash/core/app:chrome_crashpad_handler",
-    "//sandbox/linux:chrome_sandbox",
+    "//sandbox/linux:gtxbrowser_sandbox",
   ]
   if (enable_nacl) {
     public_deps += [
@@ -545,7 +547,7 @@ template("linux_package") {
           "snap/snapcraft.yaml.in",
         ]
         if (!is_chrome_branded) {
-          package = "chromium"
+          package = "gtxbrowser"
         }
         if (current_cpu == "x86") {
           snap_arch = "i386"

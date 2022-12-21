@@ -16,7 +16,7 @@
 MemoryDetails::MemoryDetails() {
   ProcessData process_data;
   process_data.name = l10n_util::GetStringUTF16(IDS_SHORT_PRODUCT_NAME);
-  process_data.process_name = u"chrome";
+  process_data.process_name = u"GTXBrowser";
 
   process_data_.push_back(process_data);
 }

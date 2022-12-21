@@ -31,7 +31,7 @@ namespace drive {
 const char kDriveFsNativeMessageHostName[] = "com.google.drive.nativeproxy";
 
 const char* const kDriveFsNativeMessageHostOrigins[] = {
-    "chrome-extension://lmjegmlicamnimmfhcmpkclmigmmcbeh/",
+    "gtx-extension://lmjegmlicamnimmfhcmpkclmigmmcbeh/",
 };
 
 constexpr size_t kDriveFsNativeMessageHostOriginsSize =

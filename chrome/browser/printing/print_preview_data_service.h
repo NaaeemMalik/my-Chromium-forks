@@ -20,7 +20,7 @@ struct DefaultSingletonTraits;
 class RefCountedMemory;
 }
 
-// PrintPreviewDataService manages data stores for chrome://print requests.
+// PrintPreviewDataService manages data stores for gtx://print requests.
 // It owns the data store object and is responsible for freeing it.
 class PrintPreviewDataService {
  public:

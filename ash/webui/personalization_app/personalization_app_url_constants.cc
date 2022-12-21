@@ -7,10 +7,10 @@
 namespace ash {
 
 const char kChromeUIPersonalizationAppHost[] = "personalization";
-const char kChromeUIPersonalizationAppURL[] = "chrome://personalization/";
+const char kChromeUIPersonalizationAppURL[] = "gtx://personalization/";
 const char kChromeUIPersonalizationAppWallpaperSubpageURL[] =
-    "chrome://personalization/wallpaper";
+    "gtx://personalization/wallpaper";
 const char kChromeUIUntrustedPersonalizationAppURL[] =
-    "chrome-untrusted://personalization/";
+    "gtx-untrusted://personalization/";
 
 }  // namespace ash

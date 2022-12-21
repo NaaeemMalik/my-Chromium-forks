@@ -468,7 +468,7 @@ InspectUI::InspectUI(content::WebUI* web_ui)
   Profile* profile = Profile::FromWebUI(web_ui);
   content::WebUIDataSource::Add(profile, CreateInspectUIHTMLSource());
 
-  // Set up the chrome://theme/ source.
+  // Set up the gtx://theme/ source.
   content::URLDataSource::Add(profile, std::make_unique<ThemeSource>(profile));
 }
 
@@ -705,7 +705,7 @@ void InspectUI::SetPortForwardingDefaults() {
   if (!default_set || default_set.value())
     return;
 
-  // This is the first chrome://inspect invocation on a fresh profile or after
+  // This is the first gtx://inspect invocation on a fresh profile or after
   // upgrade from a version that did not have kDevToolsPortForwardingDefaultSet.
   prefs->SetBoolean(prefs::kDevToolsPortForwardingDefaultSet, true);
 

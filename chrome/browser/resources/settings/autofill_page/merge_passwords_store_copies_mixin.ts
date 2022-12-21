@@ -8,9 +8,9 @@
  * existing stored both on the device and in the account.
  */
 
-import {assert} from 'chrome://resources/js/assert.m.js';
-import {ListPropertyUpdateMixin, ListPropertyUpdateMixinInterface} from 'chrome://resources/js/list_property_update_mixin.js';
-import {dedupingMixin, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
+import {ListPropertyUpdateMixin, ListPropertyUpdateMixinInterface} from 'gtx://resources/js/list_property_update_mixin.js';
+import {dedupingMixin, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {MultiStorePasswordUiEntry} from './multi_store_password_ui_entry.js';
 import {PasswordManagerImpl} from './password_manager_proxy.js';

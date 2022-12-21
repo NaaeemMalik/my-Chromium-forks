@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-CANVAS_DIMENSIONS, 24,
+CANVAS_DIMENSIONS, 48,
 MOVE_TO, 12, 7.5f,
 R_H_LINE_TO, 8.9f,
 CUBIC_TO, 19.3f, 4.2f, 15.9f, 2, 12, 2,
@@ -27,4 +27,4 @@ R_CUBIC_TO, 0, -1.2f, -0.2f, -2.4f, -0.6f, -3.5f,
 R_H_LINE_TO, -6.6f,
 R_CUBIC_TO, 1, 0.8f, 1.7f, 2.1f, 1.7f, 3.5f,
 CLOSE,
-CIRCLE, 12, 12, 3.5
+CIRCLE, 36, 36, 3.5

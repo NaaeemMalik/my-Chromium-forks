@@ -940,7 +940,7 @@ chromium-metrics-reviews@google.com.
   <token key="Entrypoint">
     <variant name="GlobalMediaControls"
         summary="global media controls (Zenith)"/>
-    <variant name="Settings" summary="chrome://settings"/>
+    <variant name="Settings" summary="gtx://settings"/>
   </token>
 </histogram>
 
@@ -1126,7 +1126,7 @@ chromium-metrics-reviews@google.com.
     flag is flipped from false to true. These flags are flipped automatically
     when software communicates with Chrome via accessibility APIs. Flags can
     only be flipped off by advanced users or for debugging using
-    chrome://accessibility/ - and that isn't tracked in this histogram.
+    gtx://accessibility/ - and that isn't tracked in this histogram.
   </summary>
 </histogram>
 

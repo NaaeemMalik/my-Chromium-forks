@@ -64,37 +64,37 @@
     "channel": "stable",
     "contexts": ["webui"],
     "matches": [
-      "chrome://test/*",
-      "chrome://other-test/*"
+      "gtx://test/*",
+      "gtx://other-test/*"
     ]
   },
   "test9": {
     "channel": "stable",
     "contexts": ["webui_untrusted"],
     "matches": [
-      "chrome-untrusted://test/*",
-      "chrome-untrusted://other-test/*"
+      "gtx-untrusted://test/*",
+      "gtx-untrusted://other-test/*"
     ]
   },
   "test10": {
     "channel": "stable",
     "contexts": ["webui"],
-    "matches": ["chrome://test/*"]
+    "matches": ["gtx://test/*"]
   },
   "test10.foo": {
     "channel": "stable",
     "contexts": ["webui"],
-    "matches": ["chrome://other-test/*"]
+    "matches": ["gtx://other-test/*"]
   },
   "test11": {
     "channel": "stable",
     "contexts": ["webui_untrusted"],
-    "matches" : ["chrome-untrusted://test/*"]
+    "matches" : ["gtx-untrusted://test/*"]
   },
   "test11.foo": {
     "channel": "stable",
     "contexts": ["webui_untrusted"],
-    "matches" : ["chrome-untrusted://other-test/*"]
+    "matches" : ["gtx-untrusted://other-test/*"]
   },
 
   "parent1": {

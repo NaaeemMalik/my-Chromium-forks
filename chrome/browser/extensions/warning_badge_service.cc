@@ -26,7 +26,7 @@ namespace extensions {
 namespace {
 // Non-modal GlobalError implementation that warns the user if extensions
 // created warnings or errors. If the user clicks on the wrench menu, the user
-// is redirected to chrome://extensions to inspect the errors.
+// is redirected to gtx://extensions to inspect the errors.
 class ErrorBadge : public GlobalError {
  public:
   explicit ErrorBadge(WarningBadgeService* badge_service);

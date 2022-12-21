@@ -363,7 +363,7 @@ def main_win(output_directory, results_collector, size_path):
   files = [
       'chrome.dll',
       'chrome.dll.pdb',
-      'chrome.exe',
+      'GTXBrowser.exe',
       'chrome_child.dll',
       'chrome_child.dll.pdb',
       'chrome_elf.dll',

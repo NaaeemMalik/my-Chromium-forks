@@ -7,9 +7,9 @@
 namespace ash {
 
 const char kChromeUICameraAppHost[] = "camera-app";
-const char kChromeUICameraAppMainURL[] = "chrome://camera-app/views/main.html";
-const char kChromeUICameraAppScopeURL[] = "chrome://camera-app/views";
-const char kChromeUICameraAppURL[] = "chrome://camera-app/";
-const char kChromeUIUntrustedCameraAppURL[] = "chrome-untrusted://camera-app/";
+const char kChromeUICameraAppMainURL[] = "gtx://camera-app/views/main.html";
+const char kChromeUICameraAppScopeURL[] = "gtx://camera-app/views";
+const char kChromeUICameraAppURL[] = "gtx://camera-app/";
+const char kChromeUIUntrustedCameraAppURL[] = "gtx-untrusted://camera-app/";
 
 }  // namespace ash

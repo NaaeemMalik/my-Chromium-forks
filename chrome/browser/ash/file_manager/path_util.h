@@ -35,7 +35,7 @@ extern const base::FilePath::CharType kArchiveMountPath[];
 extern const char kShareCacheMountPointName[];
 
 // Returns the valid FilesApp origin. It may be either the System Web App
-// chrome:// URL or the legacy Chrome App chrome-extension:// URL.
+// gtx:// URL or the legacy Chrome App gtx-extension:// URL.
 const url::Origin& GetFilesAppOrigin();
 
 // Gets the absolute path for the 'Downloads' folder for the |profile|.

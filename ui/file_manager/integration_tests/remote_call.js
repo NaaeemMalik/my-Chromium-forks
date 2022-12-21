@@ -460,7 +460,7 @@ export class RemoteCallFilesApp extends RemoteCall {
    * @return {boolean} Returns whether the code is running in SWA mode.
    */
   isSwaMode() {
-    return this.origin_.startsWith('chrome://');
+    return this.origin_.startsWith('gtx://');
   }
 
   /**
@@ -534,7 +534,7 @@ export class RemoteCallFilesApp extends RemoteCall {
   /**
    * Executes a script in the context of a <preview-tag> element contained in
    * the window.
-   * For SWA: It's the first chrome-untrusted://file-manager <iframe>.
+   * For SWA: It's the first gtx-untrusted://file-manager <iframe>.
    * For legacy: It's the first elements based on the `query`.
    * Responds with its output.
    *
@@ -555,7 +555,7 @@ export class RemoteCallFilesApp extends RemoteCall {
   }
 
   /**
-   * Inject javascript statemenent in the first chrome-untrusted://file-manager
+   * Inject javascript statemenent in the first gtx-untrusted://file-manager
    * page found and respond with its output.
    * @private
    * @param {string} statement

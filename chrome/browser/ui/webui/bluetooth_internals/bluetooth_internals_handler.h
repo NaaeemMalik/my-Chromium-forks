@@ -19,7 +19,7 @@ class DebugLogsManager;
 }  // namespace ash
 #endif
 
-// Handles API requests from chrome://bluetooth-internals page by implementing
+// Handles API requests from gtx://bluetooth-internals page by implementing
 // mojom::BluetoothInternalsHandler.
 class BluetoothInternalsHandler : public mojom::BluetoothInternalsHandler {
  public:

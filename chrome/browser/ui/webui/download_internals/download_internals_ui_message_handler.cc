@@ -127,7 +127,7 @@ void DownloadInternalsUIMessageHandler::HandleStartDownload(
               "Starts a download with background download service in WebUI."
             trigger:
               "User clicks on the download button in "
-              "chrome://download-internals."
+              "gtx://download-internals."
             data: "None"
             destination: WEBSITE
           }

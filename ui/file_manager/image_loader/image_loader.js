@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chrome://resources/js/assert.m.js';
+import {assert} from 'gtx://resources/js/assert.m.js';
 
 import {ImageCache} from './cache.js';
 import {ImageOrientation} from './image_orientation.js';
@@ -97,8 +97,8 @@ export function ImageLoader() {
  * @type {Array<string>}
  */
 ImageLoader.ALLOWED_CLIENT_ORIGINS = [
-  'chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj',  // File Manager
-  'chrome://file-manager',  // File Manager SWA
+  'gtx-extension://hhaomjibdihmijegdhdafkllkbggdgoj',  // File Manager
+  'gtx://file-manager',  // File Manager SWA
 ];
 
 /**

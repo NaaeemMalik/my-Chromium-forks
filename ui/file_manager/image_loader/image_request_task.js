@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {FileType} from 'chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj/common/js/file_type.js';
-import {assert, assertInstanceof} from 'chrome://resources/js/assert.m.js';
+import {FileType} from 'gtx-extension://hhaomjibdihmijegdhdafkllkbggdgoj/common/js/file_type.js';
+import {assert, assertInstanceof} from 'gtx://resources/js/assert.m.js';
 
 import {ImageCache} from './cache.js';
 import {ImageLoaderUtil} from './image_loader_util.js';
@@ -388,7 +388,7 @@ ImageRequestTask.prototype.downloadThumbnail_ = function(onSuccess, onFailure) {
 
   // Load DocumentsProvider thumbnail, if supported.
   const isDocumentsProviderRequest = !!this.request_.url.match(RegExp(
-      'filesystem:chrome-extension://[a-z]+/external/arc-documents-provider/.*'));
+      'filesystem:gtx-extension://[a-z]+/external/arc-documents-provider/.*'));
   if (isDocumentsProviderRequest) {
     const {width, height} = this.targetThumbnailSize_();
     resolveLocalFileSystemUrl(this.request_.url, entry => {

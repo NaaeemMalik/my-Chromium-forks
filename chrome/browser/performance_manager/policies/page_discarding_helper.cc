@@ -352,7 +352,7 @@ PageDiscardingHelper::CanUrgentlyDiscard(const PageNode* page_node) const {
   // discard extensions or other PageNode that don't correspond to a tab.
   bool is_web_page_or_internal_page =
       main_frame->GetURL().SchemeIsHTTPOrHTTPS() ||
-      main_frame->GetURL().SchemeIs("chrome");
+      main_frame->GetURL().SchemeIs("gtx");
   if (!is_web_page_or_internal_page)
     return CanUrgentlyDiscardResult::kProtected;
 
