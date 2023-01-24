@@ -121,10 +121,14 @@ First, clone gtx-browser repository (https://github.com/OSITA-Consulting/gtx-bro
 
 ```shell
 $ git clone https://github.com/OSITA-Consulting/gtx-browser.git
+# OR to get gtx-dev branch directly 
+$ git clone -b gtx-dev https://github.com/OSITA-Consulting/gtx-browser.git
+# OR if you want to get no history for faster download (equals to fetch --no-history option of chromium)
+$ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git
 ```
 
 ```shell
-$ cd gtx-browser
+$ cd gtx-browser/src
 ```
 
 ## Install additional build dependencies
@@ -155,12 +159,12 @@ to generate `.ninja` files. You can create any number of *build directories*
 with different configurations. To create a build directory:
 
 ```shell
-$ gn gen out/Default
+$ gn gen out/gtx --args="is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 is_official_build=true"
 ```
 
 * You only have to run this once for each new build directory, Ninja will
   update the build files as needed.
-* You can replace `Default` with another name, but
+* You can replace `gtx` with another name, but
   it should be a subdirectory of `out`.
 * For other build arguments, including release settings or using an alternate
   version of Visual Studio, see [GN build
@@ -180,8 +184,8 @@ $ gn gen out/Default
 
 There are some gn flags that can improve build speeds. You can specify these
 in the editor that appears when you create your output directory
-(`gn args out/Default`) or on the gn gen command line
-(`gn gen out/Default --args="is_component_build = true is_debug = true"`).
+(`gn args out/gtx`) or on the gn gen command line
+(`gn gen out/gtx--args="is_component_build = true is_debug = true"`).
 Some helpful settings to consider using include:
 * `is_component_build = true` - this uses more, smaller DLLs, and incremental
 linking.
@@ -212,7 +216,7 @@ A good default is 10\*numCores to 20\*numCores. If you run autoninja then it
 will automatically pass an appropriate -j value to ninja for goma or not.
 
 ```shell
-$ autoninja -C out\Default chrome
+$ autoninja -C out\gtx chrome
 ```
 
 When invoking ninja specify 'chrome' as the target to avoid building all test
@@ -241,8 +245,8 @@ per second, and how long the build has been running, as shown here:
 
 ```shell
 $ set NINJA_SUMMARIZE_BUILD=1
-$ autoninja -C out\Default base
-ninja: Entering directory `out\Default'
+$ autoninja -C out\gtx base
+ninja: Entering directory `out\gtx'
 [1 processes, 86/86 @ 2.7/s : 31.785s ] LINK(DLL) base.dll base.dll.lib base.dll.pdb
 ```
 
@@ -255,7 +259,7 @@ steps and slowest build-step types, as shown here:
 
 ```shell
 $ set NINJA_SUMMARIZE_BUILD=1
-$ autoninja -C out\Default base
+$ autoninja -C out\gtx base
 Longest build steps:
        0.1 weighted s to build obj/base/base/trace_log.obj (6.7 s elapsed time)
        0.2 weighted s to build nasm.exe, nasm.exe.pdb (0.2 s elapsed time)
@@ -282,7 +286,7 @@ that is tiny.
 You can also generate these reports by manually running the script after a build:
 
 ```shell
-$ python depot_tools\post_build_ninja_summary.py -C out\Default
+$ python depot_tools\post_build_ninja_summary.py -C out\gtx
 ```
 
 Finally, setting ``NINJA_SUMMARIZE_BUILD=1`` tells autoninja to tell Ninja to
@@ -293,8 +297,8 @@ an excluded directory:
 
 ```shell
 $ set NINJA_SUMMARIZE_BUILD=1
-$ autoninja -C out\Default base
-"c:\src\depot_tools\ninja.exe" -C out\Default base -j 10 -d stats
+$ autoninja -C out\gtx base
+"c:\src\depot_tools\ninja.exe" -C out\gtx base -j 10 -d stats
 metric                  count   avg (us)        total (ms)
 .ninja parse            3555    1539.4          5472.6
 canonicalize str        1383032 0.0             12.7
@@ -314,7 +318,7 @@ You can also get a visual report of the build performance with
 .ninja_log file into a .json file which can be loaded into chrome://tracing:
 
 ```shell
-$ python ninjatracing out\Default\.ninja_log >build.json
+$ python ninjatracing out\gtx\.ninja_log >build.json
 ```
 
 ## Build GTX Browser
@@ -322,23 +326,25 @@ $ python ninjatracing out\Default\.ninja_log >build.json
 Build GTX Browser (the "chrome" target) with Ninja using the command:
 
 ```shell
-$ autoninja -C out\Default chrome
+$ autoninja -C out\gtx chrome
 ```
 
 `autoninja` is a wrapper that automatically provides optimal values for the
 arguments passed to `ninja`.
 
 You can get a list of all of the other build targets from GN by running
-`gn ls out/Default` from the command line. To compile one, pass to Ninja
+`gn ls out/gtx` from the command line. To compile one, pass to Ninja
 the GN label with no preceding "//" (so for `//chrome/test:unit_tests`
-use ninja -C out/Default chrome/test:unit_tests`).
+use ninja -C out/gtx chrome/test:unit_tests`).
 
 ## Run GTX Browser
 
 Once it is built, you can simply run the browser:
 
 ```shell
-$ out\Default\GTXBrowser.exe
+$ out\gtx\GTXBrowser.exe
+# OR for linux or mac
+$ out/gtx/gtxbrowser
 ```
 
 (The ".exe" suffix in the command is actually optional).
