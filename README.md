@@ -145,15 +145,15 @@ solutions = [
     "managed": False,
     "custom_deps": {},
     "custom_vars": {
- "checkout_pgo_profiles": True,
-},
+ 	    "checkout_pgo_profiles": True,
+	},
   },
 ]
 ```
 save and exit and cd to src directory to follow next commands
 ```shell
 $ cd src
-``
+```
 
 
 ## Install additional build dependencies
