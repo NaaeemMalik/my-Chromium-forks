@@ -127,9 +127,34 @@ $ git clone -b gtx-dev https://github.com/OSITA-Consulting/gtx-browser.git
 $ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git
 ```
 
+## create .gclient file
+
 ```shell
-$ cd gtx-browser/src
+$ cd gtx-browser
+# on windows type 
+$ notepad .gclient
+# on mac/linux type
+$ nano .gclient
 ```
+an editor will be opened, copy/paste this exact JSON in it
+```
+solutions = [
+  {
+    "name": "src",
+    "url": "https://chromium.googlesource.com/chromium/src.git",
+    "managed": False,
+    "custom_deps": {},
+    "custom_vars": {
+ "checkout_pgo_profiles": True,
+},
+  },
+]
+```
+save and exit and cd to src directory to follow next commands
+```shell
+$ cd src
+``
+
 
 ## Install additional build dependencies
 
