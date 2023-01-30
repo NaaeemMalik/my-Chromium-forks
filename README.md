@@ -173,6 +173,7 @@ $ gclient runhooks
 
 - For Mac OS
 ```shell
+$ sudo ln -s /usr/bin/python3 /usr/local/bin/python
 $ gclient sync -D
 ```
 
