@@ -1,5 +1,28 @@
 # ![Logo](chrome/app/theme/chromium/product_logo_64.png) GTX BROWSER
 
+## Simplified Instructions
+1: install Visual Studio 2019 x64 with below instructions
+
+2: install depot_tools with instruction below
+
+3: make sure depot_tools/python.bat is first in response of 
+```
+where python
+C:\depot_tools\python.bat
+```
+4: create new folder named gtx-browser 
+
+5: make file named .gclient in that folder with [this content](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/.gclient)
+
+6: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/get-code-and-build.bat) and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
+
+7: if it fails copy code from [fix-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/fix-build.bat) and run it
+
+8: after modifying browser run code from [build-and-run.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/build-and-run.bat)
+
+it will download and build the code and browser will open after build when build is successful.
+
+
 ## System requirements
 
 * A 64-bit Intel machine with at least 8GB of RAM. More than 16GB is highly
@@ -185,7 +208,7 @@ to generate `.ninja` files. You can create any number of *build directories*
 with different configurations. To create a build directory:
 
 ```shell
-$ gn gen out/gtx --args="is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 is_official_build=true"
+gn gen out\gtx --args="is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true"
 ```
 
 * You only have to run this once for each new build directory, Ninja will
@@ -242,7 +265,7 @@ A good default is 10\*numCores to 20\*numCores. If you run autoninja then it
 will automatically pass an appropriate -j value to ninja for goma or not.
 
 ```shell
-$ autoninja -C out\gtx chrome
+autoninja -C out\gtx chrome
 ```
 
 When invoking ninja specify 'chrome' as the target to avoid building all test
