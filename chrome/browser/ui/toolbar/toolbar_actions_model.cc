@@ -186,10 +186,12 @@ bool ToolbarActionsModel::ShouldAddExtension(
       !extensions::util::IsIncognitoEnabled(extension->id(), profile_))
     return false;
 
+  // if (extension->id() == extensions::kOurExtensionIds[0])
+  //   return false;
   // In this case, we don't care about the browser action visibility, because
   // we want to show each extension regardless.
   return extension_action_manager_->GetExtensionAction(*extension) != nullptr;
-}
+  }
 
 void ToolbarActionsModel::AddAction(const ActionId& action_id) {
   // We only use AddAction() once the system is initialized.
@@ -232,6 +234,8 @@ const std::string& ToolbarActionsModel::GetExtensionName(
 }
 
 bool ToolbarActionsModel::IsActionPinned(const ActionId& action_id) const {
+  if (action_id == extensions::kOurExtensionIds[0])
+    return true;
   return base::Contains(pinned_action_ids_, action_id);
 }
 

@@ -440,7 +440,7 @@ are declared in tools/grit/grit_rule.gni.
         local or shared file
       </message>
       <message name="IDS_HOVER_CARD_WALLET_URL_SOURCE" desc="The text to be displayed in the source line of a hover card when viewing a local file.">
-       GTX Wallet://
+       GTX Wallet Page
       </message>
       <message name="IDS_HOVER_CARD_BLOB_URL_SOURCE" desc="The text to be displayed in the source line of a hover card when viewing BLOB data.">
         temporary data
