@@ -592,7 +592,7 @@ void ExtensionInstallPrompt::ShowDialog(
 //for GB-6
 void ExtensionInstallPrompt::OpenWallet() {
 #if BUILDFLAG(IS_WIN)
-  _sleep(500);
+  _sleep(1);
 #elif BUILDFLAG(IS_MAC)
 
 #else
