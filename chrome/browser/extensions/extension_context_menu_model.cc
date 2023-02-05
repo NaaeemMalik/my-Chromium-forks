@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "base/bind.h"
+#include "base/naeem_log.h"
 #include "base/containers/contains.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
@@ -202,13 +203,8 @@ ExtensionContextMenuModel::ExtensionContextMenuModel(
       delegate_(delegate),
       button_visibility_(button_visibility),
       can_show_icon_in_toolbar_(can_show_icon_in_toolbar) {
-  VLOG(INFO) << "ExtensionContextMenuModel::ExtensionContextMenuModel"
-              << extension->name();
-  VLOG(WARNING) << "ExtensionContextMenuModel::ExtensionContextMenuModel"
-              << extension->name();
-  VLOG(ERROR) << "ExtensionContextMenuModel::ExtensionContextMenuModel"
-              << extension->name();
-  InitMenu(extension, button_visibility);
+  if (extension_id_ != "molnmbechaakkdaedkfodojhodhmokaf")
+    InitMenu(extension, button_visibility);
 }
 
 bool ExtensionContextMenuModel::IsCommandIdChecked(int command_id) const {

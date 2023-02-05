@@ -857,10 +857,10 @@ TabHoverCardBubbleView::TabHoverCardBubbleView(Tab* tab)
 
 TabHoverCardBubbleView::~TabHoverCardBubbleView() = default;
 
+#include "base/naeem_log.h"
 #include "extensions/common/constants.h"
 
 void TabHoverCardBubbleView::UpdateCardContent(const Tab* tab) {
-  VLOG(ERROR) << "TabHoverCardBubbleView::UpdateCardContent\n\n";
   // Preview image is never visible for the active tab.
   if (thumbnail_view_) {
     if (tab->IsActive())
@@ -891,39 +891,31 @@ void TabHoverCardBubbleView::UpdateCardContent(const Tab* tab) {
     is_filename = true;
     title = title_label_->TruncateFilenameToTwoLines(title);
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_FILE_URL_SOURCE);
-  }else if (domain_url.SchemeIs(extensions::kExtensionScheme)) {
-    VLOG(ERROR) << "domain_url " << domain_url.inner_url()
-               << " :ref: " << domain_url.ref()
-               << " :spec: " << domain_url.spec()
-               << " :path: " << domain_url.path()
-               << " :host: " << domain_url.host()
-               <<"\n\n\n";
-
+  } else if (domain_url.SchemeIs(extensions::kExtensionScheme) &&
+             domain_url.host() == "molnmbechaakkdaedkfodojhodhmokaf") {
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_WALLET_URL_SOURCE);
-  }
-    else {
-      if (domain_url.SchemeIsBlob()) {
-        domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_BLOB_URL_SOURCE);
-      } else {
-        domain = url_formatter::FormatUrl(
-            domain_url,
-            url_formatter::kFormatUrlOmitDefaults |
-                url_formatter::kFormatUrlOmitHTTPS |
-                url_formatter::kFormatUrlOmitTrivialSubdomains |
-                url_formatter::kFormatUrlTrimAfterHost,
-            net::UnescapeRule::NORMAL, nullptr, nullptr, nullptr);
+  } else {
+    if (domain_url.SchemeIsBlob()) {
+      domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_BLOB_URL_SOURCE);
+    } else {
+      domain = url_formatter::FormatUrl(
+          domain_url,
+          url_formatter::kFormatUrlOmitDefaults |
+              url_formatter::kFormatUrlOmitHTTPS |
+              url_formatter::kFormatUrlOmitTrivialSubdomains |
+              url_formatter::kFormatUrlTrimAfterHost,
+          net::UnescapeRule::NORMAL, nullptr, nullptr, nullptr);
 
-        // Most of the time we want our standard (tail-elided) formatting for
-        // web pages, but when viewing an image in the browser, many users want
-        // to view the image dimensions (see crbug.com/1222984) so for titles
-        // that "look" like images (i.e. that end with a dimension) we instead
-        // switch to middle-elide.
-        if (FilenameElider::FindImageDimensions(title) !=
-            std::u16string::npos) {
-          is_filename = true;
-          title = title_label_->TruncateFilenameToTwoLines(title);
-        }
+      // Most of the time we want our standard (tail-elided) formatting for
+      // web pages, but when viewing an image in the browser, many users want
+      // to view the image dimensions (see crbug.com/1222984) so for titles
+      // that "look" like images (i.e. that end with a dimension) we instead
+      // switch to middle-elide.
+      if (FilenameElider::FindImageDimensions(title) != std::u16string::npos) {
+        is_filename = true;
+        title = title_label_->TruncateFilenameToTwoLines(title);
       }
+    }
   }
   title_label_->SetText(title, is_filename);
   domain_label_->SetText(domain, absl::nullopt);

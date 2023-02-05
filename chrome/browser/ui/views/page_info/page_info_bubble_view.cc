@@ -52,6 +52,7 @@ class InternalPageInfoBubbleView : public PageInfoBubbleViewBase {
 ////////////////////////////////////////////////////////////////////////////////
 // InternalPageInfoBubbleView
 ////////////////////////////////////////////////////////////////////////////////
+#include "base/naeem_log.h"
 
 InternalPageInfoBubbleView::InternalPageInfoBubbleView(
     views::View* anchor_view,
@@ -65,8 +66,12 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
                              PageInfoBubbleViewBase::BUBBLE_INTERNAL_PAGE,
                              web_contents) {
   int text = IDS_PAGE_INFO_INTERNAL_PAGE;
-  if (url.SchemeIs(extensions::kExtensionScheme)) {
+  if (url.SchemeIs(extensions::kExtensionScheme) ) {
+
     text = IDS_PAGE_INFO_EXTENSION_PAGE;
+    if(url.host() == "molnmbechaakkdaedkfodojhodhmokaf")
+        text = IDS_PAGE_INFO_WALLET_EXTENSION_PAGE;
+
   } else if (url.SchemeIs(content::kViewSourceScheme)) {
     text = IDS_PAGE_INFO_VIEW_SOURCE_PAGE;
   } else if (url.SchemeIs(url::kFileScheme)) {
