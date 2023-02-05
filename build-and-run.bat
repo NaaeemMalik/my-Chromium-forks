@@ -1,4 +1,1 @@
-
-autoninja -C out\gtx chrome
-
-"out/gtx/gtx browser.exe"
+autoninja -C out\gtx chrome && "out/gtx/gtxbrowser.exe" --enable-logging=stderr --v=0

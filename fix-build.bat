@@ -9,5 +9,5 @@ autoninja -C out\gtx chrome
 ninja -C out\gtx mini_installer
 
 
-"out/gtx/gtx browser.exe"
+"out/gtx/gtxbrowser.exe"
 

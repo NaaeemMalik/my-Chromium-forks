@@ -29,4 +29,4 @@ ninja -C out\gtx mini_installer
 ninja -C out\gtx mini_installer
 
 
-"out/gtx/gtx browser.exe"
+"out/gtx/gtxbrowser.exe"

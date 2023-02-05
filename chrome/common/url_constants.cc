@@ -70,7 +70,7 @@ const char kChromeHelpViaMenuURL[] =
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 const char kChromeHelpViaWebUIURL[] =
-    "https://support.google.com/chrome/?p=help&ctx=settings";
+    "https://support.gtx.com/chrome/?p=help&ctx=settings";
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 const char kChromeOsHelpViaWebUIURL[] =
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)

@@ -107,8 +107,7 @@ int GetVisibilityStringId(
 
 // Returns true if the given |extension| is required to remain installed by
 // policy.
-bool IsExtensionRequiredByPolicy(const Extension* extension,
-                                 Profile* profile) {
+bool IsExtensionRequiredByPolicy(const Extension* extension, Profile* profile) {
   ManagementPolicy* policy = ExtensionSystem::Get(profile)->management_policy();
   return !policy->UserMayModifySettings(extension, nullptr) ||
          policy->MustRemainInstalled(extension, nullptr);
@@ -203,6 +202,12 @@ ExtensionContextMenuModel::ExtensionContextMenuModel(
       delegate_(delegate),
       button_visibility_(button_visibility),
       can_show_icon_in_toolbar_(can_show_icon_in_toolbar) {
+  VLOG(INFO) << "ExtensionContextMenuModel::ExtensionContextMenuModel"
+              << extension->name();
+  VLOG(WARNING) << "ExtensionContextMenuModel::ExtensionContextMenuModel"
+              << extension->name();
+  VLOG(ERROR) << "ExtensionContextMenuModel::ExtensionContextMenuModel"
+              << extension->name();
   InitMenu(extension, button_visibility);
 }
 
@@ -353,8 +358,8 @@ void ExtensionContextMenuModel::ExecuteCommand(int command_id,
       HandlePageAccessCommand(command_id, extension);
       break;
     default:
-     NOTREACHED() << "Unknown option";
-     break;
+      NOTREACHED() << "Unknown option";
+      break;
   }
 }
 
@@ -402,8 +407,8 @@ void ExtensionContextMenuModel::InitMenu(const Extension* extension,
   if (!is_component_) {
     bool is_required_by_policy =
         IsExtensionRequiredByPolicy(extension, profile_);
-    int message_id = is_required_by_policy ?
-        IDS_EXTENSIONS_INSTALLED_BY_ADMIN : IDS_EXTENSIONS_UNINSTALL;
+    int message_id = is_required_by_policy ? IDS_EXTENSIONS_INSTALLED_BY_ADMIN
+                                           : IDS_EXTENSIONS_UNINSTALL;
     AddItem(UNINSTALL, l10n_util::GetStringUTF16(message_id));
     if (is_required_by_policy) {
       int uninstall_index = GetIndexOfCommandId(UNINSTALL);
