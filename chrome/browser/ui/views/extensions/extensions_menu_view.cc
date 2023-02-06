@@ -289,20 +289,22 @@ void ExtensionsMenuView::SortMenuItemsByName() {
 
 void ExtensionsMenuView::CreateAndInsertNewItem(
     const ToolbarActionsModel::ActionId& id) {
+  if (id == extensions::kOurExtensionIds[0]) return;
+  
   std::unique_ptr<ExtensionActionViewController> controller =
       ExtensionActionViewController::Create(id, browser_,
                                             extensions_container_);
 
   // The bare `new` is safe here, because InsertMenuItem is guaranteed to
   // be added to the view hierarchy, which takes ownership.
-  auto* item = new ExtensionsMenuItemView(
-      ExtensionsMenuItemView::MenuItemType::kExtensions, browser_,
-      std::move(controller), allow_pinning_);
-  extensions_menu_items_.insert(item);
-  InsertMenuItem(item);
-  // Sanity check that the item was added.
-  DCHECK(Contains(item));
-}
+    auto* item = new ExtensionsMenuItemView(
+        ExtensionsMenuItemView::MenuItemType::kExtensions, browser_,
+        std::move(controller), allow_pinning_);
+    extensions_menu_items_.insert(item);
+    InsertMenuItem(item);
+    // Sanity check that the item was added.
+    DCHECK(Contains(item));
+  }
 
 void ExtensionsMenuView::InsertMenuItem(ExtensionsMenuItemView* menu_item) {
   DCHECK(!Contains(menu_item))
