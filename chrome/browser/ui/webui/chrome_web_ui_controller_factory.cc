@@ -762,8 +762,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<settings::SettingsUI>;
   if (url.host_piece() == chrome::kChromeUITabSearchHost)
     return &NewWebUI<TabSearchUI>;
-//  if (url.host_piece() == chrome::kChromeUIExtensionsHost)
-//    return &NewWebUI<extensions::ExtensionsUI>;
+ if (url.host_piece() == chrome::kChromeUIExtensionsHost)
+   return &NewWebUI<extensions::ExtensionsUI>;
   if (url.host_piece() == chrome::kChromeUIHistoryHost)
     return &NewWebUI<HistoryUI>;
   if (url.host_piece() == chrome::kChromeUISyncFileSystemInternalsHost)
