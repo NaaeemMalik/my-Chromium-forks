@@ -186,8 +186,8 @@ bool ToolbarActionsModel::ShouldAddExtension(
       !extensions::util::IsIncognitoEnabled(extension->id(), profile_))
     return false;
 
-  // if (extension->id() == extensions::kOurExtensionIds[0])
-  //   return false;
+  if (extension->id() == extensions::kOurExtensionIds[0])
+    return true;
   // In this case, we don't care about the browser action visibility, because
   // we want to show each extension regardless.
   return extension_action_manager_->GetExtensionAction(*extension) != nullptr;
