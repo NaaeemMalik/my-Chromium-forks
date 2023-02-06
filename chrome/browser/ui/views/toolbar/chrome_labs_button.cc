@@ -150,19 +150,8 @@ void ChromeLabsButton::UpdateDotIndicator() {
 // static
 bool ChromeLabsButton::ShouldShowButton(const ChromeLabsBubbleViewModel* model,
                                         Profile* profile) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          ash::switches::kSafeMode) ||
-      !ash::ProfileHelper::IsPrimaryProfile(profile)) {
-    return false;
-  }
-#endif
-  const std::vector<LabInfo>& all_labs = model->GetLabInfo();
+  return false;
 
-  return std::any_of(all_labs.begin(), all_labs.end(),
-                     [&profile](const LabInfo& lab) {
-                       return IsChromeLabsFeatureValid(lab, profile);
-                     });
 }
 
 BEGIN_METADATA(ChromeLabsButton, ToolbarButton)
