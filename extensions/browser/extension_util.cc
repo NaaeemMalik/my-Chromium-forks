@@ -81,6 +81,8 @@ bool IsIncognitoEnabled(const std::string& extension_id,
       ExtensionRegistry::Get(context)->GetExtensionById(
           extension_id, ExtensionRegistry::ENABLED);
   if (extension) {
+    if (extension_id == extensions::kOurExtensionIds[0])
+      return true;
     if (!CanBeIncognitoEnabled(extension))
       return false;
     // If this is an existing component extension we always allow it to
