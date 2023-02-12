@@ -212,8 +212,9 @@ void CastDialogView::ShowDialog(
     Profile* profile,
     const base::Time& start_time,
     MediaRouterDialogOpenOrigin activation_location) {
-  DCHECK(!instance_);
+  // DCHECK(!instance_);
   DCHECK(!start_time.is_null());
+  HideDialog();
   instance_ = new CastDialogView(anchor_view, anchor_position, controller,
                                  profile, start_time, activation_location);
   views::Widget* widget =

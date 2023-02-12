@@ -96,8 +96,9 @@ views::Widget* MediaDialogView::ShowDialogForPresentationRequest(
     Profile* profile,
     content::WebContents* contents,
     global_media_controls::GlobalMediaControlsEntryPoint entry_point) {
-  DCHECK(!instance_);
+  // DCHECK(!instance_);
   DCHECK(service);
+  HideDialog();
   instance_ =
       new MediaDialogView(anchor_view, service, profile, contents, entry_point);
 
