@@ -189,6 +189,10 @@ AppLauncherHandler::AppLauncherHandler(
 AppLauncherHandler::~AppLauncherHandler() {
   Profile* webui_profile = Profile::FromWebUI(web_ui());
   ExtensionRegistry::Get(webui_profile)->RemoveObserver(this);
+  // Destroy `extension_uninstall_dialog_` now, since `this` is an
+  // `ExtensionUninstallDialog::Delegate` and the dialog may call back into
+  // `this` when destroyed.
+  extension_uninstall_dialog_.reset();
 }
 
 void AppLauncherHandler::CreateWebAppInfo(const web_app::AppId& app_id,
@@ -326,8 +330,7 @@ void AppLauncherHandler::CreateExtensionInfo(const Extension* extension,
   std::u16string short_name = base::UTF8ToUTF16(extension->short_name());
   base::i18n::UnadjustStringForLocaleDirection(&short_name);
   NewTabUI::SetUrlTitleAndDirection(
-      value,
-      short_name,
+      value, short_name,
       extensions::AppLaunchInfo::GetFullLaunchURL(extension));
 
   std::u16string name = base::UTF8ToUTF16(extension->name());
@@ -388,7 +391,7 @@ void AppLauncherHandler::CreateExtensionInfo(const Extension* extension,
       "is_component",
       extension->location() == extensions::mojom::ManifestLocation::kComponent);
   value->SetBoolean("is_webstore",
-      extension->id() == extensions::kWebStoreAppId);
+                    extension->id() == extensions::kWebStoreAppId);
 
   AppSorting* sorting =
       ExtensionSystem::Get(extension_service_->profile())->app_sorting();
@@ -396,13 +399,13 @@ void AppLauncherHandler::CreateExtensionInfo(const Extension* extension,
   if (!page_ordinal.IsValid()) {
     // Make sure every app has a page ordinal (some predate the page ordinal).
     // The webstore app should be on the first page.
-    page_ordinal = extension->id() == extensions::kWebStoreAppId ?
-        sorting->CreateFirstAppPageOrdinal() :
-        sorting->GetNaturalAppPageOrdinal();
+    page_ordinal = extension->id() == extensions::kWebStoreAppId
+                       ? sorting->CreateFirstAppPageOrdinal()
+                       : sorting->GetNaturalAppPageOrdinal();
     sorting->SetPageOrdinal(extension->id(), page_ordinal);
   }
   value->SetInteger("page_index",
-      sorting->PageStringOrdinalAsInteger(page_ordinal));
+                    sorting->PageStringOrdinalAsInteger(page_ordinal));
 
   syncer::StringOrdinal app_launch_ordinal =
       sorting->GetAppLaunchOrdinal(extension->id());
@@ -410,9 +413,10 @@ void AppLauncherHandler::CreateExtensionInfo(const Extension* extension,
     // Make sure every app has a launch ordinal (some predate the launch
     // ordinal). The webstore's app launch ordinal is always set to the first
     // position.
-    app_launch_ordinal = extension->id() == extensions::kWebStoreAppId ?
-        sorting->CreateFirstAppLaunchOrdinal(page_ordinal) :
-        sorting->CreateNextAppLaunchOrdinal(page_ordinal);
+    app_launch_ordinal =
+        extension->id() == extensions::kWebStoreAppId
+            ? sorting->CreateFirstAppLaunchOrdinal(page_ordinal)
+            : sorting->CreateNextAppLaunchOrdinal(page_ordinal);
     sorting->SetAppLaunchOrdinal(extension->id(), app_launch_ordinal);
   }
   value->SetString("app_launch_ordinal", app_launch_ordinal.ToInternalValue());
@@ -737,8 +741,8 @@ void AppLauncherHandler::HandleGetApps(const base::ListValue* args) {
                             base::Unretained(this));
     extension_pref_change_registrar_.Init(
         ExtensionPrefs::Get(profile)->pref_service());
-    extension_pref_change_registrar_.Add(
-        extensions::pref_names::kExtensions, callback);
+    extension_pref_change_registrar_.Add(extensions::pref_names::kExtensions,
+                                         callback);
     extension_pref_change_registrar_.Add(prefs::kNtpAppPageNames, callback);
 
     ExtensionRegistry::Get(profile)->AddObserver(this);
@@ -758,8 +762,7 @@ void AppLauncherHandler::HandleLaunchApp(const base::ListValue* args) {
   GURL override_url;
 
   extension_misc::AppLaunchBucket launch_bucket =
-      static_cast<extension_misc::AppLaunchBucket>(
-          static_cast<int>(source));
+      static_cast<extension_misc::AppLaunchBucket>(static_cast<int>(source));
   CHECK(launch_bucket >= 0 &&
         launch_bucket < extension_misc::APP_LAUNCH_BUCKET_BOUNDARY);
 
@@ -836,8 +839,8 @@ void AppLauncherHandler::HandleLaunchApp(const base::ListValue* args) {
   } else {
     // To give a more "launchy" experience when using the NTP launcher, we close
     // it automatically.
-    Browser* browser = chrome::FindBrowserWithWebContents(
-        web_ui()->GetWebContents());
+    Browser* browser =
+        chrome::FindBrowserWithWebContents(web_ui()->GetWebContents());
     WebContents* old_contents = nullptr;
     if (browser)
       old_contents = browser->tab_strip_model()->GetActiveWebContents();
@@ -1011,8 +1014,8 @@ void AppLauncherHandler::HandleCreateAppShortcut(const base::ListValue* args) {
     return;
   DCHECK(!FromBookmark(extension));
 
-  Browser* browser = chrome::FindBrowserWithWebContents(
-        web_ui()->GetWebContents());
+  Browser* browser =
+      chrome::FindBrowserWithWebContents(web_ui()->GetWebContents());
   chrome::ShowCreateChromeAppShortcutsDialog(
       browser->window()->GetNativeWindow(), browser->profile(), extension,
       base::BindOnce([](bool success) {
@@ -1210,28 +1213,25 @@ void AppLauncherHandler::OnFaviconForAppInstallFromLink(
 
   attempting_web_app_install_page_ordinal_ = install_info->page_ordinal;
 
-  web_app::OnceInstallCallback install_complete_callback =
-      base::BindOnce(
-          [](base::WeakPtr<AppLauncherHandler> app_launcher_handler,
-             const web_app::AppId& app_id,
-             web_app::InstallResultCode install_result) {
-            // Note: this installation path only happens when the user drags a
-            // link to gtx://apps, hence the specific metric name.
-            base::UmaHistogramEnumeration(
-                "Apps.Launcher.InstallAppFromLinkResult", install_result);
-            if (!app_launcher_handler)
-              return;
-            if (install_result ==
-                web_app::InstallResultCode::kSuccessNewInstall) {
-              app_launcher_handler->InstallOsHooks(app_id);
-            }
-            if (install_result !=
-                web_app::InstallResultCode::kSuccessNewInstall) {
-              app_launcher_handler->attempting_web_app_install_page_ordinal_ =
-                  absl::nullopt;
-            }
-          },
-          weak_ptr_factory_.GetWeakPtr());
+  web_app::OnceInstallCallback install_complete_callback = base::BindOnce(
+      [](base::WeakPtr<AppLauncherHandler> app_launcher_handler,
+         const web_app::AppId& app_id,
+         web_app::InstallResultCode install_result) {
+        // Note: this installation path only happens when the user drags a
+        // link to gtx://apps, hence the specific metric name.
+        base::UmaHistogramEnumeration("Apps.Launcher.InstallAppFromLinkResult",
+                                      install_result);
+        if (!app_launcher_handler)
+          return;
+        if (install_result == web_app::InstallResultCode::kSuccessNewInstall) {
+          app_launcher_handler->InstallOsHooks(app_id);
+        }
+        if (install_result != web_app::InstallResultCode::kSuccessNewInstall) {
+          app_launcher_handler->attempting_web_app_install_page_ordinal_ =
+              absl::nullopt;
+        }
+      },
+      weak_ptr_factory_.GetWeakPtr());
 
   web_app_provider_->install_manager().InstallWebAppFromInfo(
       std::move(web_app), /*overwrite_existing_manifest_fields=*/false,
