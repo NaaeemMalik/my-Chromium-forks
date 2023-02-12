@@ -140,8 +140,7 @@ class BrowserTabStripController::TabContextMenuContents
   bool IsCommandIdChecked(int command_id) const override { return false; }
   bool IsCommandIdEnabled(int command_id) const override {
     return controller_->IsCommandEnabledForTab(
-        static_cast<TabStripModel::ContextMenuCommand>(command_id),
-        tab_);
+        static_cast<TabStripModel::ContextMenuCommand>(command_id), tab_);
   }
 
   bool IsCommandIdAlerted(int command_id) const override {
@@ -174,8 +173,7 @@ class BrowserTabStripController::TabContextMenuContents
     // Executing the command destroys |this|, and can also end up destroying
     // |controller_|. So stop the highlights before executing the command.
     controller_->ExecuteCommandForTab(
-        static_cast<TabStripModel::ContextMenuCommand>(command_id),
-        tab_);
+        static_cast<TabStripModel::ContextMenuCommand>(command_id), tab_);
   }
 
  private:
@@ -239,8 +237,9 @@ bool BrowserTabStripController::IsCommandEnabledForTab(
     TabStripModel::ContextMenuCommand command_id,
     Tab* tab) const {
   int model_index = tabstrip_->GetModelIndexOf(tab);
-  return model_->ContainsIndex(model_index) ?
-      model_->IsContextMenuCommandEnabled(model_index, command_id) : false;
+  return model_->ContainsIndex(model_index)
+             ? model_->IsContextMenuCommandEnabled(model_index, command_id)
+             : false;
 }
 
 void BrowserTabStripController::ExecuteCommandForTab(
@@ -255,8 +254,8 @@ bool BrowserTabStripController::IsTabPinned(Tab* tab) const {
   return IsTabPinned(tabstrip_->GetModelIndexOf(tab));
 }
 
-const ui::ListSelectionModel&
-BrowserTabStripController::GetSelectionModel() const {
+const ui::ListSelectionModel& BrowserTabStripController::GetSelectionModel()
+    const {
   return model_->selection_model();
 }
 
@@ -350,7 +349,7 @@ void BrowserTabStripController::CloseTab(int model_index) {
 
   model_->CloseWebContentsAt(model_index,
                              TabStripModel::CLOSE_USER_GESTURE |
-                             TabStripModel::CLOSE_CREATE_HISTORICAL_TAB);
+                                 TabStripModel::CLOSE_CREATE_HISTORICAL_TAB);
 
   // Try to show reading list IPH if needed.
   if (tabstrip_->GetTabCount() >= 7) {
@@ -440,8 +439,7 @@ int BrowserTabStripController::HasAvailableDragActions() const {
   return model_->delegate()->GetDragActions();
 }
 
-void BrowserTabStripController::OnDropIndexUpdate(int index,
-                                                  bool drop_before) {
+void BrowserTabStripController::OnDropIndexUpdate(int index, bool drop_before) {
   // Perform a delayed tab transition if hovering directly over a tab.
   // Otherwise, cancel the pending one.
   if (index != -1 && !drop_before) {
@@ -669,7 +667,9 @@ void BrowserTabStripController::OnTabStripModelChanged(
   if (selection.selection_changed())
     tabstrip_->SetSelection(selection.new_model);
 }
-
+void BrowserTabStripController::OnTabWillBeAdded() {
+  tabstrip_->EndDrag(EndDragReason::END_DRAG_MODEL_ADDED_TAB);
+}
 void BrowserTabStripController::OnTabGroupChanged(
     const TabGroupChange& change) {
   switch (change.type) {

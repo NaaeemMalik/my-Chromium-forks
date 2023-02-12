@@ -362,6 +362,8 @@ int TabStripModel::InsertWebContentsAt(
     std::unique_ptr<WebContents> contents,
     int add_types,
     absl::optional<tab_groups::TabGroupId> group) {
+  for (auto& observer : observers_)
+    observer.OnTabWillBeAdded();
   ReentrancyCheck reentrancy_check(&reentrancy_guard_);
   return InsertWebContentsAtImpl(index, std::move(contents), add_types, group);
 }
@@ -1734,7 +1736,7 @@ int TabStripModel::InsertWebContentsAtImpl(
       web_modal::WebContentsModalDialogManager::FromWebContents(raw_contents);
   if (manager)
     data->set_blocked(manager->IsDialogActive());
-
+  data->set_group(group);
   TabStripSelectionChange selection(GetActiveWebContents(), selection_model_);
 
   contents_data_.insert(contents_data_.begin() + index, std::move(data));
@@ -1754,9 +1756,13 @@ int TabStripModel::InsertWebContentsAtImpl(
   TabStripModelChange change(std::move(insert));
   for (auto& observer : observers_)
     observer.OnTabStripModelChanged(this, change, selection);
-  if (group.has_value())
+  if (group_model_ && group.has_value()) {
+    // Unset the group at the index of the inserted WebContents so that the
+    // GroupTab functionality isn't skipped.
+    contents_data_[index]->set_group(absl::nullopt);
     GroupTab(index, group.value());
-
+    
+  }
   return index;
 }
 

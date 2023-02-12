@@ -191,6 +191,7 @@ void TabStripModelObserver::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {}
+void TabStripModelObserver::OnTabWillBeAdded() {}
 
 void TabStripModelObserver::OnTabGroupChanged(const TabGroupChange& change) {}
 

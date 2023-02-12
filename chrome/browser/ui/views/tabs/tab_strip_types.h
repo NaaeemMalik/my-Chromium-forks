@@ -14,6 +14,7 @@ enum EndDragReason {
 
   // The drag should end as the result of a capture lost.
   END_DRAG_CAPTURE_LOST,
+  END_DRAG_MODEL_ADDED_TAB,
 };
 
 // Source of the call to CloseTab().
