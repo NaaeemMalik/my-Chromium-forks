@@ -626,6 +626,8 @@ void Portal::ActivateImpl(blink::TransferableMessage data,
 
   devtools_instrumentation::PortalActivated(outer_contents->GetMainFrame());
   successor_contents_raw->set_portal(nullptr);
+  
+  outer_contents->CancelActiveAndPendingDialogs();
 
   std::unique_ptr<WebContents> predecessor_web_contents =
       delegate->ActivatePortalWebContents(outer_contents,
