@@ -1261,6 +1261,7 @@ bool Window::CleanupGestureState() {
   bool state_modified = false;
   Env* env = Env::GetInstance();
   state_modified |= env->gesture_recognizer()->CancelActiveTouches(this);
+
   if (!tracking_this.Contains(this))
     return state_modified;
   state_modified |= env->gesture_recognizer()->CleanupStateForConsumer(this);
