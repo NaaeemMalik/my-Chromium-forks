@@ -40,6 +40,8 @@ QRCodeGeneratorBubbleController* QRCodeGeneratorBubbleController::Get(
 
 void QRCodeGeneratorBubbleController::ShowBubble(const GURL& url,
                                                  bool show_back_button) {
+  if (bubble_shown_)
+    return;
   bubble_shown_ = true;
   Browser* browser = chrome::FindBrowserWithWebContents(&GetWebContents());
   qrcode_generator_bubble_ = browser->window()->ShowQRCodeGeneratorBubble(
@@ -60,6 +62,18 @@ QRCodeGeneratorBubbleController::qrcode_generator_bubble_view() const {
   return qrcode_generator_bubble_;
 }
 
+ base::OnceClosure
+QRCodeGeneratorBubbleController::GetOnBubbleClosedCallback() {
+ return base::BindOnce(&QRCodeGeneratorBubbleController::OnBubbleClosed,
+                         weak_ptr_factory_.GetWeakPtr());
+  
+}
+ base::OnceClosure 
+    QRCodeGeneratorBubbleController::GetOnBackButtonPressedCallback() {
+  return base::BindOnce(&QRCodeGeneratorBubbleController::OnBackButtonPressed,
+                         weak_ptr_factory_.GetWeakPtr());
+  
+}
 void QRCodeGeneratorBubbleController::OnBubbleClosed() {
   bubble_shown_ = false;
   qrcode_generator_bubble_ = nullptr;
