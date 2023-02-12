@@ -193,6 +193,7 @@ LocationBarModelImpl::GetPageClassification(OmniboxFocusSource focus_source) {
   return OmniboxEventProto::OTHER;
 }
 #include "extensions/common/extension.h"
+
 const gfx::VectorIcon& LocationBarModelImpl::GetVectorIcon() const {
 #if (!defined(OS_ANDROID) || BUILDFLAG(ENABLE_VR)) && !defined(OS_IOS)
  //if url is google.com, return google icon
