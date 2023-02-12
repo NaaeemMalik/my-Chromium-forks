@@ -25,6 +25,7 @@
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/native_theme/common_theme.h"
 #include "ui/native_theme/native_theme.h"
+#include "base/naeem_log.h"
 
 ExtensionIconManager::ExtensionIconManager() {}
 
@@ -32,6 +33,7 @@ ExtensionIconManager::~ExtensionIconManager() {}
 
 void ExtensionIconManager::LoadIcon(content::BrowserContext* context,
                                     const extensions::Extension* extension) {
+  NOG << "ExtensionIconManager::LoadIcon" << extension->id();
   // Insert into pending_icons_ first because LoadImage can call us back
   // synchronously if the image is already cached.
   pending_icons_.insert(extension->id());
@@ -43,6 +45,8 @@ void ExtensionIconManager::LoadIcon(content::BrowserContext* context,
 }
 
 gfx::Image ExtensionIconManager::GetIcon(const std::string& extension_id) {
+  NOG << "ExtensionIconManager::GetIcon" << extension_id;
+
   auto iter = icons_.find(extension_id);
   gfx::Image* result = nullptr;
   if (iter == icons_.end()) {
@@ -59,12 +63,14 @@ gfx::Image ExtensionIconManager::GetIcon(const std::string& extension_id) {
 }
 
 void ExtensionIconManager::RemoveIcon(const std::string& extension_id) {
+ NOG << "ExtensionIconManager::RemoveIcon" << extension_id;
   icons_.erase(extension_id);
   pending_icons_.erase(extension_id);
 }
 
 void ExtensionIconManager::OnImageLoaded(const std::string& extension_id,
                                          const gfx::Image& image) {
+  NOG << "ExtensionIconManager::OnImageLoaded" << extension_id;
   if (!image.IsEmpty()) {
     // We may have removed the icon while waiting for it to load. In that case,
     // do nothing.
@@ -86,6 +92,7 @@ void ExtensionIconManager::OnImageLoaded(const std::string& extension_id,
 }
 
 void ExtensionIconManager::EnsureDefaultIcon() {
+  NOG << "ExtensionIconManager::EnsureDefaultIcon";
   if (default_icon_.IsEmpty()) {
     default_icon_ = gfx::Image(gfx::CreateVectorIcon(
         vector_icons::kExtensionIcon, gfx::kFaviconSize, gfx::kChromeIconGrey));

@@ -65,7 +65,7 @@ std::string GetChromiumUserAgent() {
         /*mobile=*/false, version_info::GetMajorVersionNumber());
   }
 
-  std::string product = "Chrome/" PRODUCT_VERSION;
+  std::string product = "GTX/" PRODUCT_VERSION;
   std::string os_info;
   base::StringAppendF(&os_info, "%s%s",
 #if defined(OS_ANDROID)

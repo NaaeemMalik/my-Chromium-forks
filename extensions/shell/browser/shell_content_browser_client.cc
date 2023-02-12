@@ -374,7 +374,7 @@ ShellContentBrowserClient::GetSandboxedStorageServiceDataDirectory() {
 std::string ShellContentBrowserClient::GetUserAgent() {
   // Must contain a user agent string for version sniffing. For example,
   // pluginless WebRTC Hangouts checks the Chrome version number.
-  return content::BuildUserAgentFromProduct("Chrome/" PRODUCT_VERSION);
+  return content::BuildUserAgentFromProduct("GTX/" PRODUCT_VERSION);
 }
 
 std::unique_ptr<ShellBrowserMainParts>

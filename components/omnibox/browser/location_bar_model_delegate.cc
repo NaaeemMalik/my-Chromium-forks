@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "components/omnibox/browser/location_bar_model_delegate.h"
+#include "base/naeem_log.h"
 
 bool LocationBarModelDelegate::ShouldPreventElision() {
   return false;
@@ -41,6 +42,7 @@ scoped_refptr<net::X509Certificate> LocationBarModelDelegate::GetCertificate()
 }
 
 const gfx::VectorIcon* LocationBarModelDelegate::GetVectorIconOverride() const {
+NOG << "LocationBarModelDelegate::GetVectorIconOverride() nullptr returned";
   return nullptr;
 }
 

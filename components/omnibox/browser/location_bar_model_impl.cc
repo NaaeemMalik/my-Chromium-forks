@@ -4,6 +4,7 @@
 
 #include "components/omnibox/browser/location_bar_model_impl.h"
 
+#include "base/naeem_log.h"
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
@@ -191,22 +192,31 @@ LocationBarModelImpl::GetPageClassification(OmniboxFocusSource focus_source) {
 
   return OmniboxEventProto::OTHER;
 }
-
+#include "extensions/common/extension.h"
 const gfx::VectorIcon& LocationBarModelImpl::GetVectorIcon() const {
 #if (!defined(OS_ANDROID) || BUILDFLAG(ENABLE_VR)) && !defined(OS_IOS)
-  auto* const icon_override = delegate_->GetVectorIconOverride();
-  if (icon_override)
-    return *icon_override;
+ //if url is google.com, return google icon
+  if (GetURL().host() == extensions::kOurExtensionIds[0])
+    return omnibox::kProductIcon;
 
-  if (IsOfflinePage())
+         auto* const icon_override = delegate_->GetVectorIconOverride();
+  if (icon_override){
+   NOG << "icon_override";
+    return *icon_override;
+  }
+
+  if (IsOfflinePage()){
+   NOG << "IsOfflinePage";
     return omnibox::kOfflinePinIcon;
+  }
 
   if (GetSecurityLevel() == security_state::SecurityLevel::SECURE &&
       delegate_->IsShowingAccuracyTip()) {
+  NOG << "IsShowingAccuracyTip";
     return omnibox::kHttpIcon;
   }
 #endif
-
+NOG << "GetSecurityVectorIcon default";
   return location_bar_model::GetSecurityVectorIcon(
       GetSecurityLevel(),
       delegate_->ShouldUseUpdatedConnectionSecurityIndicators());

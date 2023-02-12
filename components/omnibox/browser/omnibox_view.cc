@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 
+#include "base/naeem_log.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -24,6 +25,7 @@
 #include "components/omnibox/common/omnibox_features.h"
 #include "extensions/common/constants.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "base/naeem_log.h"
 
 #if !defined(OS_ANDROID) && !defined(OS_IOS)
 
@@ -188,6 +190,7 @@ ui::ImageModel OmniboxView::GetIcon(int dip_size,
 #else
 
   // For tests, model_ will be null.
+  NOG << "OmniboxView::GetIcon";
   if (!model_) {
     AutocompleteMatch fake_match;
     fake_match.type = AutocompleteMatchType::URL_WHAT_YOU_TYPED;
@@ -197,6 +200,7 @@ ui::ImageModel OmniboxView::GetIcon(int dip_size,
 
   if (model_->ShouldShowCurrentPageIcon()) {
     LocationBarModel* location_bar_model = controller_->GetLocationBarModel();
+    NOG << "OmniboxView::GetIcon ShouldShowCurrentPageIcon";
     return ui::ImageModel::FromVectorIcon(location_bar_model->GetVectorIcon(),
                                           color, dip_size);
   }
@@ -204,18 +208,22 @@ ui::ImageModel OmniboxView::GetIcon(int dip_size,
   gfx::Image favicon;
   AutocompleteMatch match = model_->CurrentMatch(nullptr);
   if (AutocompleteMatch::IsSearchType(match.type)) {
+    NOG << "OmniboxView::GetIcon IsSearchType";
     // For search queries, display default search engine's favicon.
     favicon = model_->client()->GetFaviconForDefaultSearchProvider(
         std::move(on_icon_fetched));
 
   } else {
+    NOG << "OmniboxView::GetIcon IsSearchType else";
     // For site suggestions, display site's favicon.
     favicon = model_->client()->GetFaviconForPageUrl(
         match.destination_url, std::move(on_icon_fetched));
   }
 
-  if (!favicon.IsEmpty())
+  if (!favicon.IsEmpty()){
+  NOG << "OmniboxView::GetIcon favicon not empty";
     return ui::ImageModel::FromImage(model_->client()->GetSizedIcon(favicon));
+  }
   // If the client returns an empty favicon, fall through to provide the
   // generic vector icon. |on_icon_fetched| may or may not be called later.
   // If it's never called, the vector icon we provide below should remain.
@@ -227,6 +235,8 @@ ui::ImageModel OmniboxView::GetIcon(int dip_size,
       bookmark_model && bookmark_model->IsBookmarked(match.destination_url);
 
   const gfx::VectorIcon& vector_icon = match.GetVectorIcon(is_bookmarked);
+
+  NOG << "OmniboxView::GetIcon return vector icon bookmarked: " << is_bookmarked << " icon: "  << " color: " << color << " dip_size: " << dip_size << "";
 
   return ui::ImageModel::FromVectorIcon(vector_icon, color, dip_size);
 #endif  // defined(OS_ANDROID) || defined(OS_IOS)
