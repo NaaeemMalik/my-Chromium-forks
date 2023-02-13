@@ -215,6 +215,7 @@ void BackgroundFetchDelegateProxy::MarkJobComplete(
 
 void BackgroundFetchDelegateProxy::OnJobCancelled(
     const std::string& job_unique_id,
+    const std::string& download_guid,
     blink::mojom::BackgroundFetchFailureReason reason_to_abort) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(
@@ -227,109 +228,115 @@ void BackgroundFetchDelegateProxy::OnJobCancelled(
   if (it == controller_map_.end())
     return;
 
-  if (const auto& controller = it->second)
+  if (const auto& controller = it->second) {
+    if (reason_to_abort ==
+        blink::mojom::BackgroundFetchFailureReason::DOWNLOAD_TOTAL_EXCEEDED) {
+      // Mark the request as complete and failed to avoid leaking information
+      // about the size of the resource.
+      controller->DidCompleteRequest(
+          download_guid,
+          std::make_unique<BackgroundFetchResult>(
+              nullptr /* response */, base::Time::Now(),
+              BackgroundFetchResult::FailureReason::FETCH_ERROR));
+    }
     controller->AbortFromDelegate(reason_to_abort);
-}
-
-void BackgroundFetchDelegateProxy::OnDownloadStarted(
-    const std::string& job_unique_id,
-    const std::string& guid,
-    std::unique_ptr<BackgroundFetchResponse> response) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  auto it = controller_map_.find(job_unique_id);
-  if (it == controller_map_.end())
-    return;
-
-  if (const auto& controller = it->second)
-    controller->DidStartRequest(guid, std::move(response));
-}
-
-void BackgroundFetchDelegateProxy::OnUIActivated(
-    const std::string& job_unique_id) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  DCHECK(click_event_dispatcher_callback_);
-  click_event_dispatcher_callback_.Run(job_unique_id);
-}
-
-void BackgroundFetchDelegateProxy::OnUIUpdated(
-    const std::string& job_unique_id) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  auto it = update_ui_callback_map_.find(job_unique_id);
-  if (it == update_ui_callback_map_.end())
-    return;
-
-  DCHECK(it->second);
-  std::move(it->second).Run(blink::mojom::BackgroundFetchError::NONE);
-  update_ui_callback_map_.erase(it);
-}
-
-void BackgroundFetchDelegateProxy::OnDownloadUpdated(
-    const std::string& job_unique_id,
-    const std::string& guid,
-    uint64_t bytes_uploaded,
-    uint64_t bytes_downloaded) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  auto it = controller_map_.find(job_unique_id);
-  if (it == controller_map_.end())
-    return;
-
-  if (const auto& controller = it->second)
-    controller->DidUpdateRequest(guid, bytes_uploaded, bytes_downloaded);
-}
-
-void BackgroundFetchDelegateProxy::OnDownloadComplete(
-    const std::string& job_unique_id,
-    const std::string& guid,
-    std::unique_ptr<BackgroundFetchResult> result) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  auto it = controller_map_.find(job_unique_id);
-  if (it == controller_map_.end())
-    return;
-
-  if (const auto& controller = it->second)
-    controller->DidCompleteRequest(guid, std::move(result));
-}
-
-void BackgroundFetchDelegateProxy::GetUploadData(
-    const std::string& job_unique_id,
-    const std::string& download_guid,
-    BackgroundFetchDelegate::GetUploadDataCallback callback) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-  auto it = controller_map_.find(job_unique_id);
-  if (it == controller_map_.end()) {
-    std::move(callback).Run(nullptr);
-    return;
+  }
   }
 
-  if (const auto& controller = it->second)
-    controller->GetUploadData(download_guid, std::move(callback));
-  else
-    std::move(callback).Run(nullptr);
-}
+  void BackgroundFetchDelegateProxy::OnDownloadStarted(
+      const std::string& job_unique_id, const std::string& guid,
+      std::unique_ptr<BackgroundFetchResponse> response) {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-BrowserContext* BackgroundFetchDelegateProxy::GetBrowserContext() {
-  if (!storage_partition_)
-    return nullptr;
-  return storage_partition_->browser_context();
-}
+    auto it = controller_map_.find(job_unique_id);
+    if (it == controller_map_.end())
+      return;
 
-BackgroundFetchDelegate* BackgroundFetchDelegateProxy::GetDelegate() {
-  auto* browser_context = GetBrowserContext();
-  if (!browser_context)
-    return nullptr;
-  return browser_context->GetBackgroundFetchDelegate();
-}
+    if (const auto& controller = it->second)
+      controller->DidStartRequest(guid, std::move(response));
+  }
 
-PermissionControllerImpl*
-BackgroundFetchDelegateProxy::GetPermissionController() {
-  auto* browser_context = GetBrowserContext();
-  if (!browser_context)
-    return nullptr;
-  return PermissionControllerImpl::FromBrowserContext(browser_context);
-}
+  void BackgroundFetchDelegateProxy::OnUIActivated(
+      const std::string& job_unique_id) {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    DCHECK(click_event_dispatcher_callback_);
+    click_event_dispatcher_callback_.Run(job_unique_id);
+  }
+
+  void BackgroundFetchDelegateProxy::OnUIUpdated(
+      const std::string& job_unique_id) {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    auto it = update_ui_callback_map_.find(job_unique_id);
+    if (it == update_ui_callback_map_.end())
+      return;
+
+    DCHECK(it->second);
+    std::move(it->second).Run(blink::mojom::BackgroundFetchError::NONE);
+    update_ui_callback_map_.erase(it);
+  }
+
+  void BackgroundFetchDelegateProxy::OnDownloadUpdated(
+      const std::string& job_unique_id, const std::string& guid,
+      uint64_t bytes_uploaded, uint64_t bytes_downloaded) {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+    auto it = controller_map_.find(job_unique_id);
+    if (it == controller_map_.end())
+      return;
+
+    if (const auto& controller = it->second)
+      controller->DidUpdateRequest(guid, bytes_uploaded, bytes_downloaded);
+  }
+
+  void BackgroundFetchDelegateProxy::OnDownloadComplete(
+      const std::string& job_unique_id, const std::string& guid,
+      std::unique_ptr<BackgroundFetchResult> result) {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+    auto it = controller_map_.find(job_unique_id);
+    if (it == controller_map_.end())
+      return;
+
+    if (const auto& controller = it->second)
+      controller->DidCompleteRequest(guid, std::move(result));
+  }
+
+  void BackgroundFetchDelegateProxy::GetUploadData(
+      const std::string& job_unique_id, const std::string& download_guid,
+      BackgroundFetchDelegate::GetUploadDataCallback callback) {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+    auto it = controller_map_.find(job_unique_id);
+    if (it == controller_map_.end()) {
+      std::move(callback).Run(nullptr);
+      return;
+    }
+
+    if (const auto& controller = it->second)
+      controller->GetUploadData(download_guid, std::move(callback));
+    else
+      std::move(callback).Run(nullptr);
+  }
+
+  BrowserContext* BackgroundFetchDelegateProxy::GetBrowserContext() {
+    if (!storage_partition_)
+      return nullptr;
+    return storage_partition_->browser_context();
+  }
+
+  BackgroundFetchDelegate* BackgroundFetchDelegateProxy::GetDelegate() {
+    auto* browser_context = GetBrowserContext();
+    if (!browser_context)
+      return nullptr;
+    return browser_context->GetBackgroundFetchDelegate();
+  }
+
+  PermissionControllerImpl*
+  BackgroundFetchDelegateProxy::GetPermissionController() {
+    auto* browser_context = GetBrowserContext();
+    if (!browser_context)
+      return nullptr;
+    return PermissionControllerImpl::FromBrowserContext(browser_context);
+  }
 
 }  // namespace content
