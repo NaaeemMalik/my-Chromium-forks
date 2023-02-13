@@ -13,7 +13,7 @@
 #include "base/check_op.h"
 #include "base/files/file_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
+// #include "base/memory/weak_ptr.h"
 #include "base/one_shot_event.h"
 #include "base/scoped_observation.h"
 #include "build/chromeos_buildflags.h"
@@ -319,9 +319,9 @@ void ManagedValueStoreCache::OnPolicyUpdated(const policy::PolicyNamespace& ns,
   }
 
   GetBackendTaskRunner()->PostTask(
-      FROM_HERE,
-      base::BindOnce(&ManagedValueStoreCache::UpdatePolicyOnBackend,
-                     base::Unretained(this), ns.component_id, current.Clone()));
+      FROM_HERE, base::BindOnce(&ManagedValueStoreCache::UpdatePolicyOnBackend,
+                                weak_ptr_factory_.GetWeakPtr(),
+                                ns.component_id, current.Clone()));
 }
 
 // static

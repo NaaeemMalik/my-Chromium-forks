@@ -105,6 +105,7 @@ class ManagedValueStoreCache : public ValueStoreCache,
   // All the PolicyValueStores live on the FILE thread, and |store_map_| can be
   // accessed only on the FILE thread as well.
   std::map<std::string, std::unique_ptr<PolicyValueStore>> store_map_;
+  base::WeakPtrFactory<ManagedValueStoreCache> weak_ptr_factory_{this};
 };
 
 }  // namespace extensions
