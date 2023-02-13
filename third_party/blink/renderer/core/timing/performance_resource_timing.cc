@@ -260,9 +260,10 @@ DOMHighResTimeStamp PerformanceResourceTiming::redirectEnd() const {
 
 DOMHighResTimeStamp PerformanceResourceTiming::fetchStart() const {
   ResourceLoadTiming* timing = GetResourceLoadTiming();
-  if (!timing)
+  if (!timing ||
+      (!allow_redirect_details_ && !last_redirect_end_time_.is_null())) {
     return PerformanceEntry::startTime();
-
+      }
   if (!last_redirect_end_time_.is_null()) {
     return Performance::MonotonicTimeToDOMHighResTimeStamp(
         time_origin_, timing->RequestTime(), allow_negative_value_,
@@ -273,7 +274,7 @@ DOMHighResTimeStamp PerformanceResourceTiming::fetchStart() const {
     return worker_ready_time;
 
   return PerformanceEntry::startTime();
-}
+  }
 
 DOMHighResTimeStamp PerformanceResourceTiming::domainLookupStart() const {
   if (!AllowTimingDetails())
