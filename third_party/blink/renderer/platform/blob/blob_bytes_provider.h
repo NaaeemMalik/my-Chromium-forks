@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_BLOB_BLOB_BYTES_PROVIDER_H_
 
 #include "base/gtest_prod_util.h"
-#include "base/sequence_checker.h"
 #include "base/task/sequenced_task_runner.h"
 #include "third_party/blink/public/mojom/blob/blob_registry.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/blob/data_element.mojom-blink.h"
@@ -30,14 +29,16 @@ class PLATFORM_EXPORT BlobBytesProvider : public mojom::blink::BytesProvider {
   // Creates a new instance, and binds it on a new SequencedTaskRunner. The
   // returned instance should only be considered valid as long as the request
   // passed in to this method is still known to be valid.
-  BlobBytesProvider();
+  static BlobBytesProvider* CreateAndBind(
+      mojo::PendingReceiver<mojom::blink::BytesProvider>);
+  static std::unique_ptr<BlobBytesProvider> CreateForTesting(
+      scoped_refptr<base::SequencedTaskRunner>);
+
   ~BlobBytesProvider() override;
 
   void AppendData(scoped_refptr<RawData>);
   void AppendData(base::span<const char>);
-  static void Bind(
-      std::unique_ptr<BlobBytesProvider> provider,
-      mojo::PendingReceiver<mojom::blink::BytesProvider> receiver);
+
   // BytesProvider implementation:
   void RequestAsReply(RequestAsReplyCallback) override;
   void RequestAsStream(mojo::ScopedDataPipeProducerHandle) override;
@@ -50,12 +51,17 @@ class PLATFORM_EXPORT BlobBytesProvider : public mojom::blink::BytesProvider {
  private:
   FRIEND_TEST_ALL_PREFIXES(BlobBytesProviderTest, Consolidation);
 
-  Vector<scoped_refptr<RawData>> data_ GUARDED_BY_CONTEXT(sequence_checker_);
+  BlobBytesProvider(scoped_refptr<base::SequencedTaskRunner>);
+
+  // The task runner this class is bound on, as well as what is used by the
+  // RequestAsStream method to monitor the data pipe.
+  scoped_refptr<base::SequencedTaskRunner> task_runner_;
+
+  Vector<scoped_refptr<RawData>> data_;
   // |offsets_| always contains exactly one fewer item than |data_| (except when
   // |data_| itself is empty).
   // offsets_[x] is equal to the sum of data_[i].length for all i <= x.
-  Vector<uint64_t> offsets_ GUARDED_BY_CONTEXT(sequence_checker_);
-  SEQUENCE_CHECKER(sequence_checker_);
+  Vector<uint64_t> offsets_;
 };
 
 }  // namespace blink
