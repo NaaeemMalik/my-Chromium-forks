@@ -137,15 +137,6 @@ std::unique_ptr<BlobData> BlobData::CreateForFileSystemURLWithUnknownSize(
   return data;
 }
 
-void BlobData::DetachFromCurrentThread() {
-  content_type_ = content_type_.IsolatedCopy();
-  for (auto& element : elements_) {
-    if (element->is_file_filesystem()) {
-      auto& file_element = element->get_file_filesystem();
-      file_element->url = file_element->url.Copy();
-    }
-  }
-}
 
 void BlobData::SetContentType(const String& content_type) {
   if (IsValidBlobType(content_type))
