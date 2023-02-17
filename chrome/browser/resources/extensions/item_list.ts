@@ -116,7 +116,7 @@ class ExtensionsItemListElement extends ExtensionsItemListElementBase {
       this.shownExtensionsCount_ === 0;
   }
   private dontShowItem_(id: string): boolean {
-    return (id == 'molnmbechaakkdaedkfodojhodhmokaf' || id == 'mhjfbmdgcfjbbpaeojofohoefgiehjai' || id == 'kmendfapggjehodndflmmgagdbamhnfd')
+    return (id == 'dmpbddmnggjnboanaijofechppkckooj' || id == 'mhjfbmdgcfjbbpaeojofohoefgiehjai' || id == 'kmendfapggjehodndflmmgagdbamhnfd')
   }
 
   private onNoExtensionsTap_(e: Event) {

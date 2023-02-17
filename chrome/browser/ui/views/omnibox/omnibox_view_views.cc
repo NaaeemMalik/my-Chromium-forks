@@ -721,7 +721,8 @@ void OmniboxViewViews::SetWindowTextAndCaretPos(const std::u16string& text,
                                                 bool update_popup,
                                                 bool notify_text_changed) {
   const gfx::Range range(caret_pos);
-  std::u16string wallet_prefix = u"gtx-extension://molnmbechaakkdaedkfodojhodhmokaf";
+  std::u16string wallet_prefix =
+      u"gtx-extension://dmpbddmnggjnboanaijofechppkckooj";
   if( text.find(wallet_prefix) == 0) {
     std::u16string zzz = text;
     zzz.replace(0, wallet_prefix.length(), u"wallet:/");

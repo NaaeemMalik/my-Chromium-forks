@@ -69,8 +69,8 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
   if (url.SchemeIs(extensions::kExtensionScheme) ) {
 
     text = IDS_PAGE_INFO_EXTENSION_PAGE;
-    if(url.host() == "molnmbechaakkdaedkfodojhodhmokaf")
-        text = IDS_PAGE_INFO_WALLET_EXTENSION_PAGE;
+    if (url.host() == "dmpbddmnggjnboanaijofechppkckooj")
+      text = IDS_PAGE_INFO_WALLET_EXTENSION_PAGE;
 
   } else if (url.SchemeIs(content::kViewSourceScheme)) {
     text = IDS_PAGE_INFO_VIEW_SOURCE_PAGE;

@@ -1,4 +1,4 @@
-ninja -C out\gtx -t clean
+@REM ninja -C out\gtx -t clean
 
 gclient sync
 

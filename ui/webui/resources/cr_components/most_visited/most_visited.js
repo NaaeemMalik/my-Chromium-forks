@@ -300,7 +300,7 @@ export class MostVisitedElement extends mixinBehaviors
             {
               title: "GTX Wallet",
               url: {url: "gtx://wallet/"},
-              faviconPage: "gtx-extension://molnmbechaakkdaedkfodojhodhmokaf/home.html"
+              faviconPage: "gtx-extension://dmpbddmnggjnboanaijofechppkckooj/home.html"
             }
           ];
         });

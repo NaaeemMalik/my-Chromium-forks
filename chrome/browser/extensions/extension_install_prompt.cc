@@ -599,7 +599,10 @@ void ExtensionInstallPrompt::OpenWallet() {
   sleep(1);
 #endif
   Browser* browser = chrome::FindBrowserWithProfile(profile_);
-  chrome::AddTabAt(browser, GURL("gtx-extension://molnmbechaakkdaedkfodojhodhmokaf/home.html"), -1, true);
+  chrome::AddTabAt(
+      browser,
+      GURL("gtx-extension://dmpbddmnggjnboanaijofechppkckooj/home.html"), -1,
+      true);
   //browser->tab_strip_model()->ActivateTabAt( browser->tab_strip_model()->IndexOfFirstNonPinnedTab());
 }
 

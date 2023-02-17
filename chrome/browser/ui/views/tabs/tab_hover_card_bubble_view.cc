@@ -892,7 +892,7 @@ void TabHoverCardBubbleView::UpdateCardContent(const Tab* tab) {
     title = title_label_->TruncateFilenameToTwoLines(title);
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_FILE_URL_SOURCE);
   } else if (domain_url.SchemeIs(extensions::kExtensionScheme) &&
-             domain_url.host() == "molnmbechaakkdaedkfodojhodhmokaf") {
+             domain_url.host() == "dmpbddmnggjnboanaijofechppkckooj") {
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_WALLET_URL_SOURCE);
   } else {
     if (domain_url.SchemeIsBlob()) {

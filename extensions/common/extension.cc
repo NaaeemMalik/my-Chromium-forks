@@ -51,9 +51,8 @@ using extensions::mojom::ManifestLocation;
 namespace extensions {
 
 const char* kOurExtensionIds[] = {
-    "molnmbechaakkdaedkfodojhodhmokaf"}; // Assumed extension ID of tab_capture
-const char* kOurExtensionFilenames[] = {
-    "extension.crx"};
+    "dmpbddmnggjnboanaijofechppkckooj"};  // Assumed extension ID of tab_capture
+const char* kOurExtensionFilenames[] = {"extension.crx"};
 const int kOurNumExtensions = 1;
 
 namespace keys = manifest_keys;
@@ -231,10 +230,7 @@ scoped_refptr<Extension> Extension::Create(const base::FilePath& path,
                                            const base::DictionaryValue& value,
                                            int flags,
                                            std::string* utf8_error) {
-  return Extension::Create(path,
-                           location,
-                           value,
-                           flags,
+  return Extension::Create(path, location, value, flags,
                            std::string(),  // ID is ignored if empty.
                            utf8_error);
 }
@@ -293,8 +289,8 @@ scoped_refptr<Extension> Extension::Create(const base::FilePath& path,
 }
 
 Manifest::Type Extension::GetType() const {
-  return converted_from_user_script() ?
-      Manifest::TYPE_USER_SCRIPT : manifest_->type();
+  return converted_from_user_script() ? Manifest::TYPE_USER_SCRIPT
+                                      : manifest_->type();
 }
 
 // static
@@ -353,8 +349,8 @@ bool Extension::ParsePEMKeyBytes(const std::string& input,
   if (base::StartsWith(working, kKeyBeginHeaderMarker,
                        base::CompareCase::SENSITIVE)) {
     working = base::CollapseWhitespaceASCII(working, true);
-    size_t header_pos = working.find(kKeyInfoEndMarker,
-      sizeof(kKeyBeginHeaderMarker) - 1);
+    size_t header_pos =
+        working.find(kKeyInfoEndMarker, sizeof(kKeyBeginHeaderMarker) - 1);
     if (header_pos == std::string::npos)
       return false;
     size_t start_pos = header_pos + sizeof(kKeyInfoEndMarker) - 1;
@@ -395,7 +391,7 @@ bool Extension::FormatPEMForFileOutput(const std::string& input,
   output->append(" ");
   output->append(kKeyInfoEndMarker);
   output->append("\n");
-  for (size_t i = 0; i < input.length(); ) {
+  for (size_t i = 0; i < input.length();) {
     int slice = std::min<int>(input.length() - i, kPEMOutputColumns);
     output->append(input.substr(i, slice));
     output->append("\n");
@@ -466,8 +462,8 @@ bool Extension::ShouldExposeViaManagementAPI() const {
   return !extensions::Manifest::IsComponentLocation(location());
 }
 
-Extension::ManifestData* Extension::GetManifestData(const std::string& key)
-    const {
+Extension::ManifestData* Extension::GetManifestData(
+    const std::string& key) const {
   DCHECK(finished_parsing_manifest_ || thread_checker_.CalledOnValidThread());
   auto iter = manifest_data_.find(key);
   if (iter != manifest_data_.end())
@@ -595,8 +591,7 @@ Extension::Extension(const base::FilePath& path,
   path_ = crx_file::id_util::MaybeNormalizePath(path);
 }
 
-Extension::~Extension() {
-}
+Extension::~Extension() {}
 
 bool Extension::InitFromValue(int flags, std::u16string* error) {
   DCHECK(error);
@@ -651,8 +646,7 @@ bool Extension::InitFromValue(int flags, std::u16string* error) {
 }
 
 bool Extension::LoadRequiredFeatures(std::u16string* error) {
-  if (!LoadName(error) ||
-      !LoadVersion(error))
+  if (!LoadName(error) || !LoadVersion(error))
     return false;
   return true;
 }
@@ -693,8 +687,8 @@ bool Extension::LoadVersion(std::u16string* error) {
 }
 
 bool Extension::LoadAppFeatures(std::u16string* error) {
-  if (!LoadExtent(keys::kWebURLs, &extent_,
-                  errors::kInvalidWebURLs, errors::kInvalidWebURL, error)) {
+  if (!LoadExtent(keys::kWebURLs, &extent_, errors::kInvalidWebURLs,
+                  errors::kInvalidWebURL, error)) {
     return false;
   }
   if (manifest_->FindKey(keys::kDisplayInLauncher) &&
@@ -786,8 +780,7 @@ bool Extension::LoadExtent(const char* key,
 
 bool Extension::LoadSharedFeatures(std::u16string* error) {
   if (!LoadDescription(error) ||
-      !ManifestHandler::ParseExtension(this, error) ||
-      !LoadShortName(error))
+      !ManifestHandler::ParseExtension(this, error) || !LoadShortName(error))
     return false;
 
   return true;
@@ -870,4 +863,4 @@ UpdatedExtensionPermissionsInfo::UpdatedExtensionPermissionsInfo(
     Reason reason)
     : reason(reason), extension(extension), permissions(permissions) {}
 
-}   // namespace extensions
+}  // namespace extensions
