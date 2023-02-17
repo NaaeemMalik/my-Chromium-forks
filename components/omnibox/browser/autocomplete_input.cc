@@ -5,9 +5,9 @@
 #include "components/omnibox/browser/autocomplete_input.h"
 
 #include <vector>
-
 #include "base/cxx17_backports.h"
 #include "base/logging.h"
+#include "base/naeem_log.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -62,7 +62,8 @@ void PopulateTermsPrefixedByHttpOrHttps(
   for (const auto& term : base::SplitString(text, u" ", base::TRIM_WHITESPACE,
                                             base::SPLIT_WANT_ALL)) {
     const std::string term_utf8(base::UTF16ToUTF8(term));
-    static const char* kSchemes[2] = { url::kHttpScheme, url::kHttpsScheme };
+    static const char* kSchemes[3] = {url::kHttpScheme, url::kHttpsScheme,
+                                      url::kIpfsScheme};
     for (const char* scheme : kSchemes) {
       const std::string prefix(scheme + separator);
       // Doing an ASCII comparison is okay because prefix is ASCII.
@@ -163,6 +164,9 @@ void AutocompleteInput::Init(
   DCHECK(cursor_position_ <= text.length() ||
          cursor_position_ == std::u16string::npos)
       << "Text: '" << text << "', cp: " << cursor_position_;
+
+  NOG << "Text: '" << text << "', cp: " << cursor_position_;
+
   // None of the providers care about leading white space so we always trim it.
   // Providers that care about trailing white space handle trimming themselves.
   if ((base::TrimWhitespace(text, base::TRIM_LEADING, &text_) &
@@ -173,6 +177,10 @@ void AutocompleteInput::Init(
   GURL canonicalized_url;
   type_ = Parse(text_, desired_tld_, scheme_classifier, &parts_, &scheme_,
                 &canonicalized_url);
+                
+  if (canonicalized_url.SchemeIsIpfs())
+    type_ = metrics::OmniboxInputType::URL;
+
   PopulateTermsPrefixedByHttpOrHttps(text_, &terms_prefixed_by_http_or_https_);
 
   DCHECK(!added_default_scheme_to_typed_url_);
@@ -190,6 +198,17 @@ void AutocompleteInput::Init(
     // by one.
     OffsetComponentsExcludingScheme(&parts_, 1);
   }
+  NOG << "\ntype: " << type_ << "\n canonicalized_url: " << canonicalized_url
+      << "\n valid: " << canonicalized_url.is_valid()
+      << "\n standard: " << canonicalized_url.IsStandard()
+      << "\n file: " << canonicalized_url.SchemeIsFile()
+      << "\n ipfs: " << canonicalized_url.SchemeIsIpfs()
+      << "\n filesystem: " << canonicalized_url.SchemeIsFileSystem()
+      << "\n host: " << canonicalized_url.host().empty()
+      << "\n scheme: " << canonicalized_url.scheme();
+
+  if (canonicalized_url.SchemeIsIpfs())
+    canonicalized_url_ = canonicalized_url;
 
   if (((type_ == metrics::OmniboxInputType::UNKNOWN) ||
        (type_ == metrics::OmniboxInputType::URL)) &&
@@ -202,8 +221,7 @@ void AutocompleteInput::Init(
 
 AutocompleteInput::AutocompleteInput(const AutocompleteInput& other) = default;
 
-AutocompleteInput::~AutocompleteInput() {
-}
+AutocompleteInput::~AutocompleteInput() {}
 
 // static
 std::string AutocompleteInput::TypeToString(metrics::OmniboxInputType type) {
@@ -323,8 +341,7 @@ metrics::OmniboxInputType AutocompleteInput::Parse(
     metrics::OmniboxInputType http_type =
         Parse(http_scheme_prefix + text, desired_tld, scheme_classifier,
               &http_parts, &http_scheme, &http_canonicalized_url);
-    DCHECK_EQ(std::string(url::kHttpScheme),
-              base::UTF16ToUTF8(http_scheme));
+    DCHECK_EQ(std::string(url::kHttpScheme), base::UTF16ToUTF8(http_scheme));
 
     if ((http_type == metrics::OmniboxInputType::URL) &&
         http_parts.username.is_nonempty() &&
@@ -571,9 +588,9 @@ void AutocompleteInput::ParseForEmphasizeComponents(
                              &real_parts, nullptr, nullptr);
     if (real_parts.scheme.is_nonempty() || real_parts.host.is_nonempty()) {
       if (real_parts.scheme.is_nonempty()) {
-        *scheme = url::Component(
-            after_scheme_and_colon + real_parts.scheme.begin,
-            real_parts.scheme.len);
+        *scheme =
+            url::Component(after_scheme_and_colon + real_parts.scheme.begin,
+                           real_parts.scheme.len);
       } else {
         scheme->reset();
       }

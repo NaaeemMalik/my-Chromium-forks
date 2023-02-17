@@ -1,7 +1,7 @@
 // Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
+#include "base/naeem_log.h"
 #include "base/strings/string_util_win.h"
 
 #include "base/strings/string_util_internal.h"
@@ -13,6 +13,7 @@ bool IsStringASCII(WStringPiece str) {
 }
 
 std::wstring ToLowerASCII(WStringPiece str) {
+  //NOG << " ::ToLowerASCII:: " << str;
   return internal::ToLowerASCIIImpl(str);
 }
 

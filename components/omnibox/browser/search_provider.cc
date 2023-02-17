@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
-
+#include "base/naeem_log.h"
 #include "base/base64.h"
 #include "base/bind.h"
 #include "base/callback.h"
@@ -616,6 +616,8 @@ void SearchProvider::Run(bool query_is_private) {
   // Start a new request with the current input.
   time_suggest_request_sent_ = base::TimeTicks::Now();
 
+NOG<<"SearchProvider::Run "<<query_is_private<<" :input: "<<input_.text()<<" :keyword_input: "<<keyword_input_.text();
+
   if (!query_is_private) {
     int timeout_ms = 0;
     // Consider explicitly setting a timeout for requests sent to Google when
@@ -792,6 +794,7 @@ bool SearchProvider::IsQueryPotentiallyPrivate() const {
   // assume we're OK.
   if (!base::LowerCaseEqualsASCII(input_.scheme(), url::kHttpScheme) &&
       !base::LowerCaseEqualsASCII(input_.scheme(), url::kHttpsScheme) &&
+      !base::LowerCaseEqualsASCII(input_.scheme(), url::kIpfsScheme) &&
       !base::LowerCaseEqualsASCII(input_.scheme(), url::kFtpScheme))
     return (input_.type() != metrics::OmniboxInputType::QUERY);
 
@@ -891,6 +894,8 @@ std::unique_ptr<network::SimpleURLLoader> SearchProvider::CreateSuggestLoader(
   // give a valid query suggestion response, don't bother sending queries to it
   // (otherwise user will quickly hit rate-limit for search queries, that will
   // harm valid search queries as well).
+  NOG << "Input text: " << input.text();
+
   if (template_url->suggestions_url() == template_url->url())
     return nullptr;
 
@@ -1478,6 +1483,9 @@ int SearchProvider::CalculateRelevanceForHistory(
 
 AutocompleteMatch SearchProvider::NavigationToMatch(
     const SearchSuggestionParser::NavigationResult& navigation) {
+
+NOG<< "NavigationToMatch: " << navigation.url().spec();
+
   std::u16string input;
   const bool trimmed_whitespace =
       base::TrimWhitespace(
@@ -1505,6 +1513,8 @@ AutocompleteMatch SearchProvider::NavigationToMatch(
   size_t inline_autocomplete_offset = (prefix == nullptr)
                                           ? std::u16string::npos
                                           : (match_start + input.length());
+    NOG<<"url: "<< navigation.url().spec();
+
   match.fill_into_edit +=
       AutocompleteInput::FormattedStringWithEquivalentMeaning(
           navigation.url(),

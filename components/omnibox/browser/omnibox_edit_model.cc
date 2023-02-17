@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 #include <utility>
-
+#include "base/naeem_log.h"
 #include "base/auto_reset.h"
 #include "base/bind.h"
 #include "base/feature_list.h"
@@ -352,8 +352,10 @@ void OmniboxEditModel::OnChanged() {
   // Don't call CurrentMatch() when there's no editing, as in this case we'll
   // never actually use it.  This avoids running the autocomplete providers (and
   // any systems they then spin up) during startup.
-  const AutocompleteMatch& current_match = user_input_in_progress_ ?
-      CurrentMatch(nullptr) : AutocompleteMatch();
+  //NOG << "OmniboxEditModel::OnChanged";
+
+  const AutocompleteMatch& current_match =
+      user_input_in_progress_ ? CurrentMatch(nullptr) : AutocompleteMatch();
 
   client_->OnTextChanged(current_match, user_input_in_progress_, user_text_,
                          result(), has_focus());

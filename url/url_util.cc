@@ -47,7 +47,7 @@ struct SchemeRegistry {
       {kWsScheme, SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION},  // WebSocket.
       {kFileSystemScheme, SCHEME_WITHOUT_AUTHORITY},
       {kQuicTransportScheme, SCHEME_WITH_HOST_AND_PORT},
-      {kIpfsScheme, SCHEME_WITH_HOST_AND_PORT},
+      {kIpfsScheme, SCHEME_WITH_HOST},
       {kWalletScheme, SCHEME_WITH_HOST},
   };
 

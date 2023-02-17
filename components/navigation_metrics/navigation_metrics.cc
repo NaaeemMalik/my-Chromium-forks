@@ -33,6 +33,7 @@ const char* const kSchemeNames[] = {
     url::kHttpScheme,
     url::kHttpsScheme,
     url::kFileScheme,
+    url::kIpfsScheme,
     url::kFtpScheme,
     url::kDataScheme,
     url::kJavaScriptScheme,

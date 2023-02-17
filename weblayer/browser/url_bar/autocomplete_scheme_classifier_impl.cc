@@ -40,6 +40,7 @@ AutocompleteSchemeClassifierImpl::GetInputTypeForScheme(
       url::kHttpScheme,       url::kHttpsScheme,
       url::kWsScheme,         url::kWssScheme,
       url::kFileScheme,       url::kAboutScheme,
+      url::kIpfsScheme,
       url::kFtpScheme,        url::kBlobScheme,
       url::kFileSystemScheme, content::kViewSourceScheme,
       url::kJavaScriptScheme};

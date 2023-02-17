@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "base/bind.h"
+#include "base/naeem_log.h"
 #include "base/containers/cxx20_erase.h"
 #include "base/feature_list.h"
 #include "base/i18n/case_conversion.h"
@@ -408,11 +409,19 @@ bool BaseSearchProvider::CanSendURL(
     const SearchTermsData& search_terms_data,
     AutocompleteProviderClient* client,
     bool sending_search_terms) {
-  // Make sure we are sending the suggest request through a cryptographically
-  // secure channel to prevent exposing the current page URL or personalized
-  // results without encryption.
-  if (!suggest_url.SchemeIsCryptographic())
+  NOG << "CanSendURL: current_page_url: " << current_page_url << " suggest_url: "
+      << suggest_url << " template_url: " << template_url
+      << " page_classification: " << page_classification
+      << " sending_search_terms: " << sending_search_terms<<" scheme: "<<current_page_url.scheme()
+      <<" schemeIpfs: "<<(url::kIpfsScheme==current_page_url.scheme());
+
+  if (current_page_url.scheme() == url::kIpfsScheme)
     return false;
+
+        // Make sure we are sending the suggest request through a
+        // cryptographically secure channel to prevent exposing the current page
+        // URL or personalized results without encryption.
+        if (!suggest_url.SchemeIsCryptographic()) return false;
 
   // Don't run if in incognito mode.
   if (client->IsOffTheRecord())

@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/naeem_log.h"
 #include "base/base_switches.h"
 #include "base/bind.h"
 #include "base/command_line.h"
@@ -799,11 +800,13 @@ bool HandleChromeWalletPageOverride(
 bool HandleIpfsUrlOverride(
     GURL* url,
     content::BrowserContext* browser_context) {
-
-  if (url->SchemeIs(url::kIpfsScheme)) {
+  NOG<< "HandleIpfsUrlOverride" << url->spec();
+  if (url->SchemeIsIpfs()) {
     std::string url_string = url->spec();
     std::string aaa = "ipfs://";
-    url_string.replace(0, aaa.length(), "https://cloudflare-ipfs.com/ipfs/");
+NOG<< "HandleIpfsUrlOverride" << url_string;
+    url_string.replace(0, aaa.length(), "https://ipfs.io/ipfs/");
+NOG<< "HandleIpfsUrlOverride after replace:" << url_string;
     *url = GURL(url_string);
     return true;
   }
@@ -3757,14 +3760,17 @@ bool ChromeContentBrowserClient::OverrideWebPreferencesAfterNavigation(
 #endif
          preferred_color_scheme_updated;
 }
-
 void ChromeContentBrowserClient::BrowserURLHandlerCreated(
     BrowserURLHandler* handler) {
-  // The group policy NTP URL handler must be registered before the other NTP
-  // URL handlers below. Also register it before the "parts" handlers, so the
-  // NTP policy takes precedence over extensions that override the NTP.
-  handler->AddHandlerPair(&HandleNewTabPageLocationOverride,
-                          BrowserURLHandler::null_handler());
+
+  //NOG << "BrowserURLHandlerCreated\n\n";
+
+         // The group policy NTP URL handler must be registered before the other
+         // NTP URL handlers below. Also register it before the "parts"
+         // handlers, so the NTP policy takes precedence over extensions that
+         // override the NTP.
+         handler->AddHandlerPair(&HandleNewTabPageLocationOverride,
+                                 BrowserURLHandler::null_handler());
 
   for (size_t i = 0; i < extra_parts_.size(); ++i)
     extra_parts_[i]->BrowserURLHandlerCreated(handler);

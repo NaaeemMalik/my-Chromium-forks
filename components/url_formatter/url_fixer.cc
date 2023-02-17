@@ -11,6 +11,8 @@
 #include "base/check_op.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/logging.h"
+#include "base/naeem_log.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
@@ -153,9 +155,9 @@ std::string FixupHomedir(const std::string& text) {
     return file_path.Append(text.substr(i)).value();
   }
 
-// Otherwise, this is a path like ~foobar/baz, where we must expand to
-// user foobar's home directory.  Officially, we should use getpwent(),
-// but that is a nasty blocking call.
+  // Otherwise, this is a path like ~foobar/baz, where we must expand to
+  // user foobar's home directory.  Officially, we should use getpwent(),
+  // but that is a nasty blocking call.
 
 #if defined(OS_APPLE)
   static const char kHome[] = "/Users/";
@@ -545,9 +547,39 @@ GURL FixupURL(const std::string& text, const std::string& desired_tld) {
   if (trimmed.empty())
     return GURL();  // Nothing here.
 
+
   // Segment the URL.
   url::Parsed parts;
   std::string scheme(SegmentURLInternal(&trimmed, &parts));
+
+  if (scheme == url::kIpfsScheme){
+     
+  GURL::Replacements replacements;
+  replacements.SetHostStr("TGRF");
+  GURL url = GURL(trimmed).ReplaceComponents(replacements);
+
+  GURL url2 = GURL(
+      trimmed.replace(0, 7,
+                      "https://ipfs.io/ipfs/"));
+
+  NOG << "parts.scheme.is_valid()" << parts.scheme.is_valid() << "\n"
+      << "scheme " << scheme << "\n"
+      << "is_valid " << parts.scheme.is_valid() << "\n"
+      << "text " << text << "\n"
+      << "FixupPath(text) " << FixupPath(text) << "\n"
+      << "trimmed " << trimmed << "\n"
+      << "GURL " << GURL(trimmed) << "\n"
+      << "possibly_invalid_spec " << GURL(trimmed).possibly_invalid_spec()
+      << "\n"
+      << "GURL().possibly_invalid_spec();"
+      << GURL(trimmed).possibly_invalid_spec() << "\n"
+      << "replacements " << url << "\n"
+      << "url2 " << url2 << "\n"
+      ;
+
+    return url2;
+  }
+  // replace GURL(trimmed) host with "jhgGU"
 
   // For view-source: URLs, we strip "view-source:", do fixup, and stick it back
   // on.  This allows us to handle things like "view-source:google.com".
@@ -562,8 +594,9 @@ GURL FixupURL(const std::string& text, const std::string& desired_tld) {
     }
   }
 
+
   // We handle the file scheme separately.
-  if (scheme == url::kFileScheme)
+  if (scheme == url::kFileScheme )
     return GURL(parts.scheme.is_valid() ? text : FixupPath(text));
 
   // We handle the filesystem scheme separately.
@@ -647,9 +680,9 @@ GURL FixupRelativeFile(const base::FilePath& base_dir,
     is_file = false;
   base::FilePath full_path;
   if (is_file && !ValidPathForFile(trimmed, &full_path)) {
-// Not a path as entered, try unescaping it in case the user has
-// escaped things. We need to go through 8-bit since the escaped values
-// only represent 8-bit values.
+    // Not a path as entered, try unescaping it in case the user has
+    // escaped things. We need to go through 8-bit since the escaped values
+    // only represent 8-bit values.
     std::string unescaped = net::UnescapeURLComponent(
         trimmed,
         net::UnescapeRule::SPACES | net::UnescapeRule::PATH_SEPARATORS |
