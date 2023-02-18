@@ -552,33 +552,28 @@ GURL FixupURL(const std::string& text, const std::string& desired_tld) {
   url::Parsed parts;
   std::string scheme(SegmentURLInternal(&trimmed, &parts));
 
-  if (scheme == url::kIpfsScheme){
-     
-  GURL::Replacements replacements;
-  replacements.SetHostStr("TGRF");
-  GURL url = GURL(trimmed).ReplaceComponents(replacements);
+  // if (scheme == url::kIpfsScheme){
+    
+  // GURL url2 = GURL(
+  //     trimmed.replace(0, 7,
+  //                     "https://ipfs.io/ipfs/"));
 
-  GURL url2 = GURL(
-      trimmed.replace(0, 7,
-                      "https://ipfs.io/ipfs/"));
+  // NOG << "parts.scheme.is_valid()" << parts.scheme.is_valid() << "\n"
+  //     << "scheme " << scheme << "\n"
+  //     << "is_valid " << parts.scheme.is_valid() << "\n"
+  //     << "text " << text << "\n"
+  //     << "FixupPath(text) " << FixupPath(text) << "\n"
+  //     << "trimmed " << trimmed << "\n"
+  //     << "GURL " << GURL(trimmed) << "\n"
+  //     << "possibly_invalid_spec " << GURL(trimmed).possibly_invalid_spec()
+  //     << "\n"
+  //     << "GURL().possibly_invalid_spec();"
+  //     << GURL(trimmed).possibly_invalid_spec() << "\n"
+  //     << "url2 " << url2 << "\n"
+  //     ;
 
-  NOG << "parts.scheme.is_valid()" << parts.scheme.is_valid() << "\n"
-      << "scheme " << scheme << "\n"
-      << "is_valid " << parts.scheme.is_valid() << "\n"
-      << "text " << text << "\n"
-      << "FixupPath(text) " << FixupPath(text) << "\n"
-      << "trimmed " << trimmed << "\n"
-      << "GURL " << GURL(trimmed) << "\n"
-      << "possibly_invalid_spec " << GURL(trimmed).possibly_invalid_spec()
-      << "\n"
-      << "GURL().possibly_invalid_spec();"
-      << GURL(trimmed).possibly_invalid_spec() << "\n"
-      << "replacements " << url << "\n"
-      << "url2 " << url2 << "\n"
-      ;
-
-    return url2;
-  }
+  //   return url2;
+  // }
   // replace GURL(trimmed) host with "jhgGU"
 
   // For view-source: URLs, we strip "view-source:", do fixup, and stick it back

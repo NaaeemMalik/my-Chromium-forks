@@ -137,6 +137,9 @@ std::string Origin::Serialize() const {
   if (scheme() == kFileScheme)
     return "file://";
 
+  if (scheme() == kIpfsScheme)
+    return "ipfs://";
+
   return tuple_.Serialize();
 }
 
@@ -146,6 +149,9 @@ GURL Origin::GetURL() const {
 
   if (scheme() == kFileScheme)
     return GURL("file:///");
+
+  if (scheme() == kIpfsScheme)
+    return GURL("ipfs://");
 
   return tuple_.GetURL();
 }

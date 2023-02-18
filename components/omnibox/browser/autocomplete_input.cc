@@ -177,7 +177,7 @@ void AutocompleteInput::Init(
   GURL canonicalized_url;
   type_ = Parse(text_, desired_tld_, scheme_classifier, &parts_, &scheme_,
                 &canonicalized_url);
-                
+
   if (canonicalized_url.SchemeIsIpfs())
     type_ = metrics::OmniboxInputType::URL;
 
@@ -198,14 +198,14 @@ void AutocompleteInput::Init(
     // by one.
     OffsetComponentsExcludingScheme(&parts_, 1);
   }
-  NOG << "\ntype: " << type_ << "\n canonicalized_url: " << canonicalized_url
-      << "\n valid: " << canonicalized_url.is_valid()
-      << "\n standard: " << canonicalized_url.IsStandard()
-      << "\n file: " << canonicalized_url.SchemeIsFile()
-      << "\n ipfs: " << canonicalized_url.SchemeIsIpfs()
-      << "\n filesystem: " << canonicalized_url.SchemeIsFileSystem()
-      << "\n host: " << canonicalized_url.host().empty()
-      << "\n scheme: " << canonicalized_url.scheme();
+  // NOG << "\ntype: " << type_ << "\n canonicalized_url: " << canonicalized_url
+  //     << "\n valid: " << canonicalized_url.is_valid()
+  //     << "\n standard: " << canonicalized_url.IsStandard()
+  //     << "\n file: " << canonicalized_url.SchemeIsFile()
+  //     << "\n ipfs: " << canonicalized_url.SchemeIsIpfs()
+  //     << "\n filesystem: " << canonicalized_url.SchemeIsFileSystem()
+  //     << "\n host: " << canonicalized_url.host().empty()
+  //     << "\n scheme: " << canonicalized_url.scheme();
 
   if (canonicalized_url.SchemeIsIpfs())
     canonicalized_url_ = canonicalized_url;
@@ -253,6 +253,8 @@ metrics::OmniboxInputType AutocompleteInput::Parse(
   size_t first_non_white = text.find_first_not_of(base::kWhitespaceUTF16, 0);
   if (first_non_white == std::u16string::npos)
     return metrics::OmniboxInputType::EMPTY;  // All whitespace.
+NOG<<"AutocompleteInput::Parse"<<"text: "<<text<<"desired_tld: "<<desired_tld<<"parts: "<<parts<<"scheme: "<<scheme<<"canonicalized_url: "<<canonicalized_url;
+  //replace 0 to 7 chars with nothing in text
 
   // Ask our parsing back-end to help us understand what the user typed.  We
   // use the URLFixerUpper here because we want to be smart about what we
@@ -274,6 +276,11 @@ metrics::OmniboxInputType AutocompleteInput::Parse(
     canonicalized_url = &placeholder_canonicalized_url;
   *canonicalized_url =
       url_formatter::FixupURL(base::UTF16ToUTF8(text), desired_tld);
+  NOG << "222AutocompleteInput::Parse"
+      << "text: " << text << " desired_tld: " << desired_tld
+      << "parts: " << parts << "scheme: " << scheme
+      << "canonicalized_url: " << canonicalized_url;
+
   if (!canonicalized_url->is_valid())
     return metrics::OmniboxInputType::QUERY;
 
