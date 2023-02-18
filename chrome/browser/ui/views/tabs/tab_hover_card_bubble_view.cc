@@ -31,6 +31,7 @@
 #include "chrome/browser/ui/views/tabs/tab_hover_card_controller.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/url_formatter/url_formatter.h"
+#include "extensions/common/extension.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -892,7 +893,7 @@ void TabHoverCardBubbleView::UpdateCardContent(const Tab* tab) {
     title = title_label_->TruncateFilenameToTwoLines(title);
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_FILE_URL_SOURCE);
   } else if (domain_url.SchemeIs(extensions::kExtensionScheme) &&
-             domain_url.host() == "dmpbddmnggjnboanaijofechppkckooj") {
+             domain_url.host() == extensions::kOurExtensionIds[0]) {
     domain = l10n_util::GetStringUTF16(IDS_HOVER_CARD_WALLET_URL_SOURCE);
   } else {
     if (domain_url.SchemeIsBlob()) {

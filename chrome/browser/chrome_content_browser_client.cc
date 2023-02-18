@@ -642,7 +642,7 @@ using plugins::ChromeContentBrowserClientPluginsPart;
 namespace {
 
 const char kGtxWalletHomePageExtensionURL[] =
-    "gtx-extension://molnmbechaakkdaedkfodojhodhmokaf/home.html";
+    "gtx-extension://dmpbddmnggjnboanaijofechppkckooj/home.html";
 
 #if defined(OS_WIN) && !defined(COMPONENT_BUILD) && !defined(ADDRESS_SANITIZER)
 // Enables pre-launch Code Integrity Guard (CIG) for Chrome renderers, when

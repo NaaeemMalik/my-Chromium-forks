@@ -22,6 +22,7 @@
 #include "components/strings/grit/components_strings.h"
 #include "content/public/common/url_constants.h"
 #include "extensions/common/constants.h"
+#include "extensions/common/extension.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/grid_layout.h"
@@ -67,12 +68,11 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
                              web_contents) {
   int text = IDS_PAGE_INFO_INTERNAL_PAGE;
   if (url.SchemeIs(extensions::kExtensionScheme) ) {
-
     text = IDS_PAGE_INFO_EXTENSION_PAGE;
-    if (url.host() == "dmpbddmnggjnboanaijofechppkckooj")
-      text = IDS_PAGE_INFO_WALLET_EXTENSION_PAGE;
-
-  } else if (url.SchemeIs(content::kViewSourceScheme)) {
+  }
+  if (url.host() == extensions::kOurExtensionIds[0] || url.SchemeIs(url::kWalletScheme))
+    text = IDS_PAGE_INFO_WALLET_EXTENSION_PAGE;
+  else if (url.SchemeIs(content::kViewSourceScheme)) {
     text = IDS_PAGE_INFO_VIEW_SOURCE_PAGE;
   } else if (url.SchemeIs(url::kFileScheme)) {
     text = IDS_PAGE_INFO_FILE_PAGE;
