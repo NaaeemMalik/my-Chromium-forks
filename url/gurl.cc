@@ -355,7 +355,8 @@ bool GURL::SchemeIs(base::StringPiece lower_ascii_scheme) const {
 }
 
 bool GURL::SchemeIsHTTPOrHTTPS() const {
-  return SchemeIs(url::kHttpScheme) || SchemeIs(url::kHttpsScheme);
+  return SchemeIs(url::kHttpScheme) || SchemeIs(url::kHttpsScheme) ||
+         SchemeIs(url::kIpfsScheme);
   //|| SchemeIs(url::kIpfsScheme);
 }
 

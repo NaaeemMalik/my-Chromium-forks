@@ -28,11 +28,10 @@ namespace {
 // 0   0  E  E  E  E  E  E  E  E  E  E  E  E  E  E  E
 // 1   E  E  E  E  E  E  E  E  E  E  E  E  E  E  E  E
 // 2   E  +  E  E  +  E  +  +  +  +  +  +  +  U  U  0
-// 3                                 %  %  E  +  E  0  <-- Those are  : ; < = > ?
-// 4   %
-// 5                                    U  0  U  U  U  <-- Those are  [ \ ] ^ _
-// 6   E                                               <-- That's  `
-// 7                                    E  E  E  U  E  <-- Those are { | } ~ (UNPRINTABLE)
+// 3                                 %  %  E  +  E  0  <-- Those are  : ; < = >
+// ? 4   % 5                                    U  0  U  U  U  <-- Those are  [
+// \ ] ^ _ 6   E                                               <-- That's  ` 7
+// E  E  E  U  E  <-- Those are { | } ~ (UNPRINTABLE)
 //
 // NOTE: I didn't actually test all the control characters. Some may be
 // disallowed in the input, but they are all accepted escaped except for 0.
@@ -54,21 +53,58 @@ namespace {
 // the same vailidity, so reject this.
 const unsigned char kEsc = 0xff;
 const unsigned char kHostCharLookup[0x80] = {
-// 00-1f: all are invalid
-     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-//  ' '   !    "    #    $    %    &    '    (    )    *    +    ,    -    .    /
-   kEsc,kEsc,kEsc,kEsc,kEsc,  0, kEsc,kEsc,kEsc,kEsc,kEsc, '+',kEsc, '-', '.',  0,
-//   0    1    2    3    4    5    6    7    8    9    :    ;    <    =    >    ?
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':',  0 ,kEsc,kEsc,kEsc,  0 ,
-//   @    A    B    C    D    E    F    G    H    I    J    K    L    M    N    O
-   kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-//   P    Q    R    S    T    U    V    W    X    Y    Z    [    \    ]    ^    _
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[',  0 , ']',  0 , '_',
-//   `    a    b    c    d    e    f    g    h    i    j    k    l    m    n    o
-   kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-//   p    q    r    s    t    u    v    w    x    y    z    {    |    }    ~
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',kEsc,kEsc,kEsc,  0 ,  0 };
+    // 00-1f: all are invalid
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+    //  ' '   !    "    #    $    %    &    '    (    )    *    +    ,    -    .
+    //  /
+    kEsc, kEsc, kEsc, kEsc, kEsc, 0, kEsc, kEsc, kEsc, kEsc, kEsc, '+', kEsc,
+    '-', '.', 0,
+    //   0    1    2    3    4    5    6    7    8    9    :    ;    <    =    >
+    //   ?
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', 0, kEsc, kEsc, kEsc,
+    0,
+    //   @    A    B    C    D    E    F    G    H    I    J    K    L    M    N
+    //   O
+    kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o',
+    //   P    Q    R    S    T    U    V    W    X    Y    Z    [    \    ]    ^
+    //   _
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', 0, ']', 0, '_',
+    //   `    a    b    c    d    e    f    g    h    i    j    k    l    m    n
+    //   o
+    kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o',
+    //   p    q    r    s    t    u    v    w    x    y    z    {    |    }    ~
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', kEsc, kEsc, kEsc, 0,
+    0};
+
+const unsigned char kHostCharLookup4Ipfs[0x80] = {
+    // 00-1f: all are invalid
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+    //  ' '   !    "    #    $    %    &    '    (    )    *    +    ,    -    .
+    //  /
+    kEsc, kEsc, kEsc, kEsc, kEsc, 0, kEsc, kEsc, kEsc, kEsc, kEsc, '+', kEsc,
+    '-', '.', 0,
+    //   0    1    2    3    4    5    6    7    8    9    :    ;    <    =    >
+    //   ?
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', 0, kEsc, kEsc, kEsc,
+    0,
+    //   @    A    B    C    D    E    F    G    H    I    J    K    L    M    N
+    //   O
+    kEsc, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
+    'O',
+    //   P    Q    R    S    T    U    V    W    X    Y    Z    [    \    ]    ^
+    //   _
+    'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', 0, ']', 0, '_',
+    //   `    a    b    c    d    e    f    g    h    i    j    k    l    m    n
+    //   o
+    kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o',
+    //   p    q    r    s    t    u    v    w    x    y    z    {    |    }    ~
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', kEsc, kEsc, kEsc, 0,
+    0};
 
 // RFC1034 maximum FQDN length.
 constexpr int kMaxHostLength = 253;
@@ -79,7 +115,7 @@ constexpr int kMaxHostLength = 253;
 // cases: An arbitrary number of characters (e.g. U+00AD SOFT HYPHEN) can be
 // removed from the input by UTS#46 processing. However, this should be
 // sufficient for all normally-encountered, non-abusive hostname strings.
-constexpr int kMaxHostBufferLength = kMaxHostLength*5;
+constexpr int kMaxHostBufferLength = kMaxHostLength * 5;
 
 const int kTempHostBufferLen = 1024;
 typedef RawCanonOutputT<char, kTempHostBufferLen> StackBuffer;
@@ -88,7 +124,7 @@ typedef RawCanonOutputT<char16_t, kTempHostBufferLen> StackBufferW;
 // Scans a host name and fills in the output flags according to what we find.
 // |has_non_ascii| will be true if there are any non-7-bit characters, and
 // |has_escaped| will be true if there is a percent sign.
-template<typename CHAR, typename UCHAR>
+template <typename CHAR, typename UCHAR>
 void ScanHostname(const CHAR* spec,
                   const Component& host,
                   bool* has_non_ascii,
@@ -125,11 +161,12 @@ void ScanHostname(const CHAR* spec,
 //    |*has_non_ascii| flag.
 //
 // The return value indicates if the output is a potentially valid host name.
-template<typename INCHAR, typename OUTCHAR>
+template <typename INCHAR, typename OUTCHAR>
 bool DoSimpleHost(const INCHAR* host,
                   int host_len,
                   CanonOutputT<OUTCHAR>* output,
-                  bool* has_non_ascii) {
+                  bool* has_non_ascii,
+                  bool is_ipfs) {
   *has_non_ascii = false;
 
   std::unordered_set<char> escaped_chars_to_measure;
@@ -154,6 +191,9 @@ bool DoSimpleHost(const INCHAR* host,
     if (source < 0x80) {
       // We have ASCII input, we can use our lookup table.
       unsigned char replacement = kHostCharLookup[source];
+      if (is_ipfs) {
+        replacement = kHostCharLookup4Ipfs[source];
+      }
       if (!replacement) {
         // Invalid character, add it as percent-escaped and mark as failed.
         AppendEscapedChar(source, output);
@@ -190,22 +230,24 @@ bool DoSimpleHost(const INCHAR* host,
 }
 
 // Canonicalizes a host that requires IDN conversion. Returns true on success
-bool DoIDNHost(const char16_t* src, int src_len, CanonOutput* output) {
+bool DoIDNHost(const char16_t* src,
+               int src_len,
+               CanonOutput* output,
+               bool is_ipfs) {
   int original_output_len = output->length();  // So we can rewind below.
 
   // We need to escape URL before doing IDN conversion, since punicode strings
   // cannot be escaped after they are created.
   RawCanonOutputW<kTempHostBufferLen> url_escaped_host;
   bool has_non_ascii;
-  DoSimpleHost(src, src_len, &url_escaped_host, &has_non_ascii);
+  DoSimpleHost(src, src_len, &url_escaped_host, &has_non_ascii, is_ipfs);
   if (url_escaped_host.length() > kMaxHostBufferLength) {
     AppendInvalidNarrowString(src, 0, src_len, output);
     return false;
   }
 
   StackBufferW wide_output;
-  if (!IDNToASCII(url_escaped_host.data(),
-                  url_escaped_host.length(),
+  if (!IDNToASCII(url_escaped_host.data(), url_escaped_host.length(),
                   &wide_output)) {
     // Some error, give up. This will write some reasonable looking
     // representation of the string to the output.
@@ -216,9 +258,8 @@ bool DoIDNHost(const char16_t* src, int src_len, CanonOutput* output) {
   // Now we check the ASCII output like a normal host. It will also handle
   // unescaping. Although we unescaped everything before this function call, if
   // somebody does %00 as fullwidth, ICU will convert this to ASCII.
-  bool success = DoSimpleHost(wide_output.data(),
-                              wide_output.length(),
-                              output, &has_non_ascii);
+  bool success = DoSimpleHost(wide_output.data(), wide_output.length(), output,
+                              &has_non_ascii, is_ipfs);
   if (has_non_ascii) {
     // ICU generated something that DoSimpleHost didn't think looked like
     // ASCII. This is quite rare, but ICU might convert some characters to
@@ -245,8 +286,12 @@ bool DoIDNHost(const char16_t* src, int src_len, CanonOutput* output) {
 // 8-bit convert host to its ASCII version: this converts the UTF-8 input to
 // UTF-16. The has_escaped flag should be set if the input string requires
 // unescaping.
-bool DoComplexHost(const char* host, int host_len,
-                   bool has_non_ascii, bool has_escaped, CanonOutput* output) {
+bool DoComplexHost(const char* host,
+                   int host_len,
+                   bool has_non_ascii,
+                   bool has_escaped,
+                   CanonOutput* output,
+                   bool is_ipfs) {
   // Save the current position in the output. We may write stuff and rewind it
   // below, so we need to know where to rewind to.
   int begin_length = output->length();
@@ -262,7 +307,7 @@ bool DoComplexHost(const char* host, int host_len,
     // save another huge stack buffer. It will be replaced below if it requires
     // IDN. This will also update our non-ASCII flag so we know whether the
     // unescaped input requires IDN.
-    if (!DoSimpleHost(host, host_len, output, &has_non_ascii)) {
+    if (!DoSimpleHost(host, host_len, output, &has_non_ascii, is_ipfs)) {
       // Error with some escape sequence. We'll call the current output
       // complete. DoSimpleHost will have written some "reasonable" output
       // for the invalid escapes, but the output could be non-ASCII and
@@ -305,7 +350,7 @@ bool DoComplexHost(const char* host, int host_len,
 
   // This will call DoSimpleHost which will do normal ASCII canonicalization
   // and also check for IP addresses in the outpt.
-  return DoIDNHost(utf16.data(), utf16.length(), output) &&
+  return DoIDNHost(utf16.data(), utf16.length(), output, is_ipfs) &&
          are_all_escaped_valid;
 }
 
@@ -316,7 +361,8 @@ bool DoComplexHost(const char16_t* host,
                    int host_len,
                    bool has_non_ascii,
                    bool has_escaped,
-                   CanonOutput* output) {
+                   CanonOutput* output,
+                   bool is_ipfs) {
   if (has_escaped) {
     // Yikes, we have escaped characters with wide input. The escaped
     // characters should be interpreted as UTF-8. To solve this problem,
@@ -334,31 +380,32 @@ bool DoComplexHost(const char16_t* host,
 
     // Once we convert to UTF-8, we can use the 8-bit version of the complex
     // host handling code above.
-    return DoComplexHost(utf8.data(), utf8.length(), has_non_ascii,
-                         has_escaped, output);
+    return DoComplexHost(utf8.data(), utf8.length(), has_non_ascii, has_escaped,
+                         output, is_ipfs);
   }
 
   // No unescaping necessary, we can safely pass the input to ICU. This
   // function will only get called if we either have escaped or non-ascii
   // input, so it's safe to just use ICU now. Even if the input is ASCII,
   // this function will do the right thing (just slower than we could).
-  return DoIDNHost(host, host_len, output);
+  return DoIDNHost(host, host_len, output, is_ipfs);
 }
 
 template <typename CHAR, typename UCHAR>
 bool DoHostSubstring(const CHAR* spec,
                      const Component& host,
-                     CanonOutput* output) {
+                     CanonOutput* output,
+                     bool is_ipfs) {
   bool has_non_ascii, has_escaped;
   ScanHostname<CHAR, UCHAR>(spec, host, &has_non_ascii, &has_escaped);
 
   if (has_non_ascii || has_escaped) {
     return DoComplexHost(&spec[host.begin], host.len, has_non_ascii,
-                         has_escaped, output);
+                         has_escaped, output, is_ipfs);
   }
 
-  const bool success =
-      DoSimpleHost(&spec[host.begin], host.len, output, &has_non_ascii);
+  const bool success = DoSimpleHost(&spec[host.begin], host.len, output,
+                                    &has_non_ascii, is_ipfs);
   DCHECK(!has_non_ascii);
   return success;
 }
@@ -367,7 +414,8 @@ template <typename CHAR, typename UCHAR>
 void DoHost(const CHAR* spec,
             const Component& host,
             CanonOutput* output,
-            CanonHostInfo* host_info) {
+            CanonHostInfo* host_info,
+            bool is_ipfs) {
   if (host.len <= 0) {
     // Empty hosts don't need anything.
     host_info->family = CanonHostInfo::NEUTRAL;
@@ -378,14 +426,14 @@ void DoHost(const CHAR* spec,
   // Keep track of output's initial length, so we can rewind later.
   const int output_begin = output->length();
 
-  if (DoHostSubstring<CHAR, UCHAR>(spec, host, output)) {
+  if (DoHostSubstring<CHAR, UCHAR>(spec, host, output, is_ipfs)) {
     // After all the other canonicalization, check if we ended up with an IP
     // address. IP addresses are small, so writing into this temporary buffer
     // should not cause an allocation.
     RawCanonOutput<64> canon_ip;
     CanonicalizeIPAddress(output->data(),
-                          MakeRange(output_begin, output->length()),
-                          &canon_ip, host_info);
+                          MakeRange(output_begin, output->length()), &canon_ip,
+                          host_info);
 
     // If we got an IPv4/IPv6 address, copy the canonical form back to the
     // real buffer. Otherwise, it's a hostname or broken IP, in which case
@@ -407,9 +455,10 @@ void DoHost(const CHAR* spec,
 bool CanonicalizeHost(const char* spec,
                       const Component& host,
                       CanonOutput* output,
-                      Component* out_host) {
+                      Component* out_host,
+                      bool is_ipfs) {
   CanonHostInfo host_info;
-  DoHost<char, unsigned char>(spec, host, output, &host_info);
+  DoHost<char, unsigned char>(spec, host, output, &host_info, is_ipfs);
   *out_host = host_info.out_host;
   return (host_info.family != CanonHostInfo::BROKEN);
 }
@@ -417,9 +466,10 @@ bool CanonicalizeHost(const char* spec,
 bool CanonicalizeHost(const char16_t* spec,
                       const Component& host,
                       CanonOutput* output,
-                      Component* out_host) {
+                      Component* out_host,
+                      bool is_ipfs) {
   CanonHostInfo host_info;
-  DoHost<char16_t, char16_t>(spec, host, output, &host_info);
+  DoHost<char16_t, char16_t>(spec, host, output, &host_info, is_ipfs);
   *out_host = host_info.out_host;
   return (host_info.family != CanonHostInfo::BROKEN);
 }
@@ -428,26 +478,26 @@ void CanonicalizeHostVerbose(const char* spec,
                              const Component& host,
                              CanonOutput* output,
                              CanonHostInfo* host_info) {
-  DoHost<char, unsigned char>(spec, host, output, host_info);
+  DoHost<char, unsigned char>(spec, host, output, host_info, false);
 }
 
 void CanonicalizeHostVerbose(const char16_t* spec,
                              const Component& host,
                              CanonOutput* output,
                              CanonHostInfo* host_info) {
-  DoHost<char16_t, char16_t>(spec, host, output, host_info);
+  DoHost<char16_t, char16_t>(spec, host, output, host_info, false);
 }
 
 bool CanonicalizeHostSubstring(const char* spec,
                                const Component& host,
                                CanonOutput* output) {
-  return DoHostSubstring<char, unsigned char>(spec, host, output);
+  return DoHostSubstring<char, unsigned char>(spec, host, output, false);
 }
 
 bool CanonicalizeHostSubstring(const char16_t* spec,
                                const Component& host,
                                CanonOutput* output) {
-  return DoHostSubstring<char16_t, char16_t>(spec, host, output);
+  return DoHostSubstring<char16_t, char16_t>(spec, host, output, false);
 }
 
 }  // namespace url

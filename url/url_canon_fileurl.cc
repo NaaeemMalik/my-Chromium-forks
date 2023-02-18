@@ -84,7 +84,7 @@ int FileDoDriveSpec(const CHAR* spec, int begin, int end, CanonOutput* output) {
 
 #endif  // WIN32
 
-template<typename CHAR, typename UCHAR>
+template <typename CHAR, typename UCHAR>
 bool DoFileCanonicalizePath(const CHAR* spec,
                             const Component& path,
                             CanonOutput* output,
@@ -120,7 +120,7 @@ bool DoFileCanonicalizePath(const CHAR* spec,
   return success;
 }
 
-template<typename CHAR, typename UCHAR>
+template <typename CHAR, typename UCHAR>
 bool DoCanonicalizeFileURL(const URLComponentSource<CHAR>& source,
                            const Parsed& parsed,
                            CharsetConverter* query_converter,
@@ -157,19 +157,19 @@ bool DoCanonicalizeFileURL(const URLComponentSource<CHAR>& source,
   // TODO(brettw) This doesn't do any checking for host name validity. We
   // should probably handle validity checking of UNC hosts differently than
   // for regular IP hosts.
-  bool success =
-      CanonicalizeHost(source.host, host_range, output, &new_parsed->host);
+  bool success = CanonicalizeHost(source.host, host_range, output,
+                                  &new_parsed->host, false);
   success &= DoFileCanonicalizePath<CHAR, UCHAR>(source.path, parsed.path,
-                                    output, &new_parsed->path);
+                                                 output, &new_parsed->path);
 
-  CanonicalizeQuery(source.query, parsed.query, query_converter,
-                    output, &new_parsed->query);
+  CanonicalizeQuery(source.query, parsed.query, query_converter, output,
+                    &new_parsed->query);
   CanonicalizeRef(source.ref, parsed.ref, output, &new_parsed->ref);
 
   return success;
 }
 
-} // namespace
+}  // namespace
 
 int FindWindowsDriveLetter(const char* spec, int begin, int end) {
   return DoFindWindowsDriveLetter(spec, begin, end);
@@ -186,8 +186,8 @@ bool CanonicalizeFileURL(const char* spec,
                          CanonOutput* output,
                          Parsed* new_parsed) {
   return DoCanonicalizeFileURL<char, unsigned char>(
-      URLComponentSource<char>(spec), parsed, query_converter,
-      output, new_parsed);
+      URLComponentSource<char>(spec), parsed, query_converter, output,
+      new_parsed);
 }
 
 bool CanonicalizeFileURL(const char16_t* spec,
@@ -205,8 +205,8 @@ bool FileCanonicalizePath(const char* spec,
                           const Component& path,
                           CanonOutput* output,
                           Component* out_path) {
-  return DoFileCanonicalizePath<char, unsigned char>(spec, path,
-                                                     output, out_path);
+  return DoFileCanonicalizePath<char, unsigned char>(spec, path, output,
+                                                     out_path);
 }
 
 bool FileCanonicalizePath(const char16_t* spec,

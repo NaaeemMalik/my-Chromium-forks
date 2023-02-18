@@ -26,12 +26,11 @@ namespace url {
 // resize function that is called when the existing buffer is not big enough.
 // The derived class is then in charge of setting up our buffer which we will
 // manage.
-template<typename T>
+template <typename T>
 class CanonOutputT {
  public:
   CanonOutputT() : buffer_(nullptr), buffer_len_(0), cur_len_(0) {}
-  virtual ~CanonOutputT() {
-  }
+  virtual ~CanonOutputT() {}
 
   // Implemented to resize the buffer. This function should update the buffer
   // pointer to point to the new buffer, and any old data up to |cur_len_| in
@@ -42,39 +41,27 @@ class CanonOutputT {
 
   // Accessor for returning a character at a given position. The input offset
   // must be in the valid range.
-  inline T at(int offset) const {
-    return buffer_[offset];
-  }
+  inline T at(int offset) const { return buffer_[offset]; }
 
   // Sets the character at the given position. The given position MUST be less
   // than the length().
-  inline void set(int offset, T ch) {
-    buffer_[offset] = ch;
-  }
+  inline void set(int offset, T ch) { buffer_[offset] = ch; }
 
   // Returns the number of characters currently in the buffer.
-  inline int length() const {
-    return cur_len_;
-  }
+  inline int length() const { return cur_len_; }
 
   // Returns the current capacity of the buffer. The length() is the number of
   // characters that have been declared to be written, but the capacity() is
   // the number that can be written without reallocation. If the caller must
   // write many characters at once, it can make sure there is enough capacity,
   // write the data, then use set_size() to declare the new length().
-  int capacity() const {
-    return buffer_len_;
-  }
+  int capacity() const { return buffer_len_; }
 
   // Called by the user of this class to get the output. The output will NOT
   // be NULL-terminated. Call length() to get the
   // length.
-  const T* data() const {
-    return buffer_;
-  }
-  T* data() {
-    return buffer_;
-  }
+  const T* data() const { return buffer_; }
+  T* data() { return buffer_; }
 
   // Shortens the URL to the new length. Used for "backing up" when processing
   // relative paths. This can also be used if an external function writes a lot
@@ -82,9 +69,7 @@ class CanonOutputT {
   // to declare the new length.
   //
   // This MUST NOT be used to expand the size of the buffer beyond capacity().
-  void set_length(int new_len) {
-    cur_len_ = new_len;
-  }
+  void set_length(int new_len) { cur_len_ = new_len; }
 
   // This is the most performance critical function, since it is called for
   // every character.
@@ -151,7 +136,7 @@ class CanonOutputT {
 // Simple implementation of the CanonOutput using new[]. This class
 // also supports a static buffer so if it is allocated on the stack, most
 // URLs can be canonicalized with no heap allocations.
-template<typename T, int fixed_capacity = 1024>
+template <typename T, int fixed_capacity = 1024>
 class RawCanonOutputT : public CanonOutputT<T> {
  public:
   RawCanonOutputT() : CanonOutputT<T>() {
@@ -189,7 +174,7 @@ extern template class EXPORT_TEMPLATE_DECLARE(COMPONENT_EXPORT(URL))
 typedef CanonOutputT<char> CanonOutput;
 typedef CanonOutputT<char16_t> CanonOutputW;
 
-template<int fixed_capacity>
+template <int fixed_capacity>
 class RawCanonOutput : public RawCanonOutputT<char, fixed_capacity> {};
 template <int fixed_capacity>
 class RawCanonOutputW : public RawCanonOutputT<char16_t, fixed_capacity> {};
@@ -368,16 +353,16 @@ struct CanonHostInfo {
 
   // This field summarizes how the input was classified by the canonicalizer.
   enum Family {
-    NEUTRAL,   // - Doesn't resemble an IP address. As far as the IP
-               //   canonicalizer is concerned, it should be treated as a
-               //   hostname.
-    BROKEN,    // - Almost an IP, but was not canonicalized. This could be an
-               //   IPv4 address where truncation occurred, or something
-               //   containing the special characters :[] which did not parse
-               //   as an IPv6 address. Never attempt to connect to this
-               //   address, because it might actually succeed!
-    IPV4,      // - Successfully canonicalized as an IPv4 address.
-    IPV6,      // - Successfully canonicalized as an IPv6 address.
+    NEUTRAL,  // - Doesn't resemble an IP address. As far as the IP
+              //   canonicalizer is concerned, it should be treated as a
+              //   hostname.
+    BROKEN,   // - Almost an IP, but was not canonicalized. This could be an
+              //   IPv4 address where truncation occurred, or something
+              //   containing the special characters :[] which did not parse
+              //   as an IPv6 address. Never attempt to connect to this
+              //   address, because it might actually succeed!
+    IPV4,     // - Successfully canonicalized as an IPv4 address.
+    IPV6,     // - Successfully canonicalized as an IPv6 address.
   };
   Family family;
 
@@ -403,7 +388,6 @@ struct CanonHostInfo {
   }
 };
 
-
 // Host.
 //
 // The 8-bit version requires UTF-8 encoding. Use this version when you only
@@ -412,12 +396,14 @@ COMPONENT_EXPORT(URL)
 bool CanonicalizeHost(const char* spec,
                       const Component& host,
                       CanonOutput* output,
-                      Component* out_host);
+                      Component* out_host,
+                      bool is_ipfs);
 COMPONENT_EXPORT(URL)
 bool CanonicalizeHost(const char16_t* spec,
                       const Component& host,
                       CanonOutput* output,
-                      Component* out_host);
+                      Component* out_host,
+                      bool is_ipfs);
 
 // Extended version of CanonicalizeHost, which returns additional information.
 // Use this when you need to know whether the hostname was an IP address.
@@ -617,7 +603,8 @@ bool CanonicalizeStandardURL(const char* spec,
                              SchemeType scheme_type,
                              CharsetConverter* query_converter,
                              CanonOutput* output,
-                             Parsed* new_parsed);
+                             Parsed* new_parsed,
+                             bool is_pfs);
 COMPONENT_EXPORT(URL)
 bool CanonicalizeStandardURL(const char16_t* spec,
                              int spec_len,
@@ -625,7 +612,8 @@ bool CanonicalizeStandardURL(const char16_t* spec,
                              SchemeType scheme_type,
                              CharsetConverter* query_converter,
                              CanonOutput* output,
-                             Parsed* new_parsed);
+                             Parsed* new_parsed,
+                             bool is_ipfs);
 
 // Use for file URLs.
 COMPONENT_EXPORT(URL)
@@ -720,7 +708,7 @@ bool CanonicalizeMailtoURL(const char16_t* spec,
 // This structures does not own any data. It is the caller's responsibility to
 // ensure that the data the pointers point to stays in scope and is not
 // modified.
-template<typename CHAR>
+template <typename CHAR>
 struct URLComponentSource {
   // Constructor normally used by callers wishing to replace components. This
   // will make them all NULL, which is no replacement. The caller would then
@@ -745,8 +733,7 @@ struct URLComponentSource {
         port(default_value),
         path(default_value),
         query(default_value),
-        ref(default_value) {
-  }
+        ref(default_value) {}
 
   const CHAR* scheme;
   const CHAR* username;
@@ -768,11 +755,10 @@ struct URLComponentSource {
 // IN SCOPE BY THE CALLER for as long as this object exists!
 //
 // Prefer the 8-bit replacement version if possible since it is more efficient.
-template<typename CHAR>
+template <typename CHAR>
 class Replacements {
  public:
-  Replacements() {
-  }
+  Replacements() {}
 
   // Scheme
   void SetScheme(const CHAR* s, const Component& comp) {

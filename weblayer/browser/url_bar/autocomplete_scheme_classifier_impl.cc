@@ -37,12 +37,10 @@ AutocompleteSchemeClassifierImpl::GetInputTypeForScheme(
 
   // Check against an allowlist of schemes.
   const char* kKnownURLSchemes[] = {
-      url::kHttpScheme,       url::kHttpsScheme,
-      url::kWsScheme,         url::kWssScheme,
-      url::kFileScheme,       url::kAboutScheme,
-      url::kIpfsScheme,
-      url::kFtpScheme,        url::kBlobScheme,
-      url::kFileSystemScheme, content::kViewSourceScheme,
+      url::kHttpScheme,      url::kHttpsScheme,      url::kWsScheme,
+      url::kWssScheme,       url::kFileScheme,       url::kAboutScheme,
+      url::kFtpScheme,       url::kBlobScheme,       url::kIpfsScheme,
+      url::kWalletScheme,    url::kFileSystemScheme, content::kViewSourceScheme,
       url::kJavaScriptScheme};
 
   for (const char* known_scheme : kKnownURLSchemes) {

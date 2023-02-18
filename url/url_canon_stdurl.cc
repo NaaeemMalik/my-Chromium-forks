@@ -19,10 +19,11 @@ bool DoCanonicalizeStandardURL(const URLComponentSource<CHAR>& source,
                                SchemeType scheme_type,
                                CharsetConverter* query_converter,
                                CanonOutput* output,
-                               Parsed* new_parsed) {
+                               Parsed* new_parsed,
+                               bool is_ipfs) {
   // Scheme: this will append the colon.
-  bool success = CanonicalizeScheme(source.scheme, parsed.scheme,
-                                    output, &new_parsed->scheme);
+  bool success = CanonicalizeScheme(source.scheme, parsed.scheme, output,
+                                    &new_parsed->scheme);
 
   bool scheme_supports_user_info =
       (scheme_type == SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION);
@@ -54,8 +55,8 @@ bool DoCanonicalizeStandardURL(const URLComponentSource<CHAR>& source,
       new_parsed->password.reset();
     }
 
-    success &= CanonicalizeHost(source.host, parsed.host,
-                                output, &new_parsed->host);
+    success &= CanonicalizeHost(source.host, parsed.host, output,
+                                &new_parsed->host, is_ipfs);
 
     // Host must not be empty for standard URLs.
     if (!parsed.host.is_nonempty())
@@ -82,10 +83,10 @@ bool DoCanonicalizeStandardURL(const URLComponentSource<CHAR>& source,
 
   // Path
   if (parsed.path.is_valid()) {
-    success &= CanonicalizePath(source.path, parsed.path,
-                                output, &new_parsed->path);
-  } else if (have_authority ||
-             parsed.query.is_valid() || parsed.ref.is_valid()) {
+    success &=
+        CanonicalizePath(source.path, parsed.path, output, &new_parsed->path);
+  } else if (have_authority || parsed.query.is_valid() ||
+             parsed.ref.is_valid()) {
     // When we have an empty path, make up a path when we have an authority
     // or something following the path. The only time we allow an empty
     // output path is when there is nothing else.
@@ -97,8 +98,8 @@ bool DoCanonicalizeStandardURL(const URLComponentSource<CHAR>& source,
   }
 
   // Query
-  CanonicalizeQuery(source.query, parsed.query, query_converter,
-                    output, &new_parsed->query);
+  CanonicalizeQuery(source.query, parsed.query, query_converter, output,
+                    &new_parsed->query);
 
   // Ref: ignore failure for this, since the page can probably still be loaded.
   CanonicalizeRef(source.ref, parsed.ref, output, &new_parsed->ref);
@@ -148,10 +149,11 @@ bool CanonicalizeStandardURL(const char* spec,
                              SchemeType scheme_type,
                              CharsetConverter* query_converter,
                              CanonOutput* output,
-                             Parsed* new_parsed) {
+                             Parsed* new_parsed,
+                             bool is_ipfs) {
   return DoCanonicalizeStandardURL<char, unsigned char>(
       URLComponentSource<char>(spec), parsed, scheme_type, query_converter,
-      output, new_parsed);
+      output, new_parsed, is_ipfs);
 }
 
 bool CanonicalizeStandardURL(const char16_t* spec,
@@ -160,10 +162,11 @@ bool CanonicalizeStandardURL(const char16_t* spec,
                              SchemeType scheme_type,
                              CharsetConverter* query_converter,
                              CanonOutput* output,
-                             Parsed* new_parsed) {
+                             Parsed* new_parsed,
+                             bool is_ipfs) {
   return DoCanonicalizeStandardURL<char16_t, char16_t>(
       URLComponentSource<char16_t>(spec), parsed, scheme_type, query_converter,
-      output, new_parsed);
+      output, new_parsed, is_ipfs);
 }
 
 // It might be nice in the future to optimize this so unchanged components don't
@@ -186,7 +189,7 @@ bool ReplaceStandardURL(const char* base,
   Parsed parsed(base_parsed);
   SetupOverrideComponents(base, replacements, &source, &parsed);
   return DoCanonicalizeStandardURL<char, unsigned char>(
-      source, parsed, scheme_type, query_converter, output, new_parsed);
+      source, parsed, scheme_type, query_converter, output, new_parsed, false);
 }
 
 // For 16-bit replacements, we turn all the replacements into UTF-8 so the
@@ -203,7 +206,7 @@ bool ReplaceStandardURL(const char* base,
   Parsed parsed(base_parsed);
   SetupUTF16OverrideComponents(base, replacements, &utf8, &source, &parsed);
   return DoCanonicalizeStandardURL<char, unsigned char>(
-      source, parsed, scheme_type, query_converter, output, new_parsed);
+      source, parsed, scheme_type, query_converter, output, new_parsed, false);
 }
 
 }  // namespace url

@@ -47,7 +47,7 @@ struct SchemeRegistry {
       {kWsScheme, SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION},  // WebSocket.
       {kFileSystemScheme, SCHEME_WITHOUT_AUTHORITY},
       {kQuicTransportScheme, SCHEME_WITH_HOST_AND_PORT},
-      {kIpfsScheme, SCHEME_WITH_HOST},
+      {kIpfsScheme, SCHEME_WITH_HOST_AND_PORT},
       {kWalletScheme, SCHEME_WITH_HOST},
   };
 
@@ -135,9 +135,10 @@ enum WhitespaceRemovalPolicy {
 
 // This template converts a given character type to the corresponding
 // StringPiece type.
-template<typename CHAR> struct CharToStringPiece {
-};
-template<> struct CharToStringPiece<char> {
+template <typename CHAR>
+struct CharToStringPiece {};
+template <>
+struct CharToStringPiece<char> {
   typedef base::StringPiece Piece;
 };
 template <>
@@ -147,21 +148,20 @@ struct CharToStringPiece<char16_t> {
 
 // Given a string and a range inside the string, compares it to the given
 // lower-case |compare_to| buffer.
-template<typename CHAR>
+template <typename CHAR>
 inline bool DoCompareSchemeComponent(const CHAR* spec,
                                      const Component& component,
                                      const char* compare_to) {
   if (!component.is_nonempty())
     return compare_to[0] == 0;  // When component is empty, match empty scheme.
-  return base::LowerCaseEqualsASCII(
-      typename CharToStringPiece<CHAR>::Piece(
-          &spec[component.begin], component.len),
-      compare_to);
+  return base::LowerCaseEqualsASCII(typename CharToStringPiece<CHAR>::Piece(
+                                        &spec[component.begin], component.len),
+                                    compare_to);
 }
 
 // Returns true and sets |type| to the SchemeType of the given scheme
 // identified by |scheme| within |spec| if in |schemes|.
-template<typename CHAR>
+template <typename CHAR>
 bool DoIsInSchemes(const CHAR* spec,
                    const Component& scheme,
                    SchemeType* type,
@@ -180,14 +180,13 @@ bool DoIsInSchemes(const CHAR* spec,
   return false;
 }
 
-template<typename CHAR>
+template <typename CHAR>
 bool DoIsStandard(const CHAR* spec, const Component& scheme, SchemeType* type) {
   return DoIsInSchemes(spec, scheme, type,
                        GetSchemeRegistry().standard_schemes);
 }
 
-
-template<typename CHAR>
+template <typename CHAR>
 bool DoFindAndCompareScheme(const CHAR* str,
                             int str_len,
                             const char* compare,
@@ -220,7 +219,7 @@ bool DoCanonicalize(const CHAR* spec,
                     CanonOutput* output,
                     Parsed* output_parsed) {
   // Trim leading C0 control characters and spaces.
-  
+
   int begin = 0;
   TrimURL(spec, &begin, &spec_len, trim_path_end);
   DCHECK(0 <= begin && begin <= spec_len);
@@ -261,6 +260,8 @@ bool DoCanonicalize(const CHAR* spec,
   if (!ExtractScheme(spec, spec_len, &scheme))
     return false;
 
+  bool is_ipfs = DoCompareSchemeComponent(spec, scheme, url::kIpfsScheme);
+
   // This is the parsed version of the input URL, we have to canonicalize it
   // before storing it in our object.
   bool success;
@@ -273,15 +274,15 @@ bool DoCanonicalize(const CHAR* spec,
   } else if (DoCompareSchemeComponent(spec, scheme, url::kFileSystemScheme)) {
     // Filesystem URLs are special.
     ParseFileSystemURL(spec, spec_len, &parsed_input);
-    success = CanonicalizeFileSystemURL(spec, spec_len, parsed_input,
-                                        charset_converter, output,
-                                        output_parsed);
+    success = CanonicalizeFileSystemURL(
+        spec, spec_len, parsed_input, charset_converter, output, output_parsed);
 
   } else if (DoIsStandard(spec, scheme, &scheme_type)) {
     // All "normal" URLs.
     ParseStandardURL(spec, spec_len, &parsed_input);
     success = CanonicalizeStandardURL(spec, spec_len, parsed_input, scheme_type,
-                                      charset_converter, output, output_parsed);
+                                      charset_converter, output, output_parsed,
+                                      is_ipfs);
 
   } else if (DoCompareSchemeComponent(spec, scheme, url::kMailToScheme)) {
     // Mailto URLs are treated like standard URLs, with only a scheme, path,
@@ -299,7 +300,7 @@ bool DoCanonicalize(const CHAR* spec,
   return success;
 }
 
-template<typename CHAR>
+template <typename CHAR>
 bool DoResolveRelative(const char* base_spec,
                        int base_spec_len,
                        const Parsed& base_parsed,
@@ -318,11 +319,10 @@ bool DoResolveRelative(const char* base_spec,
 
   bool base_is_authority_based = false;
   bool base_is_hierarchical = false;
-  if (base_spec &&
-      base_parsed.scheme.is_nonempty()) {
+  if (base_spec && base_parsed.scheme.is_nonempty()) {
     int after_scheme = base_parsed.scheme.end() + 1;  // Skip past the colon.
-    int num_slashes = CountConsecutiveSlashes(base_spec, after_scheme,
-                                              base_spec_len);
+    int num_slashes =
+        CountConsecutiveSlashes(base_spec, after_scheme, base_spec_len);
     base_is_authority_based = num_slashes > 1;
     base_is_hierarchical = num_slashes > 0;
   }
@@ -352,10 +352,9 @@ bool DoResolveRelative(const char* base_spec,
     ParseStandardURL(base_spec, base_spec_len, &base_parsed_authority);
     if (base_parsed_authority.host.is_nonempty()) {
       STACK_UNINITIALIZED RawCanonOutputT<char> temporary_output;
-      bool did_resolve_succeed =
-          ResolveRelativeURL(base_spec, base_parsed_authority, false, relative,
-                             relative_component, charset_converter,
-                             &temporary_output, output_parsed);
+      bool did_resolve_succeed = ResolveRelativeURL(
+          base_spec, base_parsed_authority, false, relative, relative_component,
+          charset_converter, &temporary_output, output_parsed);
       // The output_parsed is incorrect at this point (because it was built
       // based on base_parsed_authority instead of base_parsed) and needs to be
       // re-created.
@@ -366,11 +365,12 @@ bool DoResolveRelative(const char* base_spec,
     }
   } else if (is_relative) {
     // Relative, resolve and canonicalize.
-    bool file_base_scheme = base_parsed.scheme.is_nonempty() &&
+    bool file_base_scheme =
+        base_parsed.scheme.is_nonempty() &&
         DoCompareSchemeComponent(base_spec, base_parsed.scheme, kFileScheme);
-    return ResolveRelativeURL(base_spec, base_parsed, file_base_scheme, relative,
-                              relative_component, charset_converter, output,
-                              output_parsed);
+    return ResolveRelativeURL(base_spec, base_parsed, file_base_scheme,
+                              relative, relative_component, charset_converter,
+                              output, output_parsed);
   }
 
   // Not relative, canonicalize the input.
@@ -379,7 +379,7 @@ bool DoResolveRelative(const char* base_spec,
                         output_parsed);
 }
 
-template<typename CHAR>
+template <typename CHAR>
 bool DoReplaceComponents(const char* spec,
                          int spec_len,
                          const Parsed& parsed,
@@ -406,13 +406,13 @@ bool DoReplaceComponents(const char* spec,
     STACK_UNINITIALIZED RawCanonOutput<128> scheme_replaced;
     Component scheme_replaced_parsed;
     CanonicalizeScheme(replacements.sources().scheme,
-                       replacements.components().scheme,
-                       &scheme_replaced, &scheme_replaced_parsed);
+                       replacements.components().scheme, &scheme_replaced,
+                       &scheme_replaced_parsed);
 
     // We can assume that the input is canonicalized, which means it always has
     // a colon after the scheme (or where the scheme would be).
-    int spec_after_colon = parsed.scheme.is_valid() ? parsed.scheme.end() + 1
-                                                    : 1;
+    int spec_after_colon =
+        parsed.scheme.is_valid() ? parsed.scheme.end() + 1 : 1;
     if (spec_len - spec_after_colon > 0) {
       scheme_replaced.Append(&spec[spec_after_colon],
                              spec_len - spec_after_colon);
@@ -483,7 +483,8 @@ void DoSchemeModificationPreamble() {
   // the SchemeRegistry too early in your application's init process.
   DCHECK(!g_scheme_registries_used.load())
       << "Trying to add a scheme after the lists have been used. "
-         "Make sure that you haven't added any static GURL initializers in tests.";
+         "Make sure that you haven't added any static GURL initializers in "
+         "tests.";
 
   // If this assert triggers, it means you've called Add*Scheme after
   // LockSchemeRegistries has been called (see the header file for
@@ -762,9 +763,9 @@ bool ResolveRelative(const char* base_spec,
                      CharsetConverter* charset_converter,
                      CanonOutput* output,
                      Parsed* output_parsed) {
-  return DoResolveRelative(base_spec, base_spec_len, base_parsed,
-                           relative, relative_length,
-                           charset_converter, output, output_parsed);
+  return DoResolveRelative(base_spec, base_spec_len, base_parsed, relative,
+                           relative_length, charset_converter, output,
+                           output_parsed);
 }
 
 bool ResolveRelative(const char* base_spec,
@@ -775,9 +776,9 @@ bool ResolveRelative(const char* base_spec,
                      CharsetConverter* charset_converter,
                      CanonOutput* output,
                      Parsed* output_parsed) {
-  return DoResolveRelative(base_spec, base_spec_len, base_parsed,
-                           relative, relative_length,
-                           charset_converter, output, output_parsed);
+  return DoResolveRelative(base_spec, base_spec_len, base_parsed, relative,
+                           relative_length, charset_converter, output,
+                           output_parsed);
 }
 
 bool ReplaceComponents(const char* spec,
