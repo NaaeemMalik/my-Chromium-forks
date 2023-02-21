@@ -44,6 +44,7 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/struct_ptr.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/public/mojom/blob/data_element.mojom-blink-forward.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
@@ -121,12 +122,12 @@ class PLATFORM_EXPORT BlobData {
       const absl::optional<base::Time>& expected_modification_time);
 
   // Detaches from current thread so that it can be passed to another thread.
-  void DetachFromCurrentThread();
+
 
   const String& ContentType() const { return content_type_; }
   void SetContentType(const String&);
 
-  const Vector<mojom::blink::DataElementPtr>& Elements() const {
+  const Vector<mojom::blink::DataElementPtr>& ElementsForTesting() const {
     return elements_;
   }
   Vector<mojom::blink::DataElementPtr> ReleaseElements();
@@ -168,7 +169,9 @@ class PLATFORM_EXPORT BlobData {
 
   Vector<mojom::blink::DataElementPtr> elements_;
   size_t current_memory_population_ = 0;
-  BlobBytesProvider* last_bytes_provider_ = nullptr;
+  std::unique_ptr<BlobBytesProvider> last_bytes_provider_;
+   mojo::PendingReceiver<mojom::blink::BytesProvider> 
+      last_bytes_provider_receiver_;
 };
 
 class PLATFORM_EXPORT BlobDataHandle
