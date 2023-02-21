@@ -726,7 +726,8 @@ BackForwardCacheImpl::CanPotentiallyStorePageLater(RenderFrameHostImpl* rfh) {
   // Note that for error pages, |last_http_status_code| is equal to 0.
   if (rfh->last_http_status_code() != net::HTTP_OK)
     result.No(BackForwardCacheMetrics::NotRestoredReason::kHTTPStatusNotOK);
-
+  if (rfh->IsErrorDocument())
+    result.No(BackForwardCacheMetrics::NotRestoredReason::kErrorDocument);
   // Only store documents that were fetched via HTTP GET method.
   if (rfh->last_http_method() != net::HttpRequestHeaders::kGetMethod)
     result.No(BackForwardCacheMetrics::NotRestoredReason::kHTTPMethodNotGET);
