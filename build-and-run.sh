@@ -1,0 +1,1 @@
+caffeinate autoninja -C out/gtx chrome && "out/gtx/GTX Browser.app/Contents/MacOS/GTX Browser"

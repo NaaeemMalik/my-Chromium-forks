@@ -114,6 +114,8 @@ ProtoEnum::BackForwardCacheNotRestoredReason NotRestoredReasonToTraceEnum(
       return ProtoEnum::RENDERER_PROCESS_KILLED;
     case Reason::kRendererProcessCrashed:
       return ProtoEnum::RENDERER_PROCESS_CRASHED;
+      case Reason::kErrorDocument:
+      return ProtoEnum::RENDERER_PROCESS_CRASHED;
     case Reason::kGrantedMediaStreamAccess:
       return ProtoEnum::GRANTED_MEDIA_STREAM_ACCESS;
     case Reason::kSchedulerTrackedFeatureUsed:
