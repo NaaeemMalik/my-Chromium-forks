@@ -385,7 +385,7 @@ void GPUBuffer::ResetMappingState(v8::Isolate* isolate) {
     //   ArrayBuffer from being transferred/detached by outside code.
     CHECK(did_detach)
         << "An ArrayBuffer from getMappedRange() was detached before unmap()";
-    DCHECK(array_buffer->IsDetached());
+    CHECK(array_buffer->IsDetached());
   }
   mapped_array_buffers_.clear();
 }
