@@ -1016,9 +1016,9 @@ ExtensionFunction::ResponseAction DownloadsDownloadFunction::Run() {
       // Strip "%" character as it affects environment variables.
         std::string filenme;
     base::ReplaceChars(*options.filename, "%", "_", &filenme);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     creator_suggested_filename = base::FilePath::FromUTF8Unsafe(filenme);
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
     creator_suggested_filename = base::FilePath(filenme);
 #endif
     if (!net::IsSafePortableRelativePath(creator_suggested_filename)) {
