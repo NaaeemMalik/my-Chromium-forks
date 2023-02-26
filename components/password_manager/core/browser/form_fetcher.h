@@ -67,19 +67,16 @@ class FormFetcher {
   virtual const std::vector<InteractionsStats>& GetInteractionsStats()
       const = 0;
 
-  // Returns all PasswordForm entries that have insecure features.
-  // Do not store the result of this call. The pointers become invalid if `this`
-  // receives new results from a password store.
-  virtual std::vector<const PasswordForm*> GetInsecureCredentials() const = 0;
+  // Insecure credentials records for the current site.
+  virtual base::span<const InsecureCredential> GetInsecureCredentials()
+      const = 0;
 
-  // Non-federated matches obtained from the backend.
-  // Do not store the result of this call. The pointers become invalid if `this`
-  // receives new results from a password store.
+  // Non-federated matches obtained from the backend. Valid only if GetState()
+  // returns NOT_WAITING.
   virtual std::vector<const PasswordForm*> GetNonFederatedMatches() const = 0;
 
-  // Federated matches obtained from the backend.
-  // Do not store the result of this call. The pointers become invalid if `this`
-  // receives new results from a password store.
+  // Federated matches obtained from the backend. Valid only if GetState()
+  // returns NOT_WAITING.
   virtual std::vector<const PasswordForm*> GetFederatedMatches() const = 0;
 
   // Whether there are blocklisted matches in the backend. Valid only if

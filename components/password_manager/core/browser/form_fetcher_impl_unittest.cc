@@ -887,8 +887,6 @@ TEST_P(FormFetcherImplTest, Clone_NonEmptyResults) {
   Fetch();
   PasswordForm non_federated = CreateNonFederated();
   PasswordForm federated = CreateFederated();
-  federated.password_issues.insert(
-      {InsecureType::kLeaked, InsecurityMetadata()});
   PasswordForm android_federated = CreateAndroidFederated();
   std::vector<std::unique_ptr<PasswordForm>> results;
   results.push_back(std::make_unique<PasswordForm>(non_federated));
@@ -902,8 +900,6 @@ TEST_P(FormFetcherImplTest, Clone_NonEmptyResults) {
   EXPECT_THAT(
       form_fetcher_->GetFederatedMatches(),
       UnorderedElementsAre(Pointee(federated), Pointee(android_federated)));
-  EXPECT_THAT(form_fetcher_->GetInsecureCredentials(),
-              UnorderedElementsAre(Pointee(federated)));
   EXPECT_FALSE(form_fetcher_->IsBlocklisted());
 
   ASSERT_TRUE(
@@ -924,8 +920,6 @@ TEST_P(FormFetcherImplTest, Clone_NonEmptyResults) {
   EXPECT_THAT(
       clone->GetFederatedMatches(),
       UnorderedElementsAre(Pointee(federated), Pointee(android_federated)));
-  EXPECT_THAT(clone->GetInsecureCredentials(),
-              UnorderedElementsAre(Pointee(federated)));
   MockConsumer consumer;
   EXPECT_CALL(consumer, OnFetchCompleted);
   clone->AddConsumer(&consumer);

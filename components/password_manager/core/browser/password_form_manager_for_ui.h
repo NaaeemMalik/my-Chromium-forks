@@ -52,7 +52,8 @@ class PasswordFormManagerForUI {
   virtual base::span<const InteractionsStats> GetInteractionsStats() const = 0;
 
   // List of insecure passwords for the current site.
-  virtual std::vector<const PasswordForm*> GetInsecureCredentials() const = 0;
+  virtual base::span<const InsecureCredential> GetInsecureCredentials()
+      const = 0;
 
   // Determines if the user opted to 'never remember' passwords for this form.
   virtual bool IsBlocklisted() const = 0;
