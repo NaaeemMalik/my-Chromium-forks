@@ -632,9 +632,6 @@ SharedImageBackingD3D::ProduceDawn(SharedImageManager* manager,
         manager, this, tracker, device, egl_image, texture_descriptor);
   }
 #endif
-  // Evict invalid external images e.g. due to their device being destroyed.
-  base::EraseIf(dawn_external_images_,
-                [](const auto& kv) { return !kv.second->IsValid(); });
 
   // Persistently open the shared handle by caching it on this backing.
   if (!external_image_) {
@@ -656,8 +653,6 @@ SharedImageBackingD3D::ProduceDawn(SharedImageManager* manager,
     }
   }
 
-  DCHECK(external_image_ptr);
-  DCHECK(external_image_ptr->IsValid());
   return std::make_unique<SharedImageRepresentationDawnD3D>(
       manager, this, tracker, device, external_image_.get());
 #else
