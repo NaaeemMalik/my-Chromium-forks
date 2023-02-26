@@ -154,12 +154,6 @@ bool ExtensionMayAttachToWebContents(const Extension& extension,
           web_contents.GetController().GetPendingEntry()->GetURL(), error)) {
     return false;
   }
-  if (web_contents.GetController().GetPendingEntry() &&
-      !ExtensionMayAttachToURL(
-          extension, extension_profile,
-          web_contents.GetController().GetPendingEntry()->GetURL(), error)) {
-    return false;
-  }
 
   bool result = true;
   web_contents.GetMainFrame()->ForEachRenderFrameHost(base::BindRepeating(
