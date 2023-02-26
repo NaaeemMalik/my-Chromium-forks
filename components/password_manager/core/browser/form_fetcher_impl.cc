@@ -245,7 +245,7 @@ void FormFetcherImpl::FindMatchesAndNotifyConsumers(
       insecure_credentials_.emplace_back(
           form->signon_realm, form->username_value, issue.second.create_time,
           issue.first, issue.second.is_muted);
-      insecure_credentials_.back().in_store = form->in_store;
+      insecure_credentials_.back()->in_store = form->in_store;
     }
   }
   state_ = State::NOT_WAITING;
