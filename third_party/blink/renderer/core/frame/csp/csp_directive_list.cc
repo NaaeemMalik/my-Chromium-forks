@@ -557,10 +557,6 @@ bool CheckSourceAndReportViolation(
     prefix = prefix + "load plugin data from '";
   else if (CSPDirectiveName::PrefetchSrc == effective_type)
     prefix = prefix + "prefetch content from '";
-  else if (ContentSecurityPolicy::IsScriptDirective(effective_type))
-    prefix = prefix + "load the script '";
-  else if (ContentSecurityPolicy::IsStyleDirective(effective_type))
-    prefix = prefix + "load the stylesheet '";
   else if (CSPDirectiveName::NavigateTo == effective_type)
     prefix = prefix + "navigate to '";
 
