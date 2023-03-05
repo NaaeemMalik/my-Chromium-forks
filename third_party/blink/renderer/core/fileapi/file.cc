@@ -83,10 +83,11 @@ static std::unique_ptr<BlobData> CreateBlobDataForFile(
 }
 
 static std::unique_ptr<BlobData> CreateBlobDataForFileWithName(
-    const String& path,
+   const String& path,
     const String& file_system_name,
     File::ContentTypeLookupPolicy policy) {
-  return CreateBlobDataForFileWithType(
+      
+ return CreateBlobDataForFileWithType(
       path, GetContentTypeFromFileName(file_system_name, policy));
 }
 
