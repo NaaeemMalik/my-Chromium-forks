@@ -357,60 +357,7 @@ int MoveTabToWindow(ExtensionFunction* function,
 // call to either chrome.windows.create or chrome.windows.update when the
 // screen is set locked. This is only necessary for ChromeOS and Lacros and
 // is restricted to allowlisted extensions.
-void SetLockedFullscreenState(Browser* browser, bool pinned) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  aura::Window* window = browser->window()->GetNativeWindow();
-  DCHECK(window);
 
-  // As this gets triggered from extensions, we might encounter this case.
-  if (IsWindowPinned(window) == pinned)
-    return;
-
-  if (pinned) {
-    // Pins from extension are always trusted.
-    PinWindow(window, /*trusted=*/true);
-  } else {
-    UnpinWindow(window);
-  }
-
-  // Update the set of available browser commands.
-  browser->command_controller()->LockedFullscreenStateChanged();
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-  aura::Window* window = browser->window()->GetNativeWindow();
-  DCHECK(window);
-
-  const chromeos::WindowPinType previous_type =
-      window->GetProperty(lacros::kWindowPinTypeKey);
-  DCHECK_NE(previous_type, chromeos::WindowPinType::kTrustedPinned)
-      << "Extensions only set Trusted Pinned";
-
-  bool previous_pinned =
-      previous_type == chromeos::WindowPinType::kTrustedPinned;
-  // As this gets triggered from extensions, we might encounter this case.
-  if (previous_pinned == pinned)
-    return;
-
-  window->SetProperty(lacros::kWindowPinTypeKey,
-                      pinned ? chromeos::WindowPinType::kTrustedPinned
-                             : chromeos::WindowPinType::kNone);
-
-  auto* pinned_mode_extension =
-      views::DesktopWindowTreeHostLinux::From(window->GetHost())
-          ->GetPinnedModeExtension();
-  if (pinned) {
-    pinned_mode_extension->Pin(/*trusted=*/true);
-  } else {
-    pinned_mode_extension->Unpin();
-  }
-
-  // Update the set of available browser commands.
-  browser->command_controller()->LockedFullscreenStateChanged();
-
-  // Wipe the clipboard in browser and detach any dev tools.
-  ui::Clipboard::GetForCurrentThread()->Clear(ui::ClipboardBuffer::kCopyPaste);
-  content::DevToolsAgentHost::DetachAllClients();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-}
 
 // Returns whether the given `bounds` intersect with at least 50% of all the
 // displays.
