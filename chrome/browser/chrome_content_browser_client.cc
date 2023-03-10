@@ -800,13 +800,13 @@ bool HandleChromeWalletPageOverride(
 bool HandleIpfsUrlOverride(
     GURL* url,
     content::BrowserContext* browser_context) {
-  NOG<< "HandleIpfsUrlOverride" << url->spec();
+  //NOG<< "HandleIpfsUrlOverride" << url->spec();
   if (url->SchemeIsIpfs()) {
     std::string url_string = url->spec();
     std::string aaa = "ipfs://";
-NOG<< "HandleIpfsUrlOverride" << url_string;
+//NOG<< "HandleIpfsUrlOverride" << url_string;
     url_string.replace(0, aaa.length(), "https://ipfs.io/ipfs/");
-NOG<< "HandleIpfsUrlOverride after replace:" << url_string;
+//NOG<< "HandleIpfsUrlOverride after replace:" << url_string;
     *url = GURL(url_string);
     return true;
   }
@@ -3763,7 +3763,7 @@ bool ChromeContentBrowserClient::OverrideWebPreferencesAfterNavigation(
 void ChromeContentBrowserClient::BrowserURLHandlerCreated(
     BrowserURLHandler* handler) {
 
-  //NOG << "BrowserURLHandlerCreated\n\n";
+  ////NOG << "BrowserURLHandlerCreated\n\n";
 
          // The group policy NTP URL handler must be registered before the other
          // NTP URL handlers below. Also register it before the "parts"

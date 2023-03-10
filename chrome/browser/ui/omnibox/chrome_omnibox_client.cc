@@ -110,14 +110,14 @@ const std::u16string& ChromeOmniboxClient::GetTitle() const {
 }
 
 gfx::Image ChromeOmniboxClient::GetFavicon() const {
- //NOG << "ChromeOmniboxClient::GetFavicon()";
+ ////NOG << "ChromeOmniboxClient::GetFavicon()";
   return favicon::ContentFaviconDriver::FromWebContents(
              controller_->GetWebContents())
       ->GetFavicon();
 }
 
 bool ChromeOmniboxClient::IsLoading() const {
-  //NOG << "ChromeOmniboxClient::IsLoading()";
+  ////NOG << "ChromeOmniboxClient::IsLoading()";
   return controller_->GetWebContents()->IsLoading();
 }
 
@@ -169,7 +169,7 @@ int ChromeOmniboxClient::GetHttpsPortForTesting() const {
 
 gfx::Image ChromeOmniboxClient::GetIconIfExtensionMatch(
     const AutocompleteMatch& match) const {
-      //NOG << "GetIconIfExtensionMatch";
+      ////NOG << "GetIconIfExtensionMatch";
   TemplateURLService* service =
       TemplateURLServiceFactory::GetForProfile(profile_);
   const TemplateURL* template_url = match.GetTemplateURL(service, false);
@@ -184,14 +184,14 @@ gfx::Image ChromeOmniboxClient::GetIconIfExtensionMatch(
 gfx::Image ChromeOmniboxClient::GetSizedIcon(
     const gfx::VectorIcon& vector_icon_type,
     SkColor vector_icon_color) const {
-      //NOG << "GetSizedIcon";
+      ////NOG << "GetSizedIcon";
   return gfx::Image(gfx::CreateVectorIcon(
       vector_icon_type, GetLayoutConstant(LOCATION_BAR_ICON_SIZE),
       vector_icon_color));
 }
 
 gfx::Image ChromeOmniboxClient::GetSizedIcon(const gfx::Image& icon) const {
- //NOG << "GetSizedIcon2";
+ ////NOG << "GetSizedIcon2";
   if (icon.IsEmpty())
     return icon;
 
@@ -256,7 +256,7 @@ void ChromeOmniboxClient::OnResultChanged(
     const AutocompleteResult& result,
     bool default_match_changed,
     const BitmapFetchedCallback& on_bitmap_fetched) {
-      //NOG << "OnResultChanged";
+      ////NOG << "OnResultChanged";
   auto now = base::TimeTicks::Now();
 
   BitmapFetcherService* bitmap_fetcher_service =
@@ -287,7 +287,7 @@ void ChromeOmniboxClient::OnResultChanged(
 gfx::Image ChromeOmniboxClient::GetFaviconForPageUrl(
     const GURL& page_url,
     FaviconFetchedCallback on_favicon_fetched) {
-      //NOG << "GetFaviconForPageUrl";
+      ////NOG << "GetFaviconForPageUrl";
   return favicon_cache_.GetFaviconForPageUrl(page_url,
                                              std::move(on_favicon_fetched));
 }
@@ -296,7 +296,7 @@ gfx::Image ChromeOmniboxClient::GetFaviconForDefaultSearchProvider(
     FaviconFetchedCallback on_favicon_fetched) {
   const TemplateURL* const default_provider =
       GetTemplateURLService()->GetDefaultSearchProvider();
-      //NOG << "GetFaviconForDefaultSearchProvider";
+      ////NOG << "GetFaviconForDefaultSearchProvider";
   if (!default_provider)
     return gfx::Image();
 
@@ -320,7 +320,7 @@ void ChromeOmniboxClient::OnTextChanged(const AutocompleteMatch& current_match,
                                         const AutocompleteResult& result,
                                         bool has_focus) {
 
-NOG<< "OnTextChanged: "<<user_text;
+//NOG<< "OnTextChanged: "<<user_text;
 
   AutocompleteActionPredictor::Action recommended_action =
       AutocompleteActionPredictor::ACTION_NONE;

@@ -409,11 +409,11 @@ bool BaseSearchProvider::CanSendURL(
     const SearchTermsData& search_terms_data,
     AutocompleteProviderClient* client,
     bool sending_search_terms) {
-  NOG << "CanSendURL: current_page_url: " << current_page_url << " suggest_url: "
-      << suggest_url << " template_url: " << template_url
-      << " page_classification: " << page_classification
-      << " sending_search_terms: " << sending_search_terms<<" scheme: "<<current_page_url.scheme()
-      <<" schemeIpfs: "<<(url::kIpfsScheme==current_page_url.scheme());
+  //NOG << "CanSendURL: current_page_url: " << current_page_url << " suggest_url: "
+      // << suggest_url << " template_url: " << template_url
+      // << " page_classification: " << page_classification
+      // << " sending_search_terms: " << sending_search_terms<<" scheme: "<<current_page_url.scheme()
+      // <<" schemeIpfs: "<<(url::kIpfsScheme==current_page_url.scheme());
 
   if (current_page_url.scheme() == url::kIpfsScheme)
     return false;

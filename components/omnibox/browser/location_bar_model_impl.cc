@@ -202,22 +202,22 @@ const gfx::VectorIcon& LocationBarModelImpl::GetVectorIcon() const {
 
          auto* const icon_override = delegate_->GetVectorIconOverride();
   if (icon_override){
-   //NOG << "icon_override";
+   ////NOG << "icon_override";
     return *icon_override;
   }
 
   if (IsOfflinePage()){
-   //NOG << "IsOfflinePage";
+   ////NOG << "IsOfflinePage";
     return omnibox::kOfflinePinIcon;
   }
 
   if (GetSecurityLevel() == security_state::SecurityLevel::SECURE &&
       delegate_->IsShowingAccuracyTip()) {
-  //NOG << "IsShowingAccuracyTip";
+  ////NOG << "IsShowingAccuracyTip";
     return omnibox::kHttpIcon;
   }
 #endif
-//NOG << "GetSecurityVectorIcon default";
+////NOG << "GetSecurityVectorIcon default";
   return location_bar_model::GetSecurityVectorIcon(
       GetSecurityLevel(),
       delegate_->ShouldUseUpdatedConnectionSecurityIndicators());

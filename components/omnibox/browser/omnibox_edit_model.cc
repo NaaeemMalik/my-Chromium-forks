@@ -352,7 +352,7 @@ void OmniboxEditModel::OnChanged() {
   // Don't call CurrentMatch() when there's no editing, as in this case we'll
   // never actually use it.  This avoids running the autocomplete providers (and
   // any systems they then spin up) during startup.
-  //NOG << "OmniboxEditModel::OnChanged";
+  ////NOG << "OmniboxEditModel::OnChanged";
 
   const AutocompleteMatch& current_match =
       user_input_in_progress_ ? CurrentMatch(nullptr) : AutocompleteMatch();

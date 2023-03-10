@@ -182,8 +182,8 @@ AutocompleteProvider::FixupReturn AutocompleteProvider::FixupUserInput(
   const GURL canonical_gurl(
       url_formatter::FixupURL(base::UTF16ToUTF8(input_text), std::string()));
   std::string canonical_gurl_str(canonical_gurl.possibly_invalid_spec());
-  NOG<<"canonical_gurl_str:"<<canonical_gurl_str<<std::endl
-  << "input_text:"<<input_text<<std::endl;
+  //NOG<<"canonical_gurl_str:"<<canonical_gurl_str<<std::endl
+  // << "input_text:"<<input_text<<std::endl;
 
   if (canonical_gurl_str.empty()) {
     // This probably won't happen, but there are no guarantees.

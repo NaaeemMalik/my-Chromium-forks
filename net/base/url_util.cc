@@ -32,7 +32,7 @@ namespace net {
 namespace {
 
 bool IsHostCharAlphanumeric(char c) {
-  // NOG<<"IsHostCharAlphanumeric: "<<c;
+  // //NOG<<"IsHostCharAlphanumeric: "<<c;
   // We can just check lowercase because uppercase characters have already been
   // normalized.
   return ((c >= 'a') && (c <= 'z')) || ((c >= '0') && (c <= '9'));
@@ -286,7 +286,7 @@ bool IsSubdomainOf(base::StringPiece subdomain, base::StringPiece superdomain) {
 
 std::string CanonicalizeHost(base::StringPiece host,
                              url::CanonHostInfo* host_info) {
-                              // NOG<< "CanonicalizeHost: " << host << std::endl
+                              // //NOG<< "CanonicalizeHost: " << host << std::endl
                               // << "host_info: " << host_info << std::endl;
 
   // Try to canonicalize the host.

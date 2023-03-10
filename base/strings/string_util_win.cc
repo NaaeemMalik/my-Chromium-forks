@@ -13,7 +13,7 @@ bool IsStringASCII(WStringPiece str) {
 }
 
 std::wstring ToLowerASCII(WStringPiece str) {
-  //NOG << " ::ToLowerASCII:: " << str;
+  ////NOG << " ::ToLowerASCII:: " << str;
   return internal::ToLowerASCIIImpl(str);
 }
 

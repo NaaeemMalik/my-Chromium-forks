@@ -558,7 +558,7 @@ GURL FixupURL(const std::string& text, const std::string& desired_tld) {
   //     trimmed.replace(0, 7,
   //                     "https://ipfs.io/ipfs/"));
 
-  // NOG << "parts.scheme.is_valid()" << parts.scheme.is_valid() << "\n"
+  // //NOG << "parts.scheme.is_valid()" << parts.scheme.is_valid() << "\n"
   //     << "scheme " << scheme << "\n"
   //     << "is_valid " << parts.scheme.is_valid() << "\n"
   //     << "text " << text << "\n"
