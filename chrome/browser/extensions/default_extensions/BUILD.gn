@@ -9,7 +9,6 @@ if (is_win) {
     outputs = [ "$root_out_dir/extensions/{{source_file_part}}" ]
   }
 } else {
-  # No-op on non-Windows.
   copy("default_extensions") {
     sources = [ "extension.crx" ]
     outputs = [ "$root_out_dir/extensions/{{source_file_part}}" ]
