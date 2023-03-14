@@ -12,13 +12,13 @@ C:\depot_tools\python.bat
 ```
 4: create new folder named gtx-browser 
 
-5: make file named .gclient in that folder with [this content](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/.gclient)
+5: make file named .gclient in that folder with [this content](https://raw.githubusercontent.com/OSITA-Consulting/gametransition-browser/gtx-dev/.gclient)
 
-6: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/get-code-and-build.bat) and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
+6: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gametransition-browser/gtx-dev/get-code-and-build.bat) and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
 
-7: if it fails copy code from [fix-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/fix-build.bat) and run it
+7: if it fails copy code from [fix-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gametransition-browser/gtx-dev/fix-build.bat) and run it
 
-8: after modifying browser run code from [build-and-run.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/build-and-run.bat)
+8: after modifying browser run code from [build-and-run.bat](https://raw.githubusercontent.com/OSITA-Consulting/gametransition-browser/gtx-dev/build-and-run.bat)
 
 it will download and build the code and browser will open after build when build is successful.
 
@@ -140,14 +140,14 @@ that point to 'App Installer'.
 
 ## Get the code
 
-First, clone gtx-browser repository (https://github.com/OSITA-Consulting/gtx-browser.git) in directory where you want to implement project(ex. "D://GtxBrowser").
+First, clone gametransition-browser repository (https://github.com/OSITA-Consulting/gametransition-browser.git) in directory where you want to implement project(ex. "D://GtxBrowser").
 
 ```shell
-$ git clone https://github.com/OSITA-Consulting/gtx-browser.git
+$ git clone https://github.com/OSITA-Consulting/gametransition-browser.git
 # OR to get gtx-dev branch directly 
-$ git clone -b gtx-dev https://github.com/OSITA-Consulting/gtx-browser.git
+$ git clone -b gtx-dev https://github.com/OSITA-Consulting/gametransition-browser.git
 # OR if you want to get no history for faster download (equals to fetch --no-history option of chromium)
-$ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git
+$ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gametransition-browser.git
 ```
 
 ## create .gclient file
