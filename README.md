@@ -198,6 +198,10 @@ $ sudo ln -s /usr/bin/python3 /usr/local/bin/python
 $ sh fix-build.sh
 ```
 
+## Wallet Extension Update
+you need wallet crx from the developer but you need to provide this [.pem file](https://github.com/OSITA-Consulting/gametransition-browser/blob/gtx-dev/chrome/browser/extensions/default_extensions/wallet.pem)
+when you get the crx you place it inside gtx-browser\src\chrome\browser\extensions\default_extensions folder as extension.crx
+
 ## Setting up the build
 
 Chromium uses [Ninja](https://ninja-build.org) as its main build tool along with
