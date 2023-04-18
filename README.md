@@ -179,25 +179,23 @@ $ cd src
 ```
 
 
-## Install additional build dependencies
+## sync repos & Install 
 
 - For windows
 ```shell
-$ gclient sync
-$ gclient sync --with_branch_heads --with_tags
-$ gclient runhooks
+$ fix-build.bat
 ```
 
 - For Linux
 ```shell
 $ ./build/install-build-deps.sh
-$ gclient runhooks
+$ sh fix-build.sh
 ```
 
 - For Mac OS
 ```shell
 $ sudo ln -s /usr/bin/python3 /usr/local/bin/python
-$ gclient sync -D
+$ sh fix-build.sh
 ```
 
 ## Setting up the build
