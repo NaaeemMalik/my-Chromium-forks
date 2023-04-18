@@ -142,19 +142,11 @@ that point to 'App Installer'.
 
 First, clone gametransition-browser repository (https://github.com/OSITA-Consulting/gametransition-browser.git) in directory where you want to implement project(ex. "D://GtxBrowser").
 
-```shell
-$ git clone https://github.com/OSITA-Consulting/gametransition-browser.git
-# OR to get gtx-dev branch directly 
-$ git clone -b gtx-dev https://github.com/OSITA-Consulting/gametransition-browser.git
-# OR if you want to get no history for faster download (equals to fetch --no-history option of chromium)
-$ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gametransition-browser.git
-```
-
 ## create .gclient file
 
 ```shell
 $ cd gtx-browser
-# on windows type 
+# on windows type 56
 $ notepad .gclient
 # on mac/linux type
 $ nano .gclient
@@ -176,6 +168,14 @@ solutions = [
 save and exit and cd to src directory to follow next commands
 ```shell
 $ cd src
+```
+
+```shell
+$ git clone https://github.com/OSITA-Consulting/gametransition-browser.git .
+# OR to get gtx-dev branch directly 
+$ git clone -b gtx-dev https://github.com/OSITA-Consulting/gametransition-browser.git .
+# OR if you want to get no history for faster download (equals to fetch --no-history option of chromium)
+$ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gametransition-browser.git .
 ```
 
 
