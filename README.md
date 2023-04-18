@@ -202,6 +202,31 @@ $ sh fix-build.sh
 you need wallet crx from the developer but you need to provide this [.pem file](https://github.com/OSITA-Consulting/gametransition-browser/blob/gtx-dev/chrome/browser/extensions/default_extensions/wallet.pem)
 when you get the crx you place it inside `gtx-browser\src\chrome\browser\extensions\default_extensions\extension.crx`
 
+## Mac Apple Signing Certificate:
+you need to get a apple developer paid account then go to certificate on website
+then create signing request in keychain app, upload the file on apple, download crt from apple 
+
+cd to 'src/chrome/installer/mac/Chromium-Mac-Signing-Alignment-Notarization-DMG'
+```shell
+ security create-keychain "$HOME/Library/Keychains/logingtx.keychain-db" 
+ security unlock-keychain ~/Library/Keychains/logingtx.keychain-db
+#  you need to replace the APPLE_APP_SPECIFIC_PASSWORD with apple app specific password
+ xcrun notarytool store-credentials --keychain "~/Library/Keychains/logingtx.keychain-db" --apple-id "idougwarner@gmail.com" --team-id "8SP2393FG9" --password "APPLE_APP_SPECIFIC_PASSWORD" "Developer ID Application: Doug Warner (8SP2393FG9)"
+ security find-certificate -c "Doug" -p | openssl x509 -inform pem -noout -subject
+
+# open sign.sh in text editor and change the details that is different. you must change location of BUILDROOT
+# then run script
+ ./sign.sh
+
+# make dmg and sign and notorise it
+ cd  ../../../..
+ npm i -g create-dmg
+ create-dmg out/gtx/GTX\ Browser.app
+ xcrun notarytool submit --wait --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" GTX\ Browser\ 98.0.4758.132.dmg
+
+```
+if the output is successful then you can upload the dmg to your website release page or send anyone
+
 ## Setting up the build
 
 Chromium uses [Ninja](https://ninja-build.org) as its main build tool along with
