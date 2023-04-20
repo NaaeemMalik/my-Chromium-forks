@@ -145,6 +145,7 @@ First, clone gametransition-browser repository (https://github.com/OSITA-Consult
 ## create .gclient file
 
 ```shell
+$ mkdir gtx-browser
 $ cd gtx-browser
 # on windows type 56
 $ notepad .gclient
@@ -167,6 +168,7 @@ solutions = [
 ```
 save and exit and cd to src directory to follow next commands
 ```shell
+$ mkdir src
 $ cd src
 ```
 

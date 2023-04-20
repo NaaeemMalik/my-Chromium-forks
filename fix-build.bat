@@ -5,21 +5,21 @@ gclient sync
 cd v8
 git reset --hard
 git remote add gtx https://github.com/OSITA-Consulting/v8
-git pull gtx gtx
+git pull gtx gtx --rebase
 git switch gtx 
 cd ..
 
 cd net\third_party\quiche\src
 git reset --hard
 git remote add gtx https://github.com/OSITA-Consulting/quiche
-git pull gtx gtx
+git pull gtx gtx --rebase
 git switch gtx 
 cd ..\..
 
 cd angle
 git reset --hard
 git remote add gtx https://github.com/OSITA-Consulting/angle
-git pull gtx gtx
+git pull gtx gtx --rebase
 git switch gtx 
 cd ..
 
@@ -27,14 +27,14 @@ cd ..
 cd skia
 git reset --hard
 git remote add gtx https://github.com/OSITA-Consulting/skia
-git pull gtx gtx
+git pull gtx gtx --rebase
 git switch gtx 
 cd ..
 
 cd pdfium
 git reset --hard
 git remote add gtx https://github.com/OSITA-Consulting/PDFium
-git pull gtx gtx
+git pull gtx gtx --rebase
 git switch gtx 
 
 
