@@ -255,7 +255,7 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling PDFium
   # and whatever else without interference from each other.
-  'pdfium_revision': '435a508730a6509af8fd1f3ab44e70f5a450f9e0',
+  'pdfium_revision': '2c2d06e7db6a4bed073efa062967cd2c978843da',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling BoringSSL
   # and whatever else without interference from each other.
@@ -714,9 +714,6 @@ deps = {
       'condition': 'checkout_nacl',
   },
 
-  'src/net/third_party/quiche/src':
-    Var('quiche_git') + '/quiche.git' + '@' +  Var('quiche_revision'),
-
   'src/testing/rts/linux-amd64': {
       'packages': [
         {
@@ -910,8 +907,6 @@ deps = {
       'dep_type': 'cipd',
   },
 
-  'src/third_party/angle':
-    Var('chromium_git') + '/angle/angle.git' + '@' +  Var('angle_revision'),
 
   'src/third_party/dav1d/libdav1d':
     Var('chromium_git') + '/external/github.com/videolan/dav1d.git' + '@' + '7b99b0e17fbd86f0847684798b182f9122545580',
@@ -1426,9 +1421,6 @@ deps = {
     'condition': 'checkout_openxr',
   },
 
-  'src/third_party/pdfium':
-    Var('pdfium_git') + '/pdfium.git' + '@' +  Var('pdfium_revision'),
-
   # Parses Windows PE/COFF executable format.
   'src/third_party/pefile': {
       'url': Var('chromium_git') + '/external/pefile.git' + '@' + '72c6ae42396cb913bcab63c15585dc3b5c3f92f1',
@@ -1564,9 +1556,6 @@ deps = {
 
   'src/third_party/ruy/src':
     Var('chromium_git') + '/external/github.com/google/ruy.git' + '@' + 'e6c1b8dc8a8b00ee74e7268aac8b18d7260ab1ce',
-
-  'src/third_party/skia':
-    Var('skia_git') + '/skia.git' + '@' +  Var('skia_revision'),
 
   'src/third_party/smhasher/src':
     Var('chromium_git') + '/external/smhasher.git' + '@' + 'e87738e57558e0ec472b2fc3a643b838e5b6e88f',
@@ -1711,8 +1700,6 @@ deps = {
       'condition': 'checkout_mac',
   },
 
-  'src/v8':
-    Var('chromium_git') + '/v8/v8.git' + '@' +  Var('v8_revision'),
 
   'src-internal': {
     'url': 'https://chrome-internal.googlesource.com/chrome/src-internal.git@971207e94e8bb1ecf97206fb868b2981ecb6379f',
