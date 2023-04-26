@@ -1,1 +1,7 @@
-caffeinate autoninja -C out/gtx chrome && "out/gtx/GTX Browser.app/Contents/MacOS/GTX Browser"
+caffeinate autoninja -C out/gtx chrome
+autoninja -C out/gtx chrome
+
+"out/gtx/GTX Browser.app/Contents/MacOS/GTX Browser"
+# for linux
+"out/gtx/GTX Browser"
+"out/gtx/gtxbrowser"

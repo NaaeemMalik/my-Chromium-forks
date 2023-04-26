@@ -12,13 +12,11 @@ C:\depot_tools\python.bat
 ```
 4: create new folder named gtx-browser 
 
-5: make file named .gclient in that folder with [this content](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/.gclient)
+5: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/get-code-and-build.bat) for Windows or  [get-code-and-build.sh](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/get-code-and-build.sh) for Mac\Linux and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
 
-6: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/get-code-and-build.bat) and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
+6: if it fails copy code from [fix-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/fix-build.bat) or [fix-build.sh](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/fix-build.sh) for Mac\Linux and run it
 
-7: if it fails copy code from [fix-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/fix-build.bat) and run it
-
-8: after modifying browser run code from [build-and-run.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/build-and-run.bat)
+7: after modifying browser run code from [build-and-run.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/build-and-run.bat)
 
 it will download and build the code and browser will open after build when build is successful.
 
@@ -145,33 +143,9 @@ First, clone gametransition-browser repository (https://github.com/OSITA-Consult
 ## create .gclient file
 
 ```shell
-$ mkdir gtx-browser
-$ cd gtx-browser
-# on windows type 56
-$ notepad .gclient
-# on mac/linux type
-$ nano .gclient
+$ mkdir gtx-browser && cd gtx-browser && mkdir src && cd src
 ```
-an editor will be opened, copy/paste this exact JSON in it
-```
-solutions = [
-  {
-    "name": "src",
-    "url": "https://chromium.googlesource.com/chromium/src.git",
-    "managed": False,
-    "custom_deps": {},
-    "custom_vars": {
- 	    "checkout_pgo_profiles": True,
-	},
-  },
-]
-```
-save and exit and cd to src directory to follow next commands
-```shell
-$ mkdir src
-$ cd src
-```
-
+now to clone this repo
 ```shell
 $ git clone https://github.com/OSITA-Consulting/gtx-browser.git .
 # OR to get gtx-dev branch directly 

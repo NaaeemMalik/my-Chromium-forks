@@ -1,3 +1,17 @@
+rm ../.gclient
+
+echo 'solutions = [' > ../.gclient
+echo '  {' >> ../.gclient
+echo '    "name": "src",' >> ../.gclient
+echo '    "url": "https://chromium.googlesource.com/chromium/src.git",' >> ../.gclient
+echo '    "managed": False,' >> ../.gclient
+echo '    "custom_deps": {},' >> ../.gclient
+echo '    "custom_vars": {' >> ../.gclient
+echo '        "checkout_pgo_profiles": True,' >> ../.gclient
+echo '    },' >> ../.gclient
+echo '  },' >> ../.gclient
+echo ']' >> ../.gclient
+
 gclient sync
 rmdir /s /q v8
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/v8 v8
@@ -12,9 +26,6 @@ git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/PDFium third_part
 gclient runhooks 
 gn gen out/gtx --args="treat_warnings_as_errors = false is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true" 
 autoninja -C out/gtx chrome 
-ninja -C out/gtx mini_installer 
-"out/gtx/gtxbrowser.exe" 
-
 
 
 "out/gtx/GTX Browser.app/Contents/MacOS/GTX Browser"
