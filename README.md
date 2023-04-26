@@ -12,11 +12,11 @@ C:\depot_tools\python.bat
 ```
 4: create new folder named gtx-browser 
 
-5: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/get-code-and-build.bat) for Windows or  [get-code-and-build.sh](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/get-code-and-build.sh) for Mac\Linux and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
+5: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/get-code-and-build.bat) for Windows or  [get-code-and-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/get-code-and-build.sh) for Mac\Linux and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
 
-6: if it fails copy code from [fix-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/fix-build.bat) or [fix-build.sh](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/fix-build.sh) for Mac\Linux and run it
+6: if it fails copy code from [fix-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/fix-build.bat) or [fix-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/fix-build.sh) for Mac\Linux and run it
 
-7: after modifying browser run code from [build-and-run.bat](https://raw.githubusercontent.com/OSITA-Consulting/gtx-browser/gtx-dev/build-and-run.bat)
+7: after modifying browser run code from [build-and-run.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/build-and-run.bat)
 
 it will download and build the code and browser will open after build when build is successful.
 
