@@ -18,6 +18,8 @@ echo ']' >> ../.gclient
 
 
 gclient sync
+gclient sync
+gclient sync
 rmdir /s /q v8
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/v8 v8
 rmdir /s /q net/third_party/quiche/src
@@ -29,12 +31,13 @@ git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/skia third_party/
 rmdir /s /q third_party/pdfium
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/PDFium third_party/pdfium
 gclient runhooks 
+gclient runhooks 
 gn gen out/gtx --args="treat_warnings_as_errors = false is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true" 
 autoninja -C out/gtx chrome 
 
 
 
-"out/gtx/GTX Browser.app/Contents/MacOS/GTX Browser"
+"out/gtx/GTX Browser.app/Contents/MacOS/GTX Browser" --enable-logging=stderr --v=0
 # for linux
-"out/gtx/GTX Browser"
-"out/gtx/gtxbrowser"
+"out/gtx/GTX Browser" --enable-logging=stderr --v=0
+"out/gtx/gtxbrowser" --enable-logging=stderr --v=0
