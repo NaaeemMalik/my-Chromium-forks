@@ -1,8 +1,27 @@
+
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  ~/depot_tools --depth=1
+grep -qxF 'export PATH="$PATH:${HOME}/depot_tools"' ~/.bashrc || echo 'export PATH="$PATH:${HOME}/depot_tools"' >> ~/.bashrc
+source ~/.bashrc
+
+
 git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git src
 
 git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git src
 
 cd src
+
+os_name="$(uname)"
+if [ "$os_name" = "Darwin" ]; then
+    # macOS
+    sudo ln -s /usr/bin/python3 /usr/local/bin/python
+elif [ "$os_name" = "Linux" ]; then
+    # Linux
+    ./build/install-build-deps.sh
+else
+    echo "Unsupported operating system: $os_name . Exiting without installing."
+    exit 1
+fi
+
 
 echo 'solutions = [' > ../.gclient
 echo '  {' >> ../.gclient

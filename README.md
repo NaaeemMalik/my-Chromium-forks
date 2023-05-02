@@ -1,9 +1,9 @@
 # ![Logo](chrome/app/theme/chromium/product_logo_64.png) GTX BROWSER
 
 ## Simplified Instructions
-1: install Visual Studio 2019 x64 with below instructions
+1: install Visual Studio 2019 x64 with below instructions. for Mac: Xcode 12.4 on MacOS Big Sur 11.6 OS and goto to step 5. for Linux use Ubuntu 20.04 OS and goto to step 5
 
-2: install depot_tools with instruction below
+2: install depot_tools with instruction below.
 
 3: make sure depot_tools/python.bat is first in response of 
 ```
@@ -163,13 +163,22 @@ $ fix-build.bat
 ```
 
 - For Linux
+these commands are working on ubuntu 20.04. these will also setup dev environment for you.
 ```shell
+$ sudo apt install python-is-python3
+$ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  ~/depot_tools --depth=1
+$ echo 'export PATH="$PATH:${HOME}/depot_tools"' >> ~/.bashrc
+$ source ~/.bashrc
 $ ./build/install-build-deps.sh
 $ sh fix-build.sh
 ```
 
 - For Mac OS
+these commands are working on MacOS Big Sur (11.6) and XCode 12.4. these will also setup dev environment for you.
 ```shell
+$ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  ~/depot_tools --depth=1
+$ echo 'export PATH="$PATH:${HOME}/depot_tools"' >> ~/.bashrc
+$ source ~/.bashrc
 $ sudo ln -s /usr/bin/python3 /usr/local/bin/python
 $ sh fix-build.sh
 ```
