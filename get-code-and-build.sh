@@ -39,15 +39,15 @@ echo ']' >> ../.gclient
 gclient sync
 gclient sync
 gclient sync
-rmdir /s /q v8
+rm -rf v8
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/v8 v8
-rmdir /s /q net/third_party/quiche/src
+rm -rf net/third_party/quiche/src
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/quiche net/third_party/quiche/src 
-rmdir /s /q third_party/angle 
+rm -rf third_party/angle 
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/angle third_party/angle
-rmdir /s /q third_party/skia
+rm -rf third_party/skia
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/skia third_party/skia
-rmdir /s /q third_party/pdfium
+rm -rf third_party/pdfium
 git clone -b gtx --depth=1 https://github.com/OSITA-Consulting/PDFium third_party/pdfium
 gclient runhooks 
 gclient runhooks 
