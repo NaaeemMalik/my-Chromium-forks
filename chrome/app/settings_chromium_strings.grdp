@@ -5,7 +5,7 @@
   <message name="IDS_SETTINGS_ABOUT_PROGRAM" desc="Menu title for the About GTX Browser page.">
     About GTX Browser
   </message>
-  <message name="IDS_SETTINGS_GET_HELP_USING_CHROME" desc="Text of the button which takes the user to the Chrome help page.">
+  <message name="IDS_SETTINGS_GET_HELP_USING_CHROME" desc="Text of the button which takes the user to the GTX Browser help page.">
     Get help with GTX Browser
   </message>
   <if expr="not chromeos">
@@ -26,19 +26,19 @@
     <message name="IDS_SETTINGS_ABOUT_OS" desc="Menu title for the About Chromium OS page.">
       About Chromium OS
     </message>
-    <message name="IDS_OS_SETTINGS_TAG_OS_VERSION" desc="Text for search result item which, when clicked, navigates the user to about Chrome OS settings, which gives information about the current Chrome OS version.">
+    <message name="IDS_OS_SETTINGS_TAG_OS_VERSION" desc="Text for search result item which, when clicked, navigates the user to about GTX Browser OS settings, which gives information about the current GTX Browser OS version.">
       Chromium OS version
     </message>
     <message name="IDS_SETTINGS_ABOUT_SEE_OS_SETTINGS_FOR_UPDATE_MESSAGE" desc="Message shown to users on GTX Browser browser settings which alerts the user that OS updates are shown in Chromium OS settings.">
       To see if your device is up to date, go to <ph name="LINK_BEGIN">&lt;a href="chrome://os-settings/help"&gt;</ph>Chromium OS Settings<ph name="LINK_END">&lt;/a&gt;</ph>
     </message>
-    <message name="IDS_SETTINGS_GET_HELP_USING_CHROME_OS" desc="Text of the button which takes the user to the Chrome help page.">
+    <message name="IDS_SETTINGS_GET_HELP_USING_CHROME_OS" desc="Text of the button which takes the user to the GTX Browser help page.">
       Get help with Chromium OS
     </message>
   </if>
 
   <!-- Autofill Page -->
-  <message name="IDS_SETTINGS_GOOGLE_PAYMENTS_CACHED" desc="Label that will be used to show that a credit card comes from Google Pay and is saved locally. This should follow the casing of the 'Google Pay' and 'Chrome' brands. 'Copied to GTX Browser' is short for 'The credit card is copied to GTX Browser'. 'Google Pay' should not be translated as it is the product name.">
+  <message name="IDS_SETTINGS_GOOGLE_PAYMENTS_CACHED" desc="Label that will be used to show that a credit card comes from Google Pay and is saved locally. This should follow the casing of the 'Google Pay' and 'GTX Browser' brands. 'Copied to GTX Browser' is short for 'The credit card is copied to GTX Browser'. 'Google Pay' should not be translated as it is the product name.">
     Google Pay (copied to GTX Browser)
   </message>
   <message name="IDS_SETTINGS_CHECK_PASSWORDS_ERROR_OFFLINE" desc="Error message when the password check can't be completed because the user is offline.">
@@ -76,13 +76,13 @@
   </message>
   <!-- Default Browser Page -->
   <if expr="not chromeos">
-    <message name="IDS_SETTINGS_DEFAULT_BROWSER_DEFAULT" desc="The text displayed when Chrome is the default browser">
+    <message name="IDS_SETTINGS_DEFAULT_BROWSER_DEFAULT" desc="The text displayed when GTX Browser is the default browser">
       GTX Browser is your default browser
     </message>
     <message name="IDS_SETTINGS_DEFAULT_BROWSER_MAKE_DEFAULT" desc="Default browser checkbox label">
       Make GTX Browser the default browser
     </message>
-    <message name="IDS_SETTINGS_DEFAULT_BROWSER_ERROR" desc="The text displayed when Chrome cannot determine or set the default browser">
+    <message name="IDS_SETTINGS_DEFAULT_BROWSER_ERROR" desc="The text displayed when GTX Browser cannot determine or set the default browser">
       GTX Browser cannot determine or set the default browser
     </message>
     <message name="IDS_SETTINGS_DEFAULT_BROWSER_SECONDARY" desc="The text displayed when GTX Browser is installed in side-by-side mode, which does not support setting as the default browser.">
@@ -103,15 +103,15 @@
   <message name="IDS_SETTINGS_SPELLING_PREF_DESC" desc="Description of using a web serviced to help resolve spelling errors. It is important to convey that what the user types will be sent to Google.">
     To fix spelling errors, GTX Browser sends the text you type in text fields to Google
   </message>
-  <message name="IDS_SETTINGS_RESTART_TO_APPLY_CHANGES" desc="Description in the snackbar to restart Chrome and apply changes.">
+  <message name="IDS_SETTINGS_RESTART_TO_APPLY_CHANGES" desc="Description in the snackbar to restart GTX Browser and apply changes.">
     To apply your changes, relaunch GTX Browser
   </message>
 
   <if expr="not chromeos and not lacros">
-    <message name="IDS_SETTINGS_SIGNIN_ALLOWED" desc="The title of the preference to allow to sign-in to Chrome">
+    <message name="IDS_SETTINGS_SIGNIN_ALLOWED" desc="The title of the preference to allow to sign-in to GTX Browser">
     Allow GTX Browser sign-in
     </message>
-    <message name="IDS_SETTINGS_SIGNIN_ALLOWED_DESC" desc="The description of the preference to allow to sign-in to Chrome">
+    <message name="IDS_SETTINGS_SIGNIN_ALLOWED_DESC" desc="The description of the preference to allow to sign-in to GTX Browser">
     By turning this off, you can sign in to Google sites like Gmail without signing in to GTX Browser
     </message>
   </if>
@@ -160,7 +160,7 @@
   <message name="IDS_SETTINGS_SAFETY_CHECK_UPDATES_FAILED" desc="This text describes that GTX Browser cannot update due to an unknown error.">
     GTX Browser didn't update, something went wrong. <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph>Fix GTX Browser update problems and failed updates.<ph name="END_LINK">&lt;/a&gt;</ph>
   </message>
-  <message name="IDS_SETTINGS_SAFETY_CHECK_UPDATES_UNKNOWN" desc="This text displays the installed version of GTX Browser when it is not possible to check for updates on non-Chrome branded browsers.">
+  <message name="IDS_SETTINGS_SAFETY_CHECK_UPDATES_UNKNOWN" desc="This text displays the installed version of GTX Browser when it is not possible to check for updates on non-GTX Browser branded browsers.">
     GTX Browser version <ph name="PRODUCT_VERSION">$1<ex>15.0.865.0</ex></ph> is installed
   </message>
   <message name="IDS_SETTINGS_SAFETY_CHECK_PASSWORDS_SIGNED_OUT" desc="This text points out that the password check can only run when the user is signed in.">
@@ -179,13 +179,13 @@
   </message>
 
   <!-- People Page -->
-  <message name="IDS_SETTINGS_SYNC_DISCONNECT_DELETE_PROFILE_WARNING_WITH_COUNTS_SINGULAR" desc="Warning message displayed in the Sign out of Chrome dialog that indicates profile browsing data will be removed from the device.">
+  <message name="IDS_SETTINGS_SYNC_DISCONNECT_DELETE_PROFILE_WARNING_WITH_COUNTS_SINGULAR" desc="Warning message displayed in the Sign out of GTX Browser dialog that indicates profile browsing data will be removed from the device.">
     This will delete 1 item from this device. To retrieve your data later, sign in to GTX Browser as <ph name="USER_EMAIL">$1<ex>foo@example.com</ex></ph>.
   </message>
-  <message name="IDS_SETTINGS_SYNC_DISCONNECT_DELETE_PROFILE_WARNING_WITH_COUNTS_PLURAL" desc="Warning message displayed in the Sign out of Chrome dialog that indicates profile browsing data will be removed from the device.">
+  <message name="IDS_SETTINGS_SYNC_DISCONNECT_DELETE_PROFILE_WARNING_WITH_COUNTS_PLURAL" desc="Warning message displayed in the Sign out of GTX Browser dialog that indicates profile browsing data will be removed from the device.">
     This will delete <ph name="ITEMS_COUNT">$1<ex>66</ex></ph> items from this device. To retrieve your data later, sign in to GTX Browser as <ph name="USER_EMAIL">$2<ex>foo@example.com</ex></ph>.
   </message>
-  <message name="IDS_SETTINGS_SYNC_DISCONNECT_DELETE_PROFILE_WARNING_WITHOUT_COUNTS" desc="Warning message displayed in the Sign out of Chrome dialog that indicates profile browsing data will be removed from the device.">
+  <message name="IDS_SETTINGS_SYNC_DISCONNECT_DELETE_PROFILE_WARNING_WITHOUT_COUNTS" desc="Warning message displayed in the Sign out of GTX Browser dialog that indicates profile browsing data will be removed from the device.">
     This will delete your browsing data from this device. To retrieve your data later, sign in to GTX Browser as <ph name="USER_EMAIL">$1<ex>foo@example.com</ex></ph>.
   </message>
 <if expr="not chromeos">
@@ -201,7 +201,7 @@
   </message>
 <if expr="chromeos">
   <message name="IDS_SETTINGS_ACCOUNT_MANAGER_DESCRIPTION_V2" desc="Description of the Account Manager Settings page. Shown just below the title of the page.">
-    You can manage your signed-in Google Accounts. Your Google Accounts are used for GTX Browser browser, Play Store, Gmail, and more. If you want to add an account for someone else, like a family member, add a new person to your <ph name="DEVICE_TYPE">$1<ex>Chromebook</ex></ph> instead. <ph name="LINK_BEGIN">&lt;a&gt;</ph>Learn more<ph name="LINK_END">&lt;/a&gt;</ph>
+    You can manage your signed-in Google Accounts. Your Google Accounts are used for GTX Browser browser, Play Store, Gmail, and more. If you want to add an account for someone else, like a family member, add a new person to your <ph name="DEVICE_TYPE">$1<ex>GTX Browserbook</ex></ph> instead. <ph name="LINK_BEGIN">&lt;a&gt;</ph>Learn more<ph name="LINK_END">&lt;/a&gt;</ph>
   </message>
 </if>
 
@@ -231,7 +231,7 @@
 
   <!-- System Page -->
   <if expr="not chromeos">
-    <message name="IDS_SETTINGS_SYSTEM_BACKGROUND_APPS_LABEL" desc="Label for the checkbox to allow apps to run in the background, when Chrome is closed.">
+    <message name="IDS_SETTINGS_SYSTEM_BACKGROUND_APPS_LABEL" desc="Label for the checkbox to allow apps to run in the background, when GTX Browser is closed.">
       Continue running background apps when GTX Browser is closed
     </message>
   </if>

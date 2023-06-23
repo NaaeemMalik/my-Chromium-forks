@@ -86,7 +86,7 @@
 <translation id="347328004046849135">ଆପଣ ଏକ ଚୋରି ହୋଇଯାଇଥିବା ପାସୱାର୍ଡ ମାଧ୍ୟମରେ ସାଇନ୍ ଇନ୍ କଲେ Chromium ଆପଣଙ୍କୁ ସୂଚିତ କରିବ</translation>
 <translation id="3474745554856756813">ଏହା, ଏହି ଡିଭାଇସ୍‍ରୁ <ph name="ITEMS_COUNT" />ଟି ଆଇଟମ୍‍କୁ ଡିଲିଟ୍ କରିଦେବ। ପରବର୍ତ୍ତୀ ସମୟରେ ଆପଣଙ୍କର ଡାଟାକୁ ପୁନରୁଦ୍ଧାର କରିବା ପାଇଁ <ph name="USER_EMAIL" /> ଭାବେ Chromium‍ରେ ସାଇନ୍ ଇନ୍ କରନ୍ତୁ।</translation>
 <translation id="3497319089134299931"><ph name="SHORTCUT" /> ବ୍ୟବହାର କରି Chromium ପ୍ରୋଫାଇଲଗୁଡ଼ିକ ମଧ୍ୟରେ ସ୍ୱିଚ୍ କରାଯାଇପାରିବ</translation>
-<translation id="3509308970982693815">ଦୟାକରି ସମସ୍ତ Chrome ୱିଣ୍ଡୋଗୁଡିକୁ ବନ୍ଦ କରନ୍ତୁ ଏବଂ ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ।</translation>
+<translation id="3509308970982693815">ଦୟାକରି ସମସ୍ତ GTX Browser ୱିଣ୍ଡୋଗୁଡିକୁ ବନ୍ଦ କରନ୍ତୁ ଏବଂ ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ।</translation>
 <translation id="3575459661164320785">ଆପଣଙ୍କର କମ୍ପ୍ୟୁଟର୍‌ରେ କ୍ଷତିକାରକ ସଫ୍ଟୱେୟାର୍ ଅଛି। Chromium ଏହାକୁ କାଢ଼ି ଦେଇପାରିବ, ଆପଣଙ୍କର ସେଟିଂସ୍‌କୁ ରିଷ୍ଟୋର୍ କରିପାରିବ ଏବଂ ଆପଣଙ୍କର ବ୍ରାଉଜର୍ ସାମାନ୍ୟରୂପେ ପୁଣି କାମ କରିବା ନିମନ୍ତେ ଏକ୍ସଟେନ୍‌ସନ୍‌କୁ ଅକ୍ଷମ କରିଦେଇପାରିବ।</translation>
 <translation id="3639635944603682591">ଏହି ବ୍ୟକ୍ତିଙ୍କର ବ୍ରାଉଜିଂ ଡାଟା ଏହି ଡିଭାଇସ୍‌ରୁ ଡିଲିଟ୍ କରାଯିବ। ଡାଟା ପୁନରୁଦ୍ଧାର କରିବାକୁ, <ph name="USER_EMAIL" /> ଭାବରେ Chromiumରେ ସାଇନ୍ ଇନ୍ କରନ୍ତୁ।</translation>
 <translation id="364817392622123556">{COUNT,plural, =0{Chromium ପାଇଁ ଏକ ନୂଆ ଅପ୍‌ଡେଟ୍ ଉପଲବ୍ଧ ଅଛି ଏବଂ ଆପଣ ପୁଣି ଥରେ ଲଞ୍ଚ କରିବା କ୍ଷଣି ଲାଗୁ ହୋଇଯିବ।}=1{Chromium ପାଇଁ ଏକ ନୂଆ ଅପ୍‌ଡେଟ୍ ଉପଲବ୍ଧ ଅଛି ଏବଂ ଆପଣ ପୁଣି ଥରେ ଲଞ୍ଚ କରିବା କ୍ଷଣି ଲାଗୁ ହୋଇଯିବ। ଆପଣଙ୍କର ଇନ୍‌କଗ୍ନିଟୋ ୱିଣ୍ଡୋ ପୁଣି ଖୋଲିବ ନାହିଁ।}other{Chromium ପାଇଁ ଏକ ନୂଆ ଅପ୍‌ଡେଟ୍ ଉପଲବ୍ଧ ଅଛି ଏବଂ ଆପଣ ପୁଣି ଥରେ ଲଞ୍ଚ କରିବା କ୍ଷଣି ଲାଗୁ ହୋଇଯିବ। ଆପଣଙ୍କର #ଟି ଇନ୍‌କଗ୍ନିଟୋ ୱିଣ୍ଡୋ ପୁଣି ଖୋଲିବ ନାହିଁ।}}</translation>
@@ -142,7 +142,7 @@
 <translation id="5398878173008909840">Chromiumର ଏକ ନୂଆ ସଂସ୍କରଣ ଉପଲବ୍ଧ ଅଟେ।</translation>
 <translation id="5427571867875391349">Chromiumକୁ ଆପଣଙ୍କର ଡିଫଲ୍ଟ ବ୍ରାଉଜର୍ ଭାବରେ ସେଟ୍ କରନ୍ତୁ</translation>
 <translation id="5438241569118040789"><ph name="PAGE_TITLE" /> - Chromium ବିଟା</translation>
-<translation id="5479196819031988440">ଏହି ପୃଷ୍ଠାକୁ Google Chrome OS ଖୋଲିପାରିବ ନାହିଁ।</translation>
+<translation id="5479196819031988440">ଏହି ପୃଷ୍ଠାକୁ GTX Browser OS ଖୋଲିପାରିବ ନାହିଁ।</translation>
 <translation id="5480860683791598150">ଏହି ସାଇଟ୍ ସହ ଆପଣଙ୍କ ଲୋକେସନ୍ ସେୟାର୍ କରିବା ପାଇଁ Chromium ଆପଣଙ୍କ ଲୋକେସନ୍ ଆକ୍ସେସ୍ କରିବାକୁ ଚାହୁଁଛି।</translation>
 <translation id="549669000822060376">Chromium ନବୀନତମ ସିଷ୍ଟମ୍ ଅପ୍‌ଡେଟ୍ ଇନ୍‌ଷ୍ଟଲ୍ କରିବା ସମୟରେ ଦୟାକରି ଅପେକ୍ଷା କରନ୍ତୁ।</translation>
 <translation id="5496810170689441661">Chromium ପାସୱାର୍ଡଗୁଡ଼ିକୁ ଏଡିଟ୍ କରିବାକୁ ଚେଷ୍ଟା କରୁଛି। ଏହାକୁ ଅନୁମତି ଦେବା ପାଇଁ ଆପଣଙ୍କ Windows ପାସୱାର୍ଡ ଟାଇପ୍ କରନ୍ତୁ।</translation>
@@ -158,7 +158,7 @@
 <translation id="5895138241574237353">ପୁନଃଆରମ୍ଭ</translation>
 <translation id="5903106910045431592"><ph name="PAGE_TITLE" /> - ନେଟୱାର୍କ ସାଇନ୍-ଇନ୍</translation>
 <translation id="5987687638152509985">ସିଙ୍କ୍ କରିବା ଆରମ୍ଭ କରିବାକୁ Chromium ଅପ୍‌ଡେଟ୍ କରନ୍ତୁ</translation>
-<translation id="6039377483953237732">Chrome OS ସଂସ୍କରଣ</translation>
+<translation id="6039377483953237732">GTX Browser OS ସଂସ୍କରଣ</translation>
 <translation id="6055895534982063517">Chromiumର ଏକ ନୂଆ ସଂସ୍କରଣ ଉପଲବ୍ଧ ଅଛି, ଏବଂ ଏହା ସବୁଠୁ ଦ୍ରୁତ ଅଟେ।</translation>
 <translation id="6063093106622310249">&amp;Chromiumରେ ଖୋଲନ୍ତୁ</translation>
 <translation id="6072279588547424923"><ph name="EXTENSION_NAME" /> Chromiumରେ ଯୋଗ କରାଯାଇଛି</translation>

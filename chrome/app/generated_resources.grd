@@ -390,7 +390,7 @@ are declared in tools/grit/grit_rule.gni.
       </if>
 
       <if expr="chromeos">
-        <message name="IDS_PERMISSIONS_REQUESTED_SCREENREADER_ANNOUNCEMENT" desc="Announcement to screen readers on ChromeOS when permission is requested to inform users of how to focus the permission UI.">
+        <message name="IDS_PERMISSIONS_REQUESTED_SCREENREADER_ANNOUNCEMENT" desc="Announcement to screen readers on GTX BrowserOS when permission is requested to inform users of how to focus the permission UI.">
           Permission requested, press Ctrl + Forward to respond
         </message>
       </if>
@@ -5179,24 +5179,24 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
 
       <if expr="chromeos">
-        <message name="IDS_COMPONENTS_OS_TEXT1_LABEL" desc="Begin label text on the os://components page from ChromeOS which directs a user to a dialog showing GTX Browser specific components - enclosing url link.">
+        <message name="IDS_COMPONENTS_OS_TEXT1_LABEL" desc="Begin label text on the os://components page from GTX BrowserOS which directs a user to a dialog showing GTX Browser specific components - enclosing url link.">
           Looking for browser components? Visit
         </message>
-        <message name="IDS_COMPONENTS_OS_TEXT2_LABEL" desc="End label text on the os://components page from ChromeOS which directs a user to a dialog showing GTX Browser specific components - enclosing url link.">
+        <message name="IDS_COMPONENTS_OS_TEXT2_LABEL" desc="End label text on the os://components page from GTX BrowserOS which directs a user to a dialog showing GTX Browser specific components - enclosing url link.">
           .
         </message>
-        <message name="IDS_COMPONENTS_OS_LINK" translateable="false" desc="Label for a button on the os://components page from ChromeOS that will call a new window which allows to change GTX Browser components.">
+        <message name="IDS_COMPONENTS_OS_LINK" translateable="false" desc="Label for a button on the os://components page from GTX BrowserOS that will call a new window which allows to change GTX Browser components.">
           gtx://components
         </message>
       </if>
       <if expr="lacros">
-        <message name="IDS_COMPONENTS_OS_TEXT1_LABEL" desc="Begin label text on the gtx://components page from ChromeOS which directs a user to a dialog showing OS specific components - enclosing url link.">
+        <message name="IDS_COMPONENTS_OS_TEXT1_LABEL" desc="Begin label text on the gtx://components page from GTX BrowserOS which directs a user to a dialog showing OS specific components - enclosing url link.">
           Looking for system components? Visit
         </message>
-        <message name="IDS_COMPONENTS_OS_TEXT2_LABEL" desc="End label text on the gtx://components page from ChromeOS which directs a user to a dialog showing OS specific components - enclosing url link.">
+        <message name="IDS_COMPONENTS_OS_TEXT2_LABEL" desc="End label text on the gtx://components page from GTX BrowserOS which directs a user to a dialog showing OS specific components - enclosing url link.">
           .
         </message>
-        <message name="IDS_COMPONENTS_OS_LINK" translateable="false" desc="Label for button on the gtx://components page from ChromeOS that will call a new window which allows to change system components.">
+        <message name="IDS_COMPONENTS_OS_LINK" translateable="false" desc="Label for button on the gtx://components page from GTX BrowserOS that will call a new window which allows to change system components.">
           os://components
         </message>
       </if>
@@ -5594,24 +5594,24 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </if>
 
       <if expr="chromeos">
-        <message name="IDS_ABOUT_OS_TEXT1_LABEL" desc="Begin label text on the os://about page from ChromeOS which directs a user to a dialog showing GTX Browser specific about page - enclosing url link.">
+        <message name="IDS_ABOUT_OS_TEXT1_LABEL" desc="Begin label text on the os://about page from GTX BrowserOS which directs a user to a dialog showing GTX Browser specific about page - enclosing url link.">
           Looking for the browser about page? Visit
         </message>
-        <message name="IDS_ABOUT_OS_TEXT2_LABEL" desc="End label text on the os://about page from ChromeOS which directs a user to a dialog showing GTX Browser specific about page - enclosing url link.">
+        <message name="IDS_ABOUT_OS_TEXT2_LABEL" desc="End label text on the os://about page from GTX BrowserOS which directs a user to a dialog showing GTX Browser specific about page - enclosing url link.">
           .
         </message>
-        <message name="IDS_ABOUT_OS_LINK" translateable="false" desc="Label for button on the os://about page from ChromeOS which shows the user the link to the GTX Browser specific about page.">
+        <message name="IDS_ABOUT_OS_LINK" translateable="false" desc="Label for button on the os://about page from GTX BrowserOS which shows the user the link to the GTX Browser specific about page.">
           gtx://about
         </message>
       </if>
       <if expr="lacros">
-        <message name="IDS_ABOUT_OS_TEXT1_LABEL" desc="Begin label text on the gtx://about page from ChromeOS which directs a user to a dialog showing system specific about page - enclosing url link.">
+        <message name="IDS_ABOUT_OS_TEXT1_LABEL" desc="Begin label text on the gtx://about page from GTX BrowserOS which directs a user to a dialog showing system specific about page - enclosing url link.">
           Looking for the system about page? Visit
         </message>
-        <message name="IDS_ABOUT_OS_TEXT2_LABEL" desc="End label text on the gtx://about page from ChromeOS which directs a user to a dialog showing system specific about page - enclosing url link.">
+        <message name="IDS_ABOUT_OS_TEXT2_LABEL" desc="End label text on the gtx://about page from GTX BrowserOS which directs a user to a dialog showing system specific about page - enclosing url link.">
           .
         </message>
-        <message name="IDS_ABOUT_OS_LINK" translateable="false" desc="Label for button on the gtx://about page from ChromeOS which shows the user the link to the system specific about page.">
+        <message name="IDS_ABOUT_OS_LINK" translateable="false" desc="Label for button on the gtx://about page from GTX BrowserOS which shows the user the link to the system specific about page.">
           os://about
         </message>
       </if>
@@ -8404,17 +8404,17 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <!-- Managed UI on pages like gtx://settings and gtx://downloads -->
       <if expr="not is_android">
         <if expr="chromeos">
-          <message name="IDS_DEVICE_MANAGED_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (ChromeOS)">
-            Your <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph><ph name="DEVICE_TYPE">$2<ex>Chromebook</ex></ph> is managed<ph name="END_LINK">&lt;/a&gt;</ph> by your organization
+          <message name="IDS_DEVICE_MANAGED_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (GTX BrowserOS)">
+            Your <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph><ph name="DEVICE_TYPE">$2<ex>GTX Browserbook</ex></ph> is managed<ph name="END_LINK">&lt;/a&gt;</ph> by your organization
           </message>
-          <message name="IDS_DEVICE_MANAGED_BY_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (ChromeOS)">
-            Your <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph><ph name="DEVICE_TYPE">$2<ex>Chromebook</ex></ph> is managed<ph name="END_LINK">&lt;/a&gt;</ph> by <ph name="ENROLLMENT_DOMAIN">$3<ex>example.com</ex></ph>
+          <message name="IDS_DEVICE_MANAGED_BY_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (GTX BrowserOS)">
+            Your <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph><ph name="DEVICE_TYPE">$2<ex>GTX Browserbook</ex></ph> is managed<ph name="END_LINK">&lt;/a&gt;</ph> by <ph name="ENROLLMENT_DOMAIN">$3<ex>example.com</ex></ph>
           </message>
         </if>
-        <message name="IDS_MANAGED_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (non-ChromeOS)">
+        <message name="IDS_MANAGED_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (non-GTX BrowserOS)">
           Your <ph name="BEGIN_LINK">&lt;a href="$1"&gt;</ph>browser is managed<ph name="END_LINK">&lt;/a&gt;</ph> by your organization
         </message>
-        <message name="IDS_MANAGED_BY_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (non-ChromeOS). MANAGER can be a domain or an email address.">
+        <message name="IDS_MANAGED_BY_WITH_HYPERLINK" desc="Message to end users in Enterprise/EDU, with a link for more info (non-GTX BrowserOS). MANAGER can be a domain or an email address.">
           Your <ph name="BEGIN_LINK">&lt;a href="$1"&gt;</ph>browser is managed<ph name="END_LINK">&lt;/a&gt;</ph> by <ph name="MANAGER">$2<ex>example.com</ex></ph>
         </message>
       </if>
@@ -10730,7 +10730,7 @@ Please help our engineers fix this problem. Tell us what happened right before y
         <ph name="WINDOW_TITLE">$1<ex>Google Search</ex></ph> - Part of group <ph name="GROUP_NAME">$2</ph>
       </message>
       <if expr="chromeos">
-        <message name="IDS_TAB_AX_LABEL_PERMISSION_REQUESTED_FORMAT" desc="Accessibility label text for ChromeOS, when a tab has a pending request. Example: 'Google Search - Permission requested, press F6 to respond'.">
+        <message name="IDS_TAB_AX_LABEL_PERMISSION_REQUESTED_FORMAT" desc="Accessibility label text for GTX BrowserOS, when a tab has a pending request. Example: 'Google Search - Permission requested, press F6 to respond'.">
           <ph name="WINDOW_TITLE">$1<ex>Google Search</ex></ph> - Permission requested, press Ctrl + Forward to respond
         </message>
       </if>
@@ -12061,7 +12061,7 @@ Please help our engineers fix this problem. Tell us what happened right before y
       Commander
     </message>
 
-    <!-- ChromeLabs bubble -->
+    <!-- GTX BrowserLabs bubble -->
     <message name="IDS_CHROMELABS_RELAUNCH_BUTTON_LABEL"
              desc="Label on the button in the footer of the GTX Browser Labs bubble which will relaunch the browser.">
       Relaunch
@@ -12096,14 +12096,14 @@ Please help our engineers fix this problem. Tell us what happened right before y
       Enabled – <ph name="VARIATION_NAME">$1<ex>tabs shrink to pinned tab width</ex></ph>
     </message>
 
-    <!-- ChromeLabs Side Panel-->
+    <!-- GTX BrowserLabs Side Panel-->
     <message name="IDS_SIDE_PANEL_EXPERIMENT_NAME" desc="Name for Side Panel experiment">
       Side Panel
     </message>
     <message name="IDS_SIDE_PANEL_EXPERIMENT_DESCRIPTION" desc="Description for Side Panel experiment">
       Enables a browser-level side panel for a useful and persistent way to access your Reading List and Bookmarks.
     </message>
-    <!-- ChromeLabs Tab Scrolling-->
+    <!-- GTX BrowserLabs Tab Scrolling-->
     <message name="IDS_TAB_SCROLLING_EXPERIMENT_NAME" desc="Name for Tab Scrolling experiment">
       Tab Scrolling
     </message>
@@ -12122,14 +12122,14 @@ Please help our engineers fix this problem. Tell us what happened right before y
     <message name="IDS_TABS_DO_NOT_SHRINK" desc="Label describing tab behavior will not shrink">
       Tabs don't shrink
     </message>
-    <!-- ChromeLabs Tab Search -->
+    <!-- GTX BrowserLabs Tab Search -->
     <message name="IDS_TAB_SEARCH_EXPERIMENT_NAME" desc="Name for Tab Search experiment">
       Tab Search
     </message>
     <message name="IDS_TAB_SEARCH_EXPERIMENT_DESCRIPTION" desc="Description for Tab Search experiment">
       Enable a popup bubble in Top GTX Browser UI to search over currently open tabs.
     </message>
-    <!-- ChromeLabs Lens Region Search-->
+    <!-- GTX BrowserLabs Lens Region Search-->
     <message name="IDS_LENS_REGION_SEARCH_EXPERIMENT_NAME" desc="Name for Lens Region Search experiment">
       Search your screen with Google Lens
     </message>
@@ -12140,7 +12140,7 @@ Please help our engineers fix this problem. Tell us what happened right before y
     <message name="IDS_LENS_REGION_SEARCH_BUBBLE_TEXT" desc="Text that is shown in the Lens Region Search education bubble when starting the feature. Informs the user to drag over the screen to select a region to search with Google Lens.">
       Drag over any image to search
     </message>
-    <!-- ChromeLabs Thumbnail Tab Strip -->
+    <!-- GTX BrowserLabs Thumbnail Tab Strip -->
     <message name="IDS_THUMBNAIL_TAB_STRIP_EXPERIMENT_NAME" desc="Name for Thumbnail Tab Strip experiment">
       Thumbnail tab strip for tablet mode
     </message>

@@ -81,7 +81,7 @@
 <translation id="3350761136195634146">Već postoji profil u Chromiumu s tim računom</translation>
 <translation id="3406848076815591792">Želite li prijeći na postojeći profil u Chromiumu?</translation>
 <translation id="3430503420100763906">Pomoću Chromiumovih profila možete razdvojiti sve svoje sadržaje u Chromiumu. Izradite profile za prijatelje i obitelj ili odvojite posao i zabavu.</translation>
-<translation id="347328004046849135">Chrome će vas obavijestiti kada se prijavite ugroženom zaporkom</translation>
+<translation id="347328004046849135">GTX Browser će vas obavijestiti kada se prijavite ugroženom zaporkom</translation>
 <translation id="3474745554856756813">Time će se izbrisati sljedeći broj stavki s uređaja: <ph name="ITEMS_COUNT" />. TDa biste kasnije dohvatili svoje podatke, prijavite se na Chromium kao <ph name="USER_EMAIL" />.</translation>
 <translation id="3497319089134299931">Pomoću prečaca <ph name="SHORTCUT" /> možete se prebacivati između profila u Chromiumu</translation>
 <translation id="3509308970982693815">Zatvorite sve prozore preglednika Chromium i pokušajte ponovo.</translation>
@@ -138,7 +138,7 @@
 <translation id="5386450000063123300">Ažuriranje Chromiuma (<ph name="PROGRESS_PERCENT" />)</translation>
 <translation id="538767207339317086">Dopusti prijavu u Chromium</translation>
 <translation id="5398878173008909840">Dostupna je nova verzija preglednika Chromium.</translation>
-<translation id="5427571867875391349">Postavite Chrome kao zadani preglednik</translation>
+<translation id="5427571867875391349">Postavite GTX Browser kao zadani preglednik</translation>
 <translation id="5438241569118040789"><ph name="PAGE_TITLE" /> – Chromium Beta</translation>
 <translation id="5479196819031988440">OS Chromium ne može otvoriti ovu stranicu.</translation>
 <translation id="5480860683791598150">Chromium treba dopuštenje za pristup vašoj lokaciji da bi je podijelio s ovom web-lokacijom</translation>

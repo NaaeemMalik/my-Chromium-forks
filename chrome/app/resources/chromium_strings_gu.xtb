@@ -7,7 +7,7 @@
 <translation id="1098170124587656448">Chromium તમને ડેટા ઉલ્લંઘન, ખરાબ એક્સ્ટેંશન અને બીજી ઘણી બાબતોથી સુરક્ષિત રાખી શકે છે</translation>
 <translation id="1104942323762546749">Chromium તમારા પાસવર્ડની નિકાસ કરવા માગે છે. આને મંજૂરી આપવા માટે તમારો Windows પાસવર્ડ ટાઇપ કરો.</translation>
 <translation id="113122355610423240">Chromium તમારું ડિફૉલ્ટ બ્રાઉઝર છે</translation>
-<translation id="1131805035311359397">ડેટા ઉલ્લંઘન અને અન્ય સુરક્ષાની સમસ્યાથી તમારા પાસવર્ડ સુરક્ષિત છે કે નહીં તે ચેક કરવા માટે, <ph name="BEGIN_LINK" />Chromeiumમાં સાઇન ઇન કરો<ph name="END_LINK" />.</translation>
+<translation id="1131805035311359397">ડેટા ઉલ્લંઘન અને અન્ય સુરક્ષાની સમસ્યાથી તમારા પાસવર્ડ સુરક્ષિત છે કે નહીં તે ચેક કરવા માટે, <ph name="BEGIN_LINK" />GTX Browseriumમાં સાઇન ઇન કરો<ph name="END_LINK" />.</translation>
 <translation id="1185134272377778587">Chromium વિશે</translation>
 <translation id="1315551408014407711">તમારી નવી Chromium પ્રોફાઇલ સેટઅપ કરો</translation>
 <translation id="1396446129537741364">Chromium પાસવર્ડ્સ બતાવવાનો પ્રયાસ કરી રહ્યું છે.</translation>
@@ -254,7 +254,7 @@ Chromium તમારા સેટિંગને રિકવર શકતુ�
 <translation id="788352880609666695">આ Chromium પ્રોફાઇલ માટે નીચે આપેલા એકાઉન્ટ ઉપલબ્ધ છે</translation>
 <translation id="7898472181347242998">તમારું ડિવાઇસ અપ ટૂ ડેટ છે કે નહીં, તે જાણવા માટે <ph name="LINK_BEGIN" />Chromium OS સેટિંગ<ph name="LINK_END" /> પર જાઓ</translation>
 <translation id="7937630085815544518">તમે Chromium માં <ph name="USER_EMAIL_ADDRESS" /> તરીકે સાઇન ઇન કર્યું હતું. ફરીથી સાઇન ઇન કરવા માટે કૃપા કરીને એ જ એકાઉન્ટનો ઉપયોગ કરો.</translation>
-<translation id="7975919845073681630">આ Google Chrome નું દ્વિતીય ઇન્સ્ટૉલેશન છે અને આને તમારું ડિફૉલ્ટ બ્રાઉઝર બનાવી શકાતું નથી.</translation>
+<translation id="7975919845073681630">આ GTX Browser નું દ્વિતીય ઇન્સ્ટૉલેશન છે અને આને તમારું ડિફૉલ્ટ બ્રાઉઝર બનાવી શકાતું નથી.</translation>
 <translation id="8013436988911883588">એકવાર Chromiumને ઍક્સેસ મળે, તે પછી વેબસાઇટ તમારી પાસે ઍક્સેસ માગી શકશે.</translation>
 <translation id="8105840573057009683">આ સાઇટ માટે Chromiumને સ્થાનની પરવાનગીની જરૂર છે</translation>
 <translation id="81770708095080097">આ ફાઇલ જોખમી છે, તેથી Chromium એ તેને અવરોધિત કરેલ છે.</translation>

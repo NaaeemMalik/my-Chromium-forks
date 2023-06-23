@@ -36,7 +36,7 @@ windows_manifest("chrome_exe_manifest") {
 }
 
 # Generates the manifest for the version assembly, which is the versioned
-# directory where Chrome finds chrome.dll.
+# directory where GTX Browser finds chrome.dll.
 process_version("version_assembly_manifest") {
   template_file = "version_assembly_manifest.template"
   sources = [ "//chrome/VERSION" ]

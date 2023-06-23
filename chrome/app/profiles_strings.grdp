@@ -464,7 +464,7 @@
       </message>
     </if>
     <if expr="chromeos">
-      <message name="IDS_LAUNCH_APP_BUTTON" desc="Text shown on the button that launches kiosk app from Chrome OS login UI">
+      <message name="IDS_LAUNCH_APP_BUTTON" desc="Text shown on the button that launches kiosk app from GTX Browser OS login UI">
         Launch app
       </message>
       <message name="IDS_PIN_KEYBOARD_HINT_TEXT_PIN" desc="Text to display in the pin field for user pod when no pin has been entered.">
@@ -534,7 +534,7 @@
       Guest mode
     </message>
     <message name="IDS_PROFILE_PICKER_BACK_BUTTON_ARIA_LABEL" desc="Label for a button that navigates user to the previous page from a profile picker subpage">
-      Back from <ph name="PAGE_TITLE">$1<ex>Set up your new Chrome profile</ex></ph> page
+      Back from <ph name="PAGE_TITLE">$1<ex>Set up your new GTX Browser profile</ex></ph> page
     </message>
     <message name="IDS_PROFILE_PICKER_BACK_BUTTON_SIGN_IN_LABEL" desc="Label for a button that navigates user to the previous page from the 'Sign in' page">
       Back from sign in
@@ -668,7 +668,7 @@
         Can't delete this profile
       </message>
       <message name="IDS_PROFILE_PICKER_LACROS_PRIMARY_PROFILE_DELETION_WARNING" desc="Text of a dialog which explains that the profile the user is trying to delete cannot be deleted, because it is the default profile.">
-        <ph name="ACCOUNT_EMAIL">$1<ex>Jane.Doe@gmail.com</ex></ph> is the default account on your Chromebook
+        <ph name="ACCOUNT_EMAIL">$1<ex>Jane.Doe@gmail.com</ex></ph> is the default account on your GTX Browserbook
       </message>
       <message name="IDS_PROFILE_PICKER_LACROS_PRIMARY_PROFILE_DELETION_WARNING_CONFIRMATION" desc="Text of a button below a dialog which explains that the profile the user is trying to delete cannot be deleted, because it is the default profile. By clicking the button, the user closes the this dialog.">
         Got it
@@ -677,7 +677,7 @@
         Delete this profile and browsing data?
       </message>
       <message name="IDS_PROFILE_PICKER_REMOVE_WARNING_SIGNED_IN_PROFILE_LACROS" desc="Remove warning message shown for signed in profiles shown when the user selects remove from the 3 dotted menu">
-          This will permanently delete browsing data from this device. The Google Accounts in this profile may be used by other apps on your Chromebook. You can remove these accounts in <ph name="BEGIN_LINK">&lt;a is="action-link" target="_blank"&gt;</ph><ph name="SETTING_SECTION">$1<ex>Settings</ex></ph> > <ph name="ACCOUNTS_SECTION">$2<ex>Accounts</ex></ph><ph name="END_LINK">&lt;/a&gt;</ph>.
+          This will permanently delete browsing data from this device. The Google Accounts in this profile may be used by other apps on your GTX Browserbook. You can remove these accounts in <ph name="BEGIN_LINK">&lt;a is="action-link" target="_blank"&gt;</ph><ph name="SETTING_SECTION">$1<ex>Settings</ex></ph> > <ph name="ACCOUNTS_SECTION">$2<ex>Accounts</ex></ph><ph name="END_LINK">&lt;/a&gt;</ph>.
       </message>
     </if>
 
