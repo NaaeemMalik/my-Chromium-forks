@@ -78,13 +78,10 @@
 #include "chrome/browser/component_updater/vr_assets_component_installer.h"
 #endif
 
-#if BUILDFLAG(ENABLE_MEDIA_FOUNDATION_WIDEVINE_CDM)
 #include "chrome/browser/component_updater/media_foundation_widevine_cdm_component_installer.h"
-#endif
 
-#if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
 #include "chrome/browser/component_updater/widevine_cdm_component_installer.h"
-#endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+// BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
 
 #if defined(USE_AURA)
 #include "ui/aura/env.h"
@@ -106,9 +103,9 @@ void RegisterComponentsForUpdate() {
   RegisterMediaFoundationWidevineCdmComponent(cus);
 #endif
 
-#if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+// #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
   RegisterWidevineCdmComponent(cus);
-#endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+// #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
 
 #if BUILDFLAG(ENABLE_NACL) && !defined(OS_ANDROID)
 #if BUILDFLAG(IS_CHROMEOS_ASH)
