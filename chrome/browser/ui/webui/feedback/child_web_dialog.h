@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include "ui/web_dialogs/web_dialog_delegate.h"
 #include "url/gurl.h"
 
+class Profile;
 namespace views {
 class Widget;
 }
@@ -21,10 +22,12 @@ class Widget;
 // Launches a child web dialog with specified URL and title.
 class ChildWebDialog : public ui::WebDialogDelegate {
  public:
-  ChildWebDialog(views::Widget* parent_widget,
+  ChildWebDialog(Profile* profile,
+                 views::Widget* parent_widget,
                  const GURL& url,
                  const std::u16string& title,
                  ui::ModalType modal_type = ui::MODAL_TYPE_WINDOW,
+                 const std::string& args = "",
                  int dialog_width = 640,
                  int dialog_height = 400,
                  bool can_resize = true,
@@ -53,10 +56,12 @@ class ChildWebDialog : public ui::WebDialogDelegate {
   bool ShouldShowDialogTitle() const override;
 
  private:
-  raw_ptr<views::Widget> parent_widget_;
+  const raw_ptr<Profile> profile_;
+  const raw_ptr<views::Widget> parent_widget_;
   const std::u16string title_;
   const GURL url_;
   const ui::ModalType modal_type_;
+  const std::string args_;
   const int dialog_width_;
   const int dialog_height_;
 };

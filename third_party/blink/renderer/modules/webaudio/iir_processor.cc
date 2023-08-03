@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/webaudio/iir_processor.h"
 
 #include <memory>
+
 #include "third_party/blink/renderer/modules/webaudio/iir_dsp_kernel.h"
 
 namespace blink {
@@ -45,11 +46,13 @@ IIRProcessor::IIRProcessor(float sample_rate,
     // Thus, the feedback and feedforward coefficients need to be scaled by
     // 1/a[0].
     float scale = feedback_coef[0];
-    for (unsigned k = 1; k < feedback_length; ++k)
+    for (unsigned k = 1; k < feedback_length; ++k) {
       feedback_[k] /= scale;
+    }
 
-    for (unsigned k = 0; k < feedforward_length; ++k)
+    for (unsigned k = 0; k < feedforward_length; ++k) {
       feedforward_[k] /= scale;
+    }
 
     // The IIRFilter checks to make sure this coefficient is 1, so make it so.
     feedback_[0] = 1;
@@ -59,28 +62,13 @@ IIRProcessor::IIRProcessor(float sample_rate,
 }
 
 IIRProcessor::~IIRProcessor() {
-  if (IsInitialized())
+  if (IsInitialized()) {
     Uninitialize();
+  }
 }
 
 std::unique_ptr<AudioDSPKernel> IIRProcessor::CreateKernel() {
   return std::make_unique<IIRDSPKernel>(this);
-}
-
-void IIRProcessor::Process(const AudioBus* source,
-                           AudioBus* destination,
-                           uint32_t frames_to_process) {
-  if (!IsInitialized()) {
-    destination->Zero();
-    return;
-  }
-
-  // For each channel of our input, process using the corresponding IIRDSPKernel
-  // into the output channel.
-  for (unsigned i = 0; i < kernels_.size(); ++i)
-    kernels_[i]->Process(source->Channel(i)->Data(),
-                         destination->Channel(i)->MutableData(),
-                         frames_to_process);
 }
 
 void IIRProcessor::GetFrequencyResponse(int n_frequencies,

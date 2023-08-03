@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,17 +18,15 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/window_open_disposition.h"
-#include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/views/animation/animation_delegate_views.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/view.h"
 
 class OmniboxEditModel;
 class OmniboxMatchCellView;
-class OmniboxPopupContentsView;
+class OmniboxPopupViewViews;
 class OmniboxSuggestionButtonRowView;
 class OmniboxResultSelectionIndicator;
 enum class OmniboxPart;
@@ -43,11 +41,10 @@ class Button;
 class ImageButton;
 }  // namespace views
 
-class OmniboxResultView : public views::View,
-                          public views::AnimationDelegateViews {
+class OmniboxResultView : public views::View {
  public:
   METADATA_HEADER(OmniboxResultView);
-  OmniboxResultView(OmniboxPopupContentsView* popup_contents_view,
+  OmniboxResultView(OmniboxPopupViewViews* popup_contents_view,
                     OmniboxEditModel* model,
                     size_t model_index);
   OmniboxResultView(const OmniboxResultView&) = delete;
@@ -59,16 +56,10 @@ class OmniboxResultView : public views::View,
       views::View* view,
       OmniboxPartState part_state);
 
-  // Helper to get the color for |part| using the current state.
-  SkColor GetColor(OmniboxPart part) const;
-
   // Updates the match used to paint the contents of this result view. We copy
   // the match so that we can continue to paint the last result even after the
   // model has changed.
   void SetMatch(const AutocompleteMatch& match);
-
-  // Sets the visibility of the keyword mode slide animation.
-  void ShowKeywordSlideAnimation(bool show_keyword);
 
   // Applies the current theme to the current text and widget colors.
   // Also refreshes the icons which may need to be re-colored as well.
@@ -118,17 +109,11 @@ class OmniboxResultView : public views::View,
   // state.
   void UpdateRemoveSuggestionVisibility();
 
-  // Sets the widths of the suggestion and keyword and calls Layout().
-  void SetWidths();
-
   // views::View:
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
 
-  // views::AnimationDelegateViews:
-  void AnimationProgressed(const gfx::Animation* animation) override;
-
   // The parent view.
-  const raw_ptr<OmniboxPopupContentsView> popup_contents_view_;
+  const raw_ptr<OmniboxPopupViewViews> popup_view_;
 
   // The model containing results.
   raw_ptr<OmniboxEditModel> model_;
@@ -142,16 +127,12 @@ class OmniboxResultView : public views::View,
   // Accessible name (enables to emit certain events).
   std::u16string accessible_name_;
 
-  // For sliding in the keyword search.
-  std::unique_ptr<gfx::SlideAnimation> keyword_slide_animation_;
-
   // Container for the first row (for everything expect |button_row_|).
   raw_ptr<views::View> suggestion_container_;
 
   // Weak pointers for easy reference.
   raw_ptr<OmniboxMatchCellView>
-      suggestion_view_;                         // The leading (or left) view.
-  raw_ptr<OmniboxMatchCellView> keyword_view_;  // The trailing (or right) view.
+      suggestion_view_;  // The leading (or left) view.
 
   // The blue bar used to indicate selection.
   raw_ptr<OmniboxResultSelectionIndicator> selection_indicator_ = nullptr;

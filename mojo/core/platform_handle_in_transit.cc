@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,12 +11,13 @@
 #include "base/process/process_handle.h"
 #include "build/build_config.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <ntstatus.h>
 #include <windows.h>
 
 #include "base/win/nt_status.h"
 #include "base/win/scoped_handle.h"
+#include "mojo/public/cpp/platform/platform_handle_security_util_win.h"
 #endif
 
 namespace mojo {
@@ -24,10 +25,15 @@ namespace core {
 
 namespace {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 HANDLE TransferHandle(HANDLE handle,
                       base::ProcessHandle from_process,
-                      base::ProcessHandle to_process) {
+                      base::ProcessHandle to_process,
+                      PlatformHandleInTransit::TransferTargetTrustLevel trust) {
+  if (trust == PlatformHandleInTransit::kUntrustedTarget) {
+    DcheckIfFileHandleIsUnsafe(handle);
+  }
+
   HANDLE out_handle;
   BOOL result =
       ::DuplicateHandle(from_process, handle, to_process, &out_handle, 0, FALSE,
@@ -93,7 +99,7 @@ PlatformHandleInTransit::PlatformHandleInTransit(
 }
 
 PlatformHandleInTransit::~PlatformHandleInTransit() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   if (!owning_process_.IsValid()) {
     DCHECK_EQ(remote_handle_, INVALID_HANDLE_VALUE);
     return;
@@ -105,7 +111,7 @@ PlatformHandleInTransit::~PlatformHandleInTransit() {
 
 PlatformHandleInTransit& PlatformHandleInTransit::operator=(
     PlatformHandleInTransit&& other) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   if (owning_process_.IsValid()) {
     DCHECK_NE(remote_handle_, INVALID_HANDLE_VALUE);
     CloseHandleInProcess(remote_handle_, owning_process_);
@@ -125,21 +131,23 @@ PlatformHandle PlatformHandleInTransit::TakeHandle() {
 }
 
 void PlatformHandleInTransit::CompleteTransit() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   remote_handle_ = INVALID_HANDLE_VALUE;
 #endif
   handle_.release();
   owning_process_ = base::Process();
 }
 
-bool PlatformHandleInTransit::TransferToProcess(base::Process target_process) {
+bool PlatformHandleInTransit::TransferToProcess(
+    base::Process target_process,
+    TransferTargetTrustLevel trust) {
   DCHECK(target_process.IsValid());
   DCHECK(!owning_process_.IsValid());
   DCHECK(handle_.is_valid());
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   remote_handle_ =
       TransferHandle(handle_.ReleaseHandle(), base::GetCurrentProcessHandle(),
-                     target_process.Handle());
+                     target_process.Handle(), trust);
   if (remote_handle_ == INVALID_HANDLE_VALUE)
     return false;
 #endif
@@ -147,7 +155,7 @@ bool PlatformHandleInTransit::TransferToProcess(base::Process target_process) {
   return true;
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // static
 bool PlatformHandleInTransit::IsPseudoHandle(HANDLE handle) {
   // Note that there appears to be no official documentation covering the
@@ -168,7 +176,8 @@ PlatformHandle PlatformHandleInTransit::TakeIncomingRemoteHandle(
     HANDLE handle,
     base::ProcessHandle owning_process) {
   return PlatformHandle(base::win::ScopedHandle(
-      TransferHandle(handle, owning_process, base::GetCurrentProcessHandle())));
+      TransferHandle(handle, owning_process, base::GetCurrentProcessHandle(),
+                     kTrustedTarget)));
 }
 #endif
 

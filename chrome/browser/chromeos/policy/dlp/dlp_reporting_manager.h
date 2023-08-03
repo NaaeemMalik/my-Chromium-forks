@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,29 +16,65 @@
 class DlpPolicyEvent;
 
 namespace policy {
+
+// Helper class used to build custom DLP policy events.
+class DlpPolicyEventBuilder {
+ public:
+  // Possible event types.
+  static std::unique_ptr<DlpPolicyEventBuilder> Event(
+      const std::string& src_pattern,
+      const std::string& rule_name,
+      const std::string& rule_id,
+      DlpRulesManager::Restriction restriction,
+      DlpRulesManager::Level level);
+  static std::unique_ptr<DlpPolicyEventBuilder> WarningProceededEvent(
+      const std::string& src_pattern,
+      const std::string& rule_name,
+      const std::string& rule_id,
+      DlpRulesManager::Restriction restriction);
+
+  // Setters used to define event properties.
+  void SetDestinationPattern(const std::string& dst_pattern);
+  void SetDestinationComponent(DlpRulesManager::Component dst_component);
+  void SetContentName(const std::string& content_name);
+
+  // Stops the creation and returns the created event.
+  DlpPolicyEvent Create();
+
+ private:
+  DlpPolicyEventBuilder();
+
+  // Private setters used to define mandatory event properties set up internally
+  // when a DlpPolicyEventBuilder is built.
+  void SetSourcePattern(const std::string& src_pattern);
+  void SetRestriction(DlpRulesManager::Restriction restriction);
+
+  DlpPolicyEvent event;
+};
+
 // helper function to create DlpPolicyEvents to be enqueued or used to test
 // against.
 DlpPolicyEvent CreateDlpPolicyEvent(const std::string& src_pattern,
-                                    DlpRulesManager::Restriction restriction);
-DlpPolicyEvent CreateDlpPolicyEvent(const std::string& src_pattern,
                                     DlpRulesManager::Restriction restriction,
+                                    const std::string& rule_name,
+                                    const std::string& rule_id,
                                     DlpRulesManager::Level level);
 DlpPolicyEvent CreateDlpPolicyEvent(const std::string& src_pattern,
                                     const std::string& dst_pattern,
                                     DlpRulesManager::Restriction restriction,
+                                    const std::string& rule_name,
+                                    const std::string& rule_id,
                                     DlpRulesManager::Level level);
 DlpPolicyEvent CreateDlpPolicyEvent(const std::string& src_pattern,
                                     DlpRulesManager::Component dst_component,
                                     DlpRulesManager::Restriction restriction,
+                                    const std::string& rule_name,
+                                    const std::string& rule_id,
                                     DlpRulesManager::Level level);
-// TODO(jkopanski): Using template parameter pack enforces including
-//  "dlp_policy_event.pb.h" in the header file. Check after implementing
-//  reporting for clipboard if this template patter is needed or move all
-//  functions to a separate header.
 template <typename... Args>
 DlpPolicyEvent CreateDlpPolicyWarningProceededEvent(Args... args) {
-  // TODO(jkopanski): Add level as the last argument.
-  auto event = CreateDlpPolicyEvent(args...);
+  auto event = CreateDlpPolicyEvent(args..., DlpRulesManager::Level::kNotSet);
+  // Override DlpRulesManager::Level::kNotSet set above.
   event.set_mode(DlpPolicyEvent_Mode_WARN_PROCEED);
   return event;
 }
@@ -62,19 +98,26 @@ class DlpReportingManager {
   // restrictions.
   void ReportEvent(const std::string& src_pattern,
                    DlpRulesManager::Restriction restriction,
-                   DlpRulesManager::Level level);
+                   DlpRulesManager::Level level,
+                   const std::string& rule_name,
+                   const std::string& rule_id);
   void ReportEvent(const std::string& src_pattern,
                    const std::string& dst_pattern,
                    DlpRulesManager::Restriction restriction,
-                   DlpRulesManager::Level level);
+                   DlpRulesManager::Level level,
+                   const std::string& rule_name,
+                   const std::string& rule_id);
   void ReportEvent(const std::string& src_pattern,
                    DlpRulesManager::Component dst_component,
                    DlpRulesManager::Restriction restriction,
-                   DlpRulesManager::Level level);
+                   DlpRulesManager::Level level,
+                   const std::string& rule_name,
+                   const std::string& rule_id);
   template <typename... Args>
   void ReportWarningProceededEvent(Args... args) {
     ReportEvent(CreateDlpPolicyWarningProceededEvent(args...));
   }
+  void ReportEvent(DlpPolicyEvent event);
 
   size_t events_reported() const { return events_reported_; }
 
@@ -90,8 +133,6 @@ class DlpReportingManager {
 
  private:
   void OnEventEnqueued(reporting::Status status);
-
-  void ReportEvent(DlpPolicyEvent event);
 
   // Counter for the number of events reported from login.
   size_t events_reported_ = 0;

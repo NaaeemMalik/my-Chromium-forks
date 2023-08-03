@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,11 @@
 #include "chrome/browser/android/compositor/layer/layer.h"
 #include "ui/android/resources/nine_patch_resource.h"
 
-namespace cc {
+namespace cc::slim {
 class Layer;
 class NinePatchLayer;
 class SolidColorLayer;
-class UIResourceLayer;
-}
+}  // namespace cc::slim
 
 namespace gfx {
 class Size;
@@ -30,8 +29,6 @@ class ResourceManager;
 namespace android {
 
 class ContentLayer;
-class DecorationTitle;
-class LayerTitleCache;
 class TabContentManager;
 class ToolbarLayer;
 
@@ -41,7 +38,6 @@ class TabLayer : public Layer {
  public:
   static scoped_refptr<TabLayer> Create(bool incognito,
                                         ui::ResourceManager* resource_manager,
-                                        LayerTitleCache* layer_title_cache,
                                         TabContentManager* tab_content_manager);
 
   TabLayer(const TabLayer&) = delete;
@@ -53,15 +49,11 @@ class TabLayer : public Layer {
                      const std::vector<int>& ids,
                      bool can_use_live_layer,
                      int toolbar_resource_id,
-                     int close_button_resource_id,
                      int shadow_resource_id,
                      int contour_resource_id,
-                     int back_logo_resource_id,
                      int border_resource_id,
                      int border_inner_shadow_resource_id,
                      int default_background_color,
-                     int back_logo_color,
-                     bool is_portrait,
                      float x,
                      float y,
                      float width,
@@ -70,21 +62,14 @@ class TabLayer : public Layer {
                      float shadow_y,
                      float shadow_width,
                      float shadow_height,
-                     float pivot_x,
-                     float pivot_y,
-                     float rotation_x,
-                     float rotation_y,
                      float alpha,
                      float border_alpha,
                      float border_inner_shadow_alpha,
                      float contour_alpha,
                      float shadow_alpha,
-                     float close_alpha,
                      float border_scale,
                      float saturation,
                      float brightness,
-                     float close_btn_width,
-                     float close_btn_asset_size,
                      float static_to_view_blend,
                      float content_width,
                      float content_height,
@@ -92,9 +77,7 @@ class TabLayer : public Layer {
                      bool show_toolbar,
                      int default_theme_color,
                      int toolbar_background_color,
-                     int close_button_color,
                      bool anonymize_toolbar,
-                     bool show_tab_title,
                      int toolbar_textbox_resource_id,
                      int toolbar_textbox_background_color,
                      float toolbar_alpha,
@@ -105,7 +88,7 @@ class TabLayer : public Layer {
 
   bool is_incognito() const { return incognito_; }
 
-  scoped_refptr<cc::Layer> layer() override;
+  scoped_refptr<cc::slim::Layer> layer() override;
 
   static void ComputePaddingPositions(const gfx::Size& content_size,
                                       const gfx::Size& desired_size,
@@ -115,13 +98,10 @@ class TabLayer : public Layer {
  protected:
   TabLayer(bool incognito,
            ui::ResourceManager* resource_manager,
-           LayerTitleCache* layer_title_cache,
            TabContentManager* tab_content_manager);
   ~TabLayer() override;
 
  private:
-  void SetTitle(DecorationTitle* title);
-
   void SetContentProperties(int id,
                             const std::vector<int>& tab_ids,
                             bool can_use_live_layer,
@@ -137,34 +117,25 @@ class TabLayer : public Layer {
   const bool incognito_;
   raw_ptr<ui::ResourceManager> resource_manager_;
   raw_ptr<TabContentManager> tab_content_manager_;
-  raw_ptr<LayerTitleCache> layer_title_cache_;
 
   // [layer]-+-[toolbar]
-  //         +-[close button]
-  //         +-[title]
   //         +-[front border]
   //         +-[content]
-  //         +-[back_logo]
   //         +-[padding]
   //         +-[contour_shadow]
   //         +-[shadow]
-  //
-  // [back logo]
-  scoped_refptr<cc::Layer> layer_;
+  scoped_refptr<cc::slim::Layer> layer_;
   scoped_refptr<ToolbarLayer> toolbar_layer_;
-  scoped_refptr<cc::Layer> title_;
   scoped_refptr<ContentLayer> content_;
-  scoped_refptr<cc::SolidColorLayer> side_padding_;
-  scoped_refptr<cc::SolidColorLayer> bottom_padding_;
-  scoped_refptr<cc::UIResourceLayer> close_button_;
+  scoped_refptr<cc::slim::SolidColorLayer> side_padding_;
+  scoped_refptr<cc::slim::SolidColorLayer> bottom_padding_;
 
-  scoped_refptr<cc::NinePatchLayer> front_border_;
-  scoped_refptr<cc::NinePatchLayer> front_border_inner_shadow_;
+  scoped_refptr<cc::slim::NinePatchLayer> front_border_;
+  scoped_refptr<cc::slim::NinePatchLayer> front_border_inner_shadow_;
 
-  scoped_refptr<cc::NinePatchLayer> contour_shadow_;
+  scoped_refptr<cc::slim::NinePatchLayer> contour_shadow_;
 
-  scoped_refptr<cc::NinePatchLayer> shadow_;
-  scoped_refptr<cc::UIResourceLayer> back_logo_;
+  scoped_refptr<cc::slim::NinePatchLayer> shadow_;
   float brightness_;
 };
 

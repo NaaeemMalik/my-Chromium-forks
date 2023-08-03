@@ -1,9 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/share/default_ranking.h"
 
+#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 
 namespace sharing {
@@ -137,6 +138,10 @@ std::vector<ComponentName> DefaultEnUsImageRanking() {
           "com.tencent.mm",
           "com.tencent.mm.ui.tools.ShareImgUI",
       },
+      {
+          "com.tencent.mm",
+          "com.tencent.mm.ui.tools.ShareToTimeLineUI",
+      },
       // TODO(https://crbug.com/1228281): Groupme
   };
 }
@@ -231,6 +236,10 @@ std::vector<ComponentName> DefaultEnUsTextRanking() {
           "com.tencent.mm",
           "com.tencent.mm.ui.tools.ShareImgUI",
       },
+      {
+          "com.tencent.mm",
+          "com.tencent.mm.ui.tools.ShareToTimeLineUI",
+      },
       // TODO(https://crbug.com/1228281): Groupme
   };
 }
@@ -249,6 +258,10 @@ std::vector<ComponentName> DefaultWorldImageRanking() {
        "com.instagram.share.handleractivity.ShareHandlerActivity"},
       {"com.instagram.android",
        "com.instagram.share.handleractivity.StoryShareHandlerActivity"},
+      {
+          "com.tencent.mm",
+          "com.tencent.mm.ui.tools.ShareToTimeLineUI",
+      },
       {
           "org.telegram.messenger",
           "org.telegram.ui.LaunchActivity",
@@ -362,6 +375,10 @@ std::vector<ComponentName> DefaultWorldTextRanking() {
        "com.facebook.composer.shareintent."
        "ImplicitShareIntentHandlerDefaultAlias"},
       {
+          "com.tencent.mm",
+          "com.tencent.mm.ui.tools.ShareToTimeLineUI",
+      },
+      {
           "com.google.android.talk",
           "com.google.android.apps.hangouts.phone.ShareIntentActivity",
       },
@@ -467,8 +484,8 @@ bool IsEnUsLocale(const std::string& locale) {
 std::vector<std::string> FlattenComponents(
     const std::vector<ComponentName> cs) {
   std::vector<std::string> result;
-  std::transform(cs.begin(), cs.end(), std::back_inserter(result),
-                 [](const ComponentName& c) { return c.Flatten(); });
+  base::ranges::transform(cs, std::back_inserter(result),
+                          &ComponentName::Flatten);
   return result;
 }
 

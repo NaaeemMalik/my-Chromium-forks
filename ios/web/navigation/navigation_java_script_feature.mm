@@ -1,10 +1,14 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/navigation/navigation_java_script_feature.h"
+
+#import "base/no_destructor.h"
 #import "ios/web/public/js_messaging/java_script_feature_util.h"
 #import "ios/web/public/js_messaging/script_message.h"
+#import "ios/web/public/js_messaging/web_frame.h"
+#import "ios/web/public/js_messaging/web_frames_manager.h"
 #import "ios/web/web_state/ui/crw_web_controller.h"
 #import "ios/web/web_state/web_state_impl.h"
 
@@ -16,8 +20,8 @@ namespace web {
 
 namespace {
 
-const char kScriptName[] = "navigation_js";
-const char kListenersScriptName[] = "navigation_listeners_js";
+const char kScriptName[] = "navigation";
+const char kListenersScriptName[] = "navigation_listeners";
 const char kScriptHandlerName[] = "NavigationEventMessage";
 
 }  // namespace
@@ -69,8 +73,22 @@ void NavigationJavaScriptFeature::ScriptMessageReceived(
     return;
   }
 
+  const std::string* frame_id = message.body()->FindStringKey("frame_id");
+  if (!frame_id) {
+    return;
+  }
+
+  WebFrame* main_frame =
+      web_state->GetPageWorldWebFramesManager()->GetMainWebFrame();
+  std::string main_frame_id = main_frame ? main_frame->GetFrameId() : "";
+  if (main_frame_id != *frame_id) {
+    // Frame has changed, do not send message to the web controller as it would
+    // update the incorrect navigation item.
+    return;
+  }
+
   CRWWebController* web_controller =
-      static_cast<WebStateImpl*>(web_state)->GetWebController();
+      WebStateImpl::FromWebState(web_state)->GetWebController();
 
   if (*command == "hashchange") {
     [web_controller handleNavigationHashChange];

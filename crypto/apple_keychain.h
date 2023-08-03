@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,13 @@
 
 #include <Security/Security.h>
 
-#include <optional>
-
 #include "build/build_config.h"
 #include "crypto/crypto_export.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace crypto {
 
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
 using AppleSecKeychainItemRef = void*;
 #else
 using AppleSecKeychainItemRef = SecKeychainItemRef;
@@ -55,12 +54,12 @@ class CRYPTO_EXPORT AppleKeychain {
                                       const void* password_data,
                                       AppleSecKeychainItemRef* item) const;
 
-#if !defined(OS_IOS)
+#if BUILDFLAG(IS_MAC)
   virtual OSStatus ItemDelete(AppleSecKeychainItemRef item) const;
-#endif  // !defined(OS_IOS)
+#endif  // !BUILDFLAG(IS_MAC)
 };
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 
 // Sets whether Keychain Services is permitted to display UI if needed by
 // calling SecKeychainSetUserInteractionAllowed. This operates in a scoped
@@ -80,10 +79,10 @@ class CRYPTO_EXPORT ScopedKeychainUserInteractionAllowed {
   ~ScopedKeychainUserInteractionAllowed();
 
  private:
-  std::optional<Boolean> was_allowed_;
+  absl::optional<Boolean> was_allowed_;
 };
 
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 
 }  // namespace crypto
 

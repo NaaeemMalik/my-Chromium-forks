@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <limits>
 #include <memory>
 #include <string>
@@ -26,33 +25,38 @@
 #include "ash/components/arc/test/connection_holder_util.h"
 #include "ash/components/arc/test/fake_app_host.h"
 #include "ash/components/arc/test/fake_app_instance.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "ash/constants/ash_features.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/guid.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/posix/safe_strerror.h"
 #include "base/process/process_metrics.h"
+#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
+#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/current_thread.h"
-#include "base/task/post_task.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_chromeos_version_info.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/scoped_run_loop_timeout.h"
 #include "base/time/time.h"
-#include "chromeos/cryptohome/cryptohome_parameters.h"
-#include "chromeos/dbus/concierge/fake_concierge_client.h"
-#include "chromeos/dbus/dbus_thread_manager.h"
-#include "chromeos/dbus/debug_daemon/fake_debug_daemon_client.h"
-#include "chromeos/dbus/session_manager/fake_session_manager_client.h"
-#include "chromeos/dbus/upstart/fake_upstart_client.h"
+#include "base/uuid.h"
+#include "chromeos/ash/components/cryptohome/cryptohome_parameters.h"
+#include "chromeos/ash/components/dbus/concierge/fake_concierge_client.h"
+#include "chromeos/ash/components/dbus/debug_daemon/debug_daemon_client.h"
+#include "chromeos/ash/components/dbus/debug_daemon/fake_debug_daemon_client.h"
+#include "chromeos/ash/components/dbus/session_manager/fake_session_manager_client.h"
+#include "chromeos/ash/components/dbus/upstart/fake_upstart_client.h"
+#include "components/user_manager/fake_user_manager.h"
+#include "components/user_manager/scoped_user_manager.h"
 #include "components/user_manager/user_names.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -60,17 +64,11 @@
 namespace arc {
 namespace {
 
-constexpr const char kArcVmPerBoardFeaturesJobName[] =
-    "arcvm_2dper_2dboard_2dfeatures";
 constexpr const char kArcVmBootNotificationServerAddressPrefix[] =
     "\0test_arcvm_boot_notification_server";
-constexpr char kArcVmPreLoginServicesJobName[] =
-    "arcvm_2dpre_2dlogin_2dservices";
-constexpr char kArcVmPostLoginServicesJobName[] =
-    "arcvm_2dpost_2dlogin_2dservices";
-constexpr char kArcVmPostVmStartServicesJobName[] =
-    "arcvm_2dpost_2dvm_2dstart_2dservices";
-constexpr const char kArcVmDefaultOwner[] = "ARCVM_DEFAULT_OWNER";
+
+// Disk path contained in CreateDiskImageResponse().
+constexpr const char kCreatedDiskImagePath[] = "test/data.img";
 
 constexpr const char kUserIdHash[] = "this_is_a_valid_user_id_hash";
 constexpr const char kSerialNumber[] = "AAAABBBBCCCCDDDD1234";
@@ -102,28 +100,33 @@ UpgradeParams GetPopulatedUpgradeParams() {
   return params;
 }
 
+vm_tools::concierge::CreateDiskImageResponse CreateDiskImageResponse(
+    vm_tools::concierge::DiskImageStatus status) {
+  vm_tools::concierge::CreateDiskImageResponse res;
+  res.set_status(status);
+  res.set_disk_path(base::FilePath(kCreatedDiskImagePath).AsUTF8Unsafe());
+  return res;
+}
+
 std::string GenerateAbstractAddress() {
   std::string address(kArcVmBootNotificationServerAddressPrefix,
                       sizeof(kArcVmBootNotificationServerAddressPrefix) - 1);
   return address.append("-" +
-                        base::GUID::GenerateRandomV4().AsLowercaseString());
+                        base::Uuid::GenerateRandomV4().AsLowercaseString());
 }
 
-// TODO(yusukes): Remove this once crosvm becomes 64 bit binary on ARM.
-void VerifyVmMemorySize(const vm_tools::concierge::StartArcVmRequest& request,
-                        uint32_t vm_ram_mib) {
-  if (sizeof(uintptr_t) == 4) {
-    // We don't set memory_mib on 32 bit devices, so that we fall back to the
-    // original sizing logic in concierge.
-    EXPECT_EQ(request.memory_mib(), 0u);
-  } else {
-    EXPECT_EQ(request.memory_mib(), vm_ram_mib);
+bool HasDiskImage(const vm_tools::concierge::StartArcVmRequest& request,
+                  const std::string& disk_path) {
+  for (const auto& disk : request.disks()) {
+    if (disk.path() == disk_path)
+      return true;
   }
+  return false;
 }
 
 // A debugd client that can fail to start Concierge.
-// TODO(yusukes): Merge the feature to FakeDebugDaemonClient.
-class TestDebugDaemonClient : public chromeos::FakeDebugDaemonClient {
+// TODO(khmel): Merge the feature to FakeDebugDaemonClient.
+class TestDebugDaemonClient : public ash::FakeDebugDaemonClient {
  public:
   TestDebugDaemonClient() = default;
 
@@ -151,8 +154,8 @@ class TestDebugDaemonClient : public chromeos::FakeDebugDaemonClient {
 };
 
 // A concierge that remembers the parameter passed to StartArcVm.
-// TODO(yusukes): Merge the feature to FakeConciergeClient.
-class TestConciergeClient : public chromeos::FakeConciergeClient {
+// TODO(khmel): Merge the feature to FakeConciergeClient.
+class TestConciergeClient : public ash::FakeConciergeClient {
  public:
   static void Initialize() { new TestConciergeClient(); }
 
@@ -166,7 +169,7 @@ class TestConciergeClient : public chromeos::FakeConciergeClient {
                   callback) override {
     ++stop_vm_call_count_;
     stop_vm_request_ = request;
-    chromeos::FakeConciergeClient::StopVm(request, std::move(callback));
+    ash::FakeConciergeClient::StopVm(request, std::move(callback));
     if (on_stop_vm_callback_ && (stop_vm_call_count_ == callback_count_))
       std::move(on_stop_vm_callback_).Run();
   }
@@ -176,7 +179,16 @@ class TestConciergeClient : public chromeos::FakeConciergeClient {
       chromeos::DBusMethodCallback<vm_tools::concierge::StartVmResponse>
           callback) override {
     start_arc_vm_request_ = request;
-    chromeos::FakeConciergeClient::StartArcVm(request, std::move(callback));
+    ash::FakeConciergeClient::StartArcVm(request, std::move(callback));
+  }
+
+  void ReclaimVmMemory(
+      const vm_tools::concierge::ReclaimVmMemoryRequest& request,
+      chromeos::DBusMethodCallback<vm_tools::concierge::ReclaimVmMemoryResponse>
+          callback) override {
+    ++reclaim_vm_count_;
+    reclaim_vm_request_ = request;
+    ash::FakeConciergeClient::ReclaimVmMemory(request, std::move(callback));
   }
 
   int stop_vm_call_count() const { return stop_vm_call_count_; }
@@ -189,6 +201,13 @@ class TestConciergeClient : public chromeos::FakeConciergeClient {
     return stop_vm_request_;
   }
 
+  const vm_tools::concierge::ReclaimVmMemoryRequest& reclaim_vm_request()
+      const {
+    return reclaim_vm_request_;
+  }
+
+  int reclaim_vm_call_count() const { return reclaim_vm_count_; }
+
   // Set a callback to be run when stop_vm_call_count() == count.
   void set_on_stop_vm_callback(base::OnceClosure callback, int count) {
     on_stop_vm_callback_ = std::move(callback);
@@ -198,13 +217,15 @@ class TestConciergeClient : public chromeos::FakeConciergeClient {
 
  private:
   TestConciergeClient()
-      : chromeos::FakeConciergeClient(/*fake_cicerone_client=*/nullptr) {}
+      : ash::FakeConciergeClient(/*fake_cicerone_client=*/nullptr) {}
 
   int stop_vm_call_count_ = 0;
   // When callback_count_ == 0, the on_stop_vm_callback_ is not run.
   int callback_count_ = 0;
   vm_tools::concierge::StartArcVmRequest start_arc_vm_request_;
   vm_tools::concierge::StopVmRequest stop_vm_request_;
+  vm_tools::concierge::ReclaimVmMemoryRequest reclaim_vm_request_;
+  int reclaim_vm_count_ = 0;
   base::OnceClosure on_stop_vm_callback_;
 };
 
@@ -294,7 +315,7 @@ class FakeDemoModeDelegate : public ArcClientAdapter::DemoModeDelegate {
   FakeDemoModeDelegate(const FakeDemoModeDelegate&) = delete;
   FakeDemoModeDelegate& operator=(const FakeDemoModeDelegate&) = delete;
 
-  void EnsureOfflineResourcesLoaded(base::OnceClosure callback) override {
+  void EnsureResourcesLoaded(base::OnceClosure callback) override {
     std::move(callback).Run();
   }
 
@@ -310,19 +331,19 @@ class ArcVmClientAdapterTest : public testing::Test,
     logging::SetMinLogLevel(-1);
 
     // Create and set new fake clients every time to reset clients' status.
-    chromeos::DBusThreadManager::Initialize();
-    chromeos::DBusThreadManager::GetSetterForTesting()->SetDebugDaemonClient(
-        std::make_unique<TestDebugDaemonClient>());
+    test_debug_daemon_client_ = std::make_unique<TestDebugDaemonClient>();
+    ash::DebugDaemonClient::SetInstanceForTest(test_debug_daemon_client_.get());
     TestConciergeClient::Initialize();
-    chromeos::UpstartClient::InitializeFake();
+    ash::UpstartClient::InitializeFake();
   }
 
   ArcVmClientAdapterTest(const ArcVmClientAdapterTest&) = delete;
   ArcVmClientAdapterTest& operator=(const ArcVmClientAdapterTest&) = delete;
 
   ~ArcVmClientAdapterTest() override {
-    chromeos::ConciergeClient::Shutdown();
-    chromeos::DBusThreadManager::Shutdown();
+    ash::ConciergeClient::Shutdown();
+    ash::DebugDaemonClient::SetInstanceForTest(nullptr);
+    test_debug_daemon_client_.reset();
   }
 
   void SetUp() override {
@@ -357,17 +378,22 @@ class ArcVmClientAdapterTest : public testing::Test,
         // connect_sleep_duration_initial
         base::Milliseconds(20));
 
-    chromeos::SessionManagerClient::InitializeFake();
+    ash::SessionManagerClient::InitializeFake();
 
     adapter_->SetDemoModeDelegate(&demo_mode_delegate_);
     app_host_ = std::make_unique<FakeAppHost>(arc_bridge_service()->app());
     app_instance_ = std::make_unique<FakeAppInstance>(app_host_.get());
     arc_dlc_installer_ = std::make_unique<ArcDlcInstaller>();
+
+    auto fake_user_manager = std::make_unique<user_manager::FakeUserManager>();
+    scoped_user_manager_ = std::make_unique<user_manager::ScopedUserManager>(
+        std::move(fake_user_manager));
   }
 
   void TearDown() override {
+    scoped_user_manager_.reset();
     arc_dlc_installer_.reset();
-    chromeos::SessionManagerClient::Shutdown();
+    ash::SessionManagerClient::Shutdown();
     adapter_->RemoveObserver(this);
     adapter_.reset();
     run_loop_.reset();
@@ -403,6 +429,10 @@ class ArcVmClientAdapterTest : public testing::Test,
   };
   using UpstartOperations = std::vector<UpstartOperation>;
 
+  void SetAccountId(const AccountId& account_id) {
+    arc_service_manager_.set_account_id(account_id);
+  }
+
   void SetValidUserInfo() { SetUserInfo(kUserIdHash, kSerialNumber); }
 
   void SetUserInfo(const std::string& hash, const std::string& serial) {
@@ -412,6 +442,15 @@ class ArcVmClientAdapterTest : public testing::Test,
   }
 
   void StartMiniArcWithParams(bool expect_success, StartParams params) {
+    StartMiniArcWithParamsAndUser(expect_success, std::move(params),
+                                  kUserIdHash, kSerialNumber);
+  }
+
+  void StartMiniArcWithParamsAndUser(bool expect_success,
+                                     StartParams params,
+                                     const std::string& hash,
+                                     const std::string& serial) {
+    SetUserInfo(hash, serial);
     adapter()->StartMiniArc(
         std::move(params),
         base::BindOnce(expect_success
@@ -500,7 +539,7 @@ class ArcVmClientAdapterTest : public testing::Test,
   }
 
   void InjectUpstartStartJobFailure(const std::string& job_name_to_fail) {
-    auto* upstart_client = chromeos::FakeUpstartClient::Get();
+    auto* upstart_client = ash::FakeUpstartClient::Get();
     upstart_client->set_start_job_cb(base::BindLambdaForTesting(
         [job_name_to_fail](const std::string& job_name,
                            const std::vector<std::string>& env) {
@@ -510,7 +549,7 @@ class ArcVmClientAdapterTest : public testing::Test,
   }
 
   void InjectUpstartStopJobFailure(const std::string& job_name_to_fail) {
-    auto* upstart_client = chromeos::FakeUpstartClient::Get();
+    auto* upstart_client = ash::FakeUpstartClient::Get();
     upstart_client->set_stop_job_cb(base::BindLambdaForTesting(
         [job_name_to_fail](const std::string& job_name,
                            const std::vector<std::string>& env) {
@@ -520,7 +559,7 @@ class ArcVmClientAdapterTest : public testing::Test,
   }
 
   void StartRecordingUpstartOperations() {
-    auto* upstart_client = chromeos::FakeUpstartClient::Get();
+    auto* upstart_client = ash::FakeUpstartClient::Get();
     upstart_client->set_start_job_cb(
         base::BindLambdaForTesting([this](const std::string& job_name,
                                           const std::vector<std::string>& env) {
@@ -538,26 +577,21 @@ class ArcVmClientAdapterTest : public testing::Test,
   }
 
   void RemoveUpstartStartStopJobFailures() {
-    auto* upstart_client = chromeos::FakeUpstartClient::Get();
+    auto* upstart_client = ash::FakeUpstartClient::Get();
     upstart_client->set_start_job_cb(
-        chromeos::FakeUpstartClient::StartStopJobCallback());
+        ash::FakeUpstartClient::StartStopJobCallback());
     upstart_client->set_stop_job_cb(
-        chromeos::FakeUpstartClient::StartStopJobCallback());
+        ash::FakeUpstartClient::StartStopJobCallback());
   }
 
-  // Calls ArcVmClientAdapter::StopArcInstance().
-  // If |arc_upgraded| is false, we expect ConciergeClient::StopVm to have been
-  // called two times, once to clear a stale mini-VM in StartMiniArc(), and
-  // another on this call to StopArcInstance().
-  // If |arc_upgraded| is true, we expect StopVm() to have been called three
-  // times, to clear a stale mini-VM in StartMiniArc(), to clear a stale
-  // full-VM in UpgradeArc, and finally on this call to StopArcInstance();
-  void StopArcInstance(bool arc_upgraded) {
+  // We expect ConciergeClient::StopVm to have been called two times,
+  // once to clear a stale VM in StartMiniArc(), and another on this
+  // call to StopArcInstance().
+  void StopArcInstance() {
     adapter()->StopArcInstance(/*on_shutdown=*/false,
                                /*should_backup_log=*/false);
     run_loop()->RunUntilIdle();
-    EXPECT_EQ(arc_upgraded ? 3 : 2,
-              GetTestConciergeClient()->stop_vm_call_count());
+    EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
     EXPECT_FALSE(is_system_shutdown().has_value());
 
     RecreateRunLoop();
@@ -569,15 +603,11 @@ class ArcVmClientAdapterTest : public testing::Test,
 
   // Checks that ArcVmClientAdapter has requested to stop the VM (after an
   // error in UpgradeArc).
-  // If |stale_full_vm_stopped| is false, we expect ConciergeClient::StopVm to
-  // have been called two times, once to clear a stale mini-VM in
-  // StartMiniArc(), and another after some error condition. If
-  // |stale_full_vm_stopped| is true, we expect StopVm() to have been called
-  // three times, to clear a stale mini-VM in StartMiniArc(), to clear a stale
-  // full-VM in UpgradeArc, and finally after some error condition.
-  void ExpectArcStopped(bool stale_full_vm_stopped) {
-    EXPECT_EQ(stale_full_vm_stopped ? 3 : 2,
-              GetTestConciergeClient()->stop_vm_call_count());
+  // We expect ConciergeClient::StopVm to have been called two times,
+  // once to clear a stale VM in StartMiniArc(), and another after some
+  // error condition.
+  void ExpectArcStopped() {
+    EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
     EXPECT_FALSE(is_system_shutdown().has_value());
     RecreateRunLoop();
     SendVmStoppedSignal(vm_tools::concierge::STOP_VM_REQUESTED);
@@ -599,16 +629,19 @@ class ArcVmClientAdapterTest : public testing::Test,
     return upstart_operations_;
   }
   TestConciergeClient* GetTestConciergeClient() {
-    return static_cast<TestConciergeClient*>(chromeos::ConciergeClient::Get());
+    return static_cast<TestConciergeClient*>(ash::ConciergeClient::Get());
   }
 
-  TestDebugDaemonClient* GetTestDebugDaemonClient() {
-    return static_cast<TestDebugDaemonClient*>(
-        chromeos::DBusThreadManager::Get()->GetDebugDaemonClient());
+  TestDebugDaemonClient* test_debug_daemon_client() {
+    return test_debug_daemon_client_.get();
   }
 
   TestArcVmBootNotificationServer* boot_notification_server() {
     return boot_server_.get();
+  }
+
+  void set_block_apex_path(base::FilePath block_apex_path) {
+    block_apex_path_ = block_apex_path;
   }
 
   void set_host_rootfs_writable(bool host_rootfs_writable) {
@@ -626,6 +659,7 @@ class ArcVmClientAdapterTest : public testing::Test,
 
  private:
   void RewriteStatus(FileSystemStatus* status) {
+    status->set_block_apex_path_for_testing(block_apex_path_);
     status->set_host_rootfs_writable_for_testing(host_rootfs_writable_);
     status->set_system_image_ext_format_for_testing(system_image_ext_format_);
   }
@@ -639,6 +673,7 @@ class ArcVmClientAdapterTest : public testing::Test,
   ArcServiceManager arc_service_manager_;
 
   // Variables to override the value in FileSystemStatus.
+  base::FilePath block_apex_path_;
   bool host_rootfs_writable_;
   bool system_image_ext_format_;
 
@@ -652,6 +687,8 @@ class ArcVmClientAdapterTest : public testing::Test,
   std::unique_ptr<FakeAppHost> app_host_;
   std::unique_ptr<FakeAppInstance> app_instance_;
   std::unique_ptr<ArcDlcInstaller> arc_dlc_installer_;
+  std::unique_ptr<TestDebugDaemonClient> test_debug_daemon_client_;
+  std::unique_ptr<user_manager::ScopedUserManager> scoped_user_manager_;
 };
 
 // Tests that SetUserInfo() doesn't crash.
@@ -661,7 +698,7 @@ TEST_F(ArcVmClientAdapterTest, SetUserInfo) {
 
 // Tests that SetUserInfo() doesn't crash even when empty strings are passed.
 // Currently, ArcSessionRunner's tests call SetUserInfo() that way.
-// TODO(yusukes): Once ASR's tests are fixed, remove this test and use DCHECKs
+// TODO(khmel): Once ASR's tests are fixed, remove this test and use DCHECKs
 // in SetUserInfo().
 TEST_F(ArcVmClientAdapterTest, SetUserInfoEmpty) {
   adapter()->SetUserInfo(cryptohome::Identification(), std::string(),
@@ -672,8 +709,24 @@ TEST_F(ArcVmClientAdapterTest, SetUserInfoEmpty) {
 TEST_F(ArcVmClientAdapterTest, StartMiniArc) {
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  // No GetVmInfo call is expected
+  EXPECT_EQ(0, GetTestConciergeClient()->get_vm_info_call_count());
+  // Expect StopVm() to be called  once in StartMiniArc to clear stale
+  // VM.
+  EXPECT_EQ(1, GetTestConciergeClient()->stop_vm_call_count());
 
-  StopArcInstance(/*arc_upgraded=*/false);
+  StopArcInstance();
+}
+
+TEST_F(ArcVmClientAdapterTest, StartMiniArcEmptyUserIdHash) {
+  StartMiniArcWithParamsAndUser(false, {}, std::string(), kSerialNumber);
+
+  EXPECT_EQ(0, GetTestConciergeClient()->start_arc_vm_call_count());
+  // No GetVmInfo call is expected
+  EXPECT_EQ(0, GetTestConciergeClient()->get_vm_info_call_count());
+  // Expect StopVm() to be called  once in StartMiniArc to clear stale
+  // VM.
+  EXPECT_EQ(1, GetTestConciergeClient()->stop_vm_call_count());
 }
 
 // Tests that StartMiniArc() still succeeds without the feature.
@@ -685,7 +738,7 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_WithPerVCpuCoreScheduling) {
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
 
-  StopArcInstance(/*arc_upgraded=*/false);
+  StopArcInstance();
 }
 
 // Tests that StartMiniArc() still succeeds even when Upstart fails to stop
@@ -697,7 +750,32 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_StopArcVmPostLoginServicesJobFail) {
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
 
-  StopArcInstance(/*arc_upgraded=*/false);
+  StopArcInstance();
+}
+
+// Tests that StartMiniArc() still succeeds even when Upstart fails to stop
+// arcvm-media-sharing-services.
+TEST_F(ArcVmClientAdapterTest,
+       StartMiniArc_StopArcVmMediaSharingServicesJobFail) {
+  // Inject failure to FakeUpstartClient.
+  InjectUpstartStopJobFailure(kArcVmMediaSharingServicesJobName);
+
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  StopArcInstance();
+}
+
+// Tests that StartMiniArc() still succeeds even when Upstart fails to stop
+// arcvm-data-migrator.
+TEST_F(ArcVmClientAdapterTest, StartMiniArc_StopArcVmDataMigratorJobFail) {
+  // Inject failure to FakeUpstartClient.
+  InjectUpstartStopJobFailure(kArcVmDataMigratorJobName);
+
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  StopArcInstance();
 }
 
 // Tests that StartMiniArc() fails when Upstart fails to start the job.
@@ -730,40 +808,41 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_StopArcVmPreLoginServicesJobFail) {
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
 
-  StopArcInstance(/*arc_upgraded=*/false);
+  StopArcInstance();
 }
 
-// Tests that StartMiniArc()'s JOB_STOP_AND_START for
-// |kArcVmPreLoginServicesJobName| is properly implemented.
+// Tests that |kArcVmPreLoginServicesJobName| is properly stopped and then
+// started in StartMiniArc().
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_JobRestart) {
   StartRecordingUpstartOperations();
   StartMiniArc();
 
   const auto& ops = upstart_operations();
   // Find the STOP operation for the job.
-  auto it =
-      std::find_if(ops.begin(), ops.end(), [](const UpstartOperation& op) {
-        return op.type == UpstartOperationType::STOP &&
-               kArcVmPreLoginServicesJobName == op.name;
-      });
-  ASSERT_NE(ops.end(), it);
+  auto it = base::ranges::find_if(ops, [](const UpstartOperation& op) {
+    return op.type == UpstartOperationType::STOP &&
+           op.name == kArcVmPreLoginServicesJobName;
+  });
+  ASSERT_NE(it, ops.end());
   ++it;
-  ASSERT_NE(ops.end(), it);
-  // The next operation must be START for the job.
-  EXPECT_EQ(it->name, kArcVmPreLoginServicesJobName);
-  EXPECT_EQ(UpstartOperationType::START, it->type);
+  ASSERT_NE(it, ops.end());
+  // Find the START operation for the job.
+  it = base::ranges::find_if(it, ops.end(), [](const UpstartOperation& op) {
+    return op.type == UpstartOperationType::START &&
+           op.name == kArcVmPreLoginServicesJobName;
+  });
+  ASSERT_NE(it, ops.end());
 }
 
 // Tests that StopArcInstance() eventually notifies the observer.
 TEST_F(ArcVmClientAdapterTest, StopArcInstance) {
-  SetValidUserInfo();
   StartMiniArc();
   UpgradeArc(true);
 
   adapter()->StopArcInstance(/*on_shutdown=*/false,
                              /*should_backup_log=*/false);
   run_loop()->RunUntilIdle();
-  EXPECT_EQ(3, GetTestConciergeClient()->stop_vm_call_count());
+  EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
   // The callback for StopVm D-Bus reply does NOT call ArcInstanceStopped when
   // the D-Bus call result is successful.
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -828,13 +907,12 @@ TEST_F(ArcVmClientAdapterTest, DoesNotGetArcInstanceStoppedOnNestedInstance) {
     }
 
     base::RepeatingCallback<base::RunLoop*()> const run_loop_factory_;
-    Observer* const child_observer_;
+    const raw_ptr<Observer, ExperimentalAsh> child_observer_;
     std::unique_ptr<ArcClientAdapter> nested_adapter_;
     FakeDemoModeDelegate demo_mode_delegate_;
     bool stopped_called_ = false;
   };
 
-  SetValidUserInfo();
   StartMiniArc();
   UpgradeArc(true);
 
@@ -860,13 +938,12 @@ TEST_F(ArcVmClientAdapterTest, DoesNotGetArcInstanceStoppedOnNestedInstance) {
 
 // Tests that StopArcInstance() initiates ARC log backup.
 TEST_F(ArcVmClientAdapterTest, StopArcInstance_WithLogBackup) {
-  SetValidUserInfo();
   StartMiniArc();
   UpgradeArc(true);
 
   adapter()->StopArcInstance(/*on_shutdown=*/false, /*should_backup_log=*/true);
   run_loop()->RunUntilIdle();
-  EXPECT_EQ(3, GetTestConciergeClient()->stop_vm_call_count());
+  EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
   // The callback for StopVm D-Bus reply does NOT call ArcInstanceStopped when
   // the D-Bus call result is successful.
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -881,16 +958,15 @@ TEST_F(ArcVmClientAdapterTest, StopArcInstance_WithLogBackup) {
 }
 
 TEST_F(ArcVmClientAdapterTest, StopArcInstance_WithLogBackup_BackupFailed) {
-  SetValidUserInfo();
   StartMiniArc();
   UpgradeArc(true);
 
-  EXPECT_FALSE(GetTestDebugDaemonClient()->backup_arc_bug_report_called());
-  GetTestDebugDaemonClient()->set_backup_arc_bug_report_result(false);
+  EXPECT_FALSE(test_debug_daemon_client()->backup_arc_bug_report_called());
+  test_debug_daemon_client()->set_backup_arc_bug_report_result(false);
 
   adapter()->StopArcInstance(/*on_shutdown=*/false, /*should_backup_log=*/true);
   run_loop()->RunUntilIdle();
-  EXPECT_EQ(3, GetTestConciergeClient()->stop_vm_call_count());
+  EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
   // The callback for StopVm D-Bus reply does NOT call ArcInstanceStopped when
   // the D-Bus call result is successful.
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -900,7 +976,7 @@ TEST_F(ArcVmClientAdapterTest, StopArcInstance_WithLogBackup_BackupFailed) {
   SendVmStoppedSignal(vm_tools::concierge::STOP_VM_REQUESTED);
   run_loop()->Run();
 
-  EXPECT_TRUE(GetTestDebugDaemonClient()->backup_arc_bug_report_called());
+  EXPECT_TRUE(test_debug_daemon_client()->backup_arc_bug_report_called());
   // ..and that calls ArcInstanceStopped.
   ASSERT_TRUE(is_system_shutdown().has_value());
   EXPECT_FALSE(is_system_shutdown().value());
@@ -908,19 +984,17 @@ TEST_F(ArcVmClientAdapterTest, StopArcInstance_WithLogBackup_BackupFailed) {
 
 // Tests that StopArcInstance() called during shutdown doesn't do anything.
 TEST_F(ArcVmClientAdapterTest, StopArcInstance_OnShutdown) {
-  SetValidUserInfo();
   StartMiniArc();
   UpgradeArc(true);
 
   adapter()->StopArcInstance(/*on_shutdown=*/true, /*should_backup_log=*/false);
   run_loop()->RunUntilIdle();
-  EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
+  EXPECT_EQ(1, GetTestConciergeClient()->stop_vm_call_count());
   EXPECT_FALSE(is_system_shutdown().has_value());
 }
 
 // Tests that StopArcInstance() immediately notifies the observer on failure.
 TEST_F(ArcVmClientAdapterTest, StopArcInstance_Fail) {
-  SetValidUserInfo();
   StartMiniArc();
   UpgradeArc(true);
 
@@ -933,7 +1007,7 @@ TEST_F(ArcVmClientAdapterTest, StopArcInstance_Fail) {
                              /*should_backup_log=*/false);
 
   run_loop()->Run();
-  EXPECT_EQ(3, GetTestConciergeClient()->stop_vm_call_count());
+  EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
 
   // The callback for StopVm D-Bus reply does call ArcInstanceStopped when
   // the D-Bus call result is NOT successful.
@@ -941,41 +1015,35 @@ TEST_F(ArcVmClientAdapterTest, StopArcInstance_Fail) {
   EXPECT_FALSE(is_system_shutdown().value());
 }
 
-// Test that StopArcInstance() stops the mini-VM if it cannot find a VM with
-// the current user ID hash.
+// Test that StopArcInstance() stops the VM if only mini-ARCVM
+// is called.
 TEST_F(ArcVmClientAdapterTest, StopArcInstance_StopMiniVm) {
   StartMiniArc();
-
-  SetValidUserInfo();
-
-  vm_tools::concierge::GetVmInfoResponse response;
-  response.set_success(false);
-  GetTestConciergeClient()->set_get_vm_info_response(response);
 
   adapter()->StopArcInstance(/*on_shutdown=*/false,
                              /*should_backup_log*/ false);
   run_loop()->RunUntilIdle();
 
-  EXPECT_GE(GetTestConciergeClient()->get_vm_info_call_count(), 1);
+  // No GetVmInfo call is expected.
+  EXPECT_EQ(0, GetTestConciergeClient()->get_vm_info_call_count());
   // Expect StopVm() to be called twice; once in StartMiniArc to clear stale
-  // mini-VM, and again on StopArcInstance().
+  // VM, and again on StopArcInstance().
   EXPECT_EQ(2, GetTestConciergeClient()->stop_vm_call_count());
-  EXPECT_EQ(kArcVmDefaultOwner,
+  EXPECT_EQ(kUserIdHash,
             GetTestConciergeClient()->stop_vm_request().owner_id());
 }
 
 // Tests that UpgradeArc() handles arcvm-post-login-services startup failures
 // properly.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_StartArcVmPostLoginServicesFailure) {
-  SetValidUserInfo();
   StartMiniArc();
 
   // Inject failure to FakeUpstartClient.
   InjectUpstartStartJobFailure(kArcVmPostLoginServicesJobName);
 
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
+  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/2);
 
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
+  ExpectArcStopped();
 }
 
 // Tests that StartMiniArc()'s JOB_STOP_AND_START for
@@ -983,13 +1051,12 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_StartArcVmPostLoginServicesFailure) {
 // by default.
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_UreadaheadByDefault) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartRecordingUpstartOperations();
   StartMiniArcWithParams(true, std::move(start_params));
 
   const auto& ops = upstart_operations();
   const auto it =
-      std::find_if(ops.begin(), ops.end(), [](const UpstartOperation& op) {
+      base::ranges::find_if(ops, [](const UpstartOperation& op) {
         return op.type == UpstartOperationType::START &&
                kArcVmPreLoginServicesJobName == op.name;
       });
@@ -1002,19 +1069,18 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_UreadaheadByDefault) {
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_DisableUreadahead) {
   StartParams start_params(GetPopulatedStartParams());
   start_params.disable_ureadahead = true;
-  SetValidUserInfo();
   StartRecordingUpstartOperations();
   StartMiniArcWithParams(true, std::move(start_params));
 
   const auto& ops = upstart_operations();
   const auto it =
-      std::find_if(ops.begin(), ops.end(), [](const UpstartOperation& op) {
+      base::ranges::find_if(ops, [](const UpstartOperation& op) {
         return op.type == UpstartOperationType::START &&
                kArcVmPreLoginServicesJobName == op.name;
       });
   ASSERT_NE(ops.end(), it);
   const auto it_ureadahead =
-      std::find(it->env.begin(), it->env.end(), "DISABLE_UREADAHEAD=1");
+      base::ranges::find(it->env, "DISABLE_UREADAHEAD=1");
   EXPECT_NE(it->env.end(), it_ureadahead);
 }
 
@@ -1022,7 +1088,6 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_DisableUreadahead) {
 // properly.
 TEST_F(ArcVmClientAdapterTest,
        StartMiniArc_StopArcVmPostVmStartServicesFailure) {
-  SetValidUserInfo();
   // Inject failure to FakeUpstartClient.
   InjectUpstartStopJobFailure(kArcVmPostVmStartServicesJobName);
 
@@ -1041,50 +1106,35 @@ TEST_F(ArcVmClientAdapterTest,
 // failures properly.
 TEST_F(ArcVmClientAdapterTest,
        UpgradeArc_StartArcVmPostVmStartServicesFailure) {
-  SetValidUserInfo();
   StartMiniArc();
 
   // Inject failure to FakeUpstartClient.
   InjectUpstartStartJobFailure(kArcVmPostVmStartServicesJobName);
   // UpgradeArc should fail and the VM should be stoppped.
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
-}
-
-// Tests that "no user ID hash" failure is handled properly.
-TEST_F(ArcVmClientAdapterTest, UpgradeArc_NoUserId) {
-  // Don't set the user id hash.
-  SetUserInfo(std::string(), kSerialNumber);
-  StartMiniArc();
-  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
-
   UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/2);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/false);
+  ExpectArcStopped();
 }
 
 // Tests that a "Failed Adb Sideload response" case is handled properly.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_FailedAdbResponse) {
-  SetValidUserInfo();
   StartMiniArc();
 
   // Ask the Fake Session Manager to return a failed Adb Sideload response.
-  chromeos::FakeSessionManagerClient::Get()->set_adb_sideload_response(
-      chromeos::FakeSessionManagerClient::AdbSideloadResponseCode::FAILED);
+  ash::FakeSessionManagerClient::Get()->set_adb_sideload_response(
+      ash::FakeSessionManagerClient::AdbSideloadResponseCode::FAILED);
 
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
+  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/2);
+  ExpectArcStopped();
 }
 
 // Tests that a "Need_Powerwash Adb Sideload response" case is handled properly.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_NeedPowerwashAdbResponse) {
-  SetValidUserInfo();
   StartMiniArc();
 
   // Ask the Fake Session Manager to return a Need_Powerwash Adb Sideload
   // response.
-  chromeos::FakeSessionManagerClient::Get()->set_adb_sideload_response(
-      chromeos::FakeSessionManagerClient::AdbSideloadResponseCode::
-          NEED_POWERWASH);
+  ash::FakeSessionManagerClient::Get()->set_adb_sideload_response(
+      ash::FakeSessionManagerClient::AdbSideloadResponseCode::NEED_POWERWASH);
   UpgradeArc(true);
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1094,7 +1144,6 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_NeedPowerwashAdbResponse) {
 
 // Tests that adb sideloading is disabled by default.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_AdbSideloadingPropertyDefault) {
-  SetValidUserInfo();
   StartMiniArc();
 
   UpgradeArc(true);
@@ -1106,10 +1155,9 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_AdbSideloadingPropertyDefault) {
 
 // Tests that adb sideloading can be controlled via session_manager.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_AdbSideloadingPropertyEnabled) {
-  SetValidUserInfo();
   StartMiniArc();
 
-  chromeos::FakeSessionManagerClient::Get()->set_adb_sideload_enabled(true);
+  ash::FakeSessionManagerClient::Get()->set_adb_sideload_enabled(true);
   UpgradeArc(true);
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1118,10 +1166,9 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_AdbSideloadingPropertyEnabled) {
 }
 
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_AdbSideloadingPropertyDisabled) {
-  SetValidUserInfo();
   StartMiniArc();
 
-  chromeos::FakeSessionManagerClient::Get()->set_adb_sideload_enabled(false);
+  ash::FakeSessionManagerClient::Get()->set_adb_sideload_enabled(false);
   UpgradeArc(true);
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1132,38 +1179,11 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_AdbSideloadingPropertyDisabled) {
 // Tests that "no serial" failure is handled properly.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_NoSerial) {
   // Don't set the serial number.
-  SetUserInfo(kUserIdHash, std::string());
-  StartMiniArc();
+  StartMiniArcWithParamsAndUser(true, {}, kUserIdHash, std::string());
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
 
   UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/2);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/false);
-}
-
-// Test that ConciergeClient::SetVmId() empty reply is handled properly.
-TEST_F(ArcVmClientAdapterTest, UpgradeArc_SetVmIdEmptyReply) {
-  SetValidUserInfo();
-  StartMiniArc();
-
-  // Inject failure
-  GetTestConciergeClient()->set_set_vm_id_response(absl::nullopt);
-
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
-}
-
-// Test that ConciergeClient::SetVmId() unsuccessful reply is handled properly.
-TEST_F(ArcVmClientAdapterTest, UpgradeArc_SetVmIdFailure) {
-  SetValidUserInfo();
-  StartMiniArc();
-
-  // Inject failure
-  vm_tools::concierge::SetVmIdResponse response;
-  response.set_success(false);
-  GetTestConciergeClient()->set_set_vm_id_response(response);
-
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
+  ExpectArcStopped();
 }
 
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_StopExistingVmFailure) {
@@ -1188,30 +1208,6 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_StopExistingVmFailureEmptyReply) {
   EXPECT_FALSE(is_system_shutdown().has_value());
 }
 
-TEST_F(ArcVmClientAdapterTest, UpgradeArc_StopExistingVmFailure) {
-  SetValidUserInfo();
-  StartMiniArc();
-
-  // Inject failure.
-  vm_tools::concierge::StopVmResponse response;
-  response.set_success(false);
-  GetTestConciergeClient()->set_stop_vm_response(response);
-
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
-}
-
-TEST_F(ArcVmClientAdapterTest, UpgradeArc_StopExistingVmFailureEmptyReply) {
-  SetValidUserInfo();
-  StartMiniArc();
-
-  // Inject failure.
-  GetTestConciergeClient()->set_stop_vm_response(absl::nullopt);
-
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
-}
-
 // Tests that ConciergeClient::WaitForServiceToBeAvailable() failure is handled
 // properly.
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_WaitForConciergeAvailableFailure) {
@@ -1226,7 +1222,6 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_WaitForConciergeAvailableFailure) {
 
 // Tests that StartArcVm() failure is handled properly.
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_StartArcVmFailure) {
-  SetValidUserInfo();
   // Inject failure to StartArcVm().
   vm_tools::concierge::StartVmResponse start_vm_response;
   start_vm_response.set_status(vm_tools::concierge::VM_STATUS_UNKNOWN);
@@ -1239,7 +1234,6 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_StartArcVmFailure) {
 }
 
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_StartArcVmFailureEmptyReply) {
-  SetValidUserInfo();
   // Inject failure to StartArcVm(). This emulates D-Bus timeout situations.
   GetTestConciergeClient()->set_start_vm_response(absl::nullopt);
 
@@ -1251,19 +1245,17 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_StartArcVmFailureEmptyReply) {
 
 // Tests that successful StartArcVm() call is handled properly.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_Success) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
   UpgradeArc(true);
 
-  StopArcInstance(/*arc_upgraded=*/true);
+  StopArcInstance();
 }
 
 // Try to start and upgrade the instance with more params.
 TEST_F(ArcVmClientAdapterTest, StartUpgradeArc_VariousParams) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
 
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
@@ -1281,7 +1273,6 @@ TEST_F(ArcVmClientAdapterTest, StartUpgradeArc_VariousParams2) {
   start_params.play_store_auto_update =
       StartParams::PlayStoreAutoUpdate::AUTO_UPDATE_OFF;
 
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
 
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
@@ -1309,7 +1300,7 @@ TEST_F(ArcVmClientAdapterTest, StartUpgradeArc_DemoMode) {
         : apps_path_(apps_path) {}
     ~TestDemoDelegate() override = default;
 
-    void EnsureOfflineResourcesLoaded(base::OnceClosure callback) override {
+    void EnsureResourcesLoaded(base::OnceClosure callback) override {
       std::move(callback).Run();
     }
 
@@ -1327,17 +1318,10 @@ TEST_F(ArcVmClientAdapterTest, StartUpgradeArc_DemoMode) {
   EXPECT_FALSE(is_system_shutdown().has_value());
 
   // Verify the request.
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
   // Make sure disks have the squashfs image.
-  EXPECT_TRUE(([&kDemoImage, &request]() {
-    for (const auto& disk : request.disks()) {
-      if (disk.path() == kDemoImage)
-        return true;
-    }
-    return false;
-  }()));
+  EXPECT_TRUE(HasDiskImage(request, kDemoImage));
 
-  SetValidUserInfo();
   UpgradeParams params(GetPopulatedUpgradeParams());
   // Enable demo mode.
   params.is_demo_session = true;
@@ -1347,70 +1331,48 @@ TEST_F(ArcVmClientAdapterTest, StartUpgradeArc_DemoMode) {
                              "ro.boot.arc_demo_mode=1"));
 }
 
-TEST_F(ArcVmClientAdapterTest, StartMiniArc_DisableSystemDefaultApp) {
-  StartParams start_params(GetPopulatedStartParams());
-  start_params.arc_disable_system_default_app = true;
-  SetValidUserInfo();
-  StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
-  EXPECT_FALSE(is_system_shutdown().has_value());
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.disable_system_default_app=1"));
-}
-
 TEST_F(ArcVmClientAdapterTest, StartUpgradeArc_DisableMediaStoreMaintenance) {
   StartParams start_params(GetPopulatedStartParams());
   start_params.disable_media_store_maintenance = true;
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
   UpgradeParams params(GetPopulatedUpgradeParams());
   UpgradeArcWithParams(true, std::move(params));
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
   EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.disable_media_store_maintenance=1"));
+      request.mini_instance_request().disable_media_store_maintenance());
 }
 
 TEST_F(ArcVmClientAdapterTest, StartUpgradeArc_ArcVmUreadaheadMode) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
   UpgradeParams params(GetPopulatedUpgradeParams());
   UpgradeArcWithParams(true, std::move(params));
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arcvm_ureadahead_mode=generate"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.ureadahead_mode(),
+            vm_tools::concierge::StartArcVmRequest::UREADAHEAD_MODE_READAHEAD);
 }
 
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_EnablePaiGeneration) {
   StartParams start_params(GetPopulatedStartParams());
   start_params.arc_generate_play_auto_install = true;
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arc_generate_pai=1"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.mini_instance_request().arc_generate_pai());
 }
 
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_PaiGenerationDefaultDisabled) {
-  SetValidUserInfo();
   StartMiniArcWithParams(true, GetPopulatedStartParams());
   // No androidboot property should be generated.
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arc_generate_pai=1"));
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arc_generate_pai=0"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.mini_instance_request().arc_generate_pai());
 }
 
 // Tests that StartArcVm() is called with valid parameters.
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_StartArcVmParams) {
-  SetValidUserInfo();
   StartMiniArc();
   ASSERT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
 
@@ -1418,17 +1380,12 @@ TEST_F(ArcVmClientAdapterTest, StartMiniArc_StartArcVmParams) {
   const auto& params = GetTestConciergeClient()->start_arc_vm_request();
   EXPECT_EQ("arcvm", params.name());
   EXPECT_LT(0u, params.cpus());
-  EXPECT_FALSE(params.vm().kernel().empty());
-  // Make sure system.raw.img is passed.
-  EXPECT_FALSE(params.vm().rootfs().empty());
   // Make sure vendor.raw.img is passed.
   EXPECT_LE(1, params.disks_size());
-  EXPECT_LT(0, params.params_size());
 }
 
 // Tests that crosvm crash is handled properly.
 TEST_F(ArcVmClientAdapterTest, CrosvmCrash) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1443,7 +1400,6 @@ TEST_F(ArcVmClientAdapterTest, CrosvmCrash) {
 
 // Tests that vm_concierge shutdown is handled properly.
 TEST_F(ArcVmClientAdapterTest, ConciergeShutdown) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1466,7 +1422,6 @@ TEST_F(ArcVmClientAdapterTest, ConciergeShutdown) {
 
 // Tests that vm_concierge crash is handled properly.
 TEST_F(ArcVmClientAdapterTest, ConciergeCrash) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1481,7 +1436,6 @@ TEST_F(ArcVmClientAdapterTest, ConciergeCrash) {
 
 // Tests the case where crosvm crashes, then vm_concierge crashes too.
 TEST_F(ArcVmClientAdapterTest, CrosvmAndConciergeCrashes) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1504,7 +1458,6 @@ TEST_F(ArcVmClientAdapterTest, CrosvmAndConciergeCrashes) {
 
 // Tests the case where a unknown VmStopped signal is sent to Chrome.
 TEST_F(ArcVmClientAdapterTest, VmStoppedSignal_UnknownCid) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
   EXPECT_FALSE(is_system_shutdown().has_value());
@@ -1553,8 +1506,8 @@ TEST_F(ArcVmClientAdapterTest, KernelParam_RO) {
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
 
   // Check "rw" is not in |params|.
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  EXPECT_FALSE(base::Contains(request.params(), "rw"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.enable_rw());
 }
 
 // Tests that the kernel parameter does include "rw" when '/' is writable and
@@ -1566,8 +1519,8 @@ TEST_F(ArcVmClientAdapterTest, KernelParam_RW) {
   EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
 
   // Check "rw" is in |params|.
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  EXPECT_TRUE(base::Contains(request.params(), "rw"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.enable_rw());
 }
 
 // Tests that CreateArcVmClientAdapter() doesn't crash.
@@ -1575,36 +1528,11 @@ TEST_F(ArcVmClientAdapterTest, TestCreateArcVmClientAdapter) {
   CreateArcVmClientAdapter();
 }
 
-TEST_F(ArcVmClientAdapterTest, ChromeOsChannelStable) {
-  base::test::ScopedChromeOSVersionInfo info(
-      "CHROMEOS_RELEASE_TRACK=stable-channel", base::Time::Now());
-
-  StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
-  StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.chromeos_channel=stable"));
-}
-
-TEST_F(ArcVmClientAdapterTest, ChromeOsChannelUnknown) {
-  base::test::ScopedChromeOSVersionInfo info("CHROMEOS_RELEASE_TRACK=invalid",
-                                             base::Time::Now());
-
-  StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
-  StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.chromeos_channel=unknown"));
-}
-
 TEST_F(ArcVmClientAdapterTest, DefaultBlockSize) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatureState(arc::kUseDefaultBlockSize, true /* use */);
 
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
   EXPECT_EQ(
       0u, GetTestConciergeClient()->start_arc_vm_request().rootfs_block_size());
@@ -1612,61 +1540,170 @@ TEST_F(ArcVmClientAdapterTest, DefaultBlockSize) {
 
 TEST_F(ArcVmClientAdapterTest, SpecifyBlockSize) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
   EXPECT_EQ(
       4096u,
       GetTestConciergeClient()->start_arc_vm_request().rootfs_block_size());
 }
 
-TEST_F(ArcVmClientAdapterTest, VshdForTest) {
-  base::test::ScopedChromeOSVersionInfo info(
-      "CHROMEOS_RELEASE_TRACK=testimage-channel", base::Time::Now());
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_Disabled) {
+  GetTestConciergeClient()->set_create_disk_image_response(
+      CreateDiskImageResponse(vm_tools::concierge::DISK_STATUS_CREATED));
 
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
+  start_params.use_virtio_blk_data = false;
   StartMiniArcWithParams(true, std::move(start_params));
-  UpgradeArc(true);
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.vshd_service_override=vshd_for_test"));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  // CreateDiskImage() should NOT be called.
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 0);
+
+  // StartArcVmRequest should NOT contain a disk created by CreateDiskImage().
+  const auto& req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(HasDiskImage(req, kCreatedDiskImagePath));
+  EXPECT_FALSE(req.enable_virtio_blk_data());
 }
 
-TEST_F(ArcVmClientAdapterTest, VshdForRelease) {
-  base::test::ScopedChromeOSVersionInfo info(
-      "CHROMEOS_RELEASE_TRACK=stable-channel", base::Time::Now());
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_CreateDiskimageResponseEmpty) {
+  // CreateDiskImage() returns an empty response.
+  GetTestConciergeClient()->set_create_disk_image_response(absl::nullopt);
 
+  // StartArcVm should NOT be called.
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
-  StartMiniArcWithParams(true, std::move(start_params));
-  UpgradeArc(true);
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.vshd_service_override=vshd_for_test"));
+  start_params.use_virtio_blk_data = true;
+  StartMiniArcWithParams(false, std::move(start_params));
+  EXPECT_EQ(GetTestConciergeClient()->start_arc_vm_call_count(), 0);
+
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 1);
 }
 
-TEST_F(ArcVmClientAdapterTest, VshdForUnknownChannel) {
-  base::test::ScopedChromeOSVersionInfo info("CHROMEOS_RELEASE_TRACK=unknown",
-                                             base::Time::Now());
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_CreateDiskImageStatusFailed) {
+  GetTestConciergeClient()->set_create_disk_image_response(
+      CreateDiskImageResponse(vm_tools::concierge::DISK_STATUS_FAILED));
 
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
+  start_params.use_virtio_blk_data = true;
+
+  // StartArcVm should NOT be called.
+  StartMiniArcWithParams(false, std::move(start_params));
+  EXPECT_EQ(GetTestConciergeClient()->start_arc_vm_call_count(), 0);
+
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 1);
+}
+
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_CreateDiskImageStatusCreated) {
+  GetTestConciergeClient()->set_create_disk_image_response(
+      CreateDiskImageResponse(vm_tools::concierge::DISK_STATUS_CREATED));
+
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.use_virtio_blk_data = true;
   StartMiniArcWithParams(true, std::move(start_params));
-  UpgradeArc(true);
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.vshd_service_override=vshd_for_test"));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 1);
+
+  // StartArcVmRequest should contain a disk path created by CreateDiskImage().
+  const auto& req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(HasDiskImage(req, kCreatedDiskImagePath));
+  EXPECT_TRUE(req.enable_virtio_blk_data());
+}
+
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_CreateDiskImageStatusExists) {
+  GetTestConciergeClient()->set_create_disk_image_response(
+      CreateDiskImageResponse(vm_tools::concierge::DISK_STATUS_EXISTS));
+
+  StartParams start_params = GetPopulatedStartParams();
+  start_params.use_virtio_blk_data = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 1);
+
+  // StartArcVmRequest should contain a disk path created by CreateDiskImage().
+  const auto& req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(HasDiskImage(req, kCreatedDiskImagePath));
+  EXPECT_TRUE(req.enable_virtio_blk_data());
+}
+
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_LvmSupported) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(arc::kLvmApplicationContainers);
+
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.use_virtio_blk_data = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  // CreateDiskImage() should NOT be called.
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 0);
+
+  // StartArcVmRequest should contain the LVM-provided disk path.
+  const std::string expected_lvm_disk_path =
+      base::StringPrintf("/dev/mapper/vm/dmcrypt-%s-arcvm",
+                         std::string(kUserIdHash).substr(0, 8).c_str());
+  const auto& req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(HasDiskImage(req, expected_lvm_disk_path));
+}
+
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_OverrideUseLvm) {
+  // ArcVirtioBlkDataConfigOverride:use_lvm/true should override
+  // ArcLvmApplicationContainers flag.
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeaturesAndParameters(
+      /*enabled_features=*/{{arc::kVirtioBlkDataConfigOverride,
+                             {{"use_lvm", "true"}}}},
+      /*disabled_features=*/{arc::kLvmApplicationContainers});
+
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.use_virtio_blk_data = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  // CreateDiskImage() should NOT be called.
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 0);
+
+  // StartArcVmRequest should contain the LVM-provided disk path.
+  const std::string expected_lvm_disk_path =
+      base::StringPrintf("/dev/mapper/vm/dmcrypt-%s-arcvm",
+                         std::string(kUserIdHash).substr(0, 8).c_str());
+  const auto& req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(HasDiskImage(req, expected_lvm_disk_path));
+  EXPECT_TRUE(req.enable_virtio_blk_data());
+}
+
+TEST_F(ArcVmClientAdapterTest, VirtioBlkForData_NoLvmForEphemeralCryptohome) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(arc::kLvmApplicationContainers);
+
+  // Set the guest account, whose cryptohome data is ephemeral.
+  SetAccountId(user_manager::GuestAccountId());
+
+  GetTestConciergeClient()->set_create_disk_image_response(
+      CreateDiskImageResponse(vm_tools::concierge::DISK_STATUS_CREATED));
+
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.use_virtio_blk_data = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+
+  EXPECT_EQ(GetTestConciergeClient()->create_disk_image_call_count(), 1);
+
+  // LVM shouldn't be used for ephemeral user even if LvmApplicationContainers
+  // feature is enabled.
+  const auto& req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(HasDiskImage(req, kCreatedDiskImagePath));
+  EXPECT_TRUE(req.enable_virtio_blk_data());
 }
 
 // Tests that the binary translation type is set to None when no library is
 // enabled by USE flags.
 TEST_F(ArcVmClientAdapterTest, BintaryTranslationTypeNone) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.native_bridge=0"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(
+      request.native_bridge_experiment(),
+      vm_tools::concierge::StartArcVmRequest::BINARY_TRANSLATION_TYPE_NONE);
 }
 
 // Tests that the binary translation type is set to Houdini when only 32-bit
@@ -1675,11 +1712,11 @@ TEST_F(ArcVmClientAdapterTest, BintaryTranslationTypeHoudini) {
   base::CommandLine::ForCurrentProcess()->InitFromArgv(
       {"", "--enable-houdini"});
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.native_bridge=libhoudini.so"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(
+      request.native_bridge_experiment(),
+      vm_tools::concierge::StartArcVmRequest::BINARY_TRANSLATION_TYPE_HOUDINI);
 }
 
 // Tests that the binary translation type is set to Houdini when only 64-bit
@@ -1688,11 +1725,11 @@ TEST_F(ArcVmClientAdapterTest, BintaryTranslationTypeHoudini64) {
   base::CommandLine::ForCurrentProcess()->InitFromArgv(
       {"", "--enable-houdini64"});
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.native_bridge=libhoudini.so"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(
+      request.native_bridge_experiment(),
+      vm_tools::concierge::StartArcVmRequest::BINARY_TRANSLATION_TYPE_HOUDINI);
 }
 
 // Tests that the binary translation type is set to NDK translation when only
@@ -1701,11 +1738,11 @@ TEST_F(ArcVmClientAdapterTest, BintaryTranslationTypeNdkTranslation) {
   base::CommandLine::ForCurrentProcess()->InitFromArgv(
       {"", "--enable-ndk-translation"});
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.native_bridge=libndk_translation.so"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.native_bridge_experiment(),
+            vm_tools::concierge::StartArcVmRequest::
+                BINARY_TRANSLATION_TYPE_NDK_TRANSLATION);
 }
 
 // Tests that the binary translation type is set to NDK translation when only
@@ -1714,11 +1751,11 @@ TEST_F(ArcVmClientAdapterTest, BintaryTranslationTypeNdkTranslation64) {
   base::CommandLine::ForCurrentProcess()->InitFromArgv(
       {"", "--enable-ndk-translation64"});
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.native_bridge=libndk_translation.so"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.native_bridge_experiment(),
+            vm_tools::concierge::StartArcVmRequest::
+                BINARY_TRANSLATION_TYPE_NDK_TRANSLATION);
 }
 
 // Tests that the binary translation type is set to NDK translation when both
@@ -1729,11 +1766,11 @@ TEST_F(ArcVmClientAdapterTest, BintaryTranslationTypeNativeBridgeExperiment) {
       {"", "--enable-houdini", "--enable-ndk-translation"});
   StartParams start_params(GetPopulatedStartParams());
   start_params.native_bridge_experiment = true;
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.native_bridge=libndk_translation.so"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.native_bridge_experiment(),
+            vm_tools::concierge::StartArcVmRequest::
+                BINARY_TRANSLATION_TYPE_NDK_TRANSLATION);
 }
 
 // Tests that the binary translation type is set to Houdini when both Houdini
@@ -1744,11 +1781,11 @@ TEST_F(ArcVmClientAdapterTest, BintaryTranslationTypeNoNativeBridgeExperiment) {
       {"", "--enable-houdini", "--enable-ndk-translation"});
   StartParams start_params(GetPopulatedStartParams());
   start_params.native_bridge_experiment = false;
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.native_bridge=libhoudini.so"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(
+      request.native_bridge_experiment(),
+      vm_tools::concierge::StartArcVmRequest::BINARY_TRANSLATION_TYPE_HOUDINI);
 }
 
 // Tests that the "generate" command line switches the mode.
@@ -1756,14 +1793,10 @@ TEST_F(ArcVmClientAdapterTest, TestGetArcVmUreadaheadModeGenerate) {
   base::CommandLine::ForCurrentProcess()->InitFromArgv(
       {"", "--arcvm-ureadahead-mode=generate"});
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arcvm_ureadahead_mode=readahead"));
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arcvm_ureadahead_mode=generate"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.ureadahead_mode(),
+            vm_tools::concierge::StartArcVmRequest::UREADAHEAD_MODE_GENERATE);
 }
 
 // Tests that the "disabled" command line disables both readahead and generate.
@@ -1771,21 +1804,16 @@ TEST_F(ArcVmClientAdapterTest, TestGetArcVmUreadaheadModeDisabled) {
   base::CommandLine::ForCurrentProcess()->InitFromArgv(
       {"", "--arcvm-ureadahead-mode=disabled"});
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arcvm_ureadahead_mode=readahead"));
-  EXPECT_FALSE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.arcvm_ureadahead_mode=generate"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.ureadahead_mode(),
+            vm_tools::concierge::StartArcVmRequest::UREADAHEAD_MODE_DISABLED);
 }
 
 // Tests that ArcVmClientAdapter connects to the boot notification server
 // twice: once in StartMiniArc to check that it is listening, and the second
 // time in UpgradeArc to send props.
 TEST_F(ArcVmClientAdapterTest, TestConnectToBootNotificationServer) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_EQ(boot_notification_server()->connection_count(), 1);
   EXPECT_TRUE(boot_notification_server()->received_data().empty());
@@ -1818,53 +1846,86 @@ TEST_F(ArcVmClientAdapterTest, TestBootNotificationServerIsNotListening) {
 // Tests that UpgradeArc() fails when sending the upgrade props
 // to the boot notification server fails.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_SendPropFail) {
-  SetValidUserInfo();
   StartMiniArc();
 
   // Let ConnectToArcVmBootNotificationServer() return an invalid FD.
   SetArcVmBootNotificationServerFdForTesting(-1);
 
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
+  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/2);
+  ExpectArcStopped();
 }
 
 // Tests that UpgradeArc() fails when sending the upgrade props
 // to the boot notification server fails.
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_SendPropFailNotWritable) {
-  SetValidUserInfo();
   StartMiniArc();
 
   // Let ConnectToArcVmBootNotificationServer() return dup(STDIN_FILENO) which
   // is not writable.
   SetArcVmBootNotificationServerFdForTesting(STDIN_FILENO);
 
-  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/3);
-  ExpectArcStopped(/*stale_full_vm_stopped=*/true);
+  UpgradeArcWithParamsAndStopVmCount(false, {}, /*run_until_stop_vm_count=*/2);
+  ExpectArcStopped();
 }
 
 TEST_F(ArcVmClientAdapterTest, DisableDownloadProviderDefault) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
   // Not expected arc_disable_download_provider in properties.
-  for (const auto& param : request.params())
-    EXPECT_EQ(std::string::npos, param.find("disable_download_provider"));
+  EXPECT_FALSE(request.mini_instance_request().disable_download_provider());
 }
 
 TEST_F(ArcVmClientAdapterTest, DisableDownloadProviderEnforced) {
   StartParams start_params(GetPopulatedStartParams());
   start_params.disable_download_provider = true;
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  EXPECT_TRUE(
-      base::Contains(GetTestConciergeClient()->start_arc_vm_request().params(),
-                     "androidboot.disable_download_provider=1"));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.mini_instance_request().disable_download_provider());
+}
+
+TEST_F(ArcVmClientAdapterTest, BroadcastPreANRDefault) {
+  StartMiniArc();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.enable_broadcast_anr_prenotify());
+}
+
+TEST_F(ArcVmClientAdapterTest, BroadcastPreANREnabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatureState(arc::kVmBroadcastPreNotifyANR, true);
+
+  StartMiniArc();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.enable_broadcast_anr_prenotify());
 }
 
 TEST_F(ArcVmClientAdapterTest, TrimVmMemory_Success) {
   SetValidUserInfo();
+  vm_tools::concierge::ReclaimVmMemoryResponse response;
+  response.set_success(true);
+  GetTestConciergeClient()->set_reclaim_vm_memory_response(response);
+
+  bool result = false;
+  std::string reason("non empty");
+  adapter()->TrimVmMemory(
+      base::BindLambdaForTesting(
+          [&result, &reason](bool success, const std::string& failure_reason) {
+            result = success;
+            reason = failure_reason;
+          }),
+      0);
+  run_loop()->RunUntilIdle();
+  EXPECT_TRUE(result);
+  EXPECT_TRUE(reason.empty());
+  EXPECT_EQ(GetTestConciergeClient()->reclaim_vm_call_count(), 1);
+  EXPECT_EQ(GetTestConciergeClient()->reclaim_vm_request().page_limit(), 0);
+}
+
+TEST_F(ArcVmClientAdapterTest, TrimVmMemory_LimitPagesHonored) {
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  UpgradeArc(true);
 
   vm_tools::concierge::ReclaimVmMemoryResponse response;
   response.set_success(true);
@@ -1872,14 +1933,23 @@ TEST_F(ArcVmClientAdapterTest, TrimVmMemory_Success) {
 
   bool result = false;
   std::string reason("non empty");
-  adapter()->TrimVmMemory(base::BindLambdaForTesting(
-      [&result, &reason](bool success, const std::string& failure_reason) {
-        result = success;
-        reason = failure_reason;
-      }));
+  adapter()->TrimVmMemory(
+      base::BindLambdaForTesting(
+          [&result, &reason](bool success, const std::string& failure_reason) {
+            result = success;
+            reason = failure_reason;
+          }),
+      1234);
   run_loop()->RunUntilIdle();
   EXPECT_TRUE(result);
   EXPECT_TRUE(reason.empty());
+
+  // Verify that exactly one call was done to underlying layer, and that
+  // the specified parameter value was passed in.
+  EXPECT_EQ(GetTestConciergeClient()->reclaim_vm_call_count(), 1);
+  EXPECT_EQ(GetTestConciergeClient()->reclaim_vm_request().page_limit(), 1234);
+
+  StopArcInstance();
 }
 
 TEST_F(ArcVmClientAdapterTest, TrimVmMemory_Failure) {
@@ -1893,11 +1963,13 @@ TEST_F(ArcVmClientAdapterTest, TrimVmMemory_Failure) {
 
   bool result = true;
   std::string reason;
-  adapter()->TrimVmMemory(base::BindLambdaForTesting(
-      [&result, &reason](bool success, const std::string& failure_reason) {
-        result = success;
-        reason = failure_reason;
-      }));
+  adapter()->TrimVmMemory(
+      base::BindLambdaForTesting(
+          [&result, &reason](bool success, const std::string& failure_reason) {
+            result = success;
+            reason = failure_reason;
+          }),
+      0);
   run_loop()->RunUntilIdle();
   EXPECT_FALSE(result);
   EXPECT_EQ(kReason, reason);
@@ -1910,11 +1982,13 @@ TEST_F(ArcVmClientAdapterTest, TrimVmMemory_EmptyResponse) {
   // This is to make sure TrimMemoty() can handle such a response.
   bool result = true;
   std::string reason;
-  adapter()->TrimVmMemory(base::BindLambdaForTesting(
-      [&result, &reason](bool success, const std::string& failure_reason) {
-        result = success;
-        reason = failure_reason;
-      }));
+  adapter()->TrimVmMemory(
+      base::BindLambdaForTesting(
+          [&result, &reason](bool success, const std::string& failure_reason) {
+            result = success;
+            reason = failure_reason;
+          }),
+      0);
   run_loop()->RunUntilIdle();
   EXPECT_FALSE(result);
   EXPECT_FALSE(reason.empty());
@@ -1932,11 +2006,13 @@ TEST_F(ArcVmClientAdapterTest, TrimVmMemory_EmptyUserIdHash) {
 
   bool result = true;
   std::string reason;
-  adapter()->TrimVmMemory(base::BindLambdaForTesting(
-      [&result, &reason](bool success, const std::string& failure_reason) {
-        result = success;
-        reason = failure_reason;
-      }));
+  adapter()->TrimVmMemory(
+      base::BindLambdaForTesting(
+          [&result, &reason](bool success, const std::string& failure_reason) {
+            result = success;
+            reason = failure_reason;
+          }),
+      0);
   run_loop()->RunUntilIdle();
   EXPECT_FALSE(result);
   // When |user_id_hash_| is empty, the call will fail without talking to
@@ -1949,18 +2025,27 @@ TEST_F(ArcVmClientAdapterTest, ArcVmUseHugePagesEnabled) {
   base::CommandLine::ForCurrentProcess()->InitFromArgv(
       {"", "--arcvm-use-hugepages"});
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
   EXPECT_TRUE(request.use_hugepages());
 }
 
-TEST_F(ArcVmClientAdapterTest, ArcVmUseHugePagesDisabled) {
+TEST_F(ArcVmClientAdapterTest, ArcVmLockGuestMemoryEnabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(kLockGuestMemory);
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.lock_guest_memory());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcVmMemoryOptionsDisabled) {
+  StartParams start_params(GetPopulatedStartParams());
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  // Verify that both options are disabled by default.
   EXPECT_FALSE(request.use_hugepages());
+  EXPECT_FALSE(request.lock_guest_memory());
 }
 
 // Test that StartArcVmRequest has no memory_mib field when kVmMemorySize is
@@ -1969,10 +2054,9 @@ TEST_F(ArcVmClientAdapterTest, ArcVmMemorySizeDisabled) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndDisableFeature(kVmMemorySize);
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  VerifyVmMemorySize(request, 0u);
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.memory_mib(), 0u);
 }
 
 // Test that StartArcVmRequest has `memory_mib == system memory` when
@@ -1986,10 +2070,9 @@ TEST_F(ArcVmClientAdapterTest, ArcVmMemorySizeEnabledBig) {
   ASSERT_TRUE(base::GetSystemMemoryInfo(&info));
   const uint32_t total_mib = info.total / 1024;
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  VerifyVmMemorySize(request, total_mib);
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.memory_mib(), total_mib);
 }
 
 // Test that StartArcVmRequest has `memory_mib == system memory - 1024` when
@@ -2003,10 +2086,9 @@ TEST_F(ArcVmClientAdapterTest, ArcVmMemorySizeEnabledSmall) {
   ASSERT_TRUE(base::GetSystemMemoryInfo(&info));
   const uint32_t total_mib = info.total / 1024;
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  VerifyVmMemorySize(request, total_mib - 1024);
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.memory_mib(), total_mib - 1024);
 }
 
 // Test that StartArcVmRequest has memory_mib unset when kVmMemorySize is
@@ -2019,12 +2101,11 @@ TEST_F(ArcVmClientAdapterTest, ArcVmMemorySizeEnabledLow) {
   params["max_mib"] = "1024";
   feature_list.InitAndEnableFeatureWithParameters(kVmMemorySize, params);
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
   // The 1024 max_mib is below the 2048 MiB safety cut-off, so we expect
   // memory_mib to be unset.
-  VerifyVmMemorySize(request, 0u);
+  EXPECT_EQ(request.memory_mib(), 0u);
 }
 
 // Test that StartArcVmRequest has `memory_mib == 2049` when kVmMemorySize is
@@ -2037,10 +2118,9 @@ TEST_F(ArcVmClientAdapterTest, ArcVmMemorySizeEnabledMax) {
   params["max_mib"] = "2049";  // Above the 2048 minimum cut-off.
   feature_list.InitAndEnableFeatureWithParameters(kVmMemorySize, params);
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  VerifyVmMemorySize(request, 2049u);
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.memory_mib(), 2049u);
 }
 
 // Test that StartArcVmRequest has no memory_mib field when getting system
@@ -2060,48 +2140,73 @@ TEST_F(ArcVmClientAdapterTest, ArcVmMemorySizeEnabledNoSystemMemoryInfo) {
   params["shift_mib"] = "0";
   feature_list.InitAndEnableFeatureWithParameters(kVmMemorySize, params);
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  VerifyVmMemorySize(request, 0u);
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.memory_mib(), 0u);
 }
 
-// Test that the correct BalloonPolicyOptions are set on StartArcVmRequest when
-// kVmBalloonPolicy is enabled.
-TEST_F(ArcVmClientAdapterTest, ArcVmBalloonPolicyEnabled) {
+// Test that StartArcVmRequest::memory_mib is limited to k32bitVmRamMaxMib when
+// crosvm is a 32-bit process.
+// TODO(khmel): Remove this once crosvm becomes 64 bit binary on ARM.
+TEST_F(ArcVmClientAdapterTest, ArcVmMemorySizeEnabledOn32Bit) {
+  class TestDelegate : public ArcVmClientAdapterDelegate {
+    bool GetSystemMemoryInfo(base::SystemMemoryInfoKB* info) override {
+      // Return a value larger than k32bitVmRamMaxMib to verify that the VM
+      // memory size is actually limited.
+      info->total = (k32bitVmRamMaxMib + 1000) * 1024;
+      return true;
+    }
+    bool IsCrosvm32bit() override { return true; }
+  };
+  SetArcVmClientAdapterDelegateForTesting(adapter(),
+                                          std::make_unique<TestDelegate>());
+
   base::test::ScopedFeatureList feature_list;
   base::FieldTrialParams params;
-  params["moderate_kib"] = "1";
-  params["critical_kib"] = "2";
-  params["reclaim_kib"] = "3";
-  feature_list.InitAndEnableFeatureWithParameters(kVmBalloonPolicy, params);
+  params["shift_mib"] = "0";
+  feature_list.InitAndEnableFeatureWithParameters(kVmMemorySize, params);
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  EXPECT_TRUE(request.has_balloon_policy());
-  const auto& policy = request.balloon_policy();
-  EXPECT_EQ(policy.moderate_target_cache(), 1024);
-  EXPECT_EQ(policy.critical_target_cache(), 2048);
-  EXPECT_EQ(policy.reclaim_target_cache(), 3072);
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+
+  EXPECT_EQ(request.memory_mib(), k32bitVmRamMaxMib);
 }
 
-// Test that BalloonPolicyOptions are not set on StartArcVmRequest when
-// kVmBalloonPolicy is disabled.
-TEST_F(ArcVmClientAdapterTest, ArcVmBalloonPolicyDisabled) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(kVmBalloonPolicy);
-  StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
-  StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  EXPECT_FALSE(request.has_balloon_policy());
+// Test that the request passes an empty disk for the demo image
+// or the block apex composite disk when they are not present.
+// There should be two empty disks (/dev/block/vdc and /dev/block/vdd)
+// and they should have path /dev/null.
+TEST_F(ArcVmClientAdapterTest, ArcVmEmptyVirtualDisksExist) {
+  StartMiniArc();
+
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.disks(1).path(), "/dev/null");
+  EXPECT_EQ(request.disks(2).path(), "/dev/null");
 }
 
-// Tests that OnConnectionReady() calls the MakeRtVcpu call D-Bus method.
+// Test that block apex disk path exists when the composite disk payload
+// exists.
+TEST_F(ArcVmClientAdapterTest, ArcVmBlockApexDiskExists) {
+  constexpr const char path[] = "/opt/google/vms/android/apex/payload.img";
+  set_block_apex_path(base::FilePath(path));
+  StartMiniArc();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(base::Contains(request.disks(), path,
+                             [](const auto& p) { return p.path(); }));
+}
+
+// Test that the block apex disk path isn't included when it doesn't exist.
+TEST_F(ArcVmClientAdapterTest, ArcVmNoBlockApexDisk) {
+  constexpr const char path[] = "/opt/google/vms/android/apex/payload.img";
+  StartMiniArc();
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(base::Contains(request.disks(), path,
+                              [](const auto& p) { return p.path(); }));
+}
+
+// Tests that OnConnectionReady() calls the ArcVmCompleteBoot call D-Bus method.
 TEST_F(ArcVmClientAdapterTest, OnConnectionReady) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
   UpgradeArc(true);
 
@@ -2109,49 +2214,47 @@ TEST_F(ArcVmClientAdapterTest, OnConnectionReady) {
   arc_bridge_service()->app()->SetInstance(app_instance());
   WaitForInstanceReady(arc_bridge_service()->app());
 
-  EXPECT_EQ(1, GetTestConciergeClient()->make_rt_vcpu_call_count());
+  EXPECT_EQ(1, GetTestConciergeClient()->arcvm_complete_boot_call_count());
 }
 
-// Tests that MakeRtVcpu failure won't crash the adapter.
-TEST_F(ArcVmClientAdapterTest, OnConnectionReady_MakeRtVcpuFailure) {
+// Tests that ArcVmCompleteBoot failure won't crash the adapter.
+TEST_F(ArcVmClientAdapterTest, OnConnectionReady_ArcVmCompleteBootFailure) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
   UpgradeArc(true);
 
   // Inject the failure.
-  absl::optional<vm_tools::concierge::MakeRtVcpuResponse> response;
+  absl::optional<vm_tools::concierge::ArcVmCompleteBootResponse> response;
   response.emplace();
-  response->set_success(false);
-  response->set_failure_reason("unknown failure");
-  GetTestConciergeClient()->set_make_rt_vcpu_response(response);
+  response->set_result(
+      vm_tools::concierge::ArcVmCompleteBootResult::BAD_REQUEST);
+  GetTestConciergeClient()->set_arcvm_complete_boot_response(response);
 
   // This calls ArcVmClientAdapter::OnConnectionReady().
   arc_bridge_service()->app()->SetInstance(app_instance());
   WaitForInstanceReady(arc_bridge_service()->app());
 
-  EXPECT_EQ(1, GetTestConciergeClient()->make_rt_vcpu_call_count());
+  EXPECT_EQ(1, GetTestConciergeClient()->arcvm_complete_boot_call_count());
 }
 
-// Tests that null MakeRtVcpu reply won't crash the adapter.
-TEST_F(ArcVmClientAdapterTest, OnConnectionReady_MakeRtVcpuFailureNullReply) {
+// Tests that null ArcVmCompleteBoot reply won't crash the adapter.
+TEST_F(ArcVmClientAdapterTest,
+       OnConnectionReady_ArcVmCompleteBootFailureNullReply) {
   StartParams start_params(GetPopulatedStartParams());
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
   UpgradeArc(true);
 
   // Inject the failure.
-  GetTestConciergeClient()->set_make_rt_vcpu_response(absl::nullopt);
+  GetTestConciergeClient()->set_arcvm_complete_boot_response(absl::nullopt);
 
   // This calls ArcVmClientAdapter::OnConnectionReady().
   arc_bridge_service()->app()->SetInstance(app_instance());
   WaitForInstanceReady(arc_bridge_service()->app());
 
-  EXPECT_EQ(1, GetTestConciergeClient()->make_rt_vcpu_call_count());
+  EXPECT_EQ(1, GetTestConciergeClient()->arcvm_complete_boot_call_count());
 }
 
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_EnableArcNearbyShare_Default) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_EQ(boot_notification_server()->connection_count(), 1);
   EXPECT_TRUE(boot_notification_server()->received_data().empty());
@@ -2164,7 +2267,6 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_EnableArcNearbyShare_Default) {
 }
 
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_EnableArcNearbyShare_Enabled) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_EQ(boot_notification_server()->connection_count(), 1);
   EXPECT_TRUE(boot_notification_server()->received_data().empty());
@@ -2179,7 +2281,6 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_EnableArcNearbyShare_Enabled) {
 }
 
 TEST_F(ArcVmClientAdapterTest, UpgradeArc_EnableArcNearbyShare_Disabled) {
-  SetValidUserInfo();
   StartMiniArc();
   EXPECT_EQ(boot_notification_server()->connection_count(), 1);
   EXPECT_TRUE(boot_notification_server()->received_data().empty());
@@ -2193,18 +2294,143 @@ TEST_F(ArcVmClientAdapterTest, UpgradeArc_EnableArcNearbyShare_Disabled) {
                              "ro.boot.enable_arc_nearby_share=0"));
 }
 
+TEST_F(ArcVmClientAdapterTest,
+       StartArc_EnableConsumerAutoUpdateToggle_Default) {
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.enable_consumer_auto_update_toggle());
+}
+
+TEST_F(ArcVmClientAdapterTest,
+       StartArc_EnableConsumerAutoUpdateToggle_Enabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(ash::features::kConsumerAutoUpdateToggleAllowed);
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.enable_consumer_auto_update_toggle());
+  EXPECT_TRUE(
+      request.mini_instance_request().enable_consumer_auto_update_toggle());
+}
+
+TEST_F(ArcVmClientAdapterTest,
+       StartArc_EnableConsumerAutoUpdateToggle_Disabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(ash::features::kConsumerAutoUpdateToggleAllowed);
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.enable_consumer_auto_update_toggle());
+  EXPECT_FALSE(
+      request.mini_instance_request().enable_consumer_auto_update_toggle());
+}
+
+TEST_F(ArcVmClientAdapterTest, StartArc_EnablePrivacyHubForChrome_Default) {
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.mini_instance_request().enable_privacy_hub_for_chrome());
+}
+
+TEST_F(ArcVmClientAdapterTest, StartArc_EnablePrivacyHubForChrome_Enabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(ash::features::kCrosPrivacyHub);
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.mini_instance_request().enable_privacy_hub_for_chrome());
+}
+
+TEST_F(ArcVmClientAdapterTest, StartArc_EnablePrivacyHubForChrome_Disabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(ash::features::kCrosPrivacyHub);
+  StartMiniArc();
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.mini_instance_request().enable_privacy_hub_for_chrome());
+}
+
+// Test that the value of swappiness is default value when kGuestZram is
+// disabled.
+TEST_F(ArcVmClientAdapterTest, ArcGuestZramDisabledSwappiness) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(kGuestZram);
+  StartParams start_params(GetPopulatedStartParams());
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(0, request.guest_swappiness());
+}
+
+// Test that StartArcVmRequest has correct swappiness value.
+TEST_F(ArcVmClientAdapterTest, ArcGuestZramSwappinessValid) {
+  base::test::ScopedFeatureList feature_list;
+  base::FieldTrialParams params;
+  params["swappiness"] = "90";
+  params["size"] = "2000";
+  feature_list.InitAndEnableFeatureWithParameters(kGuestZram, params);
+  StartParams start_params(GetPopulatedStartParams());
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(90, request.guest_swappiness());
+  EXPECT_EQ(2000, request.guest_zram_size());
+}
+
+// Test that StartArcVmRequest has no matching command line flag
+// when kVmMemoryPSIReports is disabled.
+TEST_F(ArcVmClientAdapterTest, ArcVmMemoryPSIReportsDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(kVmMemoryPSIReports);
+  StartParams start_params(GetPopulatedStartParams());
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.vm_memory_psi_period(), -1);
+}
+
+// Test that StartArcVmRequest has correct  command line flag
+// when kVmMemoryPSIReports is enabled.
+TEST_F(ArcVmClientAdapterTest, ArcVmMemoryPSIReportsEnabled) {
+  base::test::ScopedFeatureList feature_list;
+  base::FieldTrialParams params;
+  params["period"] = "300";
+  feature_list.InitAndEnableFeatureWithParameters(kVmMemoryPSIReports, params);
+  StartParams start_params(GetPopulatedStartParams());
+  StartMiniArcWithParams(true, std::move(start_params));
+  EXPECT_GE(GetTestConciergeClient()->start_arc_vm_call_count(), 1);
+  EXPECT_FALSE(is_system_shutdown().has_value());
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.vm_memory_psi_period(), 300);
+}
+
 struct DalvikMemoryProfileTestParam {
   // Requested profile.
   StartParams::DalvikMemoryProfile profile;
   // Name of profile that is expected.
   const char* profile_name;
+  StartArcMiniInstanceRequest::DalvikMemoryProfile arc_profile;
 };
 
 constexpr DalvikMemoryProfileTestParam kDalvikMemoryProfileTestCases[] = {
-    {StartParams::DalvikMemoryProfile::DEFAULT, "4G"},
-    {StartParams::DalvikMemoryProfile::M4G, "4G"},
-    {StartParams::DalvikMemoryProfile::M8G, "8G"},
-    {StartParams::DalvikMemoryProfile::M16G, "16G"}};
+    {StartParams::DalvikMemoryProfile::DEFAULT, "4G",
+     StartArcMiniInstanceRequest_DalvikMemoryProfile_MEMORY_PROFILE_DEFAULT},
+    {StartParams::DalvikMemoryProfile::M4G, "4G",
+     StartArcMiniInstanceRequest_DalvikMemoryProfile_MEMORY_PROFILE_4G},
+    {StartParams::DalvikMemoryProfile::M8G, "8G",
+     StartArcMiniInstanceRequest_DalvikMemoryProfile_MEMORY_PROFILE_8G},
+    {StartParams::DalvikMemoryProfile::M16G, "16G",
+     StartArcMiniInstanceRequest_DalvikMemoryProfile_MEMORY_PROFILE_16G}};
 
 class ArcVmClientAdapterDalvikMemoryProfileTest
     : public ArcVmClientAdapterTest,
@@ -2222,19 +2448,10 @@ TEST_P(ArcVmClientAdapterDalvikMemoryProfileTest, Profile) {
   const auto& test_param = GetParam();
   StartParams start_params(GetPopulatedStartParams());
   start_params.dalvik_memory_profile = test_param.profile;
-  SetValidUserInfo();
   StartMiniArcWithParams(true, std::move(start_params));
-  auto request = GetTestConciergeClient()->start_arc_vm_request();
-  if (test_param.profile_name) {
-    EXPECT_TRUE(base::Contains(
-        GetTestConciergeClient()->start_arc_vm_request().params(),
-        std::string("androidboot.arc_dalvik_memory_profile=") +
-            test_param.profile_name));
-  } else {
-    // Not expected any arc_dalvik_memory_profile.
-    for (const auto& param : request.params())
-      EXPECT_EQ(std::string::npos, param.find("arc_dalvik_memory_profile"));
-  }
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.mini_instance_request().dalvik_memory_profile(),
+            test_param.arc_profile);
 }
 
 struct UsapProfileTestParam {
@@ -2242,13 +2459,18 @@ struct UsapProfileTestParam {
   StartParams::UsapProfile profile;
   // Name of profile that is expected.
   const char* profile_name;
+  int memory;
 };
 
 constexpr UsapProfileTestParam kUsapProfileTestCases[] = {
-    {StartParams::UsapProfile::DEFAULT, nullptr},
-    {StartParams::UsapProfile::M4G, "4G"},
-    {StartParams::UsapProfile::M8G, "8G"},
-    {StartParams::UsapProfile::M16G, "16G"}};
+    {StartParams::UsapProfile::DEFAULT, nullptr,
+     vm_tools::concierge::StartArcVmRequest::USAP_PROFILE_DEFAULT},
+    {StartParams::UsapProfile::M4G, "4G",
+     vm_tools::concierge::StartArcVmRequest::USAP_PROFILE_4G},
+    {StartParams::UsapProfile::M8G, "8G",
+     vm_tools::concierge::StartArcVmRequest::USAP_PROFILE_8G},
+    {StartParams::UsapProfile::M16G, "16G",
+     vm_tools::concierge::StartArcVmRequest::USAP_PROFILE_16G}};
 
 class ArcVmClientAdapterUsapProfileTest
     : public ArcVmClientAdapterTest,
@@ -2262,18 +2484,254 @@ TEST_P(ArcVmClientAdapterUsapProfileTest, Profile) {
   const auto& test_param = GetParam();
   StartParams start_params(GetPopulatedStartParams());
   start_params.usap_profile = test_param.profile;
-  SetValidUserInfo();
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(request.usap_profile(), test_param.memory);
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcVmTTSCachingDefault) {
+  StartParams start_params(GetPopulatedStartParams());
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.mini_instance_request().enable_tts_caching());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcVmTTSCachingEnabled) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.enable_tts_caching = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.mini_instance_request().enable_tts_caching());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcVmLcdDensity) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.lcd_density = 480;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(480, request.mini_instance_request().lcd_density());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcVmPlayStoreAutoUpdateOn) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.play_store_auto_update =
+      StartParams::PlayStoreAutoUpdate::AUTO_UPDATE_ON;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(StartArcMiniInstanceRequest_PlayStoreAutoUpdate_AUTO_UPDATE_ON,
+            request.mini_instance_request().play_store_auto_update());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcVmPlayStoreAutoUpdateOff) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.play_store_auto_update =
+      StartParams::PlayStoreAutoUpdate::AUTO_UPDATE_OFF;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(StartArcMiniInstanceRequest_PlayStoreAutoUpdate_AUTO_UPDATE_OFF,
+            request.mini_instance_request().play_store_auto_update());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcVmPlayStoreAutoUpdateDefault) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.play_store_auto_update =
+      StartParams::PlayStoreAutoUpdate::AUTO_UPDATE_DEFAULT;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(StartArcMiniInstanceRequest_PlayStoreAutoUpdate_AUTO_UPDATE_DEFAULT,
+            request.mini_instance_request().play_store_auto_update());
+}
+
+TEST_F(ArcVmClientAdapterTest, ConvertUpgradeParams_SkipTtsCacheSetup) {
+  StartMiniArc();
+  UpgradeParams upgrade_params = GetPopulatedUpgradeParams();
+  upgrade_params.skip_tts_cache = true;
+  UpgradeArcWithParams(true, std::move(upgrade_params));
+  EXPECT_TRUE(base::Contains(boot_notification_server()->received_data(),
+                             "ro.boot.skip_tts_cache=1"));
+}
+
+TEST_F(ArcVmClientAdapterTest, ConvertUpgradeParams_EnableTtsCacheSetup) {
+  StartMiniArc();
+  UpgradeParams upgrade_params = GetPopulatedUpgradeParams();
+  upgrade_params.skip_tts_cache = false;
+  UpgradeArcWithParams(true, std::move(upgrade_params));
+  EXPECT_TRUE(base::Contains(boot_notification_server()->received_data(),
+                             "ro.boot.skip_tts_cache=0"));
+}
+
+// Test that update_o4c_list_via_a2c2 is not set with the feature flag disabled.
+TEST_F(ArcVmClientAdapterTest, ArcUpdateO4CListViaA2C2Disabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(kArcUpdateO4CListViaA2C2);
+  StartParams start_params(GetPopulatedStartParams());
   StartMiniArcWithParams(true, std::move(start_params));
   auto request = GetTestConciergeClient()->start_arc_vm_request();
-  if (test_param.profile_name) {
-    EXPECT_TRUE(base::Contains(
-        GetTestConciergeClient()->start_arc_vm_request().params(),
-        std::string("androidboot.usap_profile=") + test_param.profile_name));
-  } else {
-    // Not expected any arc_dalvik_memory_profile.
-    for (const auto& param : request.params())
-      EXPECT_EQ(std::string::npos, param.find("usap_profile"));
-  }
+  EXPECT_FALSE(request.update_o4c_list_via_a2c2());
+}
+
+// Test that update_o4c_list_via_a2c2 is set with the feature flag enabled.
+TEST_F(ArcVmClientAdapterTest, ArcUpdateO4CListViaA2C2Enabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(kArcUpdateO4CListViaA2C2);
+  StartParams start_params(GetPopulatedStartParams());
+  StartMiniArcWithParams(true, std::move(start_params));
+  auto request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.update_o4c_list_via_a2c2());
+}
+
+TEST_F(ArcVmClientAdapterTest, mglruReclaimDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatureState(arc::kMglruReclaim, false);
+  StartMiniArcWithParams(true, GetPopulatedStartParams());
+  auto req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(req.mglru_reclaim_interval(), 0);
+  EXPECT_EQ(req.mglru_reclaim_swappiness(), 0);
+}
+
+TEST_F(ArcVmClientAdapterTest, mglruReclaimEnabled) {
+  base::test::ScopedFeatureList feature_list;
+  base::FieldTrialParams params;
+  params["interval"] = "30000";
+  params["swappiness"] = "100";
+  feature_list.InitAndEnableFeatureWithParameters(kMglruReclaim, params);
+  StartMiniArcWithParams(true, GetPopulatedStartParams());
+  auto req = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_EQ(req.mglru_reclaim_interval(), 30000);
+  EXPECT_EQ(req.mglru_reclaim_swappiness(), 100);
+}
+
+TEST_F(ArcVmClientAdapterTest, LazyWebViewInitEnabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatureState(kEnableLazyWebViewInit, true);
+  StartParams start_params(GetPopulatedStartParams());
+
+  StartMiniArcWithParams(true, std::move(start_params));
+
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.enable_web_view_zygote_lazy_init());
+}
+
+TEST_F(ArcVmClientAdapterTest, LazyWebViewInitDisabled) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatureState(kEnableLazyWebViewInit, false);
+  StartParams start_params(GetPopulatedStartParams());
+
+  StartMiniArcWithParams(true, std::move(start_params));
+
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.enable_web_view_zygote_lazy_init());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcKeyboardShortcutHelperIntegrationEnabled) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.enable_keyboard_shortcut_helper_integration = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.enable_keyboard_shortcut_helper_integration());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcKeyboardShortcutHelperIntegrationDisabled) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.enable_keyboard_shortcut_helper_integration = false;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.enable_keyboard_shortcut_helper_integration());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcFilePickerExperimentFalse) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.arc_file_picker_experiment = false;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.mini_instance_request().arc_file_picker_experiment());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcFilePickerExperimentTrue) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.arc_file_picker_experiment = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.mini_instance_request().arc_file_picker_experiment());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcCustomTabsExperimentFalse) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.arc_custom_tabs_experiment = false;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.mini_instance_request().arc_custom_tabs_experiment());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcCustomTabsExperimentTrue) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.arc_custom_tabs_experiment = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.mini_instance_request().arc_custom_tabs_experiment());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcEnableNotificationRefreshFalse) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.enable_notifications_refresh = false;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_FALSE(request.mini_instance_request().enable_notifications_refresh());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcEnableNotificationRefreshTrue) {
+  StartParams start_params(GetPopulatedStartParams());
+  start_params.enable_notifications_refresh = true;
+  StartMiniArcWithParams(true, std::move(start_params));
+  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
+  EXPECT_TRUE(request.mini_instance_request().enable_notifications_refresh());
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcPriorityAppLmkDelayDisabled) {
+  StartMiniArc();
+  UpgradeParams upgrade_params = GetPopulatedUpgradeParams();
+  upgrade_params.enable_priority_app_lmk_delay = false;
+  UpgradeArcWithParams(true, std::move(upgrade_params));
+  EXPECT_FALSE(base::Contains(boot_notification_server()->received_data(),
+                              "ro.boot.arc.lmk.enable_priority_app_delay"));
+  EXPECT_FALSE(
+      base::Contains(boot_notification_server()->received_data(),
+                     "ro.boot.arc.lmk.priority_app_delay_duration_sec"));
+  EXPECT_FALSE(base::Contains(boot_notification_server()->received_data(),
+                              "ro.boot.arc.lmk.priority_apps"));
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcPriorityAppLmkDelayEnabled_NoApp) {
+  StartMiniArc();
+  UpgradeParams upgrade_params = GetPopulatedUpgradeParams();
+  upgrade_params.enable_priority_app_lmk_delay = true;
+  upgrade_params.priority_app_lmk_delay_list = "";
+  UpgradeArcWithParams(true, std::move(upgrade_params));
+  EXPECT_FALSE(base::Contains(boot_notification_server()->received_data(),
+                              "ro.boot.arc.lmk.enable_priority_app_delay"));
+  EXPECT_FALSE(
+      base::Contains(boot_notification_server()->received_data(),
+                     "ro.boot.arc.lmk.priority_app_delay_duration_sec"));
+  EXPECT_FALSE(base::Contains(boot_notification_server()->received_data(),
+                              "ro.boot.arc.lmk.priority_apps"));
+}
+
+TEST_F(ArcVmClientAdapterTest, ArcPriorityAppLmkDelayEnabled_SomeApp) {
+  StartMiniArc();
+  UpgradeParams upgrade_params = GetPopulatedUpgradeParams();
+  upgrade_params.enable_priority_app_lmk_delay = true;
+  upgrade_params.priority_app_lmk_delay_list =
+      "com.example.app1,com.example.app2";
+  upgrade_params.priority_app_lmk_delay_second = 60;
+  UpgradeArcWithParams(true, std::move(upgrade_params));
+  EXPECT_TRUE(base::Contains(boot_notification_server()->received_data(),
+                             "ro.boot.arc.lmk.enable_priority_app_delay=1"));
+  EXPECT_TRUE(base::Contains(
+      boot_notification_server()->received_data(),
+      "ro.boot.arc.lmk.priority_apps=com.example.app1,com.example.app2"));
+  EXPECT_TRUE(
+      base::Contains(boot_notification_server()->received_data(),
+                     "ro.boot.arc.lmk.priority_app_delay_duration_sec=60"));
 }
 
 }  // namespace

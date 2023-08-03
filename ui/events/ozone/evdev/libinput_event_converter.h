@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,7 +43,7 @@ class LibInputEventConverter : public EventConverterEvdev {
   // This class wraps the libinput_device struct from libinput library.
   class LibInputDevice {
    public:
-    explicit LibInputDevice(libinput_device* const device);
+    LibInputDevice(int id, libinput_device* const device);
     LibInputDevice(LibInputDevice&& other);
     LibInputDevice(const LibInputDevice& other) = delete;
     LibInputDevice& operator=(const LibInputDevice& other) = delete;
@@ -58,6 +58,7 @@ class LibInputEventConverter : public EventConverterEvdev {
     void SetSensitivity(const int sensitivity) const;
     void SetTapToClickEnabled(const bool enabled) const;
 
+    const int device_id_;
     libinput_device* device_;
   };
 
@@ -72,6 +73,7 @@ class LibInputEventConverter : public EventConverterEvdev {
     ~LibInputContext();
 
     absl::optional<LibInputEventConverter::LibInputDevice> AddDevice(
+        int id,
         const base::FilePath& path) const;
     bool Dispatch() const;
     int Fd();

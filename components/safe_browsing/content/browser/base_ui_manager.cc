@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@
 
 #include "components/safe_browsing/content/browser/base_ui_manager.h"
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/i18n/rtl.h"
 #include "base/memory/ptr_util.h"
-#include "base/supports_user_data.h"
 #include "components/safe_browsing/content/browser/base_blocking_page.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
@@ -32,7 +31,7 @@ using safe_browsing::SBThreatType;
 
 namespace {
 
-const void* const kAllowlistKey = &kAllowlistKey;
+using safe_browsing::ThreatSeverity;
 
 // A AllowlistUrlSet holds the set of URLs that have been allowlisted
 // for a specific WebContents, along with pending entries that are still
@@ -40,10 +39,9 @@ const void* const kAllowlistKey = &kAllowlistKey;
 // was seen for that URL. The URLs in this set should come from
 // GetAllowlistUrl() or GetMainFrameAllowlistUrlForResource() (in
 // SafeBrowsingUIManager)
-class AllowlistUrlSet : public base::SupportsUserData::Data {
+class AllowlistUrlSet : public content::WebContentsUserData<AllowlistUrlSet> {
  public:
-  AllowlistUrlSet() {}
-
+  ~AllowlistUrlSet() override = default;
   AllowlistUrlSet(const AllowlistUrlSet&) = delete;
   AllowlistUrlSet& operator=(const AllowlistUrlSet&) = delete;
 
@@ -84,18 +82,25 @@ class AllowlistUrlSet : public base::SupportsUserData::Data {
     pending_[url] = {threat_type, 1};
   }
 
- protected:
+ private:
+  friend class content::WebContentsUserData<AllowlistUrlSet>;
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
+
+  explicit AllowlistUrlSet(content::WebContents* web_contents)
+      : content::WebContentsUserData<AllowlistUrlSet>(*web_contents) {}
+
   // Method to remove all the instances of a website in the pending list
   // disregarding the count. Used when adding a site to the permanent list.
   void RemoveAllPending(const GURL& url) { pending_.erase(url); }
 
- private:
   std::map<GURL, SBThreatType> map_;
   // Keep a count of how many times a site has been added to the pending list
   // in order to solve a problem where upon reloading an interstitial, a site
   // would be re-added to and removed from the allowlist in the wrong order.
   std::map<GURL, std::pair<SBThreatType, int>> pending_;
 };
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(AllowlistUrlSet);
 
 // Returns the URL that should be used in a AllowlistUrlSet for the
 // resource loaded from |url| on a navigation |entry|.
@@ -110,23 +115,44 @@ GURL GetAllowlistUrl(const GURL& url,
   return url.GetWithEmptyPath();
 }
 
-AllowlistUrlSet* GetOrCreateAllowlist(WebContents* web_contents) {
-  AllowlistUrlSet* site_list =
-      static_cast<AllowlistUrlSet*>(web_contents->GetUserData(kAllowlistKey));
-  if (!site_list) {
-    site_list = new AllowlistUrlSet;
-    web_contents->SetUserData(kAllowlistKey, base::WrapUnique(site_list));
+// Returns the corresponding ThreatSeverity to a SBThreatType
+// Keep the same as v4_local_database_manager GetThreatSeverity()
+ThreatSeverity GetThreatSeverity(safe_browsing::SBThreatType threat_type) {
+  switch (threat_type) {
+    case safe_browsing::SB_THREAT_TYPE_URL_MALWARE:
+    case safe_browsing::SB_THREAT_TYPE_URL_BINARY_MALWARE:
+    case safe_browsing::SB_THREAT_TYPE_URL_PHISHING:
+    case safe_browsing::SB_THREAT_TYPE_MANAGED_POLICY_BLOCK:
+    case safe_browsing::SB_THREAT_TYPE_MANAGED_POLICY_WARN:
+      return 0;
+    case safe_browsing::SB_THREAT_TYPE_URL_UNWANTED:
+      return 1;
+    case safe_browsing::SB_THREAT_TYPE_API_ABUSE:
+    case safe_browsing::SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING:
+    case safe_browsing::SB_THREAT_TYPE_URL_CLIENT_SIDE_MALWARE:
+    case safe_browsing::SB_THREAT_TYPE_SUBRESOURCE_FILTER:
+      return 2;
+    case safe_browsing::SB_THREAT_TYPE_CSD_ALLOWLIST:
+    case safe_browsing::SB_THREAT_TYPE_HIGH_CONFIDENCE_ALLOWLIST:
+      return 3;
+    case safe_browsing::SB_THREAT_TYPE_SUSPICIOUS_SITE:
+      return 4;
+    case safe_browsing::SB_THREAT_TYPE_BILLING:
+      return 15;
+    default:
+      NOTREACHED();
+      break;
   }
-  return site_list;
+  return std::numeric_limits<ThreatSeverity>::max();
 }
 
 }  // namespace
 
 namespace safe_browsing {
 
-BaseUIManager::BaseUIManager() {}
+BaseUIManager::BaseUIManager() = default;
 
-BaseUIManager::~BaseUIManager() {}
+BaseUIManager::~BaseUIManager() = default;
 
 bool BaseUIManager::IsAllowlisted(const UnsafeResource& resource) {
   NavigationEntry* entry = nullptr;
@@ -161,8 +187,7 @@ bool BaseUIManager::IsUrlAllowlistedOrPendingForWebContents(
   if (lookup_url.is_empty())
     return false;
 
-  AllowlistUrlSet* site_list =
-      static_cast<AllowlistUrlSet*>(web_contents->GetUserData(kAllowlistKey));
+  AllowlistUrlSet* site_list = AllowlistUrlSet::FromWebContents(web_contents);
   if (!site_list)
     return false;
 
@@ -260,7 +285,9 @@ void BaseUIManager::DisplayBlockingPage(const UnsafeResource& resource) {
   }
 
   if (resource.threat_type != SB_THREAT_TYPE_SAFE &&
-      resource.threat_type != SB_THREAT_TYPE_BILLING) {
+      resource.threat_type != SB_THREAT_TYPE_BILLING &&
+      resource.threat_type != SB_THREAT_TYPE_MANAGED_POLICY_BLOCK &&
+      resource.threat_type != SB_THREAT_TYPE_MANAGED_POLICY_WARN) {
     // TODO(vakh): crbug/883462: The reports for SB_THREAT_TYPE_BILLING should
     // be disabled for M70 but enabled for a later release (M71?).
     CreateAndSendHitReport(resource);
@@ -331,7 +358,7 @@ void BaseUIManager::DisplayBlockingPage(const UnsafeResource& resource) {
             outermost_contents, unsafe_url, resource));
     base::WeakPtr<content::NavigationHandle> error_page_navigation_handle =
         outermost_contents->GetController().LoadPostCommitErrorPage(
-            outermost_contents->GetMainFrame(), unsafe_url,
+            outermost_contents->GetPrimaryMainFrame(), unsafe_url,
             blocking_page->GetHTMLContents(), net::ERR_BLOCKED_BY_CLIENT);
     if (error_page_navigation_handle) {
       blocking_page->CreatedPostCommitErrorPageNavigation(
@@ -344,7 +371,7 @@ void BaseUIManager::DisplayBlockingPage(const UnsafeResource& resource) {
 }
 
 void BaseUIManager::EnsureAllowlistCreated(WebContents* web_contents) {
-  GetOrCreateAllowlist(web_contents);
+  AllowlistUrlSet::CreateForWebContents(web_contents);
 }
 
 void BaseUIManager::CreateAndSendHitReport(const UnsafeResource& resource) {}
@@ -365,7 +392,7 @@ BaseBlockingPage* BaseUIManager::CreateBlockingPageForSubresource(
 // or after the warning dialog for download urls, only for extended_reporting
 // users who are not in incognito mode.
 void BaseUIManager::MaybeReportSafeBrowsingHit(
-    const HitReport& hit_report,
+    std::unique_ptr<HitReport> hit_report,
     content::WebContents* web_contents) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return;
@@ -373,9 +400,9 @@ void BaseUIManager::MaybeReportSafeBrowsingHit(
 
 // If the user had opted-in to send ThreatDetails, this gets called
 // when the report is ready.
-void BaseUIManager::SendSerializedThreatDetails(
+void BaseUIManager::SendThreatDetails(
     content::BrowserContext* browser_context,
-    const std::string& serialized) {
+    std::unique_ptr<ClientSafeBrowsingReportRequest> report) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return;
 }
@@ -393,7 +420,8 @@ void BaseUIManager::AddToAllowlistUrlSet(const GURL& allowlist_url,
   if (!web_contents)
     return;
 
-  AllowlistUrlSet* site_list = GetOrCreateAllowlist(web_contents);
+  AllowlistUrlSet::CreateForWebContents(web_contents);
+  AllowlistUrlSet* site_list = AllowlistUrlSet::FromWebContents(web_contents);
 
   if (allowlist_url.is_empty())
     return;
@@ -441,6 +469,28 @@ bool BaseUIManager::PopUnsafeResourceForURL(
   return false;
 }
 
+ThreatSeverity BaseUIManager::GetSeverestThreatForNavigation(
+    content::NavigationHandle* handle,
+    security_interstitials::UnsafeResource& severest_resource) {
+  // Default is safe
+  // Smaller numbers are more severe for ThreatSeverity
+  ThreatSeverity min_severity = std::numeric_limits<ThreatSeverity>::max();
+  if (!handle)
+    return min_severity;
+
+  for (auto&& url : handle->GetRedirectChain()) {
+    security_interstitials::UnsafeResource resource;
+    if (PopUnsafeResourceForURL(url, &resource)) {
+      ThreatSeverity severity = GetThreatSeverity(resource.threat_type);
+      if (severity > min_severity)
+        continue;
+      min_severity = severity;
+      severest_resource = std::move(resource);
+    }
+  }
+  return min_severity;
+}
+
 void BaseUIManager::RemoveAllowlistUrlSet(const GURL& allowlist_url,
                                           WebContents* web_contents,
                                           bool from_pending_only) {
@@ -454,8 +504,7 @@ void BaseUIManager::RemoveAllowlistUrlSet(const GURL& allowlist_url,
   // here. By this point, a "Back" navigation could have already been
   // committed, so the page loading |resource| might be gone and
   // |web_contents_getter| may no longer be valid.
-  AllowlistUrlSet* site_list =
-      static_cast<AllowlistUrlSet*>(web_contents->GetUserData(kAllowlistKey));
+  AllowlistUrlSet* site_list = AllowlistUrlSet::FromWebContents(web_contents);
 
   if (allowlist_url.is_empty())
     return;
@@ -487,13 +536,10 @@ void BaseUIManager::RemoveAllowlistUrlSet(const GURL& allowlist_url,
 // static
 GURL BaseUIManager::GetMainFrameAllowlistUrlForResource(
     const security_interstitials::UnsafeResource& resource) {
-  if (resource.is_subresource) {
-    NavigationEntry* entry = GetNavigationEntryForResource(resource);
-    if (!entry)
-      return GURL();
-    return entry->GetURL().GetWithEmptyPath();
-  }
-  return resource.url.GetWithEmptyPath();
+  return GetAllowlistUrl(resource.url, resource.is_subresource,
+                         resource.is_subresource
+                             ? GetNavigationEntryForResource(resource)
+                             : nullptr);
 }
 
 }  // namespace safe_browsing

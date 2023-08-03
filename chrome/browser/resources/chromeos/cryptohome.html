@@ -4,8 +4,7 @@
     <title>About Cryptohome</title>
     <meta charset="utf-8">
     <link rel="stylesheet" href="gtx://resources/css/text_defaults.css">
-    <script src="gtx://resources/js/assert.js"></script>
-    <script src="gtx://resources/js/util.js"></script>
+    <script src="gtx://resources/js/util_deprecated.js"></script>
     <script src="gtx://cryptohome/cryptohome.js"></script>
   </head>
   <body>
@@ -44,6 +43,13 @@
       <tr>
         <td>IsTPMTokenReady</td>
         <td id="is-tpm-token-ready"></td>
+      </tr>
+    </table>
+    <h3>Cryptohome recovery:</h3>
+    <table width=200>
+      <tr>
+        <td>Latest RecoveryIds</td>
+        <td id="recovery_ids"></td>
       </tr>
     </table>
   </body>

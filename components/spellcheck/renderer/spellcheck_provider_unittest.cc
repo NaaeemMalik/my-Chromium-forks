@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 
 namespace {
 
-#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 struct HybridSpellCheckTestCase {
   size_t language_count;
   size_t enabled_language_count;
@@ -43,7 +43,7 @@ std::ostream& operator<<(std::ostream& out,
       << "\", use_spelling_service=" << test_case.use_spelling_service;
   return out;
 }
-#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 class SpellCheckProviderCacheTest : public SpellCheckProviderTest {
  protected:
@@ -57,7 +57,7 @@ class SpellCheckProviderCacheTest : public SpellCheckProviderTest {
   }
 };
 
-#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 // Test fixture for testing hybrid check cases.
 class HybridSpellCheckTest
     : public testing::TestWithParam<HybridSpellCheckTestCase> {
@@ -67,9 +67,8 @@ class HybridSpellCheckTest
 
   void SetUp() override {
     // Don't delay initialization of the SpellcheckService on browser launch.
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{spellcheck::kWinUseBrowserSpellChecker},
-        /*disabled_features=*/{spellcheck::kWinDelaySpellcheckServiceInit});
+    feature_list_.InitAndDisableFeature(
+        spellcheck::kWinDelaySpellcheckServiceInit);
   }
 
   void RunShouldUseBrowserSpellCheckOnlyWhenNeededTest();
@@ -89,10 +88,8 @@ class HybridSpellCheckTestDelayInit : public HybridSpellCheckTest {
 
   void SetUp() override {
     // Don't initialize the SpellcheckService on browser launch.
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{spellcheck::kWinUseBrowserSpellChecker,
-                              spellcheck::kWinDelaySpellcheckServiceInit},
-        /*disabled_features=*/{});
+    feature_list_.InitAndEnableFeature(
+        spellcheck::kWinDelaySpellcheckServiceInit);
   }
 };
 
@@ -109,7 +106,7 @@ class CombineSpellCheckResultsTest
   spellcheck::EmptyLocalInterfaceProvider embedder_provider_;
   TestingSpellCheckProvider provider_;
 };
-#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 TEST_F(SpellCheckProviderCacheTest, SubstringWithoutMisspellings) {
   FakeTextCheckingResult result;
@@ -159,12 +156,12 @@ TEST_F(SpellCheckProviderCacheTest, ResetCacheOnCustomDictionaryUpdate) {
   EXPECT_EQ(result.completion_count_, 0U);
 }
 
-#if defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 // Tests that the SpellCheckProvider does not call into the native spell checker
 // on Windows when the native spell checker flags are disabled.
 TEST_F(SpellCheckProviderTest, ShouldNotUseBrowserSpellCheck) {
-  base::test::ScopedFeatureList local_feature;
-  local_feature.InitAndDisableFeature(spellcheck::kWinUseBrowserSpellChecker);
+  spellcheck::ScopedDisableBrowserSpellCheckerForTesting
+      disable_browser_spell_checker;
 
   FakeTextCheckingResult completion;
   std::u16string text = u"This is a test";
@@ -205,10 +202,6 @@ TEST_P(HybridSpellCheckTest, ShouldUseBrowserSpellCheckOnlyWhenNeeded) {
 }
 
 void HybridSpellCheckTest::RunShouldUseBrowserSpellCheckOnlyWhenNeededTest() {
-  if (!spellcheck::WindowsVersionSupportsSpellchecker()) {
-    return;
-  }
-
   const auto& test_case = GetParam();
 
   FakeTextCheckingResult completion;
@@ -584,13 +577,7 @@ INSTANTIATE_TEST_SUITE_P(
                      4)})}));
 
 TEST_P(CombineSpellCheckResultsTest, ShouldCorrectlyCombineHybridResults) {
-  if (!spellcheck::WindowsVersionSupportsSpellchecker()) {
-    return;
-  }
-
   const auto& test_case = GetParam();
-  base::test::ScopedFeatureList local_features;
-  local_features.InitAndEnableFeature(spellcheck::kWinUseBrowserSpellChecker);
   const bool has_browser_check = !test_case.browser_locale.empty();
   const bool has_renderer_check = !test_case.renderer_locale.empty();
 
@@ -648,6 +635,6 @@ TEST_P(CombineSpellCheckResultsTest, ShouldCorrectlyCombineHybridResults) {
     }
   }
 }
-#endif  // defined(OS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
+#endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(USE_BROWSER_SPELLCHECKER)
 
 }  // namespace

@@ -1,10 +1,10 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.notifications;
 
-import static org.junit.Assert.assertThat;
+import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
 
 import static org.chromium.components.content_settings.PrefNames.NOTIFICATIONS_VIBRATE_ENABLED;
 
@@ -18,11 +18,12 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.test.InstrumentationRegistry;
 
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
 
+import org.chromium.base.test.util.DisabledTest;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -36,12 +37,12 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.UserActionTester;
-import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.permissions.PermissionTestRule;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.browser.TabTitleObserver;
 import org.chromium.components.browser_ui.notifications.MockNotificationManagerProxy.NotificationEntry;
@@ -175,6 +176,7 @@ public class NotificationPlatformBridgeTest {
     @MediumTest
     @Feature({"Browser", "Notifications"})
     @Test
+    @DisabledTest(message = "https://crbug.com/1435133")
     public void testPermissionGranted() throws Exception {
         // Notifications permission should initially be prompt, and showing should fail.
         Assert.assertEquals("\"default\"", runJavaScript("Notification.permission"));
@@ -232,15 +234,9 @@ public class NotificationPlatformBridgeTest {
         Assert.assertNotNull(notification.publicVersion);
         Assert.assertEquals(context.getString(R.string.notification_hidden_text),
                 NotificationTestUtil.getExtraText(notification.publicVersion));
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M) {
-            // On N+, origin should be set as the subtext of the public notification.
-            Assert.assertEquals(expectedOrigin,
-                    NotificationTestUtil.getExtraSubText(notification.publicVersion));
-        } else {
-            // On L/M, origin should be the title of the public notification.
-            Assert.assertEquals(
-                    expectedOrigin, NotificationTestUtil.getExtraTitle(notification.publicVersion));
-        }
+        // On N+, origin should be set as the subtext of the public notification.
+        Assert.assertEquals(
+                expectedOrigin, NotificationTestUtil.getExtraSubText(notification.publicVersion));
 
         // Verify that the notification's timestamp is set in the past 60 seconds. This number has
         // no significance, but needs to be high enough to not cause flakiness as it's set by the
@@ -551,6 +547,7 @@ public class NotificationPlatformBridgeTest {
     @Test
     @MediumTest
     @Feature({"Browser", "Notifications"})
+    @SuppressWarnings("UseNetworkAnnotations")
     public void testShowNotificationWithBadge() throws Exception {
         mNotificationTestRule.setNotificationContentSettingForOrigin(
                 ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
@@ -564,34 +561,23 @@ public class NotificationPlatformBridgeTest {
         Bitmap smallIcon = NotificationTestUtil.getSmallIconFromNotification(context, notification);
         Assert.assertNotNull(smallIcon);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            // Custom badges are only supported on M+.
-            // 1. Check the notification badge.
-            URL badgeUrl = new URL(
-                    mPermissionTestRule.getURL("/chrome/test/data/notifications/badge.png"));
-            Bitmap bitmap = BitmapFactory.decodeStream(badgeUrl.openStream());
-            Bitmap expected = bitmap.copy(bitmap.getConfig(), true);
-            NotificationBuilderBase.applyWhiteOverlayToBitmap(expected);
-            Assert.assertTrue(expected.sameAs(smallIcon));
+        // Custom badges are only supported on M+.
+        // 1. Check the notification badge.
+        URL badgeUrl =
+                new URL(mPermissionTestRule.getURL("/chrome/test/data/notifications/badge.png"));
+        Bitmap bitmap = BitmapFactory.decodeStream(badgeUrl.openStream());
+        Bitmap expected = bitmap.copy(bitmap.getConfig(), true);
+        NotificationBuilderBase.applyWhiteOverlayToBitmap(expected);
+        Assert.assertTrue(expected.sameAs(smallIcon));
 
-            // 2. Check the public notification badge.
-            Assert.assertNotNull(notification.publicVersion);
-            Bitmap publicSmallIcon = NotificationTestUtil.getSmallIconFromNotification(
-                    context, notification.publicVersion);
-            Assert.assertNotNull(publicSmallIcon);
-            Assert.assertEquals(expected.getWidth(), publicSmallIcon.getWidth());
-            Assert.assertEquals(expected.getHeight(), publicSmallIcon.getHeight());
-            Assert.assertTrue(expected.sameAs(publicSmallIcon));
-        } else {
-            Bitmap expected =
-                    BitmapFactory.decodeResource(context.getResources(), R.drawable.ic_chrome);
-            Assert.assertTrue(expected.sameAs(smallIcon));
-
-            Assert.assertNotNull(notification.publicVersion);
-            Bitmap publicSmallIcon = NotificationTestUtil.getSmallIconFromNotification(
-                    context, notification.publicVersion);
-            Assert.assertTrue(expected.sameAs(publicSmallIcon));
-        }
+        // 2. Check the public notification badge.
+        Assert.assertNotNull(notification.publicVersion);
+        Bitmap publicSmallIcon = NotificationTestUtil.getSmallIconFromNotification(
+                context, notification.publicVersion);
+        Assert.assertNotNull(publicSmallIcon);
+        Assert.assertEquals(expected.getWidth(), publicSmallIcon.getWidth());
+        Assert.assertEquals(expected.getHeight(), publicSmallIcon.getHeight());
+        Assert.assertTrue(expected.sameAs(publicSmallIcon));
     }
 
     /**
@@ -684,11 +670,9 @@ public class NotificationPlatformBridgeTest {
         Assert.assertEquals(1.5, getEngagementScoreBlocking(), 0);
 
         // This metric only applies on N+, where we schedule a job to handle the click.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Assert.assertEquals(1,
-                    RecordHistogram.getHistogramTotalCountForTesting(
-                            "Notifications.Android.JobStartDelay"));
-        }
+        Assert.assertEquals(1,
+                RecordHistogram.getHistogramTotalCountForTesting(
+                        "Notifications.Android.JobStartDelay"));
 
         // Clicking on a notification should record the right user metrics.
         assertThat(actionTester.toString(), getNotificationActions(actionTester),
@@ -733,11 +717,9 @@ public class NotificationPlatformBridgeTest {
                     Matchers.is(2));
         });
         // This metric only applies on N+, where we schedule a job to handle the click.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            Assert.assertEquals(1,
-                    RecordHistogram.getHistogramTotalCountForTesting(
-                            "Notifications.Android.JobStartDelay"));
-        }
+        Assert.assertEquals(1,
+                RecordHistogram.getHistogramTotalCountForTesting(
+                        "Notifications.Android.JobStartDelay"));
     }
 
     /**

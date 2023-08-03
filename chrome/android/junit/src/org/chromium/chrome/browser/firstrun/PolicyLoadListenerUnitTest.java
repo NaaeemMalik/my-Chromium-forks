@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@ package org.chromium.chrome.browser.firstrun;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
+
+import static org.chromium.ui.test.util.MockitoHelper.doCallback;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,6 +33,8 @@ import org.chromium.components.policy.PolicyService;
 /** Unit tests for PolicyLoadListener. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE, shadows = {ShadowProcess.class})
+// TODO(crbug.com/1210371): Change to use paused loop. See crbug for details.
+@LooperMode(LooperMode.Mode.LEGACY)
 public class PolicyLoadListenerUnitTest {
     private static final String LOADED_POLICY_READY = "Policy service should be ready to read.";
     private static final String LOADED_NO_POLICY = "Policy should not exist.";
@@ -56,16 +60,10 @@ public class PolicyLoadListenerUnitTest {
 
     @Before
     public void setUp() {
-        Mockito.doAnswer(invocation -> {
-                   mPolicyServiceObserver = invocation.getArgument(0);
-                   return null;
-               })
+        doCallback((PolicyService.Observer observer) -> mPolicyServiceObserver = observer)
                 .when(mPolicyService)
                 .addObserver(any());
-        Mockito.doAnswer(invocation -> {
-                   mAppRestrictionsCallback = invocation.getArgument(0);
-                   return null;
-               })
+        doCallback((Callback<Boolean> callback) -> mAppRestrictionsCallback = callback)
                 .when(mTestAppRestrictionInfo)
                 .getHasAppRestriction(any());
 
@@ -170,8 +168,6 @@ public class PolicyLoadListenerUnitTest {
     }
 
     @Test
-    // TODO(crbug.com/1210371): Change to use paused loop. See crbug for details.
-    @LooperMode(LooperMode.Mode.LEGACY)
     public void testDestroyAfterStart_PolicyInitializedInterleaved() {
         Assert.assertNull(LOADING_NOT_FINISHED, mPolicyLoadListener.onAvailable(mListener));
 

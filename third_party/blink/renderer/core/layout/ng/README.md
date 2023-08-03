@@ -3,7 +3,7 @@
 This directory contains the implementation of Blink's new layout engine
 "LayoutNG".
 
-This README can be viewed in formatted form [here](https://chromium.googlesource.com/chromium/src/+/master/third_party/blink/renderer/core/layout/ng/README.md).
+This README can be viewed in formatted form [here](https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/layout/ng/README.md).
 
 The original design document can be seen [here](https://docs.google.com/document/d/1uxbDh4uONFQOiGuiumlJBLGgO4KDWB8ZEkp7Rd47fw4/edit).
 
@@ -48,6 +48,11 @@ Please refer to the [inline layout README](inline/README.md).
 ### Fragment Tree ###
 
 TODO(layout-dev): Document with lots of pretty pictures.
+
+All coordinates and sizes associated with an NGPhysicalFragment are physical,
+i.e. pure left/top offsets from the parent fragment, and sizes are expressed
+with widths and heights (not inline-size / block-size). No logical offsets or
+sizes. Writing mode and direction are resolved during layout.
 
 ### Constraint Spaces ###
 

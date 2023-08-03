@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,9 @@
 #include <string>
 
 #include "base/command_line.h"
+#include "base/memory/raw_ref.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -53,7 +53,7 @@ class RequestAdapterWrapper {
   RequestAdapter* adapter() { return &adapter_; }
 
   net::HttpRequestHeaders GetFinalHeaders() {
-    net::HttpRequestHeaders final_headers(original_headers_);
+    net::HttpRequestHeaders final_headers(*original_headers_);
     final_headers.MergeFrom(modified_request_headers_);
     for (const std::string& name : to_be_removed_request_headers_)
       final_headers.RemoveHeader(name);
@@ -62,7 +62,7 @@ class RequestAdapterWrapper {
 
  private:
   RequestAdapter adapter_;
-  const net::HttpRequestHeaders& original_headers_;
+  const raw_ref<const net::HttpRequestHeaders> original_headers_;
   net::HttpRequestHeaders modified_request_headers_;
   std::vector<std::string> to_be_removed_request_headers_;
 };
@@ -84,7 +84,7 @@ class SigninHeaderHelperTest : public testing::Test {
 
     settings_map_ = new HostContentSettingsMap(
         &prefs_, false /* is_off_the_record */, false /* store_last_modified */,
-        false /* restore_session */);
+        false /* restore_session */, false /* should_record_metrics */);
     cookie_settings_ = new content_settings::CookieSettings(settings_map_.get(),
                                                             &prefs_, false, "");
   }
@@ -153,6 +153,14 @@ class SigninHeaderHelperTest : public testing::Test {
   }
 #endif
 
+  std::string consistency_enabled_by_default_value() const {
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+    return "true";
+#else
+    return "false";
+#endif
+  }
+
   base::test::TaskEnvironment task_environment_;
 
   bool sync_enabled_ = false;
@@ -171,7 +179,7 @@ class SigninHeaderHelperTest : public testing::Test {
   scoped_refptr<content_settings::CookieSettings> cookie_settings_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
 // Tests that Mirror request is returned on Chrome OS for Public Sessions (no
 // account id).
 TEST_F(SigninHeaderHelperTest, TestMirrorRequestNoAccountIdChromeOS) {
@@ -180,13 +188,15 @@ TEST_F(SigninHeaderHelperTest, TestMirrorRequestNoAccountIdChromeOS) {
       GURL("https://docs.google.com"), /*gaia_id=*/"",
       /*is_child_account=*/Tribool::kUnknown,
       "source=TestSource,mode=0,enable_account_consistency=true,"
-      "consistency_enabled_by_default=false");
+      "consistency_enabled_by_default=" +
+          consistency_enabled_by_default_value());
   CheckMirrorCookieRequest(GURL("https://docs.google.com"), /*gaia_id=*/"",
                            "mode=0:enable_account_consistency=true:"
-                           "consistency_enabled_by_default=false");
+                           "consistency_enabled_by_default=" +
+                               consistency_enabled_by_default_value());
 }
-#else  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
-#if defined(OS_ANDROID)
+#else  // BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_ANDROID)
 // Tests that eligible_for_consistency request is returned on Android
 // when reaching to Gaia origin and there's no primary account.
 TEST_F(SigninHeaderHelperTest, TestEligibleForConsistencyRequestGaiaOrigin) {
@@ -219,7 +229,7 @@ TEST_F(SigninHeaderHelperTest, TestForceAccountConsistencyMobile) {
       "source=TestSource,mode=0,enable_account_consistency=true,"
       "consistency_enabled_by_default=false");
 }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 // Tests that no Mirror request is returned when the user is not signed in (no
 // account id), for non Chrome OS platforms.
@@ -230,6 +240,16 @@ TEST_F(SigninHeaderHelperTest, TestNoMirrorRequestNoAccountId) {
   CheckMirrorCookieRequest(GURL("https://docs.google.com"), /*gaia_id=*/"", "");
 }
 #endif
+
+// Tests that no Mirror request is returned for youtubekids.com.
+//
+// Regression test for b/247647476
+TEST_F(SigninHeaderHelperTest, TestNoMirrorHeaderForYoutubekids) {
+  account_consistency_ = AccountConsistencyMethod::kMirror;
+  CheckMirrorHeaderRequest(GURL("https://youtubekids.com"), "0123456789",
+                           /*is_child_account=*/Tribool::kUnknown, "");
+  CheckMirrorCookieRequest(GURL("https://youtubekids.com"), "0123456789", "");
+}
 
 // Tests that no Mirror request is returned when the cookies aren't allowed to
 // be set.
@@ -257,10 +277,12 @@ TEST_F(SigninHeaderHelperTest, TestMirrorRequestGoogleTLD) {
       GURL("https://google.fr"), "0123456789",
       /*is_child_account=*/Tribool::kUnknown,
       "source=TestSource,mode=0,enable_account_consistency=true,"
-      "consistency_enabled_by_default=false");
+      "consistency_enabled_by_default=" +
+          consistency_enabled_by_default_value());
   CheckMirrorCookieRequest(GURL("https://google.de"), "0123456789",
                            "mode=0:enable_account_consistency=true:"
-                           "consistency_enabled_by_default=false");
+                           "consistency_enabled_by_default=" +
+                               consistency_enabled_by_default_value());
 }
 
 // Tests that the Mirror request is returned when the target is the domain
@@ -271,10 +293,12 @@ TEST_F(SigninHeaderHelperTest, TestMirrorRequestGoogleCom) {
       GURL("https://www.google.com"), "0123456789",
       /*is_child_account=*/Tribool::kUnknown,
       "source=TestSource,mode=0,enable_account_consistency=true,"
-      "consistency_enabled_by_default=false");
+      "consistency_enabled_by_default=" +
+          consistency_enabled_by_default_value());
   CheckMirrorCookieRequest(GURL("https://www.google.com"), "0123456789",
                            "mode=0:enable_account_consistency=true:"
-                           "consistency_enabled_by_default=false");
+                           "consistency_enabled_by_default=" +
+                               consistency_enabled_by_default_value());
 }
 
 // Tests that no header sent when mirror account consistency is nor requested.
@@ -305,7 +329,8 @@ TEST_F(SigninHeaderHelperTest, TestMirrorRequestGoogleComProfileConsistency) {
   CheckAccountConsistencyHeaderRequest(
       request_adapter.GetFinalHeaders(), kChromeConnectedHeader,
       "source=TestSource,mode=0,enable_account_consistency=true,"
-      "consistency_enabled_by_default=false");
+      "consistency_enabled_by_default=" +
+          consistency_enabled_by_default_value());
 }
 
 TEST_F(SigninHeaderHelperTest, TestMirrorRequestGoogleComSupervised) {
@@ -314,17 +339,20 @@ TEST_F(SigninHeaderHelperTest, TestMirrorRequestGoogleComSupervised) {
       GURL("https://www.google.com"), "0123456789",
       /*is_child_account=*/Tribool::kUnknown,
       "source=TestSource,mode=0,enable_account_consistency=true,"
-      "consistency_enabled_by_default=false");
+      "consistency_enabled_by_default=" +
+          consistency_enabled_by_default_value());
   CheckMirrorHeaderRequest(
       GURL("https://www.google.com"), "0123456789",
       /*is_child_account=*/Tribool::kTrue,
       "source=TestSource,mode=0,enable_account_consistency=true,"
-      "supervised=true,consistency_enabled_by_default=false");
+      "supervised=true,consistency_enabled_by_default=" +
+          consistency_enabled_by_default_value());
   CheckMirrorHeaderRequest(
       GURL("https://www.google.com"), "0123456789",
       /*is_child_account=*/Tribool::kFalse,
       "source=TestSource,mode=0,enable_account_consistency=true,"
-      "supervised=false,consistency_enabled_by_default=false");
+      "supervised=false,consistency_enabled_by_default=" +
+          consistency_enabled_by_default_value());
 }
 
 // Mirror is always enabled on Android and iOS, so these tests are only relevant
@@ -711,7 +739,7 @@ TEST_F(SigninHeaderHelperTest, TestBuildManageAccountsParams) {
       "action=ADDSESSION,email=%s,is_saml=true,"
       "is_same_tab=true,continue_url=%s",
       kEmail, kContinueURL);
-#if defined(OS_ANDROID) || defined(OS_IOS)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
   header += ",show_consistency_promo=true";
 #endif
 
@@ -721,7 +749,7 @@ TEST_F(SigninHeaderHelperTest, TestBuildManageAccountsParams) {
   EXPECT_EQ(true, params.is_saml);
   EXPECT_EQ(true, params.is_same_tab);
   EXPECT_EQ(GURL(kContinueURL), params.continue_url);
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   EXPECT_EQ(true, params.show_consistency_promo);
 #endif
 }

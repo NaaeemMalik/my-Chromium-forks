@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 #include <vector>
 
 #include "base/strings/utf_string_conversions.h"
-#include "ui/gfx/color_palette.h"
+#include "ui/color/color_id.h"
 #include "ui/gfx/image/image.h"
 #include "url/gurl.h"
 
-namespace ash {
 namespace quick_answers {
 
 // Interaction with the consent-view (used for logging).
@@ -75,7 +74,7 @@ enum class QuickAnswersExitPoint {
   // The exit point is unspecified. Might be used by tests, obsolete code or as
   // placeholders.
   kUnspecified = 0,
-  KContextMenuDismiss = 1,
+  kContextMenuDismiss = 1,
   kContextMenuClick = 2,
   kQuickAnswersClick = 3,
   kSettingsButtonClick = 4,
@@ -88,29 +87,31 @@ struct QuickAnswerUiElement {
   QuickAnswerUiElement(const QuickAnswerUiElement&) = default;
   QuickAnswerUiElement& operator=(const QuickAnswerUiElement&) = default;
   QuickAnswerUiElement(QuickAnswerUiElement&&) = default;
+  virtual ~QuickAnswerUiElement() = default;
 
   QuickAnswerUiElementType type = QuickAnswerUiElementType::kUnknown;
 };
 
-// class to describe an answer text.
+// Class to describe an answer text.
 struct QuickAnswerText : public QuickAnswerUiElement {
   explicit QuickAnswerText(const std::string& text,
-                           SkColor color = gfx::kGoogleGrey900)
+                           ui::ColorId color_id = ui::kColorLabelForeground)
       : QuickAnswerUiElement(QuickAnswerUiElementType::kText),
         text(base::UTF8ToUTF16(text)),
-        color(color) {}
+        color_id(color_id) {}
 
   std::u16string text;
 
   // Attributes for text style.
-  SkColor color = SK_ColorBLACK;
+  ui::ColorId color_id;
 };
 
 struct QuickAnswerResultText : public QuickAnswerText {
  public:
-  QuickAnswerResultText(const std::string& text,
-                        SkColor color = gfx::kGoogleGrey700)
-      : QuickAnswerText(text, color) {}
+  QuickAnswerResultText(
+      const std::string& text,
+      ui::ColorId color_id = ui::kColorLabelForegroundSecondary)
+      : QuickAnswerText(text, color_id) {}
 };
 
 struct QuickAnswerImage : public QuickAnswerUiElement {
@@ -118,6 +119,25 @@ struct QuickAnswerImage : public QuickAnswerUiElement {
       : QuickAnswerUiElement(QuickAnswerUiElementType::kImage), image(image) {}
 
   gfx::Image image;
+};
+
+// Class to describe quick answers phonetics info.
+struct PhoneticsInfo {
+  PhoneticsInfo();
+  PhoneticsInfo(const PhoneticsInfo&);
+  ~PhoneticsInfo();
+
+  // Phonetics audio URL for playing pronunciation of dictionary results.
+  // For other type of results the URL will be empty.
+  GURL phonetics_audio = GURL();
+
+  // Whether or not to use tts audio if phonetics audio is not available.
+  bool tts_audio_enabled = false;
+
+  // Query text and locale which will be used for tts if enabled and
+  // there is no phonetics audio available.
+  std::string query_text = std::string();
+  std::string locale = std::string();
 };
 
 // Structure to describe a quick answer.
@@ -131,19 +151,11 @@ struct QuickAnswer {
   std::vector<std::unique_ptr<QuickAnswerUiElement>> second_answer_row;
   std::unique_ptr<QuickAnswerImage> image;
 
-  // Phonetics audio URL for playing pronunciation of dictionary results.
-  // For other type of results the URL will be empty.
-  GURL phonetics_audio;
+  PhoneticsInfo phonetics_info;
 };
 
 // Information of the device that used by the user to send the request.
 struct DeviceProperties {
-  // Device language code.
-  std::string language;
-
-  // List (separated by comma) of user preferred languages.
-  std::string preferred_languages;
-
   // Whether the request is send by an internal user.
   bool is_internal = false;
 };
@@ -153,8 +165,8 @@ struct IntentInfo {
   IntentInfo(const IntentInfo& other);
   IntentInfo(const std::string& intent_text,
              IntentType intent_type,
-             const std::string& source_language = std::string(),
-             const std::string& target_language = std::string());
+             const std::string& device_language = std::string(),
+             const std::string& source_language = std::string());
   ~IntentInfo();
 
   // The text extracted from the selected_text associated with the intent.
@@ -163,10 +175,12 @@ struct IntentInfo {
   // Predicted intent.
   IntentType intent_type = IntentType::kUnknown;
 
-  // Source and target language for translation query.
-  // These fields should only be used for translation intents.
+  // Device language code.
+  std::string device_language;
+
+  // Source language for definition or translation query, should only be used
+  // for definition or translation intents.
   std::string source_language;
-  std::string target_language;
 };
 
 // Extract information generated from |QuickAnswersRequest|.
@@ -210,7 +224,57 @@ struct QuickAnswersRequest {
   // links, etc).
 };
 
+// `TranslationResult` holds result for translation intent.
+// `TranslationResult` must be copyable as it can be copied to a view.
+struct TranslationResult {
+ public:
+  TranslationResult();
+  ~TranslationResult();
+
+  std::u16string text_to_translate;
+  std::u16string translated_text;
+  std::string source_locale;
+  std::string target_locale;
+};
+
+// `StructuredResult` is NOT copyable as it's not trivial to make a class with
+// unique_ptr to copyable.
+class StructuredResult {
+ public:
+  StructuredResult();
+  ~StructuredResult();
+  StructuredResult(const StructuredResult&) = delete;
+  StructuredResult& operator=(const StructuredResult) = delete;
+
+  // Result type specific structs must be copyable.
+  std::unique_ptr<TranslationResult> translation_result;
+};
+
+// `QuickAnswersSession` holds states related to a single Quick Answer session.
+//
+// This class currently holds results in `QuickAnswer` and `StructuredResult`.
+// `QuickAnswer` field is used by `QuickAnswersView`. Rich Answers will read
+// `StructuredResult`. Note that `QuickAnswer` is populated by using information
+// in `StructuredResult`, i.e. `StructuredResult` is a super-set of
+// `QuickAnswer`.
+//
+// Longer term plan is to migrate other states to this class, e.g. intent.
+//
+// `QuickAnswersSession` is NOT copyable as it's not trivial to make a class
+// with unique_ptr to copyable.
+class QuickAnswersSession {
+ public:
+  QuickAnswersSession();
+  ~QuickAnswersSession();
+  QuickAnswersSession(const QuickAnswersSession&) = delete;
+  QuickAnswersSession& operator=(const QuickAnswersSession) = delete;
+
+  // TODO(b/278929409): Once we migrate all result types to `StructuredResult`,
+  // populate `QuickAnswer` outside of ResultParsers.
+  std::unique_ptr<QuickAnswer> quick_answer;
+  std::unique_ptr<StructuredResult> structured_result;
+};
+
 }  // namespace quick_answers
-}  // namespace ash
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_QUICK_ANSWERS_MODEL_H_

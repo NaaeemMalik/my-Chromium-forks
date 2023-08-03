@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,13 @@ namespace {
 class MockTailoredSecurityService : public TailoredSecurityService {
  public:
   MockTailoredSecurityService() : TailoredSecurityService(nullptr, nullptr) {}
-  MOCK_METHOD0(AddQueryRequest, void());
-  MOCK_METHOD0(RemoveQueryRequest, void());
-  MOCK_METHOD2(MaybeNotifySyncUser, void(bool, base::Time));
-  MOCK_METHOD0(GetURLLoaderFactory,
-               scoped_refptr<network::SharedURLLoaderFactory>());
+  MOCK_METHOD(void, AddQueryRequest, (), (override));
+  MOCK_METHOD(void, RemoveQueryRequest, (), (override));
+  MOCK_METHOD(void, MaybeNotifySyncUser, (bool, base::Time), (override));
+  MOCK_METHOD(scoped_refptr<network::SharedURLLoaderFactory>,
+              GetURLLoaderFactory,
+              (),
+              (override));
 };
 
 }  // namespace

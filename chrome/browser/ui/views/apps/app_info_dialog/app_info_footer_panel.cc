@@ -1,20 +1,20 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/apps/app_info_dialog/app_info_footer_panel.h"
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/app_constants/constants.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/management_policy.h"
 #include "extensions/browser/uninstall_reason.h"
-#include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -105,8 +105,8 @@ void AppInfoFooterPanel::UpdatePinButtons(bool focus_visible_button) {
     unpin_from_shelf_button_->SetVisible(was_pinned);
 
     if (focus_visible_button) {
-      views::View* button_to_focus =
-          was_pinned ? unpin_from_shelf_button_ : pin_to_shelf_button_;
+      views::View* button_to_focus = was_pinned ? unpin_from_shelf_button_.get()
+                                                : pin_to_shelf_button_.get();
       button_to_focus->RequestFocus();
     }
   }
@@ -137,7 +137,7 @@ bool AppInfoFooterPanel::CanCreateShortcuts(const extensions::Extension* app) {
   return false;
 #else
   // Extensions and the Chrome component app can't have shortcuts.
-  return app->id() != extension_misc::kChromeAppId && !app->is_extension();
+  return app->id() != app_constants::kChromeAppId && !app->is_extension();
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 }
 
@@ -162,7 +162,7 @@ void AppInfoFooterPanel::SetPinnedToShelf(bool value) {
 bool AppInfoFooterPanel::CanSetPinnedToShelf(Profile* profile,
                                              const extensions::Extension* app) {
   // The Chrome app can't be unpinned, and extensions can't be pinned.
-  return app->id() != extension_misc::kChromeAppId && !app->is_extension() &&
+  return app->id() != app_constants::kChromeAppId && !app->is_extension() &&
          (GetPinnableForAppID(app->id(), profile) ==
           AppListControllerDelegate::PIN_EDITABLE);
 }

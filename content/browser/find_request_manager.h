@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,11 @@
 #include <unordered_set>
 #include <vector>
 
+#include "base/cancelable_callback.h"
 #include "base/containers/queue.h"
+#include "base/functional/function_ref.h"
 #include "base/memory/raw_ptr.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/stop_find_action.h"
@@ -45,7 +48,8 @@ class FindRequestManager {
   // |options|. |request_id| uniquely identifies the find request.
   void Find(int request_id,
             const std::u16string& search_text,
-            blink::mojom::FindOptionsPtr options);
+            blink::mojom::FindOptionsPtr options,
+            bool skip_delay = false);
 
   // Stops the active find session and clears the general highlighting of the
   // matches. |action| determines whether the last active match (if any) will be
@@ -83,7 +87,11 @@ class FindRequestManager {
   // Tells active frame to clear the active match highlighting.
   void ClearActiveFindMatch();
 
-#if defined(OS_ANDROID)
+  // Runs the delayed find task if present. Returns true if there was a task
+  // which got run. Returns false if there was no delayed task.
+  bool CONTENT_EXPORT RunDelayedFindTaskForTesting();
+
+#if BUILDFLAG(IS_ANDROID)
   // Selects and zooms to the find result nearest to the point (x, y), defined
   // in find-in-page coordinates.
   void ActivateNearestFindResult(float x, float y);
@@ -210,13 +218,16 @@ class FindRequestManager {
   std::unique_ptr<FindInPageClient> CreateFindInPageClient(
       RenderFrameHostImpl* rfh);
 
-  using FrameIterationCallback =
-      base::RepeatingCallback<void(RenderFrameHostImpl*)>;
   // Traverses all RenderFrameHosts added for find-in-page and invokes the
   // callback if the each RenderFrameHost is alive and active.
-  void ForEachAddedFindInPageRenderFrameHost(FrameIterationCallback callback);
+  void ForEachAddedFindInPageRenderFrameHost(
+      base::FunctionRef<void(RenderFrameHostImpl*)> func_ref);
 
-#if defined(OS_ANDROID)
+  void EmitFindRequest(int request_id,
+                       const std::u16string& search_text,
+                       blink::mojom::FindOptionsPtr options);
+
+#if BUILDFLAG(IS_ANDROID)
   // Called when a nearest find result reply is no longer pending for a frame.
   void RemoveNearestFindResultPendingReply(RenderFrameHost* rfh);
 
@@ -364,8 +375,12 @@ class FindRequestManager {
   base::TimeTicks last_time_typed_;
   std::u16string last_searched_text_;
 
+  base::CancelableOnceClosure delayed_find_task_;
+
   CreateFindInPageClientFunction create_find_in_page_client_for_testing_ =
       nullptr;
+
+  base::WeakPtrFactory<FindRequestManager> weak_factory_{this};
 };
 
 }  // namespace content

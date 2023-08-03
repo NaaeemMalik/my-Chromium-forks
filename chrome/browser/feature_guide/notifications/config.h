@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,6 +26,10 @@ struct Config {
 
   // Relative start time for launching the notification.
   base::TimeDelta notification_deliver_time_delta;
+
+  // Whether this user is part of a tracking only group, in which case no
+  // feature notifications will be shown.
+  bool feature_notification_tracking_only{false};
 };
 
 }  // namespace feature_guide

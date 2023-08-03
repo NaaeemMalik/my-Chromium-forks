@@ -1,5 +1,5 @@
 #!/usr/bin/env vpython3
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Script for determining which GPU tests are unexpectedly passing.
@@ -27,33 +27,29 @@ and removed (e.g. due to a very low flake rate that doesn't get caught
 consistently by the script), expectations can be omitted from automatic removal
 using an inline `# finder:disable` comment for a single expectation or a pair of
 `# finder:disable`/`# finder:enable` comments for a block of expectations.
+General disables can be handled via `finder:disable-general` and
+`finder:enable-general`. Disabling removal only if the expectation is found to
+be unused can be handled via `finder:disable-unused` and `finder:enable-unused`.
+Disabling removal only if the expectation is found to be stale can be handled
+via `finder:disable-stale` and `finder:enable-stale`.
 """
-
-from __future__ import print_function
 
 import argparse
 import os
-import sys
 
-CHROMIUM_SRC_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..')
-sys.path.append(os.path.join(CHROMIUM_SRC_DIR, 'testing'))
+from gpu_path_util import setup_testing_paths  # pylint: disable=unused-import
 
 from unexpected_passes import gpu_builders
 from unexpected_passes import gpu_expectations
 from unexpected_passes import gpu_queries
 from unexpected_passes_common import argument_parsing
 from unexpected_passes_common import builders
+from unexpected_passes_common import expectations
 from unexpected_passes_common import result_output
 
 SUITE_TO_EXPECTATIONS_MAP = {
     'power': 'power_measurement',
-    'webgl_conformance1': 'webgl_conformance',
-    'webgl_conformance2': 'webgl2_conformance',
-}
-
-SUITE_TO_TELEMETRY_SUITE_MAP = {
-    'webgl_conformance1': 'webgl_conformance',
-    'webgl_conformance2': 'webgl_conformance',
+    'webgl1_conformance': 'webgl_conformance',
 }
 
 
@@ -81,11 +77,10 @@ def ParseArgs():
       '--suite',
       required=True,
       # Could probably autogenerate this list using the same
-      # method as Telemetry's run_browser_tests.py once there is no need to
-      # distinguish WebGL 1 from WebGL 2.
+      # method as Telemetry's run_browser_tests.py now that WebGL 1 and 2 are
+      # properly split.
       choices=[
           'context_lost',
-          'depth_capture',
           'hardware_accelerated_feature',
           'gpu_process',
           'info_collection',
@@ -96,13 +91,13 @@ def ParseArgs():
           'screenshot_sync',
           'trace_test',
           'webcodecs',
-          'webgl_conformance1',
-          'webgl_conformance2',
+          'webgl1_conformance',
+          'webgl2_conformance',
       ],
       help='The test suite being checked.')
 
   args = parser.parse_args()
-  argument_parsing.SetLoggingVerbosity(args)
+  argument_parsing.PerformCommonPostParseSetup(args)
 
   if not (args.tests or args.expectation_file):
     args.expectation_file = os.path.join(
@@ -117,63 +112,77 @@ def ParseArgs():
   return args
 
 
+# pylint: disable=too-many-locals
 def main():
   args = ParseArgs()
 
-  builders_instance = gpu_builders.GpuBuilders()
+  builders_instance = gpu_builders.GpuBuilders(args.suite,
+                                               args.include_internal_builders)
   builders.RegisterInstance(builders_instance)
   expectations_instance = gpu_expectations.GpuExpectations()
+  expectations.RegisterInstance(expectations_instance)
 
   test_expectation_map = expectations_instance.CreateTestExpectationMap(
       args.expectation_file, args.tests, args.expectation_grace_period)
-  ci_builders = builders_instance.GetCiBuilders(
-      SUITE_TO_TELEMETRY_SUITE_MAP.get(args.suite, args.suite))
+  ci_builders = builders_instance.GetCiBuilders()
 
   querier = gpu_queries.GpuBigQueryQuerier(args.suite, args.project,
                                            args.num_samples,
-                                           args.large_query_mode)
+                                           args.large_query_mode, args.jobs)
   # Unmatched results are mainly useful for script maintainers, as they don't
   # provide any additional information for the purposes of finding unexpectedly
   # passing tests or unused expectations.
-  unmatched = querier.FillExpectationMapForCiBuilders(test_expectation_map,
-                                                      ci_builders)
+  unmatched = querier.FillExpectationMapForBuilders(test_expectation_map,
+                                                    ci_builders)
   try_builders = builders_instance.GetTryBuilders(ci_builders)
   unmatched.update(
-      querier.FillExpectationMapForTryBuilders(test_expectation_map,
-                                               try_builders))
+      querier.FillExpectationMapForBuilders(test_expectation_map, try_builders))
   unused_expectations = test_expectation_map.FilterOutUnusedExpectations()
   stale, semi_stale, active = test_expectation_map.SplitByStaleness()
-  result_output.OutputResults(stale, semi_stale, active, unmatched,
-                              unused_expectations, args.output_format)
+  if args.result_output_file:
+    with open(args.result_output_file, 'w') as outfile:
+      result_output.OutputResults(stale, semi_stale, active, unmatched,
+                                  unused_expectations, args.output_format,
+                                  outfile)
+  else:
+    result_output.OutputResults(stale, semi_stale, active, unmatched,
+                                unused_expectations, args.output_format)
 
   affected_urls = set()
   stale_message = ''
   if args.remove_stale_expectations:
     for expectation_file, expectation_map in stale.items():
       affected_urls |= expectations_instance.RemoveExpectationsFromFile(
-          expectation_map.keys(), expectation_file)
+          expectation_map.keys(), expectation_file,
+          expectations.RemovalType.STALE)
       stale_message += ('Stale expectations removed from %s. Stale comments, '
                         'etc. may still need to be removed.\n' %
                         expectation_file)
     for expectation_file, unused_list in unused_expectations.items():
       affected_urls |= expectations_instance.RemoveExpectationsFromFile(
-          unused_list, expectation_file)
+          unused_list, expectation_file, expectations.RemovalType.UNUSED)
       stale_message += ('Unused expectations removed from %s. Stale comments, '
                         'etc. may still need to be removed.\n' %
                         expectation_file)
 
-  if args.modify_semi_stale_expectations:
-    affected_urls |= expectations_instance.ModifySemiStaleExpectations(
+  if args.narrow_semi_stale_expectation_scope:
+    affected_urls |= expectations_instance.NarrowSemiStaleExpectationScope(
         semi_stale)
-    stale_message += ('Semi-stale expectations modified in %s. Stale '
-                      'comments, etc. may still need to be removed.\n' %
+    stale_message += ('Semi-stale expectations narrowed in %s. Stale comments, '
+                      'etc. may still need still need to be removed.\n' %
                       args.expectation_file)
 
   if stale_message:
     print(stale_message)
   if affected_urls:
     orphaned_urls = expectations_instance.FindOrphanedBugs(affected_urls)
-    result_output.OutputAffectedUrls(affected_urls, orphaned_urls)
+    if args.bug_output_file:
+      with open(args.bug_output_file, 'w') as bug_outfile:
+        result_output.OutputAffectedUrls(affected_urls, orphaned_urls,
+                                         bug_outfile)
+    else:
+      result_output.OutputAffectedUrls(affected_urls, orphaned_urls)
+# pylint: enable=too-many-locals
 
 
 if __name__ == '__main__':

@@ -1,16 +1,15 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/chrome_cleaner/engines/target/libraries.h"
 
 #include <string>
-#include <tuple>
 
-#include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/chrome_cleaner/engines/common/engine_resources.h"
@@ -101,9 +100,7 @@ void ReplaceSampleDll(const std::wstring& sample_dll,
 }
 
 TEST_P(LoadAndValidateLibrariesTest, RunTest) {
-  std::string test_function;
-  int engine;
-  std::tie(test_function, engine) = GetParam();
+  auto [test_function, engine] = GetParam();
 
   ASSERT_TRUE(Engine::Name_IsValid(engine));
   parent_process_->AppendSwitchNative(chrome_cleaner::kEngineSwitch,

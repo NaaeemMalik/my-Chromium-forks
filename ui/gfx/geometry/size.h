@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,9 @@
 #include "build/build_config.h"
 #include "ui/gfx/geometry/geometry_export.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 typedef struct tagSIZE SIZE;
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
 typedef struct CGSize CGSize;
 #endif
 
@@ -27,7 +27,7 @@ class GEOMETRY_EXPORT Size {
   constexpr Size() : width_(0), height_(0) {}
   constexpr Size(int width, int height)
       : width_(std::max(0, width)), height_(std::max(0, height)) {}
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   explicit Size(const CGSize& s);
 #endif
 
@@ -35,9 +35,9 @@ class GEOMETRY_EXPORT Size {
 
   void operator-=(const Size& size);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   SIZE ToSIZE() const;
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
   CGSize ToCGSize() const;
 #endif
 
@@ -52,7 +52,9 @@ class GEOMETRY_EXPORT Size {
   // Returns a checked numeric representation of the area.
   base::CheckedNumeric<int> GetCheckedArea() const;
 
-  uint64_t Area64() const { return static_cast<uint64_t>(width_) * height_; }
+  uint64_t Area64() const {
+    return static_cast<uint64_t>(width_) * static_cast<uint64_t>(height_);
+  }
 
   void SetSize(int width, int height) {
     set_width(width);

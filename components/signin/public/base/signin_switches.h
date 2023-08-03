@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,25 +18,25 @@ namespace switches {
 
 // All switches in alphabetical order. The switches should be documented
 // alongside the definition of their values in the .cc file.
+
+#if BUILDFLAG(IS_ANDROID)
+BASE_DECLARE_FEATURE(kGaiaIdCacheInAccountManagerFacade);
+#endif
+
 extern const char kClearTokenService[];
+
 extern const char kDisableSigninScopedDeviceId[];
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-extern const base::Feature kAccountIdMigration;
+BASE_DECLARE_FEATURE(kEnableFetchingAccountCapabilities);
+
+BASE_DECLARE_FEATURE(kForceDisableExtendedSyncPromos);
+
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+BASE_DECLARE_FEATURE(kForceStartupSigninPromo);
+BASE_DECLARE_FEATURE(kIdentityStatusConsistency);
 #endif
 
-#if defined(OS_ANDROID)
-// This feature flag is used to wipe device data on child account signin.
-extern const base::Feature kWipeDataOnChildAccountSignin;
-#endif  // defined(OS_ANDROID)
-
-#if defined(OS_ANDROID) || defined(OS_IOS)
-// Features to trigger the startup sign-in promo at boot.
-extern const base::Feature kForceStartupSigninPromo;
-#endif
-
-// This feature disables all extended sync promos.
-extern const base::Feature kForceDisableExtendedSyncPromos;
+BASE_DECLARE_FEATURE(kTangibleSync);
 
 }  // namespace switches
 

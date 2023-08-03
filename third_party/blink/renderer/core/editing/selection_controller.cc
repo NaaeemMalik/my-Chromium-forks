@@ -60,6 +60,7 @@
 #include "third_party/blink/renderer/core/page/focus_controller.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
+#include "ui/gfx/geometry/point_conversions.h"
 
 namespace blink {
 
@@ -152,6 +153,16 @@ void MarkSelectionEndpointsForRepaint(const SelectionInFlatTree& selection) {
   }
 }
 
+bool IsNonSelectable(const Node* node) {
+  LayoutObject* layout_object = node ? node->GetLayoutObject() : nullptr;
+  return !layout_object || !layout_object->IsSelectable();
+}
+
+inline bool ShouldIgnoreNodeForCheckSelectable(const Node* enclosing_block,
+                                               const Node* node) {
+  return node == enclosing_block || (node && node->IsTextNode());
+}
+
 }  // namespace
 
 SelectionInFlatTree AdjustSelectionWithTrailingWhitespace(
@@ -175,6 +186,64 @@ SelectionInFlatTree AdjustSelectionWithTrailingWhitespace(
   }
   return SelectionInFlatTree::Builder(selection)
       .SetBaseAndExtent(new_end, selection.Extent())
+      .Build();
+}
+
+SelectionInFlatTree AdjustSelectionByUserSelect(
+    Node* anchor_node,
+    const SelectionInFlatTree& selection) {
+  DCHECK(anchor_node);
+
+  if (selection.IsNone())
+    return SelectionInFlatTree();
+
+  SelectionInFlatTree expanded_selection =
+      ExpandSelectionToRespectUserSelectAll(anchor_node, selection);
+  Element* enclosing_block = EnclosingBlock(anchor_node);
+
+  PositionInFlatTree base = expanded_selection.Base();
+  PositionInFlatTree new_start_pos =
+      PositionInFlatTree::FirstPositionInNode(*anchor_node);
+  for (PositionIteratorInFlatTree iter =
+           PositionIteratorInFlatTree(new_start_pos);
+       !iter.AtStart(); iter.Decrement()) {
+    PositionInFlatTree current_pos = iter.ComputePosition();
+    if (current_pos <= base) {
+      new_start_pos = base;
+      break;
+    }
+
+    if (!ShouldIgnoreNodeForCheckSelectable(enclosing_block, iter.GetNode()) &&
+        IsNonSelectable(iter.GetNode())) {
+      new_start_pos = current_pos;
+      break;
+    }
+  }
+
+  PositionInFlatTree extent = expanded_selection.Extent();
+  PositionInFlatTree new_end_pos =
+      PositionInFlatTree::LastPositionInNode(*anchor_node);
+  for (PositionIteratorInFlatTree iter =
+           PositionIteratorInFlatTree(new_end_pos);
+       !iter.AtEnd(); iter.Increment()) {
+    PositionInFlatTree current_pos = iter.ComputePosition();
+    if (current_pos >= extent) {
+      new_end_pos = extent;
+      break;
+    }
+
+    if (!ShouldIgnoreNodeForCheckSelectable(enclosing_block, iter.GetNode()) &&
+        IsNonSelectable(iter.GetNode())) {
+      new_end_pos = current_pos;
+      break;
+    }
+  }
+
+  return SelectionInFlatTree::Builder()
+      .Collapse(
+          MostBackwardCaretPosition(new_start_pos, kCannotCrossEditingBoundary))
+      .Extend(
+          MostForwardCaretPosition(new_end_pos, kCannotCrossEditingBoundary))
       .Build();
 }
 
@@ -254,6 +323,11 @@ static SelectionInFlatTree ExtendSelectionAsDirectional(
             ? ComputeEndRespectingGranularity(
                   new_start, PositionInFlatTreeWithAffinity(start), granularity)
             : end;
+    if (new_start.IsNull() || new_end.IsNull()) {
+      // By some reasons, we fail to extend `selection`.
+      // TODO(crbug.com/1386012) We want to have a test case of this.
+      return selection;
+    }
     SelectionInFlatTree::Builder builder;
     builder.SetBaseAndExtent(new_end, new_start);
     if (new_start == new_end)
@@ -270,6 +344,11 @@ static SelectionInFlatTree ExtendSelectionAsDirectional(
           : ComputeStartFromEndForExtendForward(end, granularity);
   const PositionInFlatTree& new_end = ComputeEndRespectingGranularity(
       new_start, PositionInFlatTreeWithAffinity(position), granularity);
+  if (new_start.IsNull() || new_end.IsNull()) {
+    // By some reasons, we fail to extend `selection`.
+    // TODO(crbug.com/1386012) We want to have a test case of this.
+    return selection;
+  }
   SelectionInFlatTree::Builder builder;
   builder.SetBaseAndExtent(new_start, new_end);
   if (new_start == new_end)
@@ -404,8 +483,8 @@ bool SelectionController::HandleSingleClick(
   }
 
   bool is_handle_visible = false;
-  const bool has_editable_style = HasEditableStyle(*inner_node);
-  if (has_editable_style) {
+  const bool is_editable = IsEditable(*inner_node);
+  if (is_editable) {
     const bool is_text_box_empty =
         !RootEditableElement(*inner_node)->HasChildren();
     const bool not_left_click =
@@ -433,7 +512,7 @@ bool SelectionController::HandleSingleClick(
 
   // SelectionControllerTest_SetCaretAtHitTestResultWithDisconnectedPosition
   // makes the IsValidFor() check fail.
-  if (has_editable_style && event.Event().FromTouch() &&
+  if (is_editable && event.Event().FromTouch() &&
       position_to_use.IsValidFor(*frame_->GetDocument())) {
     frame_->GetTextSuggestionController().HandlePotentialSuggestionTap(
         position_to_use.GetPosition());
@@ -460,12 +539,11 @@ bool SelectionController::HandleTapInsideSelection(
   if (Selection().IsHandleVisible())
     return false;
 
-  // In CAP, we need to trigger a repaint on the selection endpoints if the
-  // selection is tapped when the selection handle was previously not visible.
-  // Repainting will record the painted selection bounds and send it through
-  // the pipeline so the handles show up in the next frame after the tap.
-  if (RuntimeEnabledFeatures::CompositeAfterPaintEnabled())
-    MarkSelectionEndpointsForRepaint(selection);
+  // We need to trigger a repaint on the selection endpoints if the selection is
+  // tapped when the selection handle was previously not visible. Repainting
+  // will record the painted selection bounds and send it through the pipeline
+  // so the handles show up in the next frame after the tap.
+  MarkSelectionEndpointsForRepaint(selection);
 
   const bool did_select = UpdateSelectionForMouseDownDispatchingSelectStart(
       event.InnerNode(), selection,
@@ -479,7 +557,6 @@ bool SelectionController::HandleTapInsideSelection(
 
 void SelectionController::UpdateSelectionForMouseDrag(
     const HitTestResult& hit_test_result,
-    const PhysicalOffset& drag_start_pos,
     const PhysicalOffset& last_known_mouse_position) {
   if (!mouse_down_may_start_select_)
     return;
@@ -551,7 +628,10 @@ void SelectionController::UpdateSelectionForMouseDrag(
       adjusted_selection.IsRange()
           ? CreateVisibleSelection(adjusted_selection).AsSelection()
           : adjusted_selection;
-
+  if (new_visible_selection.IsNone()) {
+    // See http://crbug.com/1412880
+    return;
+  }
   const bool selection_is_directional =
       should_extend_selection ? Selection().IsDirectional() : false;
   SetNonDirectionalSelectionIfNeeded(
@@ -646,7 +726,7 @@ bool SelectionController::SelectClosestWordFromHitTestResult(
     const String word = PlainText(
         range, TextIteratorBehavior::Builder()
                    .SetEmitsObjectReplacementCharacter(
-                       HasEditableStyle(*range.StartPosition().AnchorNode()))
+                       IsEditable(*range.StartPosition().AnchorNode()))
                    .Build());
     if (word.length() >= 1 && word[0] == '\n') {
       // We should not select word from end of line, e.g.
@@ -970,14 +1050,14 @@ bool SelectionController::HandleTripleClick(
                 SelectionInFlatTree::Builder().Collapse(pos).Build(),
                 TextGranularity::kParagraph)
           : SelectionInFlatTree();
+  const SelectionInFlatTree adjusted_selection =
+      AdjustSelectionByUserSelect(inner_node, new_selection);
 
   const bool is_handle_visible =
       event.Event().FromTouch() && new_selection.IsRange();
 
   const bool did_select = UpdateSelectionForMouseDownDispatchingSelectStart(
-      inner_node,
-      ExpandSelectionToRespectUserSelectAll(inner_node, new_selection),
-
+      inner_node, adjusted_selection,
       SetSelectionOptions::Builder()
           .SetGranularity(TextGranularity::kParagraph)
           .SetShouldShowHandle(is_handle_visible)
@@ -1024,7 +1104,6 @@ bool SelectionController::HandleMousePressEvent(
 void SelectionController::HandleMouseDraggedEvent(
     const MouseEventWithHitTestResults& event,
     const gfx::Point& mouse_down_pos,
-    const PhysicalOffset& drag_start_pos,
     const PhysicalOffset& last_known_mouse_position) {
   TRACE_EVENT0("blink", "SelectionController::handleMouseDraggedEvent");
 
@@ -1036,10 +1115,9 @@ void SelectionController::HandleMouseDraggedEvent(
     HitTestResult result(request, location);
     frame_->GetDocument()->GetLayoutView()->HitTest(location, result);
 
-    UpdateSelectionForMouseDrag(result, drag_start_pos,
-                                last_known_mouse_position);
+    UpdateSelectionForMouseDrag(result, last_known_mouse_position);
   }
-  UpdateSelectionForMouseDrag(event.GetHitTestResult(), drag_start_pos,
+  UpdateSelectionForMouseDrag(event.GetHitTestResult(),
                               last_known_mouse_position);
 }
 
@@ -1059,8 +1137,7 @@ void SelectionController::UpdateSelectionForMouseDrag(
       view->ConvertFromRootFrame(last_known_mouse_position_in_root_frame));
   HitTestResult result(request, location);
   layout_view->HitTest(location, result);
-  UpdateSelectionForMouseDrag(result, drag_start_pos_in_root_frame,
-                              last_known_mouse_position_in_root_frame);
+  UpdateSelectionForMouseDrag(result, last_known_mouse_position_in_root_frame);
 }
 
 bool SelectionController::HandleMouseReleaseEvent(
@@ -1090,7 +1167,7 @@ bool SelectionController::HandleMouseReleaseEvent(
 
     SelectionInFlatTree::Builder builder;
     Node* node = event.InnerNode();
-    if (node && node->GetLayoutObject() && HasEditableStyle(*node)) {
+    if (node && node->GetLayoutObject() && IsEditable(*node)) {
       const PositionInFlatTreeWithAffinity pos =
           CreateVisiblePosition(
               PositionWithAffinityOfHitTestResult(event.GetHitTestResult()))
@@ -1166,7 +1243,7 @@ bool SelectionController::HandleGestureLongPress(
 
   Node* inner_node = hit_test_result.InnerPossiblyPseudoNode();
   inner_node->GetDocument().UpdateStyleAndLayoutTree();
-  bool inner_node_is_selectable = HasEditableStyle(*inner_node) ||
+  bool inner_node_is_selectable = IsEditable(*inner_node) ||
                                   inner_node->IsTextNode() ||
                                   inner_node->CanStartSelection();
   if (!inner_node_is_selectable)

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,13 +18,10 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/api/url_handlers/url_handlers_parser.h"
 #include "chrome/common/extensions/manifest_handlers/app_launch_info.h"
 #include "components/security_state/core/security_state.h"
 #include "components/services/app_service/public/cpp/app_types.h"
-#include "components/services/app_service/public/mojom/types.mojom-forward.h"
-#include "components/url_formatter/url_formatter.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/render_view_host.h"
@@ -60,9 +57,7 @@ bool IsSameHostAndPort(const GURL& app_url, const GURL& page_url) {
 HostedAppBrowserController::HostedAppBrowserController(Browser* browser)
     : AppBrowserController(
           browser,
-          web_app::GetAppIdFromApplicationName(browser->app_name())) {
-  DCHECK(!GetExtension() || !GetExtension()->from_bookmark());
-}
+          web_app::GetAppIdFromApplicationName(browser->app_name())) {}
 
 HostedAppBrowserController::~HostedAppBrowserController() = default;
 
@@ -83,8 +78,7 @@ ui::ImageModel HostedAppBrowserController::GetWindowAppIcon() const {
     if (extension &&
         apps::AppServiceProxyFactory::GetForProfile(browser()->profile())
                 ->AppRegistryCache()
-                .GetAppType(extension->id()) !=
-            apps::mojom::AppType::kUnknown) {
+                .GetAppType(extension->id()) != apps::AppType::kUnknown) {
       LoadAppIcon(true /* allow_placeholder_icon */);
       return GetFallbackAppIcon();
     }
@@ -218,8 +212,6 @@ void HostedAppBrowserController::OnTabInserted(content::WebContents* contents) {
   AppBrowserController::OnTabInserted(contents);
 
   const Extension* extension = GetExtension();
-  if (extension && extension->from_bookmark())
-    extension = nullptr;
   extensions::TabHelper::FromWebContents(contents)->SetExtensionApp(extension);
   web_app::SetAppPrefsForWebContents(contents);
 }
@@ -233,22 +225,12 @@ void HostedAppBrowserController::OnTabRemoved(content::WebContents* contents) {
 
 void HostedAppBrowserController::LoadAppIcon(
     bool allow_placeholder_icon) const {
-  if (base::FeatureList::IsEnabled(features::kAppServiceLoadIconWithoutMojom)) {
-    apps::AppServiceProxyFactory::GetForProfile(browser()->profile())
-        ->LoadIcon(apps::AppType::kChromeApp, GetExtension()->id(),
-                   apps::IconType::kStandard,
-                   extension_misc::EXTENSION_ICON_SMALL, allow_placeholder_icon,
-                   base::BindOnce(&HostedAppBrowserController::OnLoadIcon,
-                                  weak_ptr_factory_.GetWeakPtr()));
-  } else {
-    apps::AppServiceProxyFactory::GetForProfile(browser()->profile())
-        ->LoadIcon(apps::mojom::AppType::kChromeApp, GetExtension()->id(),
-                   apps::mojom::IconType::kStandard,
-                   extension_misc::EXTENSION_ICON_SMALL, allow_placeholder_icon,
-                   apps::MojomIconValueToIconValueCallback(
-                       base::BindOnce(&HostedAppBrowserController::OnLoadIcon,
-                                      weak_ptr_factory_.GetWeakPtr())));
-  }
+  apps::AppServiceProxyFactory::GetForProfile(browser()->profile())
+      ->LoadIcon(apps::AppType::kChromeApp, GetExtension()->id(),
+                 apps::IconType::kStandard,
+                 extension_misc::EXTENSION_ICON_SMALL, allow_placeholder_icon,
+                 base::BindOnce(&HostedAppBrowserController::OnLoadIcon,
+                                weak_ptr_factory_.GetMutableWeakPtr()));
 }
 
 void HostedAppBrowserController::OnLoadIcon(apps::IconValuePtr icon_value) {

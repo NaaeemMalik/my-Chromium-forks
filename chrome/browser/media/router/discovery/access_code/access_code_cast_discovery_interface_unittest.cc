@@ -1,17 +1,22 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/router/discovery/access_code/access_code_cast_discovery_interface.h"
 
+#include "base/command_line.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
-#include "chrome/browser/endpoint_fetcher/endpoint_fetcher.h"
+#include "build/build_config.h"
+#include "chrome/browser/media/router/discovery/access_code/access_code_cast_constants.h"
+#include "chrome/browser/media/router/discovery/access_code/access_code_test_util.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
+#include "components/endpoint_fetcher/endpoint_fetcher.h"
+#include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "content/public/test/browser_task_environment.h"
 #include "net/http/http_util.h"
@@ -40,35 +45,13 @@ using ::testing::_;
 using ::testing::Eq;
 using ::testing::Invoke;
 using ::testing::InvokeArgument;
+using ::testing::Mock;
 using ::testing::NiceMock;
 using ::testing::Return;
 
+namespace media_router {
+
 namespace {
-
-DiscoveryDevice BuildDiscoveryDeviceProto(const char* display_name,
-                                          const char* sink_id) {
-  DiscoveryDevice discovery_proto;
-  discovery_proto.set_display_name(display_name);
-  discovery_proto.set_id(sink_id);
-
-  chrome_browser_media::proto::DeviceCapabilities device_capabilities_proto;
-  device_capabilities_proto.set_video_out(true);
-  device_capabilities_proto.set_video_in(true);
-  device_capabilities_proto.set_audio_out(true);
-  device_capabilities_proto.set_audio_in(true);
-  device_capabilities_proto.set_dev_mode(true);
-
-  chrome_browser_media::proto::NetworkInfo network_info_proto;
-  network_info_proto.set_host_name("GoogleNet");
-  network_info_proto.set_port(":666");
-  network_info_proto.set_ip_v4_address("11:11");
-  network_info_proto.set_ip_v6_address("22:22");
-
-  *discovery_proto.mutable_device_capabilities() = device_capabilities_proto;
-  *discovery_proto.mutable_network_info() = network_info_proto;
-
-  return discovery_proto;
-}
 
 const char kMockPostData[] = "mock_post_data";
 int64_t kMockTimeoutMs = 1000000;
@@ -76,8 +59,9 @@ const char kMockOAuthConsumerName[] = "mock_oauth_consumer_name";
 const char kMockScope[] = "mock_scope";
 const char kMockEndpoint[] = "https://my-endpoint.com";
 const char kHttpMethod[] = "POST";
-const char kContentType[] = "mock_content_type";
+const char kMockContentType[] = "mock_content_type";
 const char kEmail[] = "mock_email@gmail.com";
+const char kDefaultURL[] = "https://castedumessaging-pa.googleapis.com";
 
 const char kMalformedResponse[] = "{{{foo_device:::broken}}";
 const char kEmptyResponse[] = "";
@@ -96,12 +80,32 @@ const char kEndpointResponseSuccess[] =
         },
         "networkInfo": {
           "hostName": "GoogleNet",
-          "port": ":666",
-          "ipV4Address": "11:11",
-          "ipV6Address": "22:22"
+          "port": "666",
+          "ipV4Address": "192.0.2.146",
+          "ipV6Address": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
         }
       }
     })";
+// videoOut and ipV6Address are missing, but that should be ok
+const char kEndpointResponseSuccessPartialData[] =
+    R"({
+      "device": {
+        "displayName": "test_device",
+        "id": "1234",
+        "deviceCapabilities": {
+          "videoIn": true,
+          "audioOut": true,
+          "audioIn": true,
+          "devMode": true
+        },
+        "networkInfo": {
+          "hostName": "GoogleNet",
+          "port": "666",
+          "ipV4Address": "192.0.2.146"
+        }
+      }
+    })";
+// networkInfo is missing
 const char kEndpointResponseFieldsMissing[] =
     R"({
       "device": {
@@ -113,10 +117,6 @@ const char kEndpointResponseFieldsMissing[] =
           "audioOut": true,
           "audioIn": true,
           "devMode": true
-        },
-        "networkInfo": {
-          "hostName": "GoogleNet",
-          "port": ":666",
         }
       }
     })";
@@ -135,10 +135,20 @@ const char kEndpointResponseWrongDataTypes[] =
         },
         "networkInfo": {
           "hostName": "GoogleNet",
-          "port": ":666",
-          "ipV4Address": "11:11",
-          "ipV6Address": "22:22"
+          "port": "666",
+          "ipV4Address": "192.0.2.146",
+          "ipV6Address": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
         }
+      }
+    })";
+
+// videoOut is a string instead of a bool in this test case
+const char kErrorResponseFmt[] =
+    R"({
+      "error": {
+        "code": %d,
+        "message": "%s",
+        "status": "%s"
       }
     })";
 
@@ -173,18 +183,25 @@ class AccessCodeCastDiscoveryInterfaceTest : public testing::Test {
     ASSERT_TRUE(profile_manager_.SetUp());
     Profile* profile = profile_manager()->CreateTestingProfile("foo_email");
 
+    EnableCommandLineSupportForTesting();
+
     scoped_refptr<network::SharedURLLoaderFactory> test_url_loader_factory =
         base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
             &test_url_loader_factory_);
 
     endpoint_fetcher_ = std::make_unique<EndpointFetcher>(
-        kMockOAuthConsumerName, GURL(kMockEndpoint), kHttpMethod, kContentType,
-        std::vector<std::string>{kMockScope}, kMockTimeoutMs, kMockPostData,
-        TRAFFIC_ANNOTATION_FOR_TESTS, test_url_loader_factory,
+        kMockOAuthConsumerName, GURL(kMockEndpoint), kHttpMethod,
+        kMockContentType, std::vector<std::string>{kMockScope}, kMockTimeoutMs,
+        kMockPostData, TRAFFIC_ANNOTATION_FOR_TESTS, test_url_loader_factory,
         identity_test_env_.identity_manager());
 
-    discovery_interface_ = std::make_unique<AccessCodeCastDiscoveryInterface>(
-        profile, "123456", std::move(endpoint_fetcher_));
+    logger_ = std::make_unique<LoggerImpl>();
+
+    discovery_interface_ =
+        absl::WrapUnique(new AccessCodeCastDiscoveryInterface(
+            profile, "123456", logger_.get(),
+            identity_test_env_.identity_manager(),
+            std::move(endpoint_fetcher_)));
 
     in_process_data_decoder_ =
         std::make_unique<data_decoder::test::InProcessDataDecoder>();
@@ -208,10 +225,33 @@ class AccessCodeCastDiscoveryInterfaceTest : public testing::Test {
                                          response_data, status);
   }
 
+  std::string ConstructErrorResponse(net::HttpStatusCode code) {
+    return base::StringPrintf(kErrorResponseFmt, code,
+                              GetHttpReasonPhrase(code),
+                              GetHttpReasonPhrase(code));
+  }
+
+  void ErrorMappingTestHelper(net::HttpStatusCode http_response,
+                              AddSinkResultCode expected) {
+    SetEndpointFetcherMockResponse(GURL(kMockEndpoint),
+                                   ConstructErrorResponse(http_response),
+                                   http_response, net::OK);
+
+    MockDiscoveryDeviceCallback mock_callback;
+
+    EXPECT_CALL(mock_callback, Run(Eq(absl::nullopt), expected));
+
+    stub_interface()->ValidateDiscoveryAccessCode(mock_callback.Get());
+    base::RunLoop().RunUntilIdle();
+  }
+
   void SignIn() {
-    identity_test_env_.MakePrimaryAccountAvailable(kEmail,
-                                                   signin::ConsentLevel::kSync);
+    SetProfileConsent(signin::ConsentLevel::kSync);
     identity_test_env_.SetAutomaticIssueOfAccessTokens(true);
+  }
+
+  void SetProfileConsent(signin::ConsentLevel consent_level) {
+    identity_test_env_.MakePrimaryAccountAvailable(kEmail, consent_level);
   }
 
   MockEndpointFetcherCallback& endpoint_fetcher_callback() {
@@ -244,6 +284,7 @@ class AccessCodeCastDiscoveryInterfaceTest : public testing::Test {
   std::unique_ptr<EndpointFetcher> endpoint_fetcher_;
   std::unique_ptr<data_decoder::test::InProcessDataDecoder>
       in_process_data_decoder_;
+  std::unique_ptr<LoggerImpl> logger_;
 };
 
 TEST_F(AccessCodeCastDiscoveryInterfaceTest,
@@ -275,6 +316,44 @@ TEST_F(AccessCodeCastDiscoveryInterfaceTest, ServerError) {
 
   stub_interface()->ValidateDiscoveryAccessCode(mock_callback.Get());
   base::RunLoop().RunUntilIdle();
+}
+
+#if !BUILDFLAG(IS_CHROMEOS_ASH)
+// Revoking Sync consent is not possible on Ash.
+TEST_F(AccessCodeCastDiscoveryInterfaceTest, SyncError) {
+  // Test to validate a fetch request without sync set for the account will
+  // return a SYNC_ERROR.
+  MockDiscoveryDeviceCallback mock_callback;
+  identity_test_env().RevokeSyncConsent();
+  EXPECT_CALL(mock_callback,
+              Run(Eq(absl::nullopt), AddSinkResultCode::PROFILE_SYNC_ERROR));
+
+  stub_interface()->ValidateDiscoveryAccessCode(mock_callback.Get());
+  base::RunLoop().RunUntilIdle();
+}
+#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+
+TEST_F(AccessCodeCastDiscoveryInterfaceTest, HttpErrorMapping) {
+  ErrorMappingTestHelper(net::HTTP_UNAUTHORIZED, AddSinkResultCode::AUTH_ERROR);
+  ErrorMappingTestHelper(net::HTTP_FORBIDDEN, AddSinkResultCode::AUTH_ERROR);
+  ErrorMappingTestHelper(net::HTTP_NOT_FOUND,
+                         AddSinkResultCode::ACCESS_CODE_NOT_FOUND);
+  ErrorMappingTestHelper(net::HTTP_REQUEST_TIMEOUT,
+                         AddSinkResultCode::SERVER_ERROR);
+  ErrorMappingTestHelper(net::HTTP_PRECONDITION_FAILED,
+                         AddSinkResultCode::INVALID_ACCESS_CODE);
+  ErrorMappingTestHelper(net::HTTP_EXPECTATION_FAILED,
+                         AddSinkResultCode::INVALID_ACCESS_CODE);
+  ErrorMappingTestHelper(net::HTTP_TOO_MANY_REQUESTS,
+                         AddSinkResultCode::TOO_MANY_REQUESTS);
+  ErrorMappingTestHelper(net::HTTP_INTERNAL_SERVER_ERROR,
+                         AddSinkResultCode::SERVER_ERROR);
+  ErrorMappingTestHelper(net::HTTP_SERVICE_UNAVAILABLE,
+                         AddSinkResultCode::SERVICE_NOT_PRESENT);
+
+  // Some random error
+  ErrorMappingTestHelper(net::HTTP_INVALID_XPRIVET_TOKEN,
+                         AddSinkResultCode::HTTP_RESPONSE_CODE_ERROR);
 }
 
 TEST_F(AccessCodeCastDiscoveryInterfaceTest, ServerResponseMalformedError) {
@@ -316,7 +395,30 @@ TEST_F(AccessCodeCastDiscoveryInterfaceTest, ServerResponseSucess) {
   MockDiscoveryDeviceCallback mock_callback;
 
   DiscoveryDevice discovery_device_proto =
-      BuildDiscoveryDeviceProto("test_device", "1234");
+      media_router::BuildDiscoveryDeviceProto();
+
+  EXPECT_CALL(mock_callback,
+              Run(DiscoveryDeviceProtoEquals(discovery_device_proto),
+                  AddSinkResultCode::OK));
+
+  stub_interface()->ValidateDiscoveryAccessCode(mock_callback.Get());
+  base::RunLoop().RunUntilIdle();
+}
+
+TEST_F(AccessCodeCastDiscoveryInterfaceTest,
+       ServerResponseSucessWithPartialData) {
+  // Test to validate that a successful server response is propagated from
+  // the discovery interface and all fields are set in the returned proto.
+  SetEndpointFetcherMockResponse(GURL(kMockEndpoint),
+                                 kEndpointResponseSuccessPartialData,
+                                 net::HTTP_OK, net::OK);
+
+  MockDiscoveryDeviceCallback mock_callback;
+
+  DiscoveryDevice discovery_device_proto =
+      media_router::BuildDiscoveryDeviceProto();
+  discovery_device_proto.mutable_device_capabilities()->clear_video_out();
+  discovery_device_proto.mutable_network_info()->clear_ip_v6_address();
 
   EXPECT_CALL(mock_callback,
               Run(DiscoveryDeviceProtoEquals(discovery_device_proto),
@@ -357,3 +459,83 @@ TEST_F(AccessCodeCastDiscoveryInterfaceTest, WrongDataTypesInResponse) {
   stub_interface()->ValidateDiscoveryAccessCode(mock_callback.Get());
   base::RunLoop().RunUntilIdle();
 }
+
+TEST_F(AccessCodeCastDiscoveryInterfaceTest, CommandLineSwitch) {
+  // If no switch is set, fetcher should use default.
+  std::unique_ptr<EndpointFetcher> fetcher =
+      stub_interface()->CreateEndpointFetcher("foobar");
+  EXPECT_EQ(std::string(kDefaultURL) + "/v1/receivers/foobar",
+            fetcher->GetUrlForTesting());
+
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+  command_line->AppendSwitchASCII(switches::kDiscoveryEndpointSwitch,
+                                  std::string(kMockEndpoint) + "/v1/receivers");
+  fetcher = stub_interface()->CreateEndpointFetcher("foobar");
+  EXPECT_EQ(std::string(kMockEndpoint) + "/v1/receivers/foobar",
+            fetcher->GetUrlForTesting());
+}
+
+TEST_F(AccessCodeCastDiscoveryInterfaceTest,
+       HandleServerErrorProfileSyncError) {
+  // Tests that an endpoint response will return the appropriate profile sync
+  // error when handled.
+  MockDiscoveryDeviceCallback mock_callback;
+  EXPECT_CALL(mock_callback,
+              Run(Eq(absl::nullopt), AddSinkResultCode::PROFILE_SYNC_ERROR));
+  stub_interface()->SetCallbackForTesting(mock_callback.Get());
+
+  auto response = std::make_unique<EndpointResponse>();
+  response->error_type =
+      absl::make_optional<FetchErrorType>(FetchErrorType::kAuthError);
+  response->response = "No primary accounts found";
+  stub_interface()->HandleServerError(std::move(response));
+  base::RunLoop().RunUntilIdle();
+}
+
+TEST_F(AccessCodeCastDiscoveryInterfaceTest, HandleServerErrorAuthError) {
+  // Tests that an endpoint response will return the appropriate auth error when
+  // handled.
+  MockDiscoveryDeviceCallback mock_callback;
+  EXPECT_CALL(mock_callback,
+              Run(Eq(absl::nullopt), AddSinkResultCode::AUTH_ERROR));
+  stub_interface()->SetCallbackForTesting(mock_callback.Get());
+
+  auto response = std::make_unique<EndpointResponse>();
+  response->error_type =
+      absl::make_optional<FetchErrorType>(FetchErrorType::kAuthError);
+  stub_interface()->HandleServerError(std::move(response));
+  base::RunLoop().RunUntilIdle();
+}
+
+TEST_F(AccessCodeCastDiscoveryInterfaceTest, HandleServerErrorServerError) {
+  // Tests that an endpoint response will return the appropriate server error
+  // when handled.
+  MockDiscoveryDeviceCallback mock_callback;
+  EXPECT_CALL(mock_callback,
+              Run(Eq(absl::nullopt), AddSinkResultCode::SERVER_ERROR));
+  stub_interface()->SetCallbackForTesting(mock_callback.Get());
+
+  auto response = std::make_unique<EndpointResponse>();
+  response->error_type =
+      absl::make_optional<FetchErrorType>(FetchErrorType::kNetError);
+  stub_interface()->HandleServerError(std::move(response));
+  base::RunLoop().RunUntilIdle();
+}
+
+TEST_F(AccessCodeCastDiscoveryInterfaceTest,
+       HandleServerErrorResponseMalformedError) {
+  // Tests that an endpoint response will return the appropriate response
+  // malformed error when handled.
+  MockDiscoveryDeviceCallback mock_callback;
+  EXPECT_CALL(mock_callback,
+              Run(Eq(absl::nullopt), AddSinkResultCode::RESPONSE_MALFORMED));
+  stub_interface()->SetCallbackForTesting(mock_callback.Get());
+
+  auto response = std::make_unique<EndpointResponse>();
+  response->error_type =
+      absl::make_optional<FetchErrorType>(FetchErrorType::kResultParseError);
+  stub_interface()->HandleServerError(std::move(response));
+  base::RunLoop().RunUntilIdle();
+}
+
+}  // namespace media_router

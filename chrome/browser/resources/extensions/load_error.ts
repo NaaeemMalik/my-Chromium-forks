@@ -1,19 +1,20 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import 'gtx://resources/cr_elements/cr_shared_style.css.js';
 import 'gtx://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
 import './code_section.js';
 import './strings.m.js';
 
-import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import {assert} from 'gtx://resources/js/assert_ts.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {ExtensionsCodeSectionElement} from './code_section.js';
+import {getTemplate} from './load_error.html.js';
 
 export interface LoadErrorDelegate {
   /**
@@ -22,20 +23,20 @@ export interface LoadErrorDelegate {
   retryLoadUnpacked(retryGuid: string): Promise<boolean>;
 }
 
-interface ExtensionsLoadErrorElement {
+export interface ExtensionsLoadErrorElement {
   $: {
     code: ExtensionsCodeSectionElement,
     dialog: CrDialogElement,
   };
 }
 
-class ExtensionsLoadErrorElement extends PolymerElement {
+export class ExtensionsLoadErrorElement extends PolymerElement {
   static get is() {
     return 'extensions-load-error';
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -64,7 +65,7 @@ class ExtensionsLoadErrorElement extends PolymerElement {
     this.$.dialog.close();
   }
 
-  private onRetryTap_() {
+  private onRetryClick_() {
     this.retrying_ = true;
     this.delegate.retryLoadUnpacked(this.loadError.retryGuid)
         .then(

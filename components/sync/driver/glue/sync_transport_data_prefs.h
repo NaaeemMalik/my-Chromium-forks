@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,19 +56,12 @@ class SyncTransportDataPrefs {
   base::TimeDelta GetPollInterval() const;
   void SetPollInterval(base::TimeDelta interval);
 
-  // Get/set for the last known sync invalidation versions.
-  std::map<ModelType, int64_t> GetInvalidationVersions() const;
-  void UpdateInvalidationVersions(
-      const std::map<ModelType, int64_t>& invalidation_versions);
-
  private:
   // Never null.
   const raw_ptr<PrefService> pref_service_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 };
-
-void ClearObsoleteKeystoreBootstrapTokenPref(PrefService* pref_service);
 
 }  // namespace syncer
 

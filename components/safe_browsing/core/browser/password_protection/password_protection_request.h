@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,11 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "base/memory/ref_counted_delete_on_sequence.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/cancelable_task_tracker.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
@@ -107,6 +109,12 @@ class PasswordProtectionRequest
     request_outcome_ = request_outcome;
   }
 
+  void finish_for_testing(
+      RequestOutcome outcome,
+      std::unique_ptr<LoginReputationClientResponse> response) {
+    Finish(outcome, std::move(response));
+  }
+
  protected:
   friend class base::RefCountedThreadSafe<PasswordProtectionRequest>;
 
@@ -163,7 +171,7 @@ class PasswordProtectionRequest
   // Start checking the allowlist.
   void CheckAllowlist();
 
-  static void OnAllowlistCheckDoneOnIO(
+  static void OnAllowlistCheckDoneOnSB(
       scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
       base::WeakPtr<PasswordProtectionRequest> weak_request,
       bool match_allowlist);
@@ -193,10 +201,10 @@ class PasswordProtectionRequest
   virtual void MaybeCollectVisualFeatures() = 0;
 #endif  // BUILDFLAG(SAFE_BROWSING_AVAILABLE)
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Sets the referring app info.
   virtual void SetReferringAppInfo() = 0;
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
   // Start a timer to cancel the request if it takes too long.
   void StartTimeout();
@@ -225,7 +233,7 @@ class PasswordProtectionRequest
   const GURL password_form_frame_url_;
 
   // The contents MIME type.
-  const std::string& mime_type_;
+  const raw_ref<const std::string, DanglingUntriaged> mime_type_;
 
   // The username of the reused password hash. The username can be an email or
   // a username for a non-GAIA or saved-password reuse. No validation has been
@@ -260,7 +268,8 @@ class PasswordProtectionRequest
 
   // The PasswordProtectionServiceBase instance owns |this|.
   // Can only be accessed on UI thread.
-  raw_ptr<PasswordProtectionServiceBase> password_protection_service_;
+  raw_ptr<PasswordProtectionServiceBase, DanglingUntriaged>
+      password_protection_service_;
 
   // The outcome of the password protection request.
   RequestOutcome request_outcome_;

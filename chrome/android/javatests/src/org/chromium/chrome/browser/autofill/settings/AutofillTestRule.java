@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@ import android.widget.EditText;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.chrome.browser.autofill.prefeditor.EditorDialog;
-import org.chromium.chrome.browser.autofill.prefeditor.EditorObserverForTest;
 import org.chromium.chrome.test.ChromeBrowserTestRule;
+import org.chromium.components.autofill.prefeditor.EditorObserverForTest;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.List;
@@ -25,6 +25,7 @@ class AutofillTestRule extends ChromeBrowserTestRule implements EditorObserverFo
     final CallbackHelper mEditorTextUpdate;
     final CallbackHelper mPreferenceUpdate;
     final CallbackHelper mValidationUpdate;
+    final CallbackHelper mConfirmationDialogUpdate;
 
     private EditorDialog mEditorDialog;
 
@@ -33,6 +34,7 @@ class AutofillTestRule extends ChromeBrowserTestRule implements EditorObserverFo
         mEditorTextUpdate = new CallbackHelper();
         mPreferenceUpdate = new CallbackHelper();
         mValidationUpdate = new CallbackHelper();
+        mConfirmationDialogUpdate = new CallbackHelper();
         AutofillProfilesFragment.setObserverForTest(AutofillTestRule.this);
     }
 
@@ -54,12 +56,35 @@ class AutofillTestRule extends ChromeBrowserTestRule implements EditorObserverFo
         mClickUpdate.waitForCallback(callCount);
     }
 
+    /**
+     * @param button see {@link android.content.DialogInterface} for button int constants.
+     */
+    protected void clickInConfirmationDialogAndWait(final int button) throws TimeoutException {
+        if (mEditorDialog.getConfirmationDialogForTest() != null) {
+            int callCount = mClickUpdate.getCallCount();
+            TestThreadUtils.runOnUiThreadBlockingNoException(
+                    ()
+                            -> mEditorDialog.getConfirmationDialogForTest()
+                                       .getButton(button)
+                                       .performClick());
+            mClickUpdate.waitForCallback(callCount);
+        }
+    }
+
     protected void clickInEditorAndWaitForValidationError(final int resourceId)
             throws TimeoutException {
         int callCount = mValidationUpdate.getCallCount();
         TestThreadUtils.runOnUiThreadBlockingNoException(
                 () -> mEditorDialog.findViewById(resourceId).performClick());
         mValidationUpdate.waitForCallback(callCount);
+    }
+
+    protected void clickInEditorAndWaitForConfirmationDialog(final int resourceId)
+            throws TimeoutException {
+        int callCount = mConfirmationDialogUpdate.getCallCount();
+        TestThreadUtils.runOnUiThreadBlockingNoException(
+                () -> mEditorDialog.findViewById(resourceId).performClick());
+        mConfirmationDialogUpdate.waitForCallback(callCount);
     }
 
     protected void sendKeycodeToTextFieldInEditorAndWait(
@@ -106,5 +131,11 @@ class AutofillTestRule extends ChromeBrowserTestRule implements EditorObserverFo
     public void onEditorValidationError() {
         ThreadUtils.assertOnUiThread();
         mValidationUpdate.notifyCalled();
+    }
+
+    @Override
+    public void onEditorConfirmationDialogShown() {
+        ThreadUtils.assertOnUiThread();
+        mConfirmationDialogUpdate.notifyCalled();
     }
 }

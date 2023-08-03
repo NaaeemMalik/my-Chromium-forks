@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,64 +10,55 @@
 #include "base/gtest_prod_util.h"
 #include "base/strings/string_piece.h"
 #include "build/chromeos_buildflags.h"
-#include "chrome/browser/chrome_browser_field_trials_mobile.h"
 #include "chrome/browser/metrics/metrics_reporting_state.h"
 #include "chrome/common/metrics.mojom.h"
 #include "components/metrics/metrics_service_accessor.h"
+#include "components/variations/synthetic_trials.h"
 #include "ppapi/buildflags/buildflags.h"
 
+class BrowserProcessImpl;
 class ChromeMetricsServiceClient;
 class ChromePasswordManagerClient;
+class ChromeProcessSingleton;
 class HttpsFirstModeService;
 class NavigationMetricsRecorder;
 class PrefService;
-class Profile;
 
 namespace {
 class CrashesDOMHandler;
-class FlashDOMHandler;
 }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 class ChromeCameraAppUIDelegate;
+
+namespace app_list::federated {
+class FederatedMetricsManager;
+}  // namespace app_list::federated
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-namespace autofill_assistant {
-class ClientAndroid;
-}  // namespace autofill_assistant
-
 namespace domain_reliability {
-class DomainReliabilityServiceFactory;
+bool ShouldCreateService();
 }
 
 namespace extensions {
 class ChromeGuestViewManagerDelegate;
 class ChromeMetricsPrivateDelegate;
-class FileManagerPrivateIsUMAEnabledFunction;
-}
+}  // namespace extensions
 
 namespace first_run {
 class FirstRunMasterPrefsVariationsSeedTest;
 }
 
 namespace metrics {
+class ChromeOSPerUserMetricsBrowserTestBase;
 class UkmConsentParamBrowserTest;
-}
-
-namespace heap_profiling {
-class BackgroundProfilingTriggers;
-}
-
-namespace welcome {
-void JoinOnboardingGroup(Profile* profile);
-}
+}  // namespace metrics
 
 namespace safe_browsing {
 class ChromeCleanerControllerDelegate;
 class ChromeSafeBrowsingUIManagerDelegate;
 class DownloadUrlSBClient;
 class IncidentReportingService;
-class SafeBrowsingService;
 
 namespace internal {
 class ReporterRunner;
@@ -78,8 +69,11 @@ namespace settings {
 class MetricsReportingHandler;
 }
 
+namespace segmentation_platform {
+class FieldTrialRegisterImpl;
+}
+
 namespace feed {
-class FeedServiceBridge;
 class FeedServiceDelegateImpl;
 class WebFeedSubscriptionCoordinator;
 }  // namespace feed
@@ -93,6 +87,10 @@ namespace authenticator {
 class IsMetricsAndCrashReportingEnabled;
 }
 }  // namespace webauthn
+
+namespace ash {
+class DemoSession;
+}
 
 // This class limits and documents access to metrics service helper methods.
 // Since these methods are private, each user has to be explicitly declared
@@ -112,9 +110,7 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   static void SetMetricsAndCrashReportingForTesting(const bool* value);
 
  private:
-  friend class autofill_assistant::ClientAndroid;
   friend class ::CrashesDOMHandler;
-  friend class ::FlashDOMHandler;
   friend class ChromeBrowserFieldTrials;
   // For ClangPGO.
   friend class ChromeBrowserMainExtraPartsMetrics;
@@ -122,16 +118,14 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   friend class ChromeBrowserMainParts;
   friend class ChromeContentBrowserClient;
   friend class ChromeMetricsServicesManagerClient;
-  friend class DataReductionProxyChromeSettings;
-  friend class domain_reliability::DomainReliabilityServiceFactory;
+  friend bool domain_reliability::ShouldCreateService();
   friend class extensions::ChromeGuestViewManagerDelegate;
   friend class extensions::ChromeMetricsPrivateDelegate;
-  friend class extensions::FileManagerPrivateIsUMAEnabledFunction;
   friend void ChangeMetricsReportingStateWithReply(
       bool,
-      OnMetricsReportingCallbackType);
+      OnMetricsReportingCallbackType,
+      ChangeMetricsReportingStateCalledFrom);
   friend void ApplyMetricsReportingPolicy();
-  friend class heap_profiling::BackgroundProfilingTriggers;
   friend class settings::MetricsReportingHandler;
   friend class UmaSessionStats;
   friend class safe_browsing::ChromeCleanerControllerDelegate;
@@ -139,24 +133,26 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   friend class safe_browsing::DownloadUrlSBClient;
   friend class safe_browsing::IncidentReportingService;
   friend class safe_browsing::internal::ReporterRunner;
-  friend class safe_browsing::SafeBrowsingService;
+  friend class segmentation_platform::FieldTrialRegisterImpl;
   friend class ChromeMetricsServiceClient;
   friend class ChromePasswordManagerClient;
-  friend void welcome::JoinOnboardingGroup(Profile* profile);
+  friend class ChromeProcessSingleton;
   friend class NavigationMetricsRecorder;
   friend class ChromeBrowserMainExtraPartsGpu;
   friend class Browser;
+  friend class BrowserProcessImpl;
   friend class OptimizationGuideKeyedService;
   friend class WebUITabStripFieldTrial;
   friend class feed::FeedServiceDelegateImpl;
+  friend class FirstRunService;
   friend class browser_sync::DeviceInfoSyncClientImpl;
-  friend class feed::FeedServiceBridge;
   friend class feed::WebFeedSubscriptionCoordinator;
   friend class HttpsFirstModeService;
-  friend class webauthn::authenticator::IsMetricsAndCrashReportingEnabled;
+  friend class ash::DemoSession;
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   friend class ChromeCameraAppUIDelegate;
+  friend class app_list::federated::FederatedMetricsManager;
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
@@ -170,6 +166,9 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   friend class MetricsReportingStateTest;
   friend class metrics::UkmConsentParamBrowserTest;
   friend class ClonedInstallClientIdResetBrowserTest;
+  friend class metrics::ChromeOSPerUserMetricsBrowserTestBase;
+  friend class SampledOutClientIdSavedBrowserTest;
+  friend class MetricsInternalsUIBrowserTest;
   FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
                            MetricsReportingEnabled);
   FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServicesManagerClientTest,
@@ -179,8 +178,10 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   // that it is active as configuration may prevent it on some devices (i.e.
   // the "MetricsReporting" field trial that controls sampling). To include
   // that, call: metrics_services_manager->IsReportingEnabled().
-  // TODO(gayane): Consolidate metric prefs on all platforms.
-  // http://crbug.com/362192,  http://crbug.com/532084
+  //
+  // For Ash Chrome, if a user is logged in and the device has an owner or is
+  // managed, the current user's consent (if applicable) will be used if metrics
+  // reporting for the device has been enabled.
   static bool IsMetricsAndCrashReportingEnabled();
 
   // This is identical to the function without the |local_state| param but can
@@ -188,13 +189,25 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
   // Local State pref service.
   static bool IsMetricsAndCrashReportingEnabled(PrefService* local_state);
 
-  // Calls metrics::MetricsServiceAccessor::RegisterSyntheticFieldTrial() with
-  // g_browser_process->metrics_service(). See that function's declaration for
-  // details.
-  static bool RegisterSyntheticFieldTrial(base::StringPiece trial_name,
-                                          base::StringPiece group_name);
+  // Registers a field trial name and group by calling
+  // metrics::MetricsServiceAccessor::RegisterSyntheticFieldTrial() with
+  // g_browser_process->metrics_service(). The |annotation_mode| parameter
+  // determines when UMA reports should start being annotated with this trial
+  // and group. When set to |kCurrentLog|, the UMA report that will be generated
+  // from the log that is open at the time of registration will be annotated.
+  // When set to |kNextLog|, only reports after the one generated from the log
+  // that is open at the time of registration will be annotated. |kNextLog| is
+  // particularly useful when ambiguity is unacceptable, as |kCurrentLog| will
+  // annotate the report generated from the current log even if it may include
+  // data from when this trial and group were not active. Returns true on
+  // success.
+  static bool RegisterSyntheticFieldTrial(
+      base::StringPiece trial_name,
+      base::StringPiece group_name,
+      variations::SyntheticTrialAnnotationMode annotation_mode =
+          variations::SyntheticTrialAnnotationMode::kNextLog);
 
-  // Cover for function of same name in MetricsServiceAccssor. See
+  // Cover for function of same name in MetricsServiceAccessor. See
   // ChromeMetricsServiceAccessor for details.
   static void SetForceIsMetricsReportingEnabledPrefLookup(bool value);
 

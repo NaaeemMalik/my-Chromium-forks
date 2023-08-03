@@ -1,20 +1,21 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/browser_ui/client_certificate/android/ssl_client_certificate_request.h"
 
 #include <stddef.h>
+
+#include <tuple>
 #include <utility>
 
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/bind.h"
 #include "base/check.h"
 #include "base/compiler_specific.h"
 #include "base/containers/queue.h"
-#include "base/ignore_result.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "components/browser_ui/client_certificate/android/jni_headers/SSLClientCertificateRequest_jni.h"
@@ -165,14 +166,11 @@ static void StartClientCertificateRequest(
   for (size_t n = 0; n < request->cert_request_info()->cert_key_types.size();
        ++n) {
     switch (request->cert_request_info()->cert_key_types[n]) {
-      case net::CLIENT_CERT_RSA_SIGN:
+      case net::SSLClientCertType::kRsaSign:
         key_types.push_back("RSA");
         break;
-      case net::CLIENT_CERT_ECDSA_SIGN:
+      case net::SSLClientCertType::kEcdsaSign:
         key_types.push_back("EC");
-        break;
-      default:
-        // Ignore unknown types.
         break;
     }
   }
@@ -211,7 +209,7 @@ static void StartClientCertificateRequest(
   }
 
   // Ownership was transferred to Java.
-  ignore_result(request.release());
+  std::ignore = request.release();
 }
 
 void SSLClientCertPendingRequests::AddRequest(

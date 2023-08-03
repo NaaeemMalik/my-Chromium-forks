@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -111,7 +111,7 @@ using extensions::SettingsOverrides;
 using extensions::api::manifest_types::ChromeSettingsOverrides;
 namespace manifest_keys = extensions::manifest_keys;
 
-scoped_refptr<Extension> CreateExtension(const base::DictionaryValue& manifest,
+scoped_refptr<Extension> CreateExtension(const base::Value::Dict& manifest,
                                          std::string* error) {
   scoped_refptr<Extension> extension =
       Extension::Create(base::FilePath(FILE_PATH_LITERAL("//nonexistent")),
@@ -132,12 +132,11 @@ scoped_refptr<Extension> CreateExtension(base::StringPiece manifest,
     ADD_FAILURE() << "Manifest isn't a Dictionary";
     return nullptr;
   }
-  return CreateExtension(*static_cast<base::DictionaryValue*>(root.get()),
-                         error);
+  return CreateExtension(root->GetDict(), error);
 }
 
 scoped_refptr<Extension> CreateExtensionWithSearchProvider(
-    std::unique_ptr<base::DictionaryValue> search_provider,
+    base::Value::Dict search_provider,
     std::string* error) {
   DictionaryBuilder manifest;
   manifest.Set("name", "name")
@@ -148,14 +147,14 @@ scoped_refptr<Extension> CreateExtensionWithSearchProvider(
            DictionaryBuilder()
                .Set("search_provider", std::move(search_provider))
                .Build());
-  return CreateExtension(*manifest.Build(), error);
+  return CreateExtension(manifest.Build(), error);
 }
 
 TEST(OverrideSettingsTest, ParseManifest) {
   std::string error;
   scoped_refptr<Extension> extension = CreateExtension(kManifest, &error);
   ASSERT_TRUE(extension.get());
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   ASSERT_TRUE(
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
 
@@ -164,8 +163,7 @@ TEST(OverrideSettingsTest, ParseManifest) {
   ASSERT_TRUE(settings_override);
   ASSERT_TRUE(settings_override->search_engine);
   EXPECT_TRUE(settings_override->search_engine->is_default);
-  const ChromeSettingsOverrides::SearchProvider* search_engine =
-      settings_override->search_engine.get();
+  const auto& search_engine = settings_override->search_engine;
   EXPECT_EQ("first", *search_engine->name);
   EXPECT_EQ("firstkey", *search_engine->keyword);
   EXPECT_EQ("http://www.foo.com/s?q={searchTerms}", search_engine->search_url);
@@ -190,7 +188,7 @@ TEST(OverrideSettingsTest, ParsePrepopulatedId) {
   scoped_refptr<Extension> extension =
       CreateExtension(kPrepopulatedManifest, &error);
   ASSERT_TRUE(extension.get());
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   ASSERT_TRUE(
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
 
@@ -199,8 +197,7 @@ TEST(OverrideSettingsTest, ParsePrepopulatedId) {
   ASSERT_TRUE(settings_override);
   ASSERT_TRUE(settings_override->search_engine);
   EXPECT_TRUE(settings_override->search_engine->is_default);
-  const ChromeSettingsOverrides::SearchProvider* search_engine =
-      settings_override->search_engine.get();
+  const auto& search_engine = settings_override->search_engine;
   ASSERT_TRUE(search_engine->prepopulated_id);
   EXPECT_EQ("http://www.foo.com/s?q={searchTerms}", search_engine->search_url);
   EXPECT_EQ(3, *search_engine->prepopulated_id);
@@ -215,7 +212,7 @@ TEST(OverrideSettingsTest, ParseManifestBrokenHomepageButCorrectStartupPages) {
   scoped_refptr<Extension> extension =
       CreateExtension(kManifestBrokenHomepageButCorrectStartupPages, &error);
   ASSERT_TRUE(extension.get());
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   ASSERT_TRUE(
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
 
@@ -235,7 +232,7 @@ TEST(OverrideSettingsTest, ParseManifestBrokenStartupPagesButCorrectHomepage) {
   scoped_refptr<Extension> extension =
       CreateExtension(kManifestBrokenStartupPagesButCorrectHomepage, &error);
   ASSERT_TRUE(extension.get());
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   ASSERT_TRUE(
       extension->manifest()->FindPath(manifest_keys::kSettingsOverride));
   SettingsOverrides* settings_override = static_cast<SettingsOverrides*>(
@@ -253,7 +250,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestEmptySettingsOverride) {
   std::string error;
   scoped_refptr<Extension> extension =
       CreateExtension(kBrokenManifestEmpty, &error);
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_FALSE(extension.get());
   EXPECT_EQ(
       extensions::ErrorUtils::FormatErrorMessage(
@@ -271,7 +268,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestHomepage) {
   std::string error;
   scoped_refptr<Extension> extension =
       CreateExtension(kBrokenManifestHomepage, &error);
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_FALSE(extension.get());
   EXPECT_EQ(extensions::ErrorUtils::FormatErrorMessage(
                 extensions::manifest_errors::kInvalidHomepageOverrideURL,
@@ -288,7 +285,7 @@ TEST(OverrideSettingsTest, ParseBrokenManifestStartupPages) {
   std::string error;
   scoped_refptr<Extension> extension =
       CreateExtension(kBrokenManifestStartupPages, &error);
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_FALSE(extension.get());
   EXPECT_EQ(
       extensions::ErrorUtils::FormatErrorMessage(
@@ -317,7 +314,7 @@ TEST(OverrideSettingsTest, SearchProviderMissingKeys) {
       .Set("is_default", true);
   for (const KeyValue& kv : kMandatorySearchProviderKeyValues)
     search_provider.Set(kv.key, kv.value);
-  std::unique_ptr<base::DictionaryValue> search_provider_with_all_keys_dict =
+  base::Value::Dict search_provider_with_all_keys_dict =
       search_provider.Build();
 
   // Missing all keys from |kMandatorySearchProviderValues|.
@@ -325,15 +322,14 @@ TEST(OverrideSettingsTest, SearchProviderMissingKeys) {
     SCOPED_TRACE(testing::Message()
                  << "key = " << kv.key << " value = " << kv.value);
     // Build a search provider entry with |kv.key| missing:
-    std::unique_ptr<base::DictionaryValue> provider_with_missing_key =
-        base::DictionaryValue::From(base::Value::ToUniquePtrValue(
-            search_provider_with_all_keys_dict->Clone()));
-    ASSERT_TRUE(provider_with_missing_key->RemovePath(kv.key));
+    base::Value::Dict provider_with_missing_key =
+        search_provider_with_all_keys_dict.Clone();
+    ASSERT_TRUE(provider_with_missing_key.Remove(kv.key));
 
     std::string error;
     scoped_refptr<Extension> extension = CreateExtensionWithSearchProvider(
         std::move(provider_with_missing_key), &error);
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
     EXPECT_FALSE(extension.get());
     EXPECT_EQ(extensions::ErrorUtils::FormatErrorMessage(
                   extensions::manifest_errors::kInvalidSearchEngineMissingKeys,

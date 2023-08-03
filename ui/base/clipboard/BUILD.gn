@@ -1,10 +1,12 @@
-# Copyright 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("///build/config/ozone.gni")
 import("//build/config/chromeos/ui_mode.gni")
+import("//build/config/features.gni")
 import("//build/config/ui.gni")
+import("//testing/libfuzzer/fuzzer_test.gni")
 
 component("clipboard_types") {
   output_name = "ui_base_clipboard_types"
@@ -14,8 +16,12 @@ component("clipboard_types") {
     "clipboard_constants.h",
   ]
 
-  if (!is_ios) {
+  if (use_blink) {
     sources += [ "clipboard_format_type.h" ]
+
+    if (is_ios) {
+      sources += [ "clipboard_format_type_ios.mm" ]
+    }
   }
 
   if (is_android) {
@@ -34,10 +40,8 @@ component("clipboard_types") {
     sources += [ "clipboard_format_type_win.cc" ]
   }
 
-  if (use_aura) {
-    if ((!is_chromecast && is_linux) || is_chromeos_lacros || !is_win) {
-      sources += [ "clipboard_format_type_aura.cc" ]
-    }
+  if (use_aura && !is_win) {
+    sources += [ "clipboard_format_type_aura.cc" ]
   }
 
   defines = [ "IS_UI_BASE_CLIPBOARD_TYPES_IMPL" ]
@@ -50,6 +54,9 @@ component("clipboard_types") {
   }
   if (is_mac) {
     frameworks += [ "AppKit.framework" ]
+    weak_frameworks = [
+      "UniformTypeIdentifiers.framework",  # macOS 11
+    ]
   }
 }
 
@@ -66,12 +73,24 @@ component("file_info") {
   deps = [ "//base" ]
 }
 
+# This is a source set because it needs to be included only on the Mac for the
+# final executable, but needs to be included on any platform for the fuzzer.
+source_set("url_file_parser") {
+  sources = [
+    "url_file_parser.cc",
+    "url_file_parser.h",
+  ]
+
+  deps = [ "//base" ]
+}
+
 component("clipboard") {
   output_name = "ui_base_clipboard"
 
   sources = [
     "clipboard.cc",
     "clipboard.h",
+    "clipboard_content_type.h",
     "clipboard_metrics.cc",
     "clipboard_metrics.h",
     "clipboard_monitor.cc",
@@ -90,6 +109,13 @@ component("clipboard") {
       "clipboard_android.cc",
       "clipboard_android.h",
     ]
+  } else {
+    sources += [
+      "clipboard_data.cc",
+      "clipboard_data.h",
+      "clipboard_non_backed.cc",
+      "clipboard_non_backed.h",
+    ]
   }
 
   if (is_mac) {
@@ -101,6 +127,9 @@ component("clipboard") {
     ]
   }
 
+  if (is_ios) {
+    sources += [ "clipboard_ios.mm" ]
+  }
   if (is_win) {
     sources += [
       "clipboard_util_win.cc",
@@ -132,11 +161,7 @@ component("clipboard") {
   if (use_aura) {
     if (use_ozone) {
       sources += [
-        "clipboard_data.cc",
-        "clipboard_data.h",
         "clipboard_factory_ozone.cc",
-        "clipboard_non_backed.cc",
-        "clipboard_non_backed.h",
         "clipboard_ozone.cc",
         "clipboard_ozone.h",
       ]
@@ -152,10 +177,13 @@ component("clipboard") {
   }
 
   if (is_mac) {
-    deps += [ "//third_party/mozilla" ]
+    deps += [ ":url_file_parser" ]
     frameworks = [
       "AppKit.framework",
       "CoreFoundation.framework",
+    ]
+    weak_frameworks = [
+      "UniformTypeIdentifiers.framework",  # macOS 11
     ]
   }
 }
@@ -163,7 +191,7 @@ component("clipboard") {
 source_set("clipboard_test_support") {
   testonly = true
 
-  if (!is_ios) {
+  if (use_blink) {
     sources = [
       "test/clipboard_test_util.cc",
       "test/clipboard_test_util.h",
@@ -212,7 +240,12 @@ source_set("clipboard_test") {
     sources += [
       "clipboard_mac_unittest.mm",
       "clipboard_util_mac_unittest.mm",
+      "url_file_parser_unittest.cc",
     ]
+  }
+
+  if (is_win) {
+    sources += [ "clipboard_util_win_unittest.cc" ]
   }
 
   if (use_aura && !is_chromeos_lacros && !is_linux && !is_win) {
@@ -234,6 +267,15 @@ source_set("clipboard_test") {
   ]
 
   if (is_mac) {
-    deps += [ "//third_party/mozilla" ]
+    deps += [ ":url_file_parser" ]
   }
+}
+
+fuzzer_test("url_file_parser_fuzzer") {
+  sources = [ "url_file_parser_fuzzer.cc" ]
+  deps = [
+    ":url_file_parser",
+    "//base",
+  ]
+  seed_corpus = "test/url_file_parser_fuzzer_testcases"
 }

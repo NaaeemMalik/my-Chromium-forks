@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@
 #include "ui/events/types/event_type.h"
 #include "ui/gfx/native_widget_types.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/windows_types.h"
 #endif
 
@@ -50,21 +50,6 @@ constexpr char kPropertyKeyboardGroup[] = "_keyevent_kbd_group_";
 
 // Key used to store 'hardware key code' values in Event::Properties.
 constexpr char kPropertyKeyboardHwKeyCode[] = "_keyevent_kbd_hw_keycode_";
-
-// Event::Properties constants for IBus-GTK and fcitx-GTK.
-// Both of them in async mode use gtk-specific XKeyEvent::state bits 24 and 25.
-// 24 is handled and 25 is ignored.
-// Note that they use more bits, but Chrome does not handle it now.
-// cf)
-// https://github.com/ibus/ibus/blob/dd4cc5b028c35f9bb8fa9d3bdc8f26bcdfc43d40/src/ibustypes.h#L88
-// https://github.com/fcitx/fcitx/blob/289b2f674d95651d4e0d0c77a48e3a2f0da40efe/src/lib/fcitx-utils/keysym.h#L47
-// https://mail.gnome.org/archives/gtk-devel-list/2013-June/msg00003.html
-constexpr char kPropertyKeyboardImeFlag[] = "_keyevent_kbd_ime_flags_";
-constexpr unsigned int kPropertyKeyboardImeFlagOffset = 24;
-constexpr unsigned int kPropertyKeyboardImeFlagMask = 0x03;
-// Ignored is the 25-th bit.
-constexpr unsigned int kPropertyKeyboardImeIgnoredFlag =
-    1 << (25 - kPropertyKeyboardImeFlagOffset);
 
 // Key used to store mouse event flag telling ET_MOUSE_EXITED must actually be
 // interpreted as "crossing intermediate window" in blink context.
@@ -183,7 +168,7 @@ EVENTS_EXPORT void ComputeEventLatencyOS(ui::EventType type,
                                          base::TimeTicks time_stamp,
                                          base::TimeTicks current_time);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Like ComputeEventLatencyOS, but for events whose timestamp comes from a
 // TOUCHINPUT structure instead of PlatformEvent.
 EVENTS_EXPORT void ComputeEventLatencyOSFromTOUCHINPUT(
@@ -216,7 +201,7 @@ EVENTS_EXPORT KeyEvent KeyEventFromMSG(const CHROME_MSG& msg);
 EVENTS_EXPORT MouseEvent MouseEventFromMSG(const CHROME_MSG& msg);
 EVENTS_EXPORT MouseWheelEvent MouseWheelEventFromMSG(const CHROME_MSG& msg);
 
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 // Registers a custom event type.
 EVENTS_EXPORT int RegisterCustomEventType();

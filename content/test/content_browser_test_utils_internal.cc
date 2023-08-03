@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,23 +6,22 @@
 
 #include <stddef.h>
 
-#include <algorithm>
 #include <map>
 #include <memory>
 #include <set>
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/containers/stack.h"
-#include "base/json/json_reader.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/test_timeouts.h"
-#include "base/threading/thread_task_runner_handle.h"
-#include "content/browser/prerender/prerender_host_registry.h"
+#include "build/build_config.h"
+#include "content/browser/preloading/prerender/prerender_host_registry.h"
 #include "content/browser/renderer_host/delegated_frame_host.h"
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/renderer_host/navigation_request.h"
@@ -31,6 +30,8 @@
 #include "content/browser/renderer_host/render_frame_proxy_host.h"
 #include "content/browser/site_instance_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"
+#include "content/common/features.h"
+#include "content/common/frame_messages.mojom.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/file_select_listener.h"
@@ -38,7 +39,6 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/site_isolation_policy.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/common/use_zoom_for_dsf_policy.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/public/test/test_frame_navigation_observer.h"
@@ -54,7 +54,7 @@ bool NavigateFrameToURL(FrameTreeNode* node, const GURL& url) {
   NavigationController::LoadURLParams params(url);
   params.transition_type = ui::PAGE_TRANSITION_LINK;
   params.frame_tree_node_id = node->frame_tree_node_id();
-  FrameTree* frame_tree = node->frame_tree();
+  FrameTree& frame_tree = node->frame_tree();
 
   node->navigator().controller().LoadURLWithParams(params);
   observer.Wait();
@@ -66,7 +66,7 @@ bool NavigateFrameToURL(FrameTreeNode* node, const GURL& url) {
 
   // It's possible for JS handlers triggered during the navigation to remove
   // the node, so retrieve it by ID again to check if that occurred.
-  node = frame_tree->FindByID(params.frame_tree_node_id);
+  node = frame_tree.FindByID(params.frame_tree_node_id);
 
   if (node && url != node->current_url()) {
     DLOG(WARNING) << "Expected URL " << url << " but observed "
@@ -162,8 +162,8 @@ RenderFrameHost* CreateSubframe(WebContentsImpl* web_contents,
 std::vector<RenderFrameHostImpl*> CollectAllRenderFrameHosts(
     RenderFrameHostImpl* starting_rfh) {
   std::vector<RenderFrameHostImpl*> visited_frames;
-  starting_rfh->ForEachRenderFrameHost(base::BindLambdaForTesting(
-      [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); }));
+  starting_rfh->ForEachRenderFrameHost(
+      [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); });
   return visited_frames;
 }
 
@@ -172,16 +172,15 @@ CollectAllRenderFrameHostsIncludingSpeculative(
     RenderFrameHostImpl* starting_rfh) {
   std::vector<RenderFrameHostImpl*> visited_frames;
   starting_rfh->ForEachRenderFrameHostIncludingSpeculative(
-      base::BindLambdaForTesting(
-          [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); }));
+      [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); });
   return visited_frames;
 }
 
 std::vector<RenderFrameHostImpl*> CollectAllRenderFrameHosts(
     WebContentsImpl* web_contents) {
   std::vector<RenderFrameHostImpl*> visited_frames;
-  web_contents->ForEachRenderFrameHost(base::BindLambdaForTesting(
-      [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); }));
+  web_contents->ForEachRenderFrameHost(
+      [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); });
   return visited_frames;
 }
 
@@ -189,8 +188,7 @@ std::vector<RenderFrameHostImpl*>
 CollectAllRenderFrameHostsIncludingSpeculative(WebContentsImpl* web_contents) {
   std::vector<RenderFrameHostImpl*> visited_frames;
   web_contents->ForEachRenderFrameHostIncludingSpeculative(
-      base::BindLambdaForTesting(
-          [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); }));
+      [&](RenderFrameHostImpl* rfh) { visited_frames.push_back(rfh); });
   return visited_frames;
 }
 
@@ -200,15 +198,11 @@ Shell* OpenBlankWindow(WebContentsImpl* web_contents) {
   EXPECT_TRUE(ExecJs(root, "last_opened_window = window.open()"));
   Shell* new_shell = new_shell_observer.GetShell();
   EXPECT_NE(new_shell->web_contents(), web_contents);
-  if (blink::features::IsInitialNavigationEntryEnabled()) {
-    EXPECT_TRUE(new_shell->web_contents()
-                    ->GetController()
-                    .GetLastCommittedEntry()
-                    ->IsInitialEntry());
-    EXPECT_EQ(1, new_shell->web_contents()->GetController().GetEntryCount());
-  } else {
-    EXPECT_EQ(0, new_shell->web_contents()->GetController().GetEntryCount());
-  }
+  EXPECT_TRUE(new_shell->web_contents()
+                  ->GetController()
+                  .GetLastCommittedEntry()
+                  ->IsInitialEntry());
+  EXPECT_EQ(1, new_shell->web_contents()->GetController().GetEntryCount());
   return new_shell;
 }
 
@@ -386,7 +380,7 @@ std::string FrameTreeVisualizer::DepictFrameTree(FrameTreeNode* root) {
     base::StringAppendF(&result, "\n%s%s = %s", prefix,
                         legend_entry.first.c_str(), description.c_str());
     // Highlight some exceptionable conditions.
-    if (site_instance->active_frame_count() == 0)
+    if (site_instance->group()->active_frame_count() == 0)
       result.append(" (active_frame_count == 0)");
     if (!site_instance->GetProcess()->IsInitializedAndNotDead())
       result.append(" (no process)");
@@ -398,8 +392,7 @@ std::string FrameTreeVisualizer::DepictFrameTree(FrameTreeNode* root) {
 std::string FrameTreeVisualizer::GetName(SiteInstance* site_instance) {
   // Indices into the vector correspond to letters of the alphabet.
   size_t index =
-      std::find(seen_site_instance_ids_.begin(), seen_site_instance_ids_.end(),
-                site_instance->GetId()) -
+      base::ranges::find(seen_site_instance_ids_, site_instance->GetId()) -
       seen_site_instance_ids_.begin();
   if (index == seen_site_instance_ids_.size())
     seen_site_instance_ids_.push_back(site_instance->GetId());
@@ -441,8 +434,9 @@ Shell* OpenPopup(const ToRenderFrameHost& opener,
   observer.Wait();
 
   Shell* new_shell = new_shell_observer.GetShell();
-  EXPECT_EQ(url,
-            new_shell->web_contents()->GetMainFrame()->GetLastCommittedURL());
+  EXPECT_EQ(
+      url,
+      new_shell->web_contents()->GetPrimaryMainFrame()->GetLastCommittedURL());
   return new_shell_observer.GetShell();
 }
 
@@ -534,7 +528,7 @@ RenderProcessHostBadIpcMessageWaiter::Wait() {
 ShowPopupWidgetWaiter::ShowPopupWidgetWaiter(WebContentsImpl* web_contents,
                                              RenderFrameHostImpl* frame_host)
     : frame_host_(frame_host) {
-#if defined(OS_MAC) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)
   web_contents_ = web_contents;
   web_contents_->set_show_popup_menu_callback_for_testing(base::BindOnce(
       &ShowPopupWidgetWaiter::ShowPopupMenu, base::Unretained(this)));
@@ -545,7 +539,8 @@ ShowPopupWidgetWaiter::ShowPopupWidgetWaiter(WebContentsImpl* web_contents,
 
 ShowPopupWidgetWaiter::~ShowPopupWidgetWaiter() {
   if (auto* rwhi = RenderWidgetHostImpl::FromID(process_id_, routing_id_)) {
-    rwhi->popup_widget_host_receiver_for_testing().SwapImplForTesting(rwhi);
+    std::ignore =
+        rwhi->popup_widget_host_receiver_for_testing().SwapImplForTesting(rwhi);
   }
   if (frame_host_)
     frame_host_->SetCreateNewPopupCallbackForTesting(base::NullCallback());
@@ -556,7 +551,7 @@ void ShowPopupWidgetWaiter::Wait() {
 }
 
 void ShowPopupWidgetWaiter::Stop() {
-#if defined(OS_MAC) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)
   web_contents_->set_show_popup_menu_callback_for_testing(base::NullCallback());
 #endif
   frame_host_->SetCreateNewPopupCallbackForTesting(base::NullCallback());
@@ -581,11 +576,12 @@ void ShowPopupWidgetWaiter::DidCreatePopupWidget(
     RenderWidgetHostImpl* render_widget_host) {
   process_id_ = render_widget_host->GetProcess()->GetID();
   routing_id_ = render_widget_host->GetRoutingID();
-  render_widget_host->popup_widget_host_receiver_for_testing()
-      .SwapImplForTesting(this);
+  // Swapped back in destructor from process_id_ and routing_id_ lookup.
+  std::ignore = render_widget_host->popup_widget_host_receiver_for_testing()
+                    .SwapImplForTesting(this);
 }
 
-#if defined(OS_MAC) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)
 void ShowPopupWidgetWaiter::ShowPopupMenu(const gfx::Rect& bounds) {
   initial_rect_ = bounds;
   run_loop_.Quit();
@@ -706,67 +702,8 @@ bool BeforeUnloadBlockingDelegate::HandleJavaScriptDialog(
   return true;
 }
 
-namespace {
-static constexpr int kEnableLogMessageId = 0;
-static constexpr char kEnableLogMessage[] = R"({"id":0,"method":"Log.enable"})";
-static constexpr int kDisableLogMessageId = 1;
-static constexpr char kDisableLogMessage[] =
-    R"({"id":1,"method":"Log.disable"})";
-}  // namespace
-
-DevToolsInspectorLogWatcher::DevToolsInspectorLogWatcher(
-    WebContents* web_contents) {
-  host_ = DevToolsAgentHost::GetOrCreateFor(web_contents);
-  host_->AttachClient(this);
-
-  host_->DispatchProtocolMessage(
-      this, base::as_bytes(
-                base::make_span(kEnableLogMessage, strlen(kEnableLogMessage))));
-
-  run_loop_enable_log_.Run();
-}
-
-DevToolsInspectorLogWatcher::~DevToolsInspectorLogWatcher() {
-  host_->DetachClient(this);
-}
-
-void DevToolsInspectorLogWatcher::DispatchProtocolMessage(
-    DevToolsAgentHost* host,
-    base::span<const uint8_t> message) {
-  base::StringPiece message_str(reinterpret_cast<const char*>(message.data()),
-                                message.size());
-  auto parsed_message = base::JSONReader::Read(message_str);
-  absl::optional<int> command_id = parsed_message->FindIntPath("id");
-  if (command_id.has_value()) {
-    switch (command_id.value()) {
-      case kEnableLogMessageId:
-        run_loop_enable_log_.Quit();
-        break;
-      case kDisableLogMessageId:
-        run_loop_disable_log_.Quit();
-        break;
-      default:
-        NOTREACHED();
-    }
-    return;
-  }
-
-  std::string* notification = parsed_message->FindStringPath("method");
-  if (notification && *notification == "Log.entryAdded") {
-    std::string* text = parsed_message->FindStringPath("params.entry.text");
-    DCHECK(text);
-    last_message_ = *text;
-  }
-}
-
-void DevToolsInspectorLogWatcher::AgentHostClosed(DevToolsAgentHost* host) {}
-
-void DevToolsInspectorLogWatcher::FlushAndStopWatching() {
-  host_->DispatchProtocolMessage(
-      this, base::as_bytes(base::make_span(kDisableLogMessage,
-                                           strlen(kDisableLogMessage))));
-  run_loop_disable_log_.Run();
-}
+FrameNavigateParamsCapturer::FrameNavigateParamsCapturer(WebContents* contents)
+    : WebContentsObserver(contents) {}
 
 FrameNavigateParamsCapturer::FrameNavigateParamsCapturer(FrameTreeNode* node)
     : WebContentsObserver(
@@ -778,7 +715,9 @@ FrameNavigateParamsCapturer::~FrameNavigateParamsCapturer() = default;
 void FrameNavigateParamsCapturer::DidFinishNavigation(
     NavigationHandle* navigation_handle) {
   if (!navigation_handle->HasCommitted() ||
-      navigation_handle->GetFrameTreeNodeId() != frame_tree_node_id_ ||
+      (frame_tree_node_id_.has_value() &&
+       navigation_handle->GetFrameTreeNodeId() !=
+           frame_tree_node_id_.value()) ||
       navigations_remaining_ == 0) {
     return;
   }
@@ -847,8 +786,8 @@ void RenderFrameHostCreatedObserver::RenderFrameCreated(
 BackForwardCache::DisabledReason RenderFrameHostDisabledForTestingReason() {
   static const BackForwardCache::DisabledReason reason =
       BackForwardCache::DisabledReason(
-          {BackForwardCache::DisabledSource::kTesting, 0,
-           "disabled for testing"});
+          BackForwardCache::DisabledSource::kTesting, 0, "disabled for testing",
+          /*context=*/"", "disabled");
   return reason;
 }
 
@@ -900,11 +839,9 @@ void InactiveRenderFrameHostDeletionObserver::Wait() {
       ->GetController()
       .GetBackForwardCache()
       .Flush();
-  if (blink::features::IsPrerender2Enabled()) {
-    static_cast<WebContentsImpl*>(web_contents())
-        ->GetPrerenderHostRegistry()
-        ->CancelAllHostsForTesting();
-  }
+  static_cast<WebContentsImpl*>(web_contents())
+      ->GetPrerenderHostRegistry()
+      ->CancelAllHostsForTesting();
 
   for (RenderFrameHost* rfh : CollectAllRenderFrameHosts(web_contents())) {
     // Keep track of all currently inactive RenderFrameHosts so that we can wait
@@ -928,6 +865,187 @@ void InactiveRenderFrameHostDeletionObserver::RenderFrameDeleted(
 void InactiveRenderFrameHostDeletionObserver::CheckCondition() {
   if (loop_ && inactive_rfhs_.empty())
     loop_->Quit();
+}
+
+void TestNavigationObserverInternal::OnDidFinishNavigation(
+    NavigationHandle* navigation_handle) {
+  last_navigation_type_ =
+      navigation_handle->HasCommitted()
+          ? static_cast<NavigationRequest*>(navigation_handle)
+                ->navigation_type()
+          : NAVIGATION_TYPE_UNKNOWN;
+  TestNavigationObserver::OnDidFinishNavigation(navigation_handle);
+}
+
+RenderFrameHostImpl* DescendantRenderFrameHostAtInternal(
+    RenderFrameHostImpl* rfh,
+    std::string path,
+    std::vector<size_t>& descendant_indices) {
+  if (descendant_indices.size() == 0)
+    return rfh;
+  size_t index = descendant_indices[0];
+  descendant_indices.erase(descendant_indices.begin());
+  CHECK_LT(index, rfh->child_count()) << path;
+  FrameTreeNode* node = rfh->child_at(index);
+  path = base::StringPrintf("%s[%zu]", path.c_str(), index);
+  return DescendantRenderFrameHostAtInternal(node->current_frame_host(), path,
+                                             descendant_indices);
+}
+
+RenderFrameHostImpl* DescendantRenderFrameHostImplAt(
+    const ToRenderFrameHost& adapter,
+    std::vector<size_t> descendant_indices) {
+  return DescendantRenderFrameHostAtInternal(
+      static_cast<RenderFrameHostImpl*>(adapter.render_frame_host()), "rfh",
+      descendant_indices);
+}
+
+EffectiveURLContentBrowserTestContentBrowserClient::
+    EffectiveURLContentBrowserTestContentBrowserClient(
+        bool requires_dedicated_process)
+    : helper_(requires_dedicated_process) {}
+
+EffectiveURLContentBrowserTestContentBrowserClient::
+    EffectiveURLContentBrowserTestContentBrowserClient(
+        const GURL& url_to_modify,
+        const GURL& url_to_return,
+        bool requires_dedicated_process)
+    : helper_(requires_dedicated_process) {
+  AddTranslation(url_to_modify, url_to_return);
+}
+
+EffectiveURLContentBrowserTestContentBrowserClient::
+    ~EffectiveURLContentBrowserTestContentBrowserClient() = default;
+
+void EffectiveURLContentBrowserTestContentBrowserClient::AddTranslation(
+    const GURL& url_to_modify,
+    const GURL& url_to_return) {
+  helper_.AddTranslation(url_to_modify, url_to_return);
+}
+
+GURL EffectiveURLContentBrowserTestContentBrowserClient::GetEffectiveURL(
+    BrowserContext* browser_context,
+    const GURL& url) {
+  return helper_.GetEffectiveURL(url);
+}
+
+bool EffectiveURLContentBrowserTestContentBrowserClient::
+    DoesSiteRequireDedicatedProcess(BrowserContext* browser_context,
+                                    const GURL& effective_site_url) {
+  return helper_.DoesSiteRequireDedicatedProcess(browser_context,
+                                                 effective_site_url);
+}
+
+CustomStoragePartitionBrowserClient::CustomStoragePartitionBrowserClient(
+    const GURL& site_to_isolate)
+    : site_to_isolate_(site_to_isolate) {}
+
+StoragePartitionConfig
+CustomStoragePartitionBrowserClient::GetStoragePartitionConfigForSite(
+    BrowserContext* browser_context,
+    const GURL& site) {
+  // Override for |site_to_isolate_|.
+  if (site == site_to_isolate_) {
+    return StoragePartitionConfig::Create(
+        browser_context, "blah_isolated_storage", "blah_isolated_storage",
+        false /* in_memory */);
+  }
+
+  return StoragePartitionConfig::CreateDefault(browser_context);
+}
+
+ResumeCommitClosureSetObserver::ResumeCommitClosureSetObserver(
+    base::SafeRef<NavigationHandle> original_navigation,
+    mojom::DidCommitProvisionalLoadParamsPtr original_params,
+    mojom::DidCommitProvisionalLoadInterfaceParamsPtr original_interface_params)
+    : original_navigation_(std::move(original_navigation)),
+      original_params_(std::move(original_params)),
+      original_interface_params_(std::move(original_interface_params)) {}
+
+ResumeCommitClosureSetObserver::~ResumeCommitClosureSetObserver() {
+  NavigationRequest* original_request =
+      NavigationRequest::From(&*original_navigation_);
+  // Post a task just to avoid any potential weirdness with reentrancy.
+  base::SequencedTaskRunner::GetCurrentDefault()->PostNonNestableTask(
+      FROM_HERE,
+      base::BindOnce(&RenderFrameHostImpl::DidCommitNavigation,
+                     base::Unretained(original_request->GetRenderFrameHost()),
+                     original_request, std::move(original_params_),
+                     std::move(original_interface_params_)));
+}
+
+// Installs an observer that waits for `resume_commit_closure_` to be set on
+// the next `NavigationRequest` seen by `DidStartNavigation()`.
+class BeginNavigationInCommitCallbackInterceptor::ObserverInstaller
+    : public WebContentsObserver {
+ public:
+  explicit ObserverInstaller(
+      WebContents* web_contents,
+      base::SafeRef<NavigationHandle> original_navigation,
+      mojom::DidCommitProvisionalLoadParamsPtr original_params,
+      mojom::DidCommitProvisionalLoadInterfaceParamsPtr
+          original_interface_params)
+      : WebContentsObserver(web_contents),
+        original_navigation_(std::move(original_navigation)),
+        original_params_(std::move(original_params)),
+        original_interface_params_(std::move(original_interface_params)) {}
+
+  // WebContentsObserver overrides:
+  void DidStartNavigation(NavigationHandle* handle) override {
+    NavigationRequest::From(handle)->set_resume_commit_closure(
+        base::BindLambdaForTesting(
+            [observer = std::make_unique<ResumeCommitClosureSetObserver>(
+                 std::move(original_navigation_), std::move(original_params_),
+                 std::move(original_interface_params_))] {}));
+  }
+
+  base::SafeRef<NavigationHandle> original_navigation_;
+  mojom::DidCommitProvisionalLoadParamsPtr original_params_;
+  mojom::DidCommitProvisionalLoadInterfaceParamsPtr original_interface_params_;
+};
+
+BeginNavigationInCommitCallbackInterceptor::
+    BeginNavigationInCommitCallbackInterceptor(FrameTreeNode* frame_tree_node,
+                                               const GURL& url)
+    : frame_tree_node_(frame_tree_node), url_(url) {}
+
+bool BeginNavigationInCommitCallbackInterceptor::WillProcessDidCommitNavigation(
+    NavigationRequest* request,
+    mojom::DidCommitProvisionalLoadParamsPtr* params,
+    mojom::DidCommitProvisionalLoadInterfaceParamsPtr* interface_params) {
+  request->GetRenderFrameHost()->SetCommitCallbackInterceptorForTesting(
+      nullptr);
+
+  absl::optional<ObserverInstaller> observer_installer;
+  if (ShouldQueueNavigationsWhenPendingCommitRFHExists()) {
+    // If navigation queueing is enabled, the navigation to `url_` will not
+    // commit until the commit suspended by this interceptor completes:
+    // instead, it will be queued/suspended and the navigation code will
+    // internally set a closure to resume committing the navigation when
+    // the suspended `request` completes.
+    //
+    // `BeginNavigateToURLFromRenderer()` waits for the new navigation from
+    // the renderer to start, so arm a hook to install an (indirect) observer
+    // that:
+    // - waits for the navigation code to install a resume commit closure
+    // - resumes the suspended `request` to test that the queued navigation
+    //   eventually completes.
+    observer_installer.emplace(
+        WebContents::FromRenderFrameHost(request->GetRenderFrameHost()),
+        request->GetSafeRef(), std::move(*params),
+        std::move(*interface_params));
+  }
+
+  // At this point, the renderer has already committed the RenderFrame, but
+  // on the browser side, the RenderFrameHost is still speculative. Begin
+  // another navigation.
+  //
+  // If navigation queueing is disabled, this should result in the speculative
+  // RFH being discarded with a pending commit in flight.
+  EXPECT_TRUE(BeginNavigateToURLFromRenderer(frame_tree_node_.get(), url_));
+
+  // Ignore the commit message.
+  return false;
 }
 
 }  // namespace content

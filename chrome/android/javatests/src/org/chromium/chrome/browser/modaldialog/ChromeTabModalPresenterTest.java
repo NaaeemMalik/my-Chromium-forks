@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import static androidx.test.espresso.Espresso.pressBack;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
 import static androidx.test.espresso.matcher.ViewMatchers.hasDescendant;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
@@ -26,10 +27,11 @@ import static org.chromium.components.browser_ui.modaldialog.ModalDialogTestUtil
 import static org.chromium.components.browser_ui.modaldialog.ModalDialogTestUtils.showDialog;
 import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 
-import android.support.test.InstrumentationRegistry;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.espresso.Espresso;
 import androidx.test.filters.SmallTest;
 
@@ -45,11 +47,11 @@ import org.junit.runner.RunWith;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.RequiresRestart;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.cc.input.BrowserControlsState;
-import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.omnibox.UrlBar;
@@ -58,6 +60,7 @@ import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.OmniboxTestUtils;
@@ -69,7 +72,6 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
 import org.chromium.ui.modelutil.PropertyModel;
-import org.chromium.ui.test.util.DisableAnimationsTestRule;
 import org.chromium.ui.test.util.UiRestriction;
 
 /**
@@ -102,10 +104,6 @@ public class ChromeTabModalPresenterTest {
         }
     }
 
-    // Disable animations to reduce flakiness.
-    @ClassRule
-    public static DisableAnimationsTestRule sNoAnimationsRule = new DisableAnimationsTestRule();
-
     @ClassRule
     public static ChromeTabbedActivityTestRule sActivityTestRule =
             new ChromeTabbedActivityTestRule();
@@ -119,10 +117,12 @@ public class ChromeTabModalPresenterTest {
     private ChromeTabModalPresenter mTabModalPresenter;
     private TestObserver mTestObserver;
     private Integer mExpectedDismissalCause;
+    private OmniboxTestUtils mOmnibox;
 
     @Before
     public void setUp() {
         mActivity = sActivityTestRule.getActivity();
+        mOmnibox = new OmniboxTestUtils(mActivity);
         mManager =
                 TestThreadUtils.runOnUiThreadBlockingNoException(mActivity::getModalDialogManager);
         mTestObserver = new TestObserver();
@@ -157,35 +157,26 @@ public class ChromeTabModalPresenterTest {
         ensureDialogContainerVisible();
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            Assert.assertThat(containerParent.indexOfChild(dialogContainer),
+            assertThat(containerParent.indexOfChild(dialogContainer),
                     Matchers.greaterThan(containerParent.indexOfChild(controlContainer)));
         });
 
         // When editing URL, it should be shown on top of the dialog.
         UrlBar urlBar = mActivity.findViewById(R.id.url_bar);
         int callCount = mTestObserver.onUrlFocusChangedCallback.getCallCount();
-        OmniboxTestUtils.toggleUrlBarFocus(urlBar, true);
-
-        // TODO(crbug/812066): Following line helps narrow down the cause of flakiness. Previous
-        // call to toggleUrlBarFocus() should have focused urlBar. Screenshots indicate that
-        // sometimes it doesn't happen. toggleUrlBarFocus() simulates tap in the middle of the view,
-        // maybe there are some timing issues there. Accurately simulating tap is not necessary for
-        // the purpose of this test therefore as an alternative we could call requestFocus() on
-        // urlBar view.
-        Assert.assertTrue(
-                "UrlBar didn't get focused", OmniboxTestUtils.doesUrlBarHaveFocus(urlBar));
+        mOmnibox.requestFocus();
         mTestObserver.onUrlFocusChangedCallback.waitForCallback(callCount);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            Assert.assertThat(containerParent.indexOfChild(dialogContainer),
+            assertThat(containerParent.indexOfChild(dialogContainer),
                     Matchers.lessThan(containerParent.indexOfChild(controlContainer)));
         });
 
         // When URL bar is not focused, the dialog should be shown on top of the toolbar again.
         callCount = mTestObserver.onUrlFocusChangedCallback.getCallCount();
-        OmniboxTestUtils.toggleUrlBarFocus(urlBar, false);
+        mOmnibox.clearFocus();
         mTestObserver.onUrlFocusChangedCallback.waitForCallback(callCount);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            Assert.assertThat(containerParent.indexOfChild(dialogContainer),
+            assertThat(containerParent.indexOfChild(dialogContainer),
                     Matchers.greaterThan(containerParent.indexOfChild(controlContainer)));
         });
 
@@ -197,6 +188,7 @@ public class ChromeTabModalPresenterTest {
     @SmallTest
     @Feature({"ModalDialog"})
     @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
+    @DisabledTest(message = "https://crbug.com/1420186")
     public void testSuspend_ToggleOverview() throws Exception {
         TestThreadUtils.runOnUiThreadBlocking(
                 () -> mActivity.getActivityTab().addObserver(mTestObserver));
@@ -311,6 +303,7 @@ public class ChromeTabModalPresenterTest {
     @Test
     @SmallTest
     @Feature({"ModalDialog"})
+    @DisabledTest(message = "https://crbug.com/1382221")
     @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
     public void testSuspend_TabClosed() throws Exception {
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
@@ -349,7 +342,7 @@ public class ChromeTabModalPresenterTest {
         checkCurrentPresenter(mManager, null);
 
         // Show a new tab modal dialog, and it should be suspended in tab switcher.
-        showDialog(mManager, dialog2, ModalDialogType.TAB);
+        showDialog(mManager, dialog2, ModalDialogType.TAB, false);
         checkPendingSize(mManager, ModalDialogType.APP, 0);
         checkPendingSize(mManager, ModalDialogType.TAB, 1);
         ChromeModalDialogTestUtils.checkBrowserControls(mActivity, false);
@@ -537,8 +530,8 @@ public class ChromeTabModalPresenterTest {
 
         // Show a tab modal dialog and then navigate to a different page.
         showDialog(mManager, dialog1, ModalDialogType.TAB);
-        EmbeddedTestServer server =
-                EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
+        EmbeddedTestServer server = EmbeddedTestServer.createAndStartServer(
+                ApplicationProvider.getApplicationContext());
         sActivityTestRule.loadUrl(server.getURL("/chrome/test/data/android/simple.html"));
         mTestObserver.onDialogDismissedCallback.waitForCallback(callCount);
 

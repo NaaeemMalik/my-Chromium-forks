@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,6 @@
 #include "media/video/picture.h"
 #include "third_party/angle/include/EGL/egl.h"
 #include "third_party/angle/include/EGL/eglext.h"
-#include "ui/gl/gl_image.h"
 
 namespace media {
 
@@ -67,6 +66,10 @@ class D3D11H264Accelerator : public H264Decoder::H264Accelerator {
   void Reset() override;
   bool OutputPicture(scoped_refptr<H264Picture> pic) override;
 
+ private:
+  bool SubmitSliceData();
+  bool RetrieveBitstreamBuffer();
+
   // Gets a pic params struct with the constant fields set.
   void FillPicParamsWithConstants(DXVA_PicParams_H264* pic_param);
 
@@ -80,15 +83,11 @@ class D3D11H264Accelerator : public H264Decoder::H264Accelerator {
 
   // Populate the pic params with fields from the slice header structure.
   void PicParamsFromSliceHeader(DXVA_PicParams_H264* pic_param,
-                                const H264SliceHeader* pps);
+                                const H264SliceHeader* slice_hdr);
 
   void PicParamsFromPic(DXVA_PicParams_H264* pic_param, D3D11H264Picture* pic);
 
   void SetVideoDecoder(ComD3D11VideoDecoder video_decoder);
-
- private:
-  bool SubmitSliceData();
-  bool RetrieveBitstreamBuffer();
 
   // Record a failure to DVLOG and |media_log_|.
   void RecordFailure(const std::string& reason,
@@ -116,7 +115,7 @@ class D3D11H264Accelerator : public H264Decoder::H264Accelerator {
   std::vector<DXVA_Slice_H264_Short> slice_info_;
   size_t current_offset_ = 0;
   size_t bitstream_buffer_size_ = 0;
-  raw_ptr<uint8_t> bitstream_buffer_bytes_ = nullptr;
+  raw_ptr<uint8_t, AllowPtrArithmetic> bitstream_buffer_bytes_ = nullptr;
 
   // This contains the subsamples (clear and encrypted) of the slice data
   // in D3D11_VIDEO_DECODER_BUFFER_BITSTREAM buffer.

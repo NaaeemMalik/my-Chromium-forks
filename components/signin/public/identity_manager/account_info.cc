@@ -1,11 +1,14 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/signin/public/identity_manager/account_info.h"
+
+#include "build/build_config.h"
+#include "components/signin/public/identity_manager/tribool.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/jni_string.h"
 #include "components/signin/public/android/jni_headers/AccountInfo_jni.h"
 #include "components/signin/public/android/jni_headers/CoreAccountId_jni.h"
@@ -130,6 +133,12 @@ bool AccountInfo::IsManaged(const std::string& hosted_domain) {
   return !hosted_domain.empty() && hosted_domain != kNoHostedDomainFound;
 }
 
+bool AccountInfo::IsMemberOfFlexOrg() const {
+  return capabilities.is_subject_to_enterprise_policies() ==
+             signin::Tribool::kTrue &&
+         !IsManaged(hosted_domain);
+}
+
 bool AccountInfo::IsManaged() const {
   return IsManaged(hosted_domain);
 }
@@ -150,10 +159,11 @@ std::ostream& operator<<(std::ostream& os, const CoreAccountInfo& account) {
   return os;
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 base::android::ScopedJavaLocalRef<jobject> ConvertToJavaCoreAccountInfo(
     JNIEnv* env,
     const CoreAccountInfo& account_info) {
+  DCHECK(!account_info.IsEmpty());
   return signin::Java_CoreAccountInfo_Constructor(
       env, ConvertToJavaCoreAccountId(env, account_info.account_id),
       base::android::ConvertUTF8ToJavaString(env, account_info.email),
@@ -163,6 +173,7 @@ base::android::ScopedJavaLocalRef<jobject> ConvertToJavaCoreAccountInfo(
 base::android::ScopedJavaLocalRef<jobject> ConvertToJavaAccountInfo(
     JNIEnv* env,
     const AccountInfo& account_info) {
+  DCHECK(!account_info.IsEmpty());
   gfx::Image avatar_image = account_info.account_image;
   return signin::Java_AccountInfo_Constructor(
       env, ConvertToJavaCoreAccountId(env, account_info.account_id),
@@ -172,7 +183,8 @@ base::android::ScopedJavaLocalRef<jobject> ConvertToJavaAccountInfo(
       base::android::ConvertUTF8ToJavaString(env, account_info.given_name),
       avatar_image.IsEmpty()
           ? nullptr
-          : gfx::ConvertToJavaBitmap(*avatar_image.AsImageSkia().bitmap()));
+          : gfx::ConvertToJavaBitmap(*avatar_image.AsImageSkia().bitmap()),
+      account_info.capabilities.ConvertToJavaAccountCapabilities(env));
 }
 
 base::android::ScopedJavaLocalRef<jobject> ConvertToJavaCoreAccountId(
@@ -186,6 +198,7 @@ base::android::ScopedJavaLocalRef<jobject> ConvertToJavaCoreAccountId(
 CoreAccountInfo ConvertFromJavaCoreAccountInfo(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& j_core_account_info) {
+  DCHECK(j_core_account_info);
   CoreAccountInfo account;
   account.account_id = ConvertFromJavaCoreAccountId(
       env, signin::Java_CoreAccountInfo_getId(env, j_core_account_info));
@@ -199,6 +212,7 @@ CoreAccountInfo ConvertFromJavaCoreAccountInfo(
 CoreAccountId ConvertFromJavaCoreAccountId(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& j_core_account_id) {
+  DCHECK(j_core_account_id);
   CoreAccountId id =
       CoreAccountId::FromString(base::android::ConvertJavaStringToUTF8(
           signin::Java_CoreAccountId_getId(env, j_core_account_id)));

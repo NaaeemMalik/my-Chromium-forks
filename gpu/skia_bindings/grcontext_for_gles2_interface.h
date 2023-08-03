@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include "base/memory/raw_ptr.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 #include "third_party/skia/include/gpu/GrContextOptions.h"
+
+class GrDirectContext;
 
 namespace gpu {
 struct Capabilities;
@@ -24,11 +26,12 @@ namespace skia_bindings {
 // is alive.
 class GrContextForGLES2Interface : public GrContextOptions::ShaderErrorHandler {
  public:
-  explicit GrContextForGLES2Interface(gpu::gles2::GLES2Interface* gl,
-                                      gpu::ContextSupport* context_support,
-                                      const gpu::Capabilities& capabilities,
-                                      size_t max_resource_cache_bytes,
-                                      size_t max_glyph_cache_texture_bytes);
+  GrContextForGLES2Interface(gpu::gles2::GLES2Interface* gl,
+                             gpu::ContextSupport* context_support,
+                             const gpu::Capabilities& capabilities,
+                             size_t max_resource_cache_bytes,
+                             size_t max_glyph_cache_texture_bytes,
+                             bool support_bilerp_from_flyph_atlas = false);
 
   GrContextForGLES2Interface(const GrContextForGLES2Interface&) = delete;
   GrContextForGLES2Interface& operator=(const GrContextForGLES2Interface&) =
@@ -45,7 +48,7 @@ class GrContextForGLES2Interface : public GrContextOptions::ShaderErrorHandler {
   void FreeGpuResources();
 
  private:
-  sk_sp<class GrDirectContext> gr_context_;
+  sk_sp<GrDirectContext> gr_context_;
   raw_ptr<gpu::ContextSupport> context_support_;
 };
 

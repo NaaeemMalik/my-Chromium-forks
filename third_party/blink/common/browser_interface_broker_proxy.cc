@@ -1,10 +1,12 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 
-#include "base/ignore_result.h"
+#include <tuple>
+
+#include "base/task/single_thread_task_runner.h"
 #include "base/threading/sequence_local_storage_slot.h"
 
 namespace blink {
@@ -65,8 +67,9 @@ BrowserInterfaceBrokerProxy& GetEmptyBrowserInterfaceBroker() {
   if (!proxy_slot.GetValuePointer()) {
     auto& proxy = proxy_slot.GetOrCreateValue();
     mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker> remote;
-    ignore_result(remote.InitWithNewPipeAndPassReceiver());
-    proxy.Bind(std::move(remote), base::ThreadTaskRunnerHandle::Get());
+    std::ignore = remote.InitWithNewPipeAndPassReceiver();
+    proxy.Bind(std::move(remote),
+               base::SingleThreadTaskRunner::GetCurrentDefault());
   }
 
   return proxy_slot.GetOrCreateValue();

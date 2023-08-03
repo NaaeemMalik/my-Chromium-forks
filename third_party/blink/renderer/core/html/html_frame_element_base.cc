@@ -25,6 +25,7 @@
 
 #include "services/network/public/cpp/web_sandbox_flags.h"
 #include "services/network/public/mojom/web_sandbox_flags.mojom-blink.h"
+#include "third_party/blink/public/mojom/frame/frame.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/binding_security.h"
 #include "third_party/blink/renderer/bindings/core/v8/js_event_handler_for_content_attribute.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
@@ -57,7 +58,7 @@ HTMLFrameElementBase::HTMLFrameElementBase(const QualifiedName& tag_name,
       margin_height_(-1) {}
 
 bool HTMLFrameElementBase::IsURLAllowed() const {
-  if (url_.IsEmpty())
+  if (url_.empty())
     return true;
 
   const KURL& complete_url = GetDocument().CompleteURL(url_);
@@ -83,7 +84,7 @@ void HTMLFrameElementBase::OpenURL(bool replace_current_item) {
   if (!IsURLAllowed())
     return;
 
-  if (url_.IsEmpty())
+  if (url_.empty())
     url_ = AtomicString(BlankURL().GetString());
 
   LocalFrame* parent_frame = GetDocument().GetFrame();
@@ -91,6 +92,7 @@ void HTMLFrameElementBase::OpenURL(bool replace_current_item) {
     return;
 
   KURL url = GetDocument().CompleteURL(url_);
+
   // There is no (easy) way to tell if |url_| is relative at this point. That
   // is determined in the KURL constructor. If we fail to create an absolute
   // URL at this point, *and* the base URL is a data URL, assume |url_| was
@@ -111,12 +113,24 @@ void HTMLFrameElementBase::ParseAttribute(
   const QualifiedName& name = params.name;
   const AtomicString& value = params.new_value;
   if (name == html_names::kSrcdocAttr) {
+    String srcdoc_value = "";
+    if (!value.IsNull())
+      srcdoc_value = FastGetAttribute(html_names::kSrcdocAttr).GetString();
+    if (ContentFrame()) {
+      GetDocument().GetFrame()->GetLocalFrameHostRemote().DidChangeSrcDoc(
+          ContentFrame()->GetFrameToken(), srcdoc_value);
+    }
     if (!value.IsNull()) {
       SetLocation(SrcdocURL().GetString());
     } else {
       const AtomicString& src_value = FastGetAttribute(html_names::kSrcAttr);
-      if (!src_value.IsNull())
+      if (!src_value.IsNull()) {
         SetLocation(StripLeadingAndTrailingHTMLSpaces(src_value));
+      } else if (!params.old_value.IsNull()) {
+        // We're resetting kSrcdocAttr, but kSrcAttr has no value, so load
+        // about:blank. https://crbug.com/1233143
+        SetLocation(BlankURL());
+      }
     }
   } else if (name == html_names::kSrcAttr &&
              !FastHasAttribute(html_names::kSrcdocAttr)) {

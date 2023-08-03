@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,11 @@
 #include "ash/public/cpp/login_accelerators.h"
 #include "ash/public/cpp/login_screen_client.h"
 #include "ash/public/cpp/system_tray_observer.h"
+#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
+#include "base/scoped_observation_traits.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "chrome/browser/ui/ash/login_screen_shown_observer.h"
 #include "ui/base/ime/ash/input_method_manager.h"
 
@@ -18,10 +21,6 @@ enum class ParentCodeValidationResult;
 class HatsUnlockSurveyTrigger;
 class LoginAuthRecorder;
 }  // namespace ash
-
-namespace base {
-class ListValue;
-}
 
 // Handles method calls sent from ash to chrome. Also sends messages from chrome
 // to ash.
@@ -46,7 +45,6 @@ class LoginScreenClientImpl : public ash::LoginScreenClient {
     virtual void HandleAuthenticateUserWithChallengeResponse(
         const AccountId& account_id,
         base::OnceCallback<void(bool)> callback) = 0;
-    virtual void HandleHardlockPod(const AccountId& account_id) = 0;
     virtual void HandleOnFocusPod(const AccountId& account_id) = 0;
     virtual void HandleOnNoPodFocused() = 0;
     // Handles request to focus a lock screen app window. Returns whether the
@@ -105,7 +103,6 @@ class LoginScreenClientImpl : public ash::LoginScreenClient {
       const AccountId& account_id,
       const std::string& access_code,
       base::Time validation_time) override;
-  void HardlockPod(const AccountId& account_id) override;
   void OnFocusPod(const AccountId& account_id) override;
   void OnNoPodFocused() override;
   void LoadWallpaper(const AccountId& account_id) override;
@@ -132,13 +129,12 @@ class LoginScreenClientImpl : public ash::LoginScreenClient {
   void OnFocusLeavingSystemTray(bool reverse) override;
   void OnSystemTrayBubbleShown() override;
   void OnLoginScreenShown() override;
-  void OnUserActivity() override;
+  views::Widget* GetLoginWindowWidget() override;
 
  private:
-  void SetPublicSessionKeyboardLayout(
-      const AccountId& account_id,
-      const std::string& locale,
-      std::unique_ptr<base::ListValue> keyboard_layouts);
+  void SetPublicSessionKeyboardLayout(const AccountId& account_id,
+                                      const std::string& locale,
+                                      base::Value::List keyboard_layouts);
 
   void ShowGaiaSigninInternal(const AccountId& prefilled_account);
 
@@ -147,7 +143,7 @@ class LoginScreenClientImpl : public ash::LoginScreenClient {
   void OnParentAccessValidation(const AccountId& prefilled_account,
                                 bool success);
 
-  Delegate* delegate_ = nullptr;
+  raw_ptr<Delegate, ExperimentalAsh> delegate_ = nullptr;
 
   // Captures authentication related user metrics for login screen.
   std::unique_ptr<ash::LoginAuthRecorder> auth_recorder_;
@@ -159,7 +155,25 @@ class LoginScreenClientImpl : public ash::LoginScreenClient {
 
   base::ObserverList<LoginScreenShownObserver> login_screen_shown_observers_;
 
+  base::TimeTicks time_show_gaia_signin_initiated_;
+
   base::WeakPtrFactory<LoginScreenClientImpl> weak_ptr_factory_{this};
 };
+
+namespace base {
+
+template <>
+struct ScopedObservationTraits<LoginScreenClientImpl, ash::SystemTrayObserver> {
+  static void AddObserver(LoginScreenClientImpl* source,
+                          ash::SystemTrayObserver* observer) {
+    source->AddSystemTrayObserver(observer);
+  }
+  static void RemoveObserver(LoginScreenClientImpl* source,
+                             ash::SystemTrayObserver* observer) {
+    source->RemoveSystemTrayObserver(observer);
+  }
+};
+
+}  // namespace base
 
 #endif  // CHROME_BROWSER_UI_ASH_LOGIN_SCREEN_CLIENT_IMPL_H_

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,14 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/no_destructor.h"
+#include "base/observer_list.h"
+#include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "content/browser/bad_message.h"
 #include "content/browser/data_url_loader_factory.h"
@@ -20,7 +21,8 @@
 #include "content/browser/devtools/network_service_devtools_observer.h"
 #include "content/browser/devtools/service_worker_devtools_agent_host.h"
 #include "content/browser/devtools/service_worker_devtools_manager.h"
-#include "content/browser/net/cross_origin_embedder_policy_reporter.h"
+#include "content/browser/network/cross_origin_embedder_policy_reporter.h"
+#include "content/browser/process_lock.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/service_worker/embedded_worker_status.h"
 #include "content/browser/service_worker/service_worker_consts.h"
@@ -32,26 +34,35 @@
 #include "content/browser/storage_partition_impl.h"
 #include "content/browser/url_loader_factory_getter.h"
 #include "content/browser/url_loader_factory_params_helper.h"
+#include "content/browser/usb/web_usb_service_impl.h"
 #include "content/common/content_switches_internal.h"
 #include "content/common/url_schemes.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/common/child_process_host.h"
+#include "content/public/browser/child_process_host.h"
+#include "content/public/browser/hid_delegate.h"
+#include "content/public/browser/usb_delegate.h"
+#include "content/public/browser/web_ui_url_loader_factory.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_switches.h"
+#include "content/public/common/url_constants.h"
 #include "ipc/ipc_message.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "net/base/isolation_info.h"
 #include "net/base/network_isolation_key.h"
 #include "net/cookies/site_for_cookies.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
+#include "services/network/public/mojom/client_security_state.mojom.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/common/features.h"
-#include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/loader/url_loader_factory_bundle.mojom.h"
 #include "third_party/blink/public/mojom/renderer_preference_watcher.mojom.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_object.mojom.h"
 #include "url/gurl.h"
+
+#if !BUILDFLAG(IS_ANDROID)
+#include "content/browser/hid/hid_service.h"
+#endif
 
 // TODO(crbug.com/824858): Much of this file, which dealt with thread hops
 // between UI and IO, can likely be simplified when the service worker core
@@ -273,8 +284,9 @@ void EmbeddedWorkerInstance::Start(
   blink::ServiceWorkerStatusCode status =
       process_manager->AllocateWorkerProcess(
           embedded_worker_id(), params->script_url,
-          owner_version_->cross_origin_embedder_policy(),
-          can_use_existing_process, process_info.get());
+          owner_version_->cross_origin_embedder_policy_value(),
+          can_use_existing_process, owner_version_->ancestor_frame_type(),
+          process_info.get());
   if (status != blink::ServiceWorkerStatusCode::kOk) {
     OnSetupFailed(std::move(callback), status);
     return;
@@ -285,9 +297,6 @@ void EmbeddedWorkerInstance::Start(
   // crash reports agree. Consider also checking for
   // rph->IsInitializedAndNotDead().
   CHECK(rph);
-
-  GetContentClient()->browser()->WillStartServiceWorker(
-      process_manager->browser_context(), params->script_url, rph);
 
   rph->BindReceiver(client_.BindNewPipeAndPassReceiver());
   client_.set_disconnect_handler(
@@ -306,7 +315,15 @@ void EmbeddedWorkerInstance::Start(
         coep_reporter_for_scripts;
     mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
         coep_reporter_for_subresources;
-    if (owner_version_->cross_origin_embedder_policy()) {
+
+    network::mojom::ClientSecurityStatePtr client_security_state =
+        owner_version_->BuildClientSecurityState();
+    const network::CrossOriginEmbedderPolicy* coep =
+        client_security_state
+            ? &client_security_state->cross_origin_embedder_policy
+            : nullptr;
+
+    if (coep) {
       mojo::PendingRemote<blink::mojom::ReportingObserver>
           reporting_observer_remote;
       owner_version_->set_reporting_observer_receiver(
@@ -315,14 +332,12 @@ void EmbeddedWorkerInstance::Start(
           static_cast<StoragePartitionImpl*>(rph->GetStoragePartition());
       coep_reporter_ = std::make_unique<CrossOriginEmbedderPolicyReporter>(
           storage_partition->GetWeakPtr(), params->script_url,
-          owner_version_->cross_origin_embedder_policy()->reporting_endpoint,
-          owner_version_->cross_origin_embedder_policy()
-              ->report_only_reporting_endpoint,
+          coep->reporting_endpoint, coep->report_only_reporting_endpoint,
           owner_version_->reporting_source(),
-          // TODO(https://crbug.com/1147281): This is the NetworkIsolationKey of
-          // a top-level browsing context, which shouldn't be use for
-          // ServiceWorkers used in iframes.
-          net::NetworkIsolationKey::ToDoUseTopFrameOriginAsWell(
+          // TODO(https://crbug.com/1147281): This is the
+          // NetworkAnonymizationKey of a top-level browsing context, which
+          // shouldn't be use for ServiceWorkers used in iframes.
+          net::NetworkAnonymizationKey::ToDoUseTopFrameOriginAsWell(
               url::Origin::Create(params->script_url)));
       coep_reporter_->BindObserver(std::move(reporting_observer_remote));
 
@@ -334,12 +349,9 @@ void EmbeddedWorkerInstance::Start(
           coep_reporter_for_subresources.InitWithNewPipeAndPassReceiver());
     }
 
-    // Initialize the global scope now if the worker won't be paused. Otherwise,
-    // delay initialization until the main script is loaded.
-    if (!owner_version_->initialize_global_scope_after_main_script_loaded()) {
-      owner_version_->InitializeGlobalScope(
-          /*script_loader_factories=*/nullptr,
-          /*subresource_loader_factories=*/nullptr);
+    // Pause initializing global scope (https://crbug.com/1431792).
+    if (!pause_initializing_global_scope_) {
+      owner_version_->InitializeGlobalScope();
     }
 
     // Register to DevTools and update params accordingly.
@@ -347,7 +359,7 @@ void EmbeddedWorkerInstance::Start(
     ServiceWorkerDevToolsManager::GetInstance()->WorkerStarting(
         process_id, routing_id, context_->wrapper(),
         params->service_worker_version_id, params->script_url, params->scope,
-        params->is_installed, owner_version_->cross_origin_embedder_policy(),
+        params->is_installed, client_security_state.Clone(),
         std::move(coep_reporter_for_devtools), &params->devtools_worker_token,
         &params->wait_for_debugger);
     params->service_worker_route_id = routing_id;
@@ -366,13 +378,11 @@ void EmbeddedWorkerInstance::Start(
     // the network service because it can only used until the service worker
     // reaches the 'installed' state.
     if (!params->is_installed) {
-      factory_bundle_for_new_scripts =
-          EmbeddedWorkerInstance::CreateFactoryBundle(
-              rph, routing_id, origin,
-              owner_version_->cross_origin_embedder_policy(),
-              std::move(coep_reporter_for_scripts),
-              ContentBrowserClient::URLLoaderFactoryType::kServiceWorkerScript,
-              params->devtools_worker_token.ToString());
+      factory_bundle_for_new_scripts = CreateFactoryBundle(
+          rph, routing_id, origin, client_security_state.Clone(),
+          std::move(coep_reporter_for_scripts),
+          ContentBrowserClient::URLLoaderFactoryType::kServiceWorkerScript,
+          params->devtools_worker_token.ToString());
     }
 
     // The bundle for the renderer is passed to the service worker, and
@@ -380,12 +390,28 @@ void EmbeddedWorkerInstance::Start(
     // It's OK to not support reconnection to the network service because the
     // service worker terminates itself when the connection breaks, so a new
     // instance can be started.
-    factory_bundle_for_renderer = EmbeddedWorkerInstance::CreateFactoryBundle(
-        rph, routing_id, origin, owner_version_->cross_origin_embedder_policy(),
+    factory_bundle_for_renderer = CreateFactoryBundle(
+        rph, routing_id, origin, std::move(client_security_state),
         std::move(coep_reporter_for_subresources),
         ContentBrowserClient::URLLoaderFactoryType::kServiceWorkerSubResource,
         params->devtools_worker_token.ToString());
   }
+
+  // To enable runtime features, the render process must be locked to the site.
+  // These features are highly privileged, so the renderer process with such
+  // features enabled shouldn't be used for other sites.
+  //
+  // WebUI schemes are process isolated already. To isolate other sites, the
+  // embedder can override ContentBrowserClient::ShouldLockProcessToSite().
+  if (rph->GetProcessLock().is_locked_to_site()) {
+    GetContentClient()
+        ->browser()
+        ->UpdateEnabledBlinkRuntimeFeaturesInIsolatedWorker(
+            process_manager->browser_context(), params->script_url,
+            params->forced_enabled_runtime_features);
+  }
+  CHECK(params->forced_enabled_runtime_features.empty() ||
+        rph->GetProcessLock().is_locked_to_site());
 
   // TODO(crbug.com/862854): Support changes to blink::RendererPreferences while
   // the worker is running.
@@ -437,9 +463,15 @@ void EmbeddedWorkerInstance::Start(
   // Create cache storage now as an optimization, so the service worker can
   // use the Cache Storage API immediately on startup.
   if (base::FeatureList::IsEnabled(
-          blink::features::kEagerCacheStorageSetupForServiceWorkers)) {
+          blink::features::kEagerCacheStorageSetupForServiceWorkers) &&
+      // Without COEP, BindCacheStorage won't bind the cache storage,
+      // which make cache storage set up in the install handler get stuck.
+      // Since this is a performance improvement feature, fallback to the slow
+      // path should be better than making the execution get stuck.
+      owner_version_->cross_origin_embedder_policy()) {
     BindCacheStorage(
-        params->provider_info->cache_storage.InitWithNewPipeAndPassReceiver());
+        params->provider_info->cache_storage.InitWithNewPipeAndPassReceiver(),
+        storage::BucketLocator::ForDefaultBucket(owner_version_->key()));
   }
 
   inflight_start_info_ = std::make_unique<StartInfo>(
@@ -459,6 +491,8 @@ void EmbeddedWorkerInstance::Stop() {
   // Discard the info for starting a worker because this worker is going to be
   // stopped.
   inflight_start_info_.reset();
+
+  pause_initializing_global_scope_ = false;
 
   // Don't send the StopWorker message if the StartWorker message hasn't
   // been sent.
@@ -545,19 +579,19 @@ void EmbeddedWorkerInstance::SendStartWorker(
   instance_host_receiver_.Bind(
       params->instance_host.InitWithNewEndpointAndPassReceiver());
 
-  content_settings_ =
-      base::SequenceBound<ServiceWorkerContentSettingsProxyImpl>(
-          GetUIThreadTaskRunner({}), params->script_url,
-          scoped_refptr<ServiceWorkerContextWrapper>(context_->wrapper()),
-          params->content_settings_proxy.InitWithNewPipeAndPassReceiver());
+  content_settings_ = std::make_unique<ServiceWorkerContentSettingsProxyImpl>(
+      params->script_url, base::WrapRefCounted(context_->wrapper()),
+      params->content_settings_proxy.InitWithNewPipeAndPassReceiver());
 
   const bool is_script_streaming = !params->installed_scripts_info.is_null();
   inflight_start_info_->start_worker_sent_time = base::TimeTicks::Now();
 
   // The host must be alive as long as |params->provider_info| is alive.
   owner_version_->worker_host()->CompleteStartWorkerPreparation(
-      process_id(), params->provider_info->browser_interface_broker
-                        .InitWithNewPipeAndPassReceiver());
+      process_id(),
+      params->provider_info->browser_interface_broker
+          .InitWithNewPipeAndPassReceiver(),
+      params->interface_provider.InitWithNewPipeAndPassRemote());
 
   // TODO(bashi): Always pass a valid outside fetch client settings object.
   // See crbug.com/937177.
@@ -612,7 +646,10 @@ void EmbeddedWorkerInstance::OnScriptLoaded() {
 
   // Renderer side has started to launch the worker thread.
   starting_phase_ = SCRIPT_LOADED;
-  owner_version_->OnMainScriptLoaded();
+
+  for (auto& observer : listener_list_) {
+    observer.OnScriptLoaded();
+  }
 }
 
 void EmbeddedWorkerInstance::OnWorkerVersionInstalled() {
@@ -637,7 +674,7 @@ void EmbeddedWorkerInstance::OnScriptEvaluationStart() {
 
 void EmbeddedWorkerInstance::OnStarted(
     blink::mojom::ServiceWorkerStartStatus start_status,
-    bool has_fetch_handler,
+    blink::mojom::ServiceWorkerFetchHandlerType fetch_handler_type,
     int thread_id,
     blink::mojom::EmbeddedWorkerStartTimingPtr start_timing) {
   TRACE_EVENT0("ServiceWorker", "EmbeddedWorkerInstance::OnStarted");
@@ -677,7 +714,7 @@ void EmbeddedWorkerInstance::OnStarted(
   thread_id_ = thread_id;
   inflight_start_info_.reset();
   for (auto& observer : listener_list_) {
-    observer.OnStarted(start_status, has_fetch_handler);
+    observer.OnStarted(start_status, fetch_handler_type);
     // |this| may be destroyed here. Fortunately we know there is only one
     // observer in production code.
   }
@@ -703,6 +740,10 @@ void EmbeddedWorkerInstance::Detach() {
 
 void EmbeddedWorkerInstance::UpdateForegroundPriority() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  if (status() == EmbeddedWorkerStatus::STOPPING) {
+    return;
+  }
+
   if (process_handle_ &&
       owner_version_->ShouldRequireForegroundPriority(process_id())) {
     NotifyForegroundServiceWorkerAdded();
@@ -732,10 +773,40 @@ void EmbeddedWorkerInstance::UpdateLoaderFactories(
 }
 
 void EmbeddedWorkerInstance::BindCacheStorage(
-    mojo::PendingReceiver<blink::mojom::CacheStorage> receiver) {
+    mojo::PendingReceiver<blink::mojom::CacheStorage> receiver,
+    const storage::BucketLocator& bucket_locator) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  pending_cache_storage_receivers_.push_back(std::move(receiver));
+  pending_cache_storage_requests_.emplace_back(std::move(receiver),
+                                               bucket_locator);
   BindCacheStorageInternal();
+}
+
+#if !BUILDFLAG(IS_ANDROID)
+void EmbeddedWorkerInstance::BindHidService(
+    const url::Origin& origin,
+    mojo::PendingReceiver<blink::mojom::HidService> receiver) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  HidDelegate* hid_delegate = GetContentClient()->browser()->GetHidDelegate();
+  if (!hid_delegate) {
+    return;
+  }
+  if (hid_delegate->IsServiceWorkerAllowedForOrigin(origin)) {
+    HidService::Create(context_, origin, std::move(receiver));
+  }
+}
+#endif  // !BUILDFLAG(IS_ANDROID)
+
+void EmbeddedWorkerInstance::BindUsbService(
+    const url::Origin& origin,
+    mojo::PendingReceiver<blink::mojom::WebUsbService> receiver) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  UsbDelegate* usb_delegate = GetContentClient()->browser()->GetUsbDelegate();
+  if (!usb_delegate) {
+    return;
+  }
+  if (usb_delegate->IsServiceWorkerAllowedForOrigin(origin)) {
+    WebUsbServiceImpl::Create(context_, origin, std::move(receiver));
+  }
 }
 
 base::WeakPtr<EmbeddedWorkerInstance> EmbeddedWorkerInstance::AsWeakPtr() {
@@ -752,8 +823,7 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
     RenderProcessHost* rph,
     int routing_id,
     const url::Origin& origin,
-    const absl::optional<network::CrossOriginEmbedderPolicy>&
-        cross_origin_embedder_policy,
+    network::mojom::ClientSecurityStatePtr client_security_state,
     mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
         coep_reporter,
     ContentBrowserClient::URLLoaderFactoryType factory_type,
@@ -764,8 +834,13 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
   mojo::PendingReceiver<network::mojom::URLLoaderFactory>
       default_factory_receiver = factory_bundle->pending_default_factory()
                                      .InitWithNewPipeAndPassReceiver();
-  // TODO(crbug.com/1231019): make sure client_security_state is no longer
-  // nullptr anywhere.
+
+  // In certain tests, the worker is started before response headers (and thus
+  // the client security state) are known. Use a default value instead.
+  if (!client_security_state) {
+    client_security_state = network::mojom::ClientSecurityState::New();
+  }
+
   network::mojom::URLLoaderFactoryParamsPtr factory_params =
       URLLoaderFactoryParamsHelper::CreateForWorker(
           rph, origin,
@@ -776,9 +851,8 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
           static_cast<StoragePartitionImpl*>(rph->GetStoragePartition())
               ->CreateAuthCertObserverForServiceWorker(),
           NetworkServiceDevToolsObserver::MakeSelfOwned(devtools_worker_token),
-          /*client_security_state=*/nullptr,
+          std::move(client_security_state),
           "EmbeddedWorkerInstance::CreateFactoryBundle");
-  bool bypass_redirect_checks = false;
 
   DCHECK(factory_type ==
              ContentBrowserClient::URLLoaderFactoryType::kServiceWorkerScript ||
@@ -786,6 +860,7 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
                              kServiceWorkerSubResource);
 
   // See if the default factory needs to be tweaked by the embedder.
+  bool bypass_redirect_checks = false;
   GetContentClient()->browser()->WillCreateURLLoaderFactory(
       rph->GetBrowserContext(), nullptr /* frame_host */, rph->GetID(),
       factory_type, origin, absl::nullopt /* navigation_id */,
@@ -795,17 +870,6 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
   devtools_instrumentation::WillCreateURLLoaderFactoryForServiceWorker(
       rph, routing_id, &factory_params->factory_override);
 
-  factory_params->client_security_state =
-      network::mojom::ClientSecurityState::New();
-
-  // Without PlzServiceWorker, the COEP header might no be known initially for
-  // new ServiceWorker. The default COEP header is used instead here. Later, the
-  // subresource loader factories will be updated with the correct COEP header.
-  // See: https://chromium-review.googlesource.com/c/chromium/src/+/2029403
-  factory_params->client_security_state->cross_origin_embedder_policy =
-      cross_origin_embedder_policy ? cross_origin_embedder_policy.value()
-                                   : network::CrossOriginEmbedderPolicy();
-
   rph->CreateURLLoaderFactory(std::move(default_factory_receiver),
                               std::move(factory_params));
 
@@ -813,10 +877,29 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
 
   ContentBrowserClient::NonNetworkURLLoaderFactoryMap non_network_factories;
   non_network_factories[url::kDataScheme] = DataURLLoaderFactory::Create();
+  // Allow service workers for chrome:// or chrome-untrusted:// based on flags.
+  if (base::FeatureList::IsEnabled(
+          features::kEnableServiceWorkersForChromeScheme) &&
+      origin.scheme() == content::kChromeUIScheme) {
+    non_network_factories.emplace(
+        content::kChromeUIScheme,
+        CreateWebUIServiceWorkerLoaderFactory(rph->GetBrowserContext(),
+                                              content::kChromeUIScheme,
+                                              base::flat_set<std::string>()));
+  } else if (base::FeatureList::IsEnabled(
+                 features::kEnableServiceWorkersForChromeUntrusted) &&
+             origin.scheme() == content::kChromeUIUntrustedScheme) {
+    non_network_factories.emplace(
+        content::kChromeUIUntrustedScheme,
+        CreateWebUIServiceWorkerLoaderFactory(rph->GetBrowserContext(),
+                                              content::kChromeUIUntrustedScheme,
+                                              base::flat_set<std::string>()));
+  }
+
   GetContentClient()
       ->browser()
       ->RegisterNonNetworkSubresourceURLLoaderFactories(
-          rph->GetID(), MSG_ROUTING_NONE, &non_network_factories);
+          rph->GetID(), MSG_ROUTING_NONE, origin, &non_network_factories);
 
   for (auto& pair : non_network_factories) {
     const std::string& scheme = pair.first;
@@ -826,8 +909,14 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
     // To be safe, ignore schemes that aren't allowed to register service
     // workers. We assume that importScripts and fetch() should fail on such
     // schemes.
-    if (!base::Contains(GetServiceWorkerSchemes(), scheme))
+    // data: URLs are allowed here, because importScripts() and fetch() to data:
+    // URLs are anyway successful, and in order to allow Extension's WebRequest
+    // redirects to data: URLs in ServiceWorkerGlobalScope
+    // (https://crbug.com/1334249).
+    if (scheme != url::kDataScheme &&
+        !base::Contains(GetServiceWorkerSchemes(), scheme)) {
       continue;
+    }
 
     factory_bundle->pending_scheme_specific_factories().emplace(
         scheme, std::move(pending_remote));
@@ -836,87 +925,21 @@ EmbeddedWorkerInstance::CreateFactoryBundle(
   return factory_bundle;
 }
 
-EmbeddedWorkerInstance::CreateFactoryBundlesResult::
-    CreateFactoryBundlesResult() = default;
-EmbeddedWorkerInstance::CreateFactoryBundlesResult::
-    ~CreateFactoryBundlesResult() = default;
-EmbeddedWorkerInstance::CreateFactoryBundlesResult::CreateFactoryBundlesResult(
-    CreateFactoryBundlesResult&& other) = default;
+void EmbeddedWorkerInstance::SetPauseInitializingGlobalScope() {
+  TRACE_EVENT0("ServiceWorker",
+               "EmbeddedWorkerInstance::SetPauseInitializingGlobalScope");
+  CHECK_EQ(EmbeddedWorkerStatus::STOPPED, status_);
+  CHECK(!pause_initializing_global_scope_);
+  pause_initializing_global_scope_ = true;
+}
 
-EmbeddedWorkerInstance::CreateFactoryBundlesResult
-EmbeddedWorkerInstance::CreateFactoryBundles() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  CreateFactoryBundlesResult result;
-
-  auto* rph = RenderProcessHost::FromID(process_id());
-  if (!rph) {
-    // Return nullptr because we can't create a factory bundle because of
-    // missing renderer.
-    return result;
-  }
-
-  // Create mojo::Remote which is connected to and owns a COEP reporter.
-  mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
-      coep_reporter_for_devtools;
-  mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
-      coep_reporter_for_scripts;
-  mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
-      coep_reporter_for_subresources;
-
-  // |cross_origin_embedder_policy| is nullopt in some unittests.
-  // TODO(shimazu): Set COEP in those tests.
-  if (owner_version_->cross_origin_embedder_policy()) {
-    mojo::PendingRemote<blink::mojom::ReportingObserver>
-        reporting_observer_remote;
-    owner_version_->set_reporting_observer_receiver(
-        reporting_observer_remote.InitWithNewPipeAndPassReceiver());
-
-    auto* storage_partition =
-        static_cast<StoragePartitionImpl*>(rph->GetStoragePartition());
-    coep_reporter_ = std::make_unique<CrossOriginEmbedderPolicyReporter>(
-        storage_partition->GetWeakPtr(), owner_version_->script_url(),
-        owner_version_->cross_origin_embedder_policy()->reporting_endpoint,
-        owner_version_->cross_origin_embedder_policy()
-            ->report_only_reporting_endpoint,
-        owner_version_->reporting_source(),
-        // TODO(https://crbug.com/1147281): This is the NetworkIsolationKey of a
-        // top-level browsing context, which shouldn't be use for ServiceWorkers
-        // used in iframes.
-        net::NetworkIsolationKey::ToDoUseTopFrameOriginAsWell(
-            url::Origin::Create(owner_version_->script_url())));
-    coep_reporter_->BindObserver(std::move(reporting_observer_remote));
-    coep_reporter_->Clone(
-        coep_reporter_for_devtools.InitWithNewPipeAndPassReceiver());
-    coep_reporter_->Clone(
-        coep_reporter_for_scripts.InitWithNewPipeAndPassReceiver());
-    coep_reporter_->Clone(
-        coep_reporter_for_subresources.InitWithNewPipeAndPassReceiver());
-
-    ServiceWorkerDevToolsManager::GetInstance()
-        ->UpdateCrossOriginEmbedderPolicy(
-            process_id(), worker_devtools_agent_route_id(),
-            owner_version_->cross_origin_embedder_policy().value(),
-            std::move(coep_reporter_for_devtools));
-  }
-
-  const url::Origin origin = url::Origin::Create(owner_version_->script_url());
-  result.script_bundle = EmbeddedWorkerInstance::CreateFactoryBundle(
-      rph, worker_devtools_agent_route_id(), origin,
-      owner_version_->cross_origin_embedder_policy(),
-      std::move(coep_reporter_for_scripts),
-      ContentBrowserClient::URLLoaderFactoryType::kServiceWorkerScript,
-      WorkerDevtoolsId().ToString());
-  result.subresource_bundle = EmbeddedWorkerInstance::CreateFactoryBundle(
-      rph, worker_devtools_agent_route_id(), origin,
-      owner_version_->cross_origin_embedder_policy(),
-      std::move(coep_reporter_for_subresources),
-      ContentBrowserClient::URLLoaderFactoryType::kServiceWorkerSubResource,
-      WorkerDevtoolsId().ToString());
-
-  BindCacheStorageInternal();
-
-  return result;
+void EmbeddedWorkerInstance::ResumeInitializingGlobalScope() {
+  TRACE_EVENT0("ServiceWorker",
+               "EmbeddedWorkerInstance::ResumeInitializingGlobalScope");
+  CHECK_EQ(EmbeddedWorkerStatus::STARTING, status_);
+  CHECK(pause_initializing_global_scope_);
+  pause_initializing_global_scope_ = false;
+  owner_version_->InitializeGlobalScope();
 }
 
 void EmbeddedWorkerInstance::OnReportException(
@@ -984,7 +1007,12 @@ void EmbeddedWorkerInstance::OnNetworkAccessedForScriptLoad() {
 void EmbeddedWorkerInstance::ReleaseProcess() {
   // Abort an inflight start task.
   inflight_start_info_.reset();
-
+  // NotifyForegroundServiceWorkerRemoved() may trigger a call to
+  // UpdateForegroundPriority(). By setting status_ to STOPPING we
+  // prevent NotifyForegroundServiceWorkerAdded() from being called
+  // from UpdateForegroundPriority() since we don't want it to be
+  // re-added at this stage.
+  status_ = EmbeddedWorkerStatus::STOPPING;
   NotifyForegroundServiceWorkerRemoved();
 
   instance_host_receiver_.reset();
@@ -996,6 +1024,8 @@ void EmbeddedWorkerInstance::ReleaseProcess() {
   starting_phase_ = NOT_STARTING;
   thread_id_ = ServiceWorkerConsts::kInvalidEmbeddedWorkerThreadId;
   token_ = absl::nullopt;
+
+  DCHECK(!foreground_notified_);
 }
 
 void EmbeddedWorkerInstance::OnSetupFailed(
@@ -1092,16 +1122,16 @@ EmbeddedWorkerInstance::MakeScriptLoaderFactoryRemote(
 
 void EmbeddedWorkerInstance::BindCacheStorageInternal() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  const network::CrossOriginEmbedderPolicy* coep =
+      owner_version_->cross_origin_embedder_policy();
+
   // Without PlzServiceWorker, the COEP header might not be known initially.
   // The in-flight CacheStorage requests are kept until the main script has
   // loaded the headers and the COEP one is known.
-  if (!owner_version_->cross_origin_embedder_policy())
+  if (!coep)
     return;
 
-  network::CrossOriginEmbedderPolicy coep =
-      owner_version_->cross_origin_embedder_policy().value();
-
-  for (auto& receiver : pending_cache_storage_receivers_) {
+  for (auto& request : pending_cache_storage_requests_) {
     mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
         coep_reporter_remote;
     if (coep_reporter_) {
@@ -1113,10 +1143,19 @@ void EmbeddedWorkerInstance::BindCacheStorageInternal() {
     if (!rph)
       return;
 
-    rph->BindCacheStorage(coep, std::move(coep_reporter_remote),
-                          owner_version_->key(), std::move(receiver));
+    rph->BindCacheStorage(*coep, std::move(coep_reporter_remote),
+                          request.bucket, std::move(request.receiver));
   }
-  pending_cache_storage_receivers_.clear();
+  pending_cache_storage_requests_.clear();
 }
+
+EmbeddedWorkerInstance::CacheStorageRequest::CacheStorageRequest(
+    mojo::PendingReceiver<blink::mojom::CacheStorage> receiver,
+    storage::BucketLocator bucket)
+    : receiver(std::move(receiver)), bucket(std::move(bucket)) {}
+
+EmbeddedWorkerInstance::CacheStorageRequest::CacheStorageRequest(
+    CacheStorageRequest&& other) = default;
+EmbeddedWorkerInstance::CacheStorageRequest::~CacheStorageRequest() = default;
 
 }  // namespace content

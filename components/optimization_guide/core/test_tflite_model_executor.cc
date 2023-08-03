@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,19 @@
 
 namespace optimization_guide {
 
-absl::Status TestTFLiteModelExecutor::Preprocess(
+bool TestTFLiteModelExecutor::Preprocess(
     const std::vector<TfLiteTensor*>& input_tensors,
     const std::vector<float>& input) {
-  tflite::task::core::PopulateTensor<float>(input, input_tensors[0]);
-  return absl::OkStatus();
+  return tflite::task::core::PopulateTensor<float>(input, input_tensors[0])
+      .ok();
 }
 
-std::vector<float> TestTFLiteModelExecutor::Postprocess(
+absl::optional<std::vector<float>> TestTFLiteModelExecutor::Postprocess(
     const std::vector<const TfLiteTensor*>& output_tensors) {
   std::vector<float> data;
-  tflite::task::core::PopulateVector<float>(output_tensors[0], &data);
+  absl::Status status =
+      tflite::task::core::PopulateVector<float>(output_tensors[0], &data);
+  DCHECK(status.ok());
   return data;
 }
 

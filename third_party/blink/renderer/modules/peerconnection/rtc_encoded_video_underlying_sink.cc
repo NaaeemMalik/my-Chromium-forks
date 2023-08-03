@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,13 +13,16 @@
 
 namespace blink {
 
+using webrtc::TransformableFrameInterface;
+
 RTCEncodedVideoUnderlyingSink::RTCEncodedVideoUnderlyingSink(
     ScriptState* script_state,
-    TransformerCallback transformer_callback,
-    webrtc::TransformableFrameInterface::Direction expected_direction)
-    : transformer_callback_(std::move(transformer_callback)),
+    scoped_refptr<blink::RTCEncodedVideoStreamTransformer::Broker>
+        transformer_broker,
+    TransformableFrameInterface::Direction expected_direction)
+    : transformer_broker_(std::move(transformer_broker)),
       expected_direction_(expected_direction) {
-  DCHECK(transformer_callback_);
+  DCHECK(transformer_broker_);
 }
 
 ScriptPromise RTCEncodedVideoUnderlyingSink::start(
@@ -35,6 +38,7 @@ ScriptPromise RTCEncodedVideoUnderlyingSink::write(
     ScriptValue chunk,
     WritableStreamDefaultController* controller,
     ExceptionState& exception_state) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   RTCEncodedVideoFrame* encoded_frame =
       V8RTCEncodedVideoFrame::ToImplWithTypeCheck(script_state->GetIsolate(),
                                                   chunk.V8Value());
@@ -43,7 +47,7 @@ ScriptPromise RTCEncodedVideoUnderlyingSink::write(
     return ScriptPromise();
   }
 
-  if (!transformer_callback_) {
+  if (!transformer_broker_) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "Stream closed");
     return ScriptPromise();
@@ -56,28 +60,25 @@ ScriptPromise RTCEncodedVideoUnderlyingSink::write(
     return ScriptPromise();
   }
 
-  if (webrtc_frame->GetDirection() != expected_direction_) {
+  if (webrtc_frame->GetDirection() ==
+          TransformableFrameInterface::Direction::kReceiver &&
+      expected_direction_ == TransformableFrameInterface::Direction::kSender) {
+    // TODO(crbug.com/1412687): Allow sending received frames.
     exception_state.ThrowDOMException(DOMExceptionCode::kOperationError,
                                       "Invalid frame");
     return ScriptPromise();
   }
 
-  RTCEncodedVideoStreamTransformer* transformer = transformer_callback_.Run();
-  if (!transformer) {
-    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
-                                      "No underlying sink");
-    return ScriptPromise();
-  }
-
-  transformer->SendFrameToSink(std::move(webrtc_frame));
+  transformer_broker_->SendFrameToSink(std::move(webrtc_frame));
   return ScriptPromise::CastUndefined(script_state);
 }
 
 ScriptPromise RTCEncodedVideoUnderlyingSink::close(ScriptState* script_state,
                                                    ExceptionState&) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   // Disconnect from the transformer if the sink is closed.
-  if (transformer_callback_)
-    transformer_callback_.Reset();
+  if (transformer_broker_)
+    transformer_broker_.reset();
   return ScriptPromise::CastUndefined(script_state);
 }
 
@@ -85,6 +86,7 @@ ScriptPromise RTCEncodedVideoUnderlyingSink::abort(
     ScriptState* script_state,
     ScriptValue reason,
     ExceptionState& exception_state) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   // It is not possible to cancel any frames already sent to the WebRTC sink,
   // thus abort() has the same effect as close().
   return close(script_state, exception_state);

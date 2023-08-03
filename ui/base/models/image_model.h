@@ -1,16 +1,18 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_BASE_MODELS_IMAGE_MODEL_H_
 #define UI_BASE_MODELS_IMAGE_MODEL_H_
 
-#include "base/callback.h"
 #include "base/component_export.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/color/color_id.h"
 #include "ui/gfx/color_palette.h"
+#include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
 
@@ -67,10 +69,14 @@ class COMPONENT_EXPORT(UI_BASE) VectorIconModel {
                   int icon_size,
                   const gfx::VectorIcon* badge_icon);
 
-  const gfx::VectorIcon* vector_icon_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union
+  RAW_PTR_EXCLUSION const gfx::VectorIcon* vector_icon_ = nullptr;
   int icon_size_ = 0;
   absl::variant<ColorId, SkColor> color_ = gfx::kPlaceholderColor;
-  const gfx::VectorIcon* badge_icon_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union
+  RAW_PTR_EXCLUSION const gfx::VectorIcon* badge_icon_ = nullptr;
 };
 
 // ImageModel encapsulates one of several image representations. See FromXXXX
@@ -98,6 +104,8 @@ class COMPONENT_EXPORT(UI_BASE) ImageModel {
                                    const gfx::VectorIcon* badge_icon = nullptr);
   static ImageModel FromImage(const gfx::Image& image);
   static ImageModel FromImageSkia(const gfx::ImageSkia& image_skia);
+  // |FromResourceId| does not support color theming. To create an |ImageModel|
+  // with color theming, use |ResourceBundle::GetThemedLottieImageNamed|.
   static ImageModel FromResourceId(int resource_id);
   // `size` must be the size of the image the `generator` returns.
   // NOTE: If this proves onerous, we could allow autodetection, at the cost of
@@ -118,6 +126,9 @@ class COMPONENT_EXPORT(UI_BASE) ImageModel {
   // Checks if both models yield equal images.
   bool operator==(const ImageModel& other) const;
   bool operator!=(const ImageModel& other) const;
+
+  // Rasterizes if necessary.
+  gfx::ImageSkia Rasterize(const ui::ColorProvider* color_provider) const;
 
  private:
   struct ImageGeneratorAndSize {

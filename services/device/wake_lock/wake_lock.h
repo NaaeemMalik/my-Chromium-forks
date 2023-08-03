@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,13 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "services/device/public/mojom/wake_lock.mojom.h"
-#include "services/device/public/mojom/wake_lock_context.mojom.h"
 #include "services/device/wake_lock/power_save_blocker/power_save_blocker.h"
 #include "ui/gfx/native_widget_types.h"
 
@@ -89,7 +89,7 @@ class WakeLock : public mojom::WakeLock {
   mojom::WakeLockReason reason_;
   std::unique_ptr<std::string> description_;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   int context_id_;
   WakeLockContextCallback native_view_getter_;
 #endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,14 @@
 #include <memory>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
-#include "base/compiler_specific.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/sys_byteorder.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/threading/thread.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "content/browser/speech/speech_recognition_engine.h"
 #include "content/browser/speech/speech_recognizer_impl.h"
 #include "content/public/browser/google_streaming_api.pb.h"
@@ -135,20 +133,21 @@ class SpeechRecognizerImplTest : public SpeechRecognitionEventListener,
     audio_manager_->Shutdown();
   }
 
-  bool GetUpstreamRequest(const network::TestURLLoaderFactory::PendingRequest**
-                              pending_request_out) WARN_UNUSED_RESULT {
+  [[nodiscard]] bool GetUpstreamRequest(
+      const network::TestURLLoaderFactory::PendingRequest**
+          pending_request_out) {
     return GetPendingRequest(pending_request_out, "/up");
   }
 
-  bool GetDownstreamRequest(
-      const network::TestURLLoaderFactory::PendingRequest** pending_request_out)
-      WARN_UNUSED_RESULT {
+  [[nodiscard]] bool GetDownstreamRequest(
+      const network::TestURLLoaderFactory::PendingRequest**
+          pending_request_out) {
     return GetPendingRequest(pending_request_out, "/down");
   }
 
-  bool GetPendingRequest(
+  [[nodiscard]] bool GetPendingRequest(
       const network::TestURLLoaderFactory::PendingRequest** pending_request_out,
-      const char* url_substring) WARN_UNUSED_RESULT {
+      const char* url_substring) {
     for (const auto& pending_request :
          *url_loader_factory_.pending_requests()) {
       if (pending_request.request.url.spec().find(url_substring) !=

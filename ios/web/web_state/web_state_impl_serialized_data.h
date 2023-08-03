@@ -1,10 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_WEB_WEB_STATE_WEB_STATE_IMPL_SERIALIZED_DATA_H_
 #define IOS_WEB_WEB_STATE_WEB_STATE_IMPL_SERIALIZED_DATA_H_
 
+#import "ios/web/public/favicon/favicon_status.h"
 #import "ios/web/web_state/web_state_impl.h"
 
 @class CRWNavigationItemStorage;
@@ -46,8 +47,15 @@ class WebStateImpl::SerializedData {
   CRWSessionStorage* GetSessionStorage() const;
 
   // WebState:
+  base::Time GetLastActiveTime() const;
+  base::Time GetCreationTime() const;
   BrowserState* GetBrowserState() const;
+  NSString* GetStableIdentifier() const;
+  SessionID GetUniqueIdentifier() const;
   const std::u16string& GetTitle() const;
+  const FaviconStatus& GetFaviconStatus() const;
+  void SetFaviconStatus(const FaviconStatus& favicon_status);
+  int GetNavigationItemCount() const;
   const GURL& GetVisibleURL() const;
   const GURL& GetLastCommittedURL() const;
 
@@ -58,11 +66,6 @@ class WebStateImpl::SerializedData {
   // Returns a reference to the owning WebState WebStatePolicyDeciderList.
   WebStatePolicyDeciderList& policy_deciders() {
     return owner_->policy_deciders_;
-  }
-
-  // Returns a reference to the owning WebState ScriptCommandCallbackMap.
-  ScriptCommandCallbackMap& script_command_callbacks() {
-    return owner_->script_command_callbacks_;
   }
 
   // Returns the CRWNavigationItemStorage* corresponding to the last committed
@@ -77,6 +80,9 @@ class WebStateImpl::SerializedData {
 
   // Serialized representation of the session. Never nil.
   __strong CRWSessionStorage* session_storage_ = nil;
+
+  // Favicon status.
+  FaviconStatus favicon_status_;
 };
 
 }  // namespace web

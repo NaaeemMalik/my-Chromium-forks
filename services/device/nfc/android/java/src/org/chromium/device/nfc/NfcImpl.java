@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,8 @@ import android.os.Vibrator;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
+import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
 import org.chromium.device.mojom.NdefError;
 import org.chromium.device.mojom.NdefErrorType;
 import org.chromium.device.mojom.NdefMessage;
@@ -37,11 +39,15 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Android implementation of the NFC mojo service defined in device/nfc/nfc.mojom.
+/**
+ * Android implementation of the NFC mojo service defined in
+ * services/device/public/mojom/nfc.mojom.
  */
 public class NfcImpl implements Nfc {
     private static final String TAG = "NfcImpl";
     private static final String ANY_PATH = "/*";
+    private static final long MIN_TIME_BETWEEN_VIBRATIONS_MS = 1000;
+    private static final long DELAY_TO_DISABLE_READER_MODE_MS = 500;
 
     private final int mHostId;
 
@@ -89,6 +95,13 @@ public class NfcImpl implements Nfc {
     private PendingPushOperation mPendingPushOperation;
 
     /**
+     * Object that contains the callback that was passed to method
+     * #makeReadOnly(MakeReadOnly_Response callback)
+     * @see PendingMakeReadOnlyOperation
+     */
+    private PendingMakeReadOnlyOperation mPendingMakeReadOnlyOperation;
+
+    /**
      * Utility that provides I/O operations for a Tag. Created on demand when Tag is found.
      * @see NfcTagHandler
      */
@@ -105,6 +118,10 @@ public class NfcImpl implements Nfc {
      * Vibrator. @see android.os.Vibrator
      */
     private Vibrator mVibrator;
+    /**
+     * Last time in milliseconds when a Tag was discovered.
+     */
+    private long mTagDiscoveredLastTimeMs = -1;
 
     public NfcImpl(int hostId, NfcDelegate delegate, InterfaceRequest<Nfc> request) {
         mHostId = hostId;
@@ -219,8 +236,43 @@ public class NfcImpl implements Nfc {
      */
     @Override
     public void cancelPush() {
-        completePendingPushOperation(createError(
-                NdefErrorType.OPERATION_CANCELLED, "The push operation is already cancelled."));
+        completePendingPushOperation(
+                createError(NdefErrorType.OPERATION_CANCELLED, "The push operation is cancelled."));
+    }
+
+    /**
+     * Make NFC tag read-only whenever it is in proximity.
+     *
+     * @param callback that is used to notify when make read-only operation is completed.
+     */
+    @Override
+    public void makeReadOnly(MakeReadOnly_Response callback) {
+        if (!checkIfReady(callback)) return;
+
+        if (mOperationsSuspended) {
+            callback.call(createError(NdefErrorType.OPERATION_CANCELLED,
+                    "Cannot make read-only because NFC operations are suspended."));
+        }
+
+        // If previous pending make read-only operation is not completed, cancel it.
+        if (mPendingMakeReadOnlyOperation != null) {
+            mPendingMakeReadOnlyOperation.complete(createError(NdefErrorType.OPERATION_CANCELLED,
+                    "Make read-only is cancelled due to a new make read-only request."));
+        }
+
+        mPendingMakeReadOnlyOperation = new PendingMakeReadOnlyOperation(callback);
+
+        enableReaderModeIfNeeded();
+        processPendingMakeReadOnlyOperation();
+    }
+
+    /**
+     * Cancels pending make read-only operation.
+     */
+    @Override
+    public void cancelMakeReadOnly() {
+        completePendingMakeReadOnlyOperation(createError(
+                NdefErrorType.OPERATION_CANCELLED, "The make read-only operation is cancelled."));
     }
 
     /**
@@ -274,16 +326,17 @@ public class NfcImpl implements Nfc {
     }
 
     /**
-     * Suspends all pending watch operations and cancel push operations.
+     * Suspends all pending watch operations and cancel push / makeReadOnly operations.
      */
     public void suspendNfcOperations() {
         mOperationsSuspended = true;
         disableReaderMode();
         cancelPush();
+        cancelMakeReadOnly();
     }
 
     /**
-     * Resumes all pending watch / push operations.
+     * Resumes all pending watch / push / makeReadOnly operations.
      */
     public void resumeNfcOperations() {
         mOperationsSuspended = false;
@@ -313,6 +366,27 @@ public class NfcImpl implements Nfc {
          */
         public void complete(NdefError error) {
             if (mPushResponseCallback != null) mPushResponseCallback.call(error);
+        }
+    }
+
+    /**
+     * Holds information about pending make read-only operation.
+     */
+    private static class PendingMakeReadOnlyOperation {
+        private final MakeReadOnly_Response mMakeReadOnlyResponseCallback;
+
+        public PendingMakeReadOnlyOperation(MakeReadOnly_Response callback) {
+            mMakeReadOnlyResponseCallback = callback;
+        }
+
+        /**
+         * Completes pending make read-only operation.
+         *
+         * @param error should be null when operation is completed successfully, otherwise,
+         * error object with corresponding NdefErrorType should be provided.
+         */
+        public void complete(NdefError error) {
+            if (mMakeReadOnlyResponseCallback != null) mMakeReadOnlyResponseCallback.call(error);
         }
     }
 
@@ -377,14 +451,21 @@ public class NfcImpl implements Nfc {
     }
 
     /**
-     * Enables reader mode, allowing NFC device to read / write NFC tags.
+     * Returns true if there are active push / makeReadOnly / watch operations. Otherwise, false.
+     */
+    private boolean hasActiveOperations() {
+        return (mPendingPushOperation != null || mPendingMakeReadOnlyOperation != null
+                || mWatchIds.size() != 0);
+    }
+
+    /**
+     * Enables reader mode, allowing NFC device to read / write / make read-only NFC tags.
      * @see android.nfc.NfcAdapter#enableReaderMode
      */
     private void enableReaderModeIfNeeded() {
         if (mReaderCallbackHandler != null || mActivity == null || mNfcAdapter == null) return;
 
-        // Do not enable reader mode, if there are no active push / watch operations.
-        if (mPendingPushOperation == null && mWatchIds.size() == 0) return;
+        if (!hasActiveOperations()) return;
 
         mReaderCallbackHandler = new ReaderCallbackHandler(this);
         mNfcAdapter.enableReaderMode(mActivity, mReaderCallbackHandler,
@@ -410,13 +491,15 @@ public class NfcImpl implements Nfc {
     }
 
     /**
-     * Checks if there are pending push / watch operations and disables readre mode
+     * Checks if there are pending push / makeReadOnly / watch operations and disables reader mode
      * whenever necessary.
      */
     private void disableReaderModeIfNeeded() {
-        if (mPendingPushOperation == null && mWatchIds.size() == 0) {
-            disableReaderMode();
-        }
+        if (hasActiveOperations()) return;
+
+        PostTask.postDelayedTask(TaskTraits.BEST_EFFORT, () -> {
+            if (!hasActiveOperations()) disableReaderMode();
+        }, DELAY_TO_DISABLE_READER_MODE_MS);
     }
 
     /**
@@ -472,10 +555,62 @@ public class NfcImpl implements Nfc {
             Log.w(TAG, "Cannot write data to NFC tag. Tag is lost: " + e.getMessage());
             pendingPushOperationCompleted(createError(NdefErrorType.IO_ERROR,
                     "Failed to write because the tag is lost: " + e.getMessage()));
-        } catch (FormatException | IllegalStateException | IOException e) {
+        } catch (FormatException | IllegalStateException | IOException | SecurityException e) {
             Log.w(TAG, "Cannot write data to NFC tag: " + e.getMessage());
             pendingPushOperationCompleted(createError(NdefErrorType.IO_ERROR,
                     "Failed to write due to an IO error: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Handles completion of pending make read-only operation, completes make read-only operation.
+     * On error, invalidates #mTagHandler.
+     */
+    private void pendingMakeReadOnlyOperationCompleted(NdefError error) {
+        completePendingMakeReadOnlyOperation(error);
+        if (error != null) mTagHandler = null;
+    }
+
+    /**
+     * Completes pending make read-only operation and disables reader mode if needed.
+     */
+    private void completePendingMakeReadOnlyOperation(NdefError error) {
+        if (mPendingMakeReadOnlyOperation == null) return;
+
+        mPendingMakeReadOnlyOperation.complete(error);
+        mPendingMakeReadOnlyOperation = null;
+        disableReaderModeIfNeeded();
+    }
+
+    /**
+     * Checks whether there is a #mPendingMakeReadOnlyOperation and make NFC tag read-only. In case
+     * of exception calls pendingMakeReadOnlyOperationCompleted() with appropriate error object.
+     */
+    private void processPendingMakeReadOnlyOperation() {
+        if (mTagHandler == null || mPendingMakeReadOnlyOperation == null) return;
+
+        if (mTagHandler.isTagOutOfRange()) {
+            mTagHandler = null;
+            return;
+        }
+
+        try {
+            mTagHandler.connect();
+            if (mTagHandler.makeReadOnly()) {
+                pendingMakeReadOnlyOperationCompleted(null);
+            } else {
+                Log.w(TAG, "Cannot make NFC tag read-only. The tag cannot be made read-only");
+                pendingMakeReadOnlyOperationCompleted(createError(NdefErrorType.NOT_SUPPORTED,
+                        "Failed to make read-only because the tag cannot be made read-only"));
+            }
+        } catch (TagLostException e) {
+            Log.w(TAG, "Cannot make NFC tag read-only. Tag is lost: " + e.getMessage());
+            pendingMakeReadOnlyOperationCompleted(createError(NdefErrorType.IO_ERROR,
+                    "Failed to make read-only because the tag is lost: " + e.getMessage()));
+        } catch (IOException | SecurityException e) {
+            Log.w(TAG, "Cannot make NFC tag read-only: " + e.getMessage());
+            pendingMakeReadOnlyOperationCompleted(createError(NdefErrorType.IO_ERROR,
+                    "Failed to make read-only due to an IO error: " + e.getMessage()));
         }
     }
 
@@ -516,7 +651,7 @@ public class NfcImpl implements Nfc {
             Log.w(TAG, "Cannot read data from NFC tag. Tag is lost: " + e.getMessage());
             notifyErrorToAllWatchers(createError(NdefErrorType.IO_ERROR,
                     "Failed to read because the tag is lost: " + e.getMessage()));
-        } catch (FormatException | IllegalStateException | IOException e) {
+        } catch (FormatException | IllegalStateException | IOException | SecurityException e) {
             Log.w(TAG, "Cannot read data from NFC tag. IO_ERROR: " + e.getMessage());
             notifyErrorToAllWatchers(createError(NdefErrorType.IO_ERROR,
                     "Failed to read due to an IO error: " + e.getMessage()));
@@ -547,7 +682,12 @@ public class NfcImpl implements Nfc {
      * Called by ReaderCallbackHandler when NFC tag is in proximity.
      */
     public void onTagDiscovered(Tag tag) {
-        mVibrator.vibrate(200);
+        long now = System.currentTimeMillis();
+        // Ensure that excessive vibration is prevented during consecutive NFC operations.
+        if (now - mTagDiscoveredLastTimeMs > MIN_TIME_BETWEEN_VIBRATIONS_MS) {
+            mVibrator.vibrate(200);
+        }
+        mTagDiscoveredLastTimeMs = now;
         processPendingOperations(NfcTagHandler.create(tag));
     }
 
@@ -564,11 +704,14 @@ public class NfcImpl implements Nfc {
                     createError(NdefErrorType.NOT_SUPPORTED, "This tag is not supported."));
             pendingPushOperationCompleted(
                     createError(NdefErrorType.NOT_SUPPORTED, "This tag is not supported."));
+            pendingMakeReadOnlyOperationCompleted(
+                    createError(NdefErrorType.NOT_SUPPORTED, "This tag is not supported."));
             return;
         }
 
         processPendingWatchOperations();
         processPendingPushOperation();
+        processPendingMakeReadOnlyOperation();
         if (mTagHandler != null && mTagHandler.isConnected()) {
             try {
                 mTagHandler.close();

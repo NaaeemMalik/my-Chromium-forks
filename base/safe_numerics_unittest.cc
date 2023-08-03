@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 // WARNING: This block must come before the base/numerics headers are included.
 // These tests deliberately cause arithmetic boundary errors. If the compiler is
 // aggressive enough, it can const detect these errors, so we disable warnings.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #pragma warning(disable : 4756)  // Arithmetic overflow.
 #pragma warning(disable : 4293)  // Invalid shift.
 #endif
@@ -109,6 +109,59 @@ static_assert(FastIntegerArithmeticPromotion<int32_t, uint32_t>::is_contained,
 static_assert(!FastIntegerArithmeticPromotion<intmax_t, int8_t>::is_contained,
               "");
 static_assert(!FastIntegerArithmeticPromotion<uintmax_t, int8_t>::is_contained,
+              "");
+
+// Test compile-time (constexpr) evaluation of checking and saturation.
+constexpr int32_t kIntOne = 1;
+static_assert(1 == checked_cast<uint8_t>(kIntOne), "");
+static_assert(1 == saturated_cast<uint8_t>(kIntOne), "");
+static_assert(2U == MakeClampedNum(kIntOne) + 1, "");
+static_assert(2U == (MakeCheckedNum(kIntOne) + 1).ValueOrDie(), "");
+static_assert(0U == MakeClampedNum(kIntOne) - 1, "");
+static_assert(0U == (MakeCheckedNum(kIntOne) - 1).ValueOrDie(), "");
+static_assert(-1 == -MakeClampedNum(kIntOne), "");
+static_assert(-1 == (-MakeCheckedNum(kIntOne)).ValueOrDie(), "");
+static_assert(1U == MakeClampedNum(kIntOne) * 1, "");
+static_assert(1U == (MakeCheckedNum(kIntOne) * 1).ValueOrDie(), "");
+static_assert(1U == MakeClampedNum(kIntOne) / 1, "");
+static_assert(1U == (MakeCheckedNum(kIntOne) / 1).ValueOrDie(), "");
+static_assert(1 == MakeClampedNum(-kIntOne).Abs(), "");
+static_assert(1 == MakeCheckedNum(-kIntOne).Abs().ValueOrDie(), "");
+static_assert(1U == MakeClampedNum(kIntOne) % 2, "");
+static_assert(1U == (MakeCheckedNum(kIntOne) % 2).ValueOrDie(), "");
+static_assert(0U == MakeClampedNum(kIntOne) >> 1U, "");
+static_assert(0U == (MakeCheckedNum(kIntOne) >> 1U).ValueOrDie(), "");
+static_assert(2U == MakeClampedNum(kIntOne) << 1U, "");
+static_assert(2U == (MakeCheckedNum(kIntOne) << 1U).ValueOrDie(), "");
+static_assert(1 == MakeClampedNum(kIntOne) & 1U, "");
+static_assert(1 == (MakeCheckedNum(kIntOne) & 1U).ValueOrDie(), "");
+static_assert(1 == MakeClampedNum(kIntOne) | 1U, "");
+static_assert(1 == (MakeCheckedNum(kIntOne) | 1U).ValueOrDie(), "");
+static_assert(0 == MakeClampedNum(kIntOne) ^ 1U, "");
+static_assert(0 == (MakeCheckedNum(kIntOne) ^ 1U).ValueOrDie(), "");
+constexpr float kFloatOne = 1.0;
+static_assert(1 == int{checked_cast<int8_t>(kFloatOne)}, "");
+static_assert(1 == int{saturated_cast<int8_t>(kFloatOne)}, "");
+static_assert(2U == unsigned{MakeClampedNum(kFloatOne) + 1}, "");
+static_assert(2U ==
+                  (MakeCheckedNum(kFloatOne) + 1).Cast<unsigned>().ValueOrDie(),
+              "");
+static_assert(0U == unsigned{MakeClampedNum(kFloatOne) - 1}, "");
+static_assert(0U ==
+                  (MakeCheckedNum(kFloatOne) - 1).Cast<unsigned>().ValueOrDie(),
+              "");
+static_assert(-1 == int{-MakeClampedNum(kFloatOne)}, "");
+static_assert(-1 == (-MakeCheckedNum(kFloatOne)).Cast<int>().ValueOrDie(), "");
+static_assert(1U == unsigned{MakeClampedNum(kFloatOne) * 1}, "");
+static_assert(1U ==
+                  (MakeCheckedNum(kFloatOne) * 1).Cast<unsigned>().ValueOrDie(),
+              "");
+static_assert(1U == unsigned{MakeClampedNum(kFloatOne) / 1}, "");
+static_assert(1U ==
+                  (MakeCheckedNum(kFloatOne) / 1).Cast<unsigned>().ValueOrDie(),
+              "");
+static_assert(1 == int{MakeClampedNum(-kFloatOne).Abs()}, "");
+static_assert(1 == MakeCheckedNum(-kFloatOne).Abs().Cast<int>().ValueOrDie(),
               "");
 
 template <typename U>
@@ -618,6 +671,14 @@ void TestSpecializedArithmetic(
 template <typename Dst>
 static void TestArithmetic(const char* dst, int line) {
   using DstLimits = SaturationDefaultLimits<Dst>;
+
+  // Test C++17 class template argument deduction
+  static_assert(
+      std::is_same_v<Dst, typename decltype(CheckedNumeric(Dst{0}))::type>);
+  static_assert(
+      std::is_same_v<Dst, typename decltype(ClampedNumeric(Dst{0}))::type>);
+  static_assert(
+      std::is_same_v<Dst, typename decltype(StrictNumeric(Dst{0}))::type>);
 
   EXPECT_EQ(true, CheckedNumeric<Dst>().IsValid());
   EXPECT_EQ(false, CheckedNumeric<Dst>(CheckedNumeric<Dst>(DstLimits::max()) *
@@ -1630,6 +1691,46 @@ TEST(SafeNumerics, CompoundNumericOperations) {
   EXPECT_FALSE(too_large.IsValid());
   too_large /= d;
   EXPECT_FALSE(too_large.IsValid());
+}
+
+TEST(SafeNumerics, TemplatedSafeMath) {
+  // CheckMul and friends can be confusing, as they change behavior depending on
+  // where the template is specified.
+  uint64_t result;
+  short short_one_thousand = 1000;
+  // In this case, CheckMul uses template deduction to use the <short> variant,
+  // and this will overflow even if assigned to a uint64_t.
+  EXPECT_FALSE(CheckMul(short_one_thousand, short_one_thousand)
+                   .AssignIfValid<uint64_t>(&result));
+  EXPECT_FALSE(CheckMul(short_one_thousand, short_one_thousand).IsValid());
+  // In both cases, CheckMul is forced to use the uint64_t template and will not
+  // overflow.
+  EXPECT_TRUE(CheckMul<uint64_t>(short_one_thousand, short_one_thousand)
+                  .AssignIfValid(&result));
+  EXPECT_TRUE(CheckMul<uint64_t>(short_one_thousand, short_one_thousand)
+                  .AssignIfValid<uint64_t>(&result));
+
+  uint64_t big_one_thousand = 1000u;
+  // Order doesn't matter here: if one of the parameters is uint64_t then the
+  // operation is done on a uint64_t.
+  EXPECT_TRUE(
+      CheckMul(big_one_thousand, short_one_thousand).AssignIfValid(&result));
+  EXPECT_TRUE(
+      CheckMul(short_one_thousand, big_one_thousand).AssignIfValid(&result));
+
+  // Checked math functions can also take two template type parameters. Here are
+  // the results of all four combinations.
+  EXPECT_TRUE((CheckMul<short, uint64_t>(1000, 1000).AssignIfValid(&result)));
+
+  // Note: Order here does not matter.
+  EXPECT_TRUE((CheckMul<uint64_t, short>(1000, 1000).AssignIfValid(&result)));
+
+  // Only if both are short will the operation be invalid.
+  EXPECT_FALSE((CheckMul<short, short>(1000, 1000).AssignIfValid(&result)));
+
+  // Same as above.
+  EXPECT_TRUE(
+      (CheckMul<uint64_t, uint64_t>(1000, 1000).AssignIfValid(&result)));
 }
 
 TEST(SafeNumerics, VariadicNumericOperations) {

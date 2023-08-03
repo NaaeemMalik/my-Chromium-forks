@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -242,6 +242,17 @@ enum KeyboardCode {
   // represent them.
   VKEY_MEDIA_PLAY = 0xE9,
   VKEY_MEDIA_PAUSE = 0xEA,
+
+  // Application keys.
+  VKEY_NEW = 0xEB,
+  VKEY_CLOSE = 0xEC,
+
+  // Emoji Picker.
+  VKEY_EMOJI_PICKER = 0xED,
+  // Start dictation.
+  VKEY_DICTATE = 0xEE,
+  // All applications - this also triggers the launcher in Chrome OS.
+  VKEY_ALL_APPLICATIONS = 0xEF,
 };
 
 }  // namespace ui

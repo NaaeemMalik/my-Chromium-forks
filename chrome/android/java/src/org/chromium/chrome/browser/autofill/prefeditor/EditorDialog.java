@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,25 +30,34 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
+import android.widget.RelativeLayout.LayoutParams;
 import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar.OnMenuItemClickListener;
 import androidx.core.view.MarginLayoutParamsCompat;
 
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.autofill.AutofillUiUtils;
 import org.chromium.chrome.browser.autofill.settings.CreditCardNumberFormattingTextWatcher;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
+import org.chromium.components.autofill.prefeditor.EditorFieldModel;
+import org.chromium.components.autofill.prefeditor.EditorFieldView;
+import org.chromium.components.autofill.prefeditor.EditorObserverForTest;
+import org.chromium.components.autofill.prefeditor.EditorTextField;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.AlwaysDismissedDialog;
 import org.chromium.components.browser_ui.widget.FadingEdgeScrollView;
+import org.chromium.components.browser_ui.widget.FadingEdgeScrollView.EdgeType;
 import org.chromium.components.browser_ui.widget.TintedDrawable;
 import org.chromium.components.browser_ui.widget.animation.Interpolators;
+import org.chromium.components.browser_ui.widget.displaystyle.UiConfig;
+import org.chromium.components.browser_ui.widget.displaystyle.ViewResizer;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 
 import java.util.ArrayList;
@@ -84,6 +93,7 @@ public class EditorDialog
     private final List<Spinner> mDropdownFields;
     private final InputFilter mCardNumberInputFilter;
     private final TextWatcher mCardNumberFormatter;
+    private final boolean mHasRequiredIndicator;
 
     @Nullable
     private TextWatcher mPhoneFormatter;
@@ -104,14 +114,32 @@ public class EditorDialog
     private Runnable mDeleteRunnable;
     private boolean mIsDismissed;
     private Profile mProfile;
+    @Nullable
+    private UiConfig mUiConfig;
+    @Nullable
+    private AlertDialog mConfirmationDialog;
+
+    /**
+     * Builds the editor dialog with the required indicator enabled.
+     *
+     * @param activity          The activity on top of which the UI should be displayed.
+     * @param deleteRunnable    The runnable that when called will delete the profile.
+     * @param profile           The current profile that creates EditorDialog.
+     */
+    public EditorDialog(Activity activity, Runnable deleteRunnable, Profile profile) {
+        this(activity, deleteRunnable, profile, true);
+    }
+
     /**
      * Builds the editor dialog.
      *
-     * @param activity        The activity on top of which the UI should be displayed.
-     * @param deleteRunnable  The runnable that when called will delete the profile.
-     * @param profile         The current profile that creates EditorDialog.
+     * @param activity             The activity on top of which the UI should be displayed.
+     * @param deleteRunnable       The runnable that when called will delete the profile.
+     * @param profile              The current profile that creates EditorDialog.
+     * @param hasRequiredIndicator Whether the required (*) indicator is visible.
      */
-    public EditorDialog(Activity activity, Runnable deleteRunnable, Profile profile) {
+    public EditorDialog(Activity activity, Runnable deleteRunnable, Profile profile,
+            boolean requiredIndicator) {
         super(activity, R.style.ThemeOverlay_BrowserUI_Fullscreen);
         // Sets transparent background for animating content view.
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
@@ -163,6 +191,7 @@ public class EditorDialog
         mCardNumberFormatter = new CreditCardNumberFormattingTextWatcher();
         mDeleteRunnable = deleteRunnable;
         mProfile = profile;
+        mHasRequiredIndicator = requiredIndicator;
     }
 
     /** Prevents screenshots of this editor. */
@@ -201,10 +230,16 @@ public class EditorDialog
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 if (item.getItemId() == R.id.delete_menu_id) {
-                    mDeleteRunnable.run();
-                    animateOutDialog();
+                    if (mEditorModel.getDeleteConfirmationTitle() != null
+                            || mEditorModel.getDeleteConfirmationText() != null) {
+                        handleDeleteWithConfirmation(mEditorModel.getDeleteConfirmationTitle(),
+                                mEditorModel.getDeleteConfirmationText());
+                    } else {
+                        handleDelete();
+                    }
                 } else if (item.getItemId() == R.id.help_menu_id) {
-                    AutofillUiUtils.launchAutofillHelpPage(mActivity, mProfile);
+                    HelpAndFeedbackLauncherImpl.getForProfile(mProfile).show(
+                            mActivity, mActivity.getString(R.string.help_context_autofill), null);
                 }
                 return true;
             }
@@ -223,12 +258,11 @@ public class EditorDialog
         // The top shadow is handled by the toolbar, so hide the one used in the field editor.
         FadingEdgeScrollView scrollView =
                 (FadingEdgeScrollView) mLayout.findViewById(R.id.scroll_view);
-        scrollView.setEdgeVisibility(
-                FadingEdgeScrollView.EdgeType.NONE, FadingEdgeScrollView.EdgeType.FADING);
+        scrollView.setEdgeVisibility(EdgeType.NONE, EdgeType.FADING);
 
         // The shadow's top margin doesn't get picked up in the xml; set it programmatically.
         View shadow = mLayout.findViewById(R.id.shadow);
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) shadow.getLayoutParams();
+        LayoutParams params = (LayoutParams) shadow.getLayoutParams();
         params.topMargin = toolbar.getLayoutParams().height;
         shadow.setLayoutParams(params);
         scrollView.getViewTreeObserver().addOnScrollChangedListener(
@@ -367,15 +401,28 @@ public class EditorDialog
     }
 
     private void prepareFooter() {
+        assert mEditorModel != null;
+
         TextView requiredFieldsNotice = mLayout.findViewById(R.id.required_fields_notice);
         int requiredFieldsNoticeVisibility = View.GONE;
-        for (int i = 0; i < mFieldViews.size(); i++) {
-            if (mFieldViews.get(i).isRequired()) {
-                requiredFieldsNoticeVisibility = View.VISIBLE;
-                break;
+        if (mHasRequiredIndicator) {
+            for (int i = 0; i < mFieldViews.size(); i++) {
+                if (mFieldViews.get(i).isRequired()) {
+                    requiredFieldsNoticeVisibility = View.VISIBLE;
+                    break;
+                }
             }
         }
         requiredFieldsNotice.setVisibility(requiredFieldsNoticeVisibility);
+
+        TextView footerMessage = mLayout.findViewById(R.id.footer_message);
+        String footerMessageText = mEditorModel.getFooterMessageText();
+        if (footerMessageText != null) {
+            footerMessage.setText(footerMessageText);
+            footerMessage.setVisibility(View.VISIBLE);
+        } else {
+            footerMessage.setVisibility(View.GONE);
+        }
     }
 
     /**
@@ -444,6 +491,25 @@ public class EditorDialog
         mDataView.addView(mFooter);
     }
 
+    /**
+     * When this layout has a wide display style, it will be width constrained to
+     * {@link UiConfig#WIDE_DISPLAY_STYLE_MIN_WIDTH_DP}. If the current screen width is greater than
+     * UiConfig#WIDE_DISPLAY_STYLE_MIN_WIDTH_DP, the settings layout will be visually centered
+     * by adding padding to both sides.
+     */
+    public void onConfigurationChanged() {
+        if (mUiConfig == null) {
+            if (mDataView != null) {
+                int minWidePaddingPixels = mActivity.getResources().getDimensionPixelSize(
+                        R.dimen.settings_wide_display_min_padding);
+                mUiConfig = new UiConfig(mDataView);
+                ViewResizer.createAndAttach(mDataView, mUiConfig, 0, minWidePaddingPixels);
+            }
+        } else {
+            mUiConfig.updateDisplayStyle();
+        }
+    }
+
     private void removeTextChangedListenersAndInputFilters() {
         if (mCardInput != null) {
             mCardInput.removeTextChangedListener(mCardNumberFormatter);
@@ -477,8 +543,8 @@ public class EditorDialog
                     if (sObserverForTest != null) sObserverForTest.onEditorReadyToEdit();
                 }
             };
-            EditorDropdownField dropdownView =
-                    new EditorDropdownField(mActivity, parent, fieldModel, prepareEditorRunnable);
+            EditorDropdownField dropdownView = new EditorDropdownField(
+                    mActivity, parent, fieldModel, prepareEditorRunnable, mHasRequiredIndicator);
             mFieldViews.add(dropdownView);
             mDropdownFields.add(dropdownView.getDropdown());
 
@@ -511,8 +577,9 @@ public class EditorDialog
                 formatter = mPhoneFormatter;
             }
 
-            EditorTextField inputLayout = new EditorTextField(
-                    mActivity, fieldModel, mEditorActionListener, filter, formatter);
+            EditorTextField inputLayout =
+                    new EditorTextField(mActivity, fieldModel, mEditorActionListener, filter,
+                            formatter, /* focusAndShowKeyboard= */ false, mHasRequiredIndicator);
             mFieldViews.add(inputLayout);
 
             EditText input = inputLayout.getEditText();
@@ -555,6 +622,7 @@ public class EditorDialog
         prepareEditor();
         prepareFooter();
         prepareButtons();
+        onConfigurationChanged();
 
         // Temporarily hide the content to avoid blink before animation starts.
         mLayout.setVisibility(View.INVISIBLE);
@@ -609,13 +677,18 @@ public class EditorDialog
 
     private void initFocus() {
         mHandler.post(() -> {
-            List<EditorFieldView> invalidViews = getViewsWithInvalidInformation(false);
-            if (!invalidViews.isEmpty()) {
-                // Immediately focus the first invalid field to make it faster to edit.
-                invalidViews.get(0).scrollToAndFocus();
-            } else {
-                // Trigger default focus as it is not triggered automatically on Android P+.
-                mLayout.requestFocus();
+            // If TalkBack is enabled, we want to keep the focus at the top
+            // because the user would not learn about the elements that are
+            // above the focused field.
+            if (!ChromeAccessibilityUtil.get().isAccessibilityEnabled()) {
+                List<EditorFieldView> invalidViews = getViewsWithInvalidInformation(false);
+                if (!invalidViews.isEmpty()) {
+                    // Immediately focus the first invalid field to make it faster to edit.
+                    invalidViews.get(0).scrollToAndFocus();
+                } else {
+                    // Trigger default focus as it is not triggered automatically on Android P+.
+                    mLayout.requestFocus();
+                }
             }
             // Note that keyboard will not be shown for dropdown field since it's not necessary.
             if (getCurrentFocus() != null) {
@@ -628,6 +701,44 @@ public class EditorDialog
             }
             if (sObserverForTest != null) sObserverForTest.onEditorReadyToEdit();
         });
+    }
+
+    private void handleDelete() {
+        mDeleteRunnable.run();
+        animateOutDialog();
+    }
+
+    private void handleDeleteWithConfirmation(
+            @Nullable String confirmationTitle, @Nullable String confirmationText) {
+        LayoutInflater inflater = LayoutInflater.from(getContext());
+        View body = inflater.inflate(R.layout.confirmation_dialog_view, null);
+        TextView titleView = body.findViewById(R.id.confirmation_dialog_title);
+        titleView.setText(confirmationTitle);
+        TextView messageView = body.findViewById(R.id.confirmation_dialog_message);
+        messageView.setText(confirmationText);
+
+        mConfirmationDialog =
+                new AlertDialog.Builder(getContext(), R.style.ThemeOverlay_BrowserUI_AlertDialog)
+                        .setView(body)
+                        .setNegativeButton(R.string.cancel,
+                                (dialog, which) -> {
+                                    dialog.cancel();
+                                    mConfirmationDialog = null;
+                                    if (sObserverForTest != null) {
+                                        sObserverForTest.onEditorReadyToEdit();
+                                    }
+                                })
+                        .setPositiveButton(R.string.delete,
+                                (dialog, which) -> {
+                                    handleDelete();
+                                    mConfirmationDialog = null;
+                                })
+                        .create();
+        mConfirmationDialog.show();
+
+        if (sObserverForTest != null) {
+            sObserverForTest.onEditorConfirmationDialogShown();
+        }
     }
 
     private List<EditorFieldView> getViewsWithInvalidInformation(boolean findAll) {
@@ -652,6 +763,11 @@ public class EditorDialog
     @VisibleForTesting
     public List<Spinner> getDropdownFieldsForTest() {
         return mDropdownFields;
+    }
+
+    @VisibleForTesting
+    public AlertDialog getConfirmationDialogForTest() {
+        return mConfirmationDialog;
     }
 
     @VisibleForTesting

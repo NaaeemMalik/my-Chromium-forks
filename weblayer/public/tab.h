@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,14 @@
 #include <string>
 #include <vector>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "build/build_config.h"
 
 namespace base {
 class Value;
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 namespace views {
 class WebView;
 }
@@ -33,7 +33,6 @@ class GoogleAccountsDelegate;
 class NavigationController;
 class NewTabDelegate;
 class TabObserver;
-class WebMessageHostFactory;
 
 // Represents a tab that is navigable.
 class Tab {
@@ -85,34 +84,6 @@ class Tab {
   virtual void SetData(const std::map<std::string, std::string>& data) = 0;
   virtual const std::map<std::string, std::string>& GetData() = 0;
 
-  // Adds a new WebMessageHostFactory. For any urls that match
-  // |allowed_origin_rules| a JS object is registered using the name
-  // |js_object_name| (in the global namespace). Script may use the object to
-  // send and receive messages and is available at page load time.
-  //
-  // The page is responsible for initiating the connection. That is,
-  // WebMessageHostFactory::CreateHost() is called once the page posts a
-  // message to the JS object.
-  //
-  // |allowed_origin_rules| is a set of rules used to determine which pages
-  // this applies to. '*' may be used to match anything. If not '*' the format
-  // is 'scheme://host:port':
-  // . scheme: The scheme, which can not be empty or contain '*'.
-  // . host: The host to match against. Can not contain '/' and may start with
-  //   '*.' to match against a specific subdomain.
-  // . port (optional): matches a specific port.
-  //
-  // Returns an empty string on success. On failure, the return string gives
-  // an error message.
-  virtual std::u16string AddWebMessageHostFactory(
-      std::unique_ptr<WebMessageHostFactory> factory,
-      const std::u16string& js_object_name,
-      const std::vector<std::string>& allowed_origin_rules) = 0;
-
-  // Removes the WebMessageHostFactory registered under |js_object_name|.
-  virtual void RemoveWebMessageHostFactory(
-      const std::u16string& js_object_name) = 0;
-
   // Creates a FaviconFetcher that notifies a FaviconFetcherDelegate when
   // the favicon changes.
   // A page may provide any number of favicons. The preferred image size
@@ -142,7 +113,7 @@ class Tab {
   virtual void SetTranslateTargetLanguage(
       const std::string& translate_target_lang) = 0;
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // TODO: this isn't a stable API, so use it now for expediency in the C++ API,
   // but if we ever want to have backward or forward compatibility in C++ this
   // will have to be something else.

@@ -8,12 +8,6 @@
     return document.getElementById(id);
   };
 
-  window.onerror = function(errorMsg, url, lineNumber, column, errorObj) {
-    failTest('Error: ' + errorMsg + '\nScript: ' + url +
-             '\nLine: ' + lineNumber + '\nColumn: ' + column +
-             '\nStackTrace: ' + errorObj);
-  }
-
   var gFirstConnection = null;
   var gSecondConnection = null;
   var gLocalStream = null;
@@ -21,24 +15,25 @@
   var gRemoteStreams = {};
 
   function callWithSctpDataOnly() {
-    createConnections({optional: [{DtlsSrtpKeyAgreement: true}]});
-    promiseSctpDataChannelExchange({reliable: true})
-        .then(reportTestSuccess);
-    negotiate();
+    createConnections();
+    return Promise.all([
+      promiseSctpDataChannelExchange({reliable: true}),
+      negotiate(),
+    ])
+    .then(logSuccess);
   }
 
   function callWithSctpDataAndMedia() {
-    createConnections({optional: [{DtlsSrtpKeyAgreement: true}]});
+    createConnections();
     var hasExchanged = promiseSctpDataChannelExchange({reliable: true});
-    navigator.mediaDevices.getUserMedia({audio: true, video: true})
-        .then(addStreamToBothConnectionsAndNegotiate)
-        .catch(failTest);
-
-    Promise.all([
+    return Promise.all([
+      navigator.mediaDevices.getUserMedia({audio: true, video: true})
+          .then(addStreamToBothConnectionsAndNegotiate),
       hasExchanged,
       detectVideoPlaying('remote-view-1'),
       detectVideoPlaying('remote-view-2')
-    ]).then(reportTestSuccess);
+    ])
+    .then(logSuccess);
   }
 
   // This function is used for setting up a test that:
@@ -157,16 +152,16 @@
     negotiate();
   }
 
-  function createConnections(constraints) {
-    gFirstConnection = createConnection(constraints, 'remote-view-1');
+  function createConnections() {
+    gFirstConnection = createConnection('remote-view-1');
     assertEquals('stable', gFirstConnection.signalingState);
 
-    gSecondConnection = createConnection(constraints, 'remote-view-2');
+    gSecondConnection = createConnection('remote-view-2');
     assertEquals('stable', gSecondConnection.signalingState);
   }
 
-  function createConnection(constraints, remoteView) {
-    var pc = new RTCPeerConnection({sdpSemantics:'plan-b'}, constraints);
+  function createConnection(remoteView) {
+    var pc = new RTCPeerConnection();
     pc.onaddstream = function(event) {
       onRemoteStream(event, remoteView);
     }

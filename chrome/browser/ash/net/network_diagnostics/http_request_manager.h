@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
 #include "net/http/http_response_headers.h"
@@ -17,7 +17,7 @@
 
 class Profile;
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 // Makes an HTTP request and determines the results. Used as a utility in
@@ -57,6 +57,6 @@ class HttpRequestManager {
 };
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_DIAGNOSTICS_HTTP_REQUEST_MANAGER_H_

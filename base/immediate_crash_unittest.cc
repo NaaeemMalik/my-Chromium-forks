@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 
 #include "base/base_paths.h"
 #include "base/clang_profiling_buildflags.h"
-#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/path_service.h"
@@ -24,10 +23,10 @@ namespace base {
 
 namespace {
 
-// If IMMEDIATE_CRASH() is not treated as noreturn by the compiler, the compiler
+// If ImmediateCrash() is not treated as noreturn by the compiler, the compiler
 // will complain that not all paths through this function return a value.
-int ALLOW_UNUSED_TYPE TestImmediateCrashTreatedAsNoReturn() {
-  IMMEDIATE_CRASH();
+[[maybe_unused]] int TestImmediateCrashTreatedAsNoReturn() {
+  ImmediateCrash();
 }
 
 #if defined(ARCH_CPU_X86_FAMILY)
@@ -73,12 +72,12 @@ enum : Instruction {
   kHlt0 = 0xd4400000,
 };
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 
 constexpr Instruction kRequiredBody[] = {kBrkF000, kBrk1};
 constexpr Instruction kOptionalFooter[] = {};
 
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
 
 constexpr Instruction kRequiredBody[] = {kBrk0, kHlt0};
 // Some clangs emit a BRK #1 for __builtin_unreachable(), but some do not, so
@@ -99,7 +98,7 @@ constexpr Instruction kOptionalFooter[] = {};
 // whichever of those functions happens to come first in the library.
 void GetTestFunctionInstructions(std::vector<Instruction>* body) {
   FilePath helper_library_path;
-#if !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
   // On Android M, DIR_EXE == /system/bin when running base_unittests.
   // On Fuchsia, NativeLibrary understands the native convention that libraries
   // are not colocated with the binary.
@@ -107,7 +106,7 @@ void GetTestFunctionInstructions(std::vector<Instruction>* body) {
 #endif
   helper_library_path = helper_library_path.AppendASCII(
       GetNativeLibraryName("immediate_crash_test_helper"));
-#if defined(OS_ANDROID) && defined(COMPONENT_BUILD)
+#if BUILDFLAG(IS_ANDROID) && defined(COMPONENT_BUILD)
   helper_library_path = helper_library_path.ReplaceExtension(".cr.so");
 #endif
   ScopedNativeLibrary helper_library(helper_library_path);
@@ -202,13 +201,13 @@ std::vector<Instruction> MaybeSkipCoverageHook(
 
 }  // namespace
 
-// Attempts to verify the actual instructions emitted by IMMEDIATE_CRASH().
+// Attempts to verify the actual instructions emitted by ImmediateCrash().
 // While the test results are highly implementation-specific, this allows macro
 // changes (e.g. CLs like https://crrev.com/671123) to be verified using the
 // trybots/waterfall, without having to build and disassemble Chrome on
 // multiple platforms. This makes it easier to evaluate changes to
-// IMMEDIATE_CRASH() against its requirements (e.g. size of emitted sequence,
-// whether or not multiple IMMEDIATE_CRASH sequences can be folded together, et
+// ImmediateCrash() against its requirements (e.g. size of emitted sequence,
+// whether or not multiple ImmediateCrash sequences can be folded together, et
 // cetera). Please see immediate_crash.h for more details about the
 // requirements.
 //

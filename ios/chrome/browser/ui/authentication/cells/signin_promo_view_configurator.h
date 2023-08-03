@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,17 +16,25 @@
 - (instancetype)init NS_UNAVAILABLE;
 
 // Initializes the instance.
-// |userEmail| is used as a proxy to determine if accounts have
-// been added to the device.
+// If `viewMode` is SigninPromoViewModeNoAccounts, then `userEmail`,
+// `userGivenName` and `userImage` have to be nil.
+// Otherwise `userEmail` and `userImage` can't be nil. `userImage` has to be to
+// the size of IdentityAvatarSize::SmallSize.
+// `hasSignInSpinner` shows a spinner on top of the primary button, and disables
+// other buttons if set YES.
+// TODO(crbug.com/1328877): Consider adding a parameter for
+// SigninPromoViewStyle.
 - (instancetype)initWithSigninPromoViewMode:(SigninPromoViewMode)viewMode
                                   userEmail:(NSString*)userEmail
                               userGivenName:(NSString*)userGivenName
                                   userImage:(UIImage*)userImage
                              hasCloseButton:(BOOL)hasCloseButton
+                           hasSignInSpinner:(BOOL)hasSignInSpinner
     NS_DESIGNATED_INITIALIZER;
 
-// Configures a sign-in promo view.
-- (void)configureSigninPromoView:(SigninPromoView*)signinPromoView;
+// Configure `signinPromoView` with the given `promoViewStyle` style.
+- (void)configureSigninPromoView:(SigninPromoView*)signinPromoView
+                       withStyle:(SigninPromoViewStyle)promoViewStyle;
 
 @end
 

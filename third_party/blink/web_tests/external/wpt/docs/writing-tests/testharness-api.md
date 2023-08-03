@@ -112,7 +112,7 @@ method with a function containing the test
 [assertions](#assert-functions):
 
 ```js
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function(e) {
   t.step(function() {
     assert_true(e.bubbles, "bubbles should be true");
   });
@@ -132,7 +132,7 @@ first argument. The above example can be rewritten as:
 
 ```js
 async_test(function(t) {
-  document.addEventListener("DOMContentLoaded", function() {
+  document.addEventListener("DOMContentLoaded", function(e) {
     t.step(function() {
       assert_true(e.bubbles, "bubbles should be true");
     });
@@ -146,7 +146,7 @@ callback. A convenient method of doing this is through the `step_func` method
 which returns a function that, when called runs a test step. For example:
 
 ```js
-document.addEventListener("DOMContentLoaded", t.step_func(function() {
+document.addEventListener("DOMContentLoaded", t.step_func(function(e) {
   assert_true(e.bubbles, "bubbles should be true");
   t.done();
 }));
@@ -157,7 +157,7 @@ As a further convenience, the `step_func` that calls
 [`step_func_done`](#Test.step_func_done), as follows:
 
 ```js
-document.addEventListener("DOMContentLoaded", t.step_func_done(function() {
+document.addEventListener("DOMContentLoaded", t.step_func_done(function(e) {
   assert_true(e.bubbles, "bubbles should be true");
 }));
 ```
@@ -237,7 +237,7 @@ promise_test(() => {
 }, "DOMContentLoaded");
 ```
 
-**Note:** Unlike asynchronous tests, teatharness.js queues promise
+**Note:** Unlike asynchronous tests, testharness.js queues promise
 tests so the next test won't start running until after the previous
 promise test finishes. [When mixing promise-based logic and async
 steps](https://github.com/web-platform-tests/wpt/pull/17924), the next
@@ -516,6 +516,24 @@ complex cleanup behavior should manage execution order explicitly. If
 any of the eventual values are rejected, the test runner will report
 an error.
 
+### AbortSignal support ###
+
+[`Test.get_signal`](#Test.get_signal) gives an AbortSignal that is aborted when
+the test finishes. This can be useful when dealing with AbortSignal-supported
+APIs.
+
+```js
+promise_test(t => {
+  // Throws when the user agent does not support AbortSignal
+  const signal = t.get_signal();
+  const event = await new Promise(resolve => {
+    document.body.addEventListener(resolve, { once: true, signal });
+    document.body.click();
+  });
+  assert_equals(event.type, "click");
+}, "");
+```
+
 ## Timers in Tests ##
 
 In general the use of timers (i.e. `setTimeout`) in tests is
@@ -627,7 +645,7 @@ harness will assume there are no more results to come when:
  1. There are no `Test` objects that have been created but not completed
  2. The load event on the document has fired
 
-For single page tests, or when the `explict_done` property has been
+For single page tests, or when the `explicit_done` property has been
 set in the [setup](#setup), the [`done`](#done) function must be used.
 
 ```eval_rst

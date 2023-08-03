@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,8 +34,13 @@ PublicKeyCredentialDescriptor::CreateFromCBORValue(const cbor::Value& cbor) {
   if (id == map.end() || !id->second.is_bytestring())
     return absl::nullopt;
 
-  return PublicKeyCredentialDescriptor(CredentialType::kPublicKey,
-                                       id->second.GetBytestring());
+  auto ret = PublicKeyCredentialDescriptor(CredentialType::kPublicKey,
+                                           id->second.GetBytestring());
+  // If the map had other keys then this fact is recorded for testing because
+  // some security keys appear to have a parsing bug in this case. See
+  // crbug.com/1270757.
+  ret.had_other_keys = map.size() > 2;
+  return ret;
 }
 
 PublicKeyCredentialDescriptor::PublicKeyCredentialDescriptor() = default;

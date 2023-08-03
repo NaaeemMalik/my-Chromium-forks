@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -20,9 +20,9 @@
 #include "chrome/browser/web_applications/file_utils_wrapper.h"
 #include "url/gurl.h"
 
-namespace base {
-class FilePath;
-}
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/web_applications/preinstalled_web_app_window_experiment.h"
+#endif
 
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -51,6 +51,7 @@ class PreinstalledWebAppManager {
   using ConsumeInstallOptions =
       base::OnceCallback<void(std::vector<ExternalInstallOptions>)>;
   using SynchronizeCallback = ExternallyManagedAppManager::SynchronizeCallback;
+  using InstallUrl = GURL;
 
   // Observes whether default chrome app migration has completed and
   // triggers MostVisitedHandler to refresh the NTP tiles.
@@ -68,6 +69,7 @@ class PreinstalledWebAppManager {
   static const char* kHistogramEnabledCount;
   static const char* kHistogramDisabledCount;
   static const char* kHistogramConfigErrorCount;
+  static const char* kHistogramCorruptUserUninstallPrefsCount;
   static const char* kHistogramInstallResult;
   static const char* kHistogramUninstallAndReplaceCount;
   static const char* kHistogramAppToReplaceStillInstalledCount;
@@ -78,7 +80,10 @@ class PreinstalledWebAppManager {
 
   static void SkipStartupForTesting();
   static void BypassOfflineManifestRequirementForTesting();
+
+  static void OverridePreviousUserUninstallConfigForTesting();
   static void SetConfigDirForTesting(const base::FilePath* config_dir);
+
   static void SetConfigsForTesting(const std::vector<base::Value>* configs);
   static void SetFileUtilsForTesting(FileUtilsWrapper* file_utils);
 
@@ -95,7 +100,7 @@ class PreinstalledWebAppManager {
 
   // Loads the preinstalled app configs and synchronizes them with the device's
   // installed apps.
-  void Start();
+  void Start(base::OnceClosure on_init_complete);
 
   void LoadAndSynchronizeForTesting(SynchronizeCallback callback);
 
@@ -104,6 +109,14 @@ class PreinstalledWebAppManager {
   void AddObserver(PreinstalledWebAppManager::Observer* observer);
 
   void RemoveObserver(PreinstalledWebAppManager::Observer* observer);
+
+  // Must be called before `Start`. Similar to `SkipStartupForTesting` but not a
+  // global setting.
+  void SetSkipStartupSynchronizeForTesting(bool skip_startup);
+
+#if BUILDFLAG(IS_CHROMEOS)
+  PreinstalledWebAppWindowExperiment& GetWindowExperimentForTesting();
+#endif
 
   // Debugging info used by: gtx://web-app-internals
   struct DebugInfo {
@@ -116,12 +129,17 @@ class PreinstalledWebAppManager {
     using DisabledConfigWithReason =
         std::pair<ExternalInstallOptions, std::string>;
     std::vector<DisabledConfigWithReason> disabled_configs;
-    std::map<GURL, ExternallyManagedAppManager::InstallResult> install_results;
-    std::map<GURL, bool> uninstall_results;
+    std::map<InstallUrl, ExternallyManagedAppManager::InstallResult>
+        install_results;
+    std::map<InstallUrl, bool> uninstall_results;
   };
   const DebugInfo* debug_info() const { return debug_info_.get(); }
 
  private:
+  // Helper to delay a task until device information is fully initialized in
+  // ui::DeviceDataManager.
+  class DeviceDataInitializedEvent;
+
   void LoadAndSynchronize(SynchronizeCallback callback);
 
   void Load(ConsumeInstallOptions callback);
@@ -135,18 +153,14 @@ class PreinstalledWebAppManager {
                    std::vector<ExternalInstallOptions>);
   void OnExternalWebAppsSynchronized(
       ExternallyManagedAppManager::SynchronizeCallback callback,
-      std::map<GURL, std::vector<AppId>> desired_uninstall_and_replaces,
-      std::map<GURL, ExternallyManagedAppManager::InstallResult>
+      std::map<InstallUrl, std::vector<AppId>> desired_uninstall_and_replaces,
+      std::map<InstallUrl, ExternallyManagedAppManager::InstallResult>
           install_results,
-      std::map<GURL, bool> uninstall_results);
+      std::map<InstallUrl, bool> uninstall_results);
   void OnStartUpTaskCompleted(
-      std::map<GURL, ExternallyManagedAppManager::InstallResult>
+      std::map<InstallUrl, ExternallyManagedAppManager::InstallResult>
           install_results,
-      std::map<GURL, bool> uninstall_results);
-
-  // The directory where default web app configs are stored.
-  // Empty if not applicable.
-  base::FilePath GetConfigDir();
+      std::map<InstallUrl, bool> uninstall_results);
 
   // Returns whether this is the first time we've deployed default apps on this
   // profile.
@@ -157,13 +171,20 @@ class PreinstalledWebAppManager {
   bool IsReinstallPastMilestoneNeededSinceLastSync(
       int force_reinstall_for_milestone);
 
-  raw_ptr<WebAppRegistrar> registrar_ = nullptr;
-  raw_ptr<const WebAppUiManager> ui_manager_ = nullptr;
-  raw_ptr<ExternallyManagedAppManager> externally_managed_app_manager_ =
-      nullptr;
+  raw_ptr<WebAppRegistrar, DanglingUntriaged> registrar_ = nullptr;
+  raw_ptr<const WebAppUiManager, DanglingUntriaged> ui_manager_ = nullptr;
+  raw_ptr<ExternallyManagedAppManager, DanglingUntriaged>
+      externally_managed_app_manager_ = nullptr;
   const raw_ptr<Profile> profile_;
 
+#if BUILDFLAG(IS_CHROMEOS)
+  PreinstalledWebAppWindowExperiment preinstalled_web_app_window_experiment_;
+#endif
+
+  bool skip_startup_for_testing_ = false;
   std::unique_ptr<DebugInfo> debug_info_;
+
+  std::unique_ptr<DeviceDataInitializedEvent> device_data_initialized_event_;
 
   base::ObserverList<PreinstalledWebAppManager::Observer> observers_;
 

@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/gpu/peak_gpu_memory_tracker_impl.h"
 
-#include "base/bind.h"
 #include "base/clang_profiling_buildflags.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -59,16 +59,22 @@ class TestGpuService : public viz::mojom::GpuService {
   void EstablishGpuChannel(int32_t client_id,
                            uint64_t client_tracing_id,
                            bool is_gpu_host,
-                           bool cache_shaders_on_disk,
                            EstablishGpuChannelCallback callback) override {}
   void SetChannelClientPid(int32_t client_id,
                            base::ProcessId client_pid) override {}
+  void SetChannelDiskCacheHandle(
+      int32_t client_id,
+      const gpu::GpuDiskCacheHandle& handle) override {}
+  void OnDiskCacheHandleDestoyed(
+      const gpu::GpuDiskCacheHandle& handle) override {}
   void CloseChannel(int32_t client_id) override {}
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
   void CreateArcVideoDecodeAccelerator(
       mojo::PendingReceiver<arc::mojom::VideoDecodeAccelerator> vda_receiver)
       override {}
+  void CreateArcVideoDecoder(
+      mojo::PendingReceiver<arc::mojom::VideoDecoder> vd_receiver) override {}
   void CreateArcVideoEncodeAccelerator(
       mojo::PendingReceiver<arc::mojom::VideoEncodeAccelerator> vea_receiver)
       override {}
@@ -86,7 +92,7 @@ class TestGpuService : public viz::mojom::GpuService {
       mojo::PendingReceiver<chromeos_camera::mojom::JpegEncodeAccelerator>
           jea_receiver) override {}
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   void RegisterDCOMPSurfaceHandle(
       mojo::PlatformHandle surface_handle,
       RegisterDCOMPSurfaceHandleCallback callback) override {}
@@ -104,17 +110,18 @@ class TestGpuService : public viz::mojom::GpuService {
                              gpu::SurfaceHandle surface_handle,
                              CreateGpuMemoryBufferCallback callback) override {}
   void DestroyGpuMemoryBuffer(gfx::GpuMemoryBufferId id,
-                              int client_id,
-                              const gpu::SyncToken& sync_token) override {}
+                              int client_id) override {}
   void CopyGpuMemoryBuffer(::gfx::GpuMemoryBufferHandle buffer_handle,
                            ::base::UnsafeSharedMemoryRegion shared_memory,
                            CopyGpuMemoryBufferCallback callback) override {}
   void GetVideoMemoryUsageStats(
       GetVideoMemoryUsageStatsCallback callback) override {}
-  void RequestHDRStatus(RequestHDRStatusCallback callback) override {}
-  void LoadedShader(int32_t client_id,
-                    const std::string& key,
-                    const std::string& data) override {}
+#if BUILDFLAG(IS_WIN)
+  void RequestDXGIInfo(RequestDXGIInfoCallback callback) override {}
+#endif
+  void LoadedBlob(const gpu::GpuDiskCacheHandle& handle,
+                  const std::string& key,
+                  const std::string& data) override {}
   void WakeUpGpu() override {}
   void GpuSwitched(gl::GpuPreference active_gpu_heuristic) override {}
   void DisplayAdded() override {}
@@ -124,11 +131,11 @@ class TestGpuService : public viz::mojom::GpuService {
   void OnBackgroundCleanup() override {}
   void OnBackgrounded() override {}
   void OnForegrounded() override {}
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   void OnMemoryPressure(
       base::MemoryPressureListener::MemoryPressureLevel level) override {}
 #endif
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_APPLE)
   void BeginCATransaction() override {}
   void CommitCATransaction(CommitCATransactionCallback callback) override {}
 #endif

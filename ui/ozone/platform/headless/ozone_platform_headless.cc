@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,10 @@
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/no_destructor.h"
 #include "build/build_config.h"
+#include "build/chromecast_buildflags.h"
+#include "build/chromeos_buildflags.h"
 #include "ui/base/cursor/cursor_factory.h"
 #include "ui/base/ime/input_method_minimal.h"
 #include "ui/display/types/native_display_delegate.h"
@@ -28,7 +31,7 @@
 #include "ui/ozone/public/system_input_injector.h"
 #include "ui/platform_window/platform_window_init_properties.h"
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
 #include "ui/base/ime/fuchsia/input_method_fuchsia.h"
 #endif
 
@@ -93,12 +96,24 @@ class OzonePlatformHeadless : public OzonePlatform {
   }
   void InitScreen(PlatformScreen* screen) override {}
   std::unique_ptr<InputMethod> CreateInputMethod(
-      internal::InputMethodDelegate* delegate,
+      ImeKeyEventDispatcher* ime_key_event_dispatcher,
       gfx::AcceleratedWidget widget) override {
-    return std::make_unique<InputMethodMinimal>(delegate);
+    return std::make_unique<InputMethodMinimal>(ime_key_event_dispatcher);
   }
 
-  void InitializeUI(const InitParams& params) override {
+// Desktop Linux, not CastOS.
+#if BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CASTOS)
+  const PlatformProperties& GetPlatformProperties() override {
+    static base::NoDestructor<OzonePlatform::PlatformProperties> properties;
+    static bool initialized = false;
+    if (!initialized) {
+      initialized = true;
+    }
+    return *properties;
+  }
+#endif
+
+  bool InitializeUI(const InitParams& params) override {
     window_manager_ = std::make_unique<HeadlessWindowManager>();
     surface_factory_ = std::make_unique<HeadlessSurfaceFactory>(file_path_);
     // This unbreaks tests that create their own.
@@ -112,6 +127,8 @@ class OzonePlatformHeadless : public OzonePlatform {
     input_controller_ = CreateStubInputController();
     cursor_factory_ = std::make_unique<BitmapCursorFactory>();
     gpu_platform_support_host_.reset(CreateStubGpuPlatformSupportHost());
+
+    return true;
   }
 
   void InitializeGPU(const InitParams& params) override {
@@ -138,8 +155,6 @@ OzonePlatform* CreateOzonePlatformHeadless() {
   base::FilePath location;
   if (cmd->HasSwitch(switches::kOzoneDumpFile))
     location = cmd->GetSwitchValuePath(switches::kOzoneDumpFile);
-  cmd->AppendSwitch(switches::kDisableRunningAsSystemCompositor);
-
   return new OzonePlatformHeadless(location);
 }
 

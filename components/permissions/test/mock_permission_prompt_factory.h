@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,8 +44,7 @@ class MockPermissionPromptFactory {
 
   void ResetCounts();
 
-  void DocumentOnLoadCompletedInMainFrame(
-      content::RenderFrameHost* render_frame_host);
+  void DocumentOnLoadCompletedInPrimaryMainFrame();
 
   void set_response_type(PermissionRequestManager::AutoResponseType type) {
     response_type_ = type;

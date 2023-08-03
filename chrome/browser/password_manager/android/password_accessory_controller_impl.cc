@@ -1,22 +1,24 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/password_manager/android/password_accessory_controller_impl.h"
 
 #include <algorithm>
+#include <string>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/trace_event/trace_event.h"
 #include "chrome/browser/autofill/manual_filling_controller.h"
 #include "chrome/browser/autofill/manual_filling_utils.h"
 #include "chrome/browser/password_manager/android/all_passwords_bottom_sheet_controller.h"
@@ -27,8 +29,7 @@
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ssl/security_state_tab_helper.h"
-#include "chrome/browser/ui/passwords/manage_passwords_view_utils.h"
-#include "chrome/browser/vr/vr_tab_helper.h"
+#include "chrome/browser/ui/passwords/ui_utils.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/autofill/core/browser/ui/accessory_sheet_data.h"
 #include "components/autofill/core/browser/ui/accessory_sheet_enums.h"
@@ -36,10 +37,10 @@
 #include "components/autofill/core/common/autofill_util.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
 #include "components/autofill/core/common/password_generation_util.h"
-#include "components/device_reauth/biometric_authenticator.h"
+#include "components/device_reauth/device_authenticator.h"
 #include "components/password_manager/content/browser/content_password_manager_driver.h"
 #include "components/password_manager/content/browser/content_password_manager_driver_factory.h"
-#include "components/password_manager/core/browser/android_affiliation/affiliation_utils.h"
+#include "components/password_manager/core/browser/affiliation/affiliation_utils.h"
 #include "components/password_manager/core/browser/credential_cache.h"
 #include "components/password_manager/core/browser/origin_credential_store.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
@@ -78,16 +79,20 @@ autofill::UserInfo TranslateCredentials(bool current_field_is_password,
                    !credential.is_affiliation_based_match().value()));
 
   std::u16string username = GetDisplayUsername(credential);
-  user_info.add_field(
-      AccessorySheetField(username, username, /*is_password=*/false,
-                          /*selectable=*/!credential.username().empty() &&
-                              !current_field_is_password));
+  user_info.add_field(AccessorySheetField(
+      /*display_text=*/username, /*text_to_fill=*/username,
+      /*a11y_description=*/username, /*id=*/std::string(),
+      /*is_obfuscated=*/false,
+      /*selectable=*/!credential.username().empty()));
 
   user_info.add_field(AccessorySheetField(
-      credential.password(),
+      /*display_text=*/credential.password(),
+      /*text_to_fill=*/credential.password(),
+      /*a11y_description=*/
       l10n_util::GetStringFUTF16(
           IDS_PASSWORD_MANAGER_ACCESSORY_PASSWORD_DESCRIPTION, username),
-      /*is_password=*/true, /*selectable=*/current_field_is_password));
+      /*id=*/std::string(),
+      /*is_obfuscated=*/true, /*selectable=*/current_field_is_password));
 
   return user_info;
 }
@@ -115,8 +120,7 @@ password_manager::PasswordManagerDriver* GetPasswordManagerDriver(
 
 PasswordAccessoryControllerImpl::~PasswordAccessoryControllerImpl() {
   if (authenticator_) {
-    authenticator_->Cancel(
-        device_reauth::BiometricAuthRequester::kFallbackSheet);
+    authenticator_->Cancel(device_reauth::DeviceAuthRequester::kFallbackSheet);
   }
 }
 
@@ -164,15 +168,10 @@ PasswordAccessoryControllerImpl::GetSheetData() const {
   if (all_passwords_helper_.available_credentials().has_value() &&
       IsSecureSite() && origin.GetURL().SchemeIsCryptographic() &&
       all_passwords_helper_.available_credentials().value() > 0) {
-    std::u16string button_title =
-        is_password_field
-            ? l10n_util::GetStringUTF16(
-                  IDS_PASSWORD_MANAGER_ACCESSORY_USE_OTHER_PASSWORD)
-            : l10n_util::GetStringUTF16(
-                  IDS_PASSWORD_MANAGER_ACCESSORY_USE_OTHER_USERNAME);
-
-    footer_commands_to_add.push_back(FooterCommand(
-        button_title, autofill::AccessoryAction::USE_OTHER_PASSWORD));
+    footer_commands_to_add.push_back(
+        FooterCommand(l10n_util::GetStringUTF16(
+                          IDS_PASSWORD_MANAGER_ACCESSORY_SELECT_PASSWORD),
+                      autofill::AccessoryAction::USE_OTHER_PASSWORD));
   }
 
   if (is_password_field &&
@@ -217,30 +216,21 @@ void PasswordAccessoryControllerImpl::OnFillingTriggered(
     return;
   }
 
-  authenticator_ = password_client_->GetBiometricAuthenticator();
+  authenticator_ = password_client_->GetDeviceAuthenticator();
 
   // |this| cancels the authentication when it is destroyed if one is ongoing,
   // which resets the callback, so it's safe to use base::Unretained(this) here.
   authenticator_->Authenticate(
-      device_reauth::BiometricAuthRequester::kFallbackSheet,
+      device_reauth::DeviceAuthRequester::kFallbackSheet,
       base::BindOnce(&PasswordAccessoryControllerImpl::OnReauthCompleted,
-                     base::Unretained(this), selection));
-}
-
-// static
-bool PasswordAccessoryController::AllowedForWebContents(
-    content::WebContents* web_contents) {
-  DCHECK(web_contents) << "Need valid WebContents to attach controller to!";
-  // TODO(crbug.com/902305): Re-enable if possible.
-  return !vr::VrTabHelper::IsInVr(web_contents);
+                     base::Unretained(this), selection),
+      /*use_last_valid_auth=*/true);
 }
 
 // static
 PasswordAccessoryController* PasswordAccessoryController::GetOrCreate(
     content::WebContents* web_contents,
     password_manager::CredentialCache* credential_cache) {
-  DCHECK(PasswordAccessoryController::AllowedForWebContents(web_contents));
-
   PasswordAccessoryControllerImpl::CreateForWebContents(web_contents,
                                                         credential_cache);
   return PasswordAccessoryControllerImpl::FromWebContents(web_contents);
@@ -320,7 +310,8 @@ void PasswordAccessoryControllerImpl::OnOptionSelected(
   if (selected_action == autofill::AccessoryAction::MANAGE_PASSWORDS) {
     password_manager_launcher::ShowPasswordSettings(
         &GetWebContents(),
-        password_manager::ManagePasswordsReferrer::kPasswordsAccessorySheet);
+        password_manager::ManagePasswordsReferrer::kPasswordsAccessorySheet,
+        /*manage_passkeys=*/false);
     return;
   }
   if (selected_action == autofill::AccessoryAction::GENERATE_PASSWORD_MANUAL) {
@@ -367,8 +358,11 @@ void PasswordAccessoryControllerImpl::RefreshSuggestionsForField(
   url::Origin origin = GetFocusedFrameOrigin();
   if (origin.opaque())
     return;  // Don't proceed for invalid origins.
+  TRACE_EVENT0("passwords",
+               "PasswordAccessoryControllerImpl::RefreshSuggestionsForField");
   last_focused_field_info_.emplace(origin, focused_field_type,
                                    is_manual_generation_available);
+  bool sheet_provides_value = is_manual_generation_available;
 
   all_passwords_helper_.ClearUpdateCallback();
   if (!all_passwords_helper_.available_credentials().has_value()) {
@@ -376,6 +370,9 @@ void PasswordAccessoryControllerImpl::RefreshSuggestionsForField(
         &PasswordAccessoryControllerImpl::RefreshSuggestionsForField,
         base::Unretained(this), focused_field_type,
         is_manual_generation_available));
+  } else {
+    sheet_provides_value |=
+        all_passwords_helper_.available_credentials().value() > 0;
   }
 
   if (ShouldShowRecoveryToggle(origin)) {
@@ -384,15 +381,21 @@ void PasswordAccessoryControllerImpl::RefreshSuggestionsForField(
       UMA_HISTOGRAM_BOOLEAN(
           "KeyboardAccessory.DisabledSavingAccessoryImpressions", true);
     }
+    sheet_provides_value = true;
   }
 
   if (base::FeatureList::IsEnabled(
           autofill::features::kAutofillKeyboardAccessory)) {
     DCHECK(source_observer_);
-    // The "Manage Passwords" entry point always justifies showing this fallback
-    // sheet — given that the field is fillable at all.
+    // The all passwords sheet could cover this but if it's still loading, use
+    // this data as the next closest proxy to minimize delayed updates UI.
+    sheet_provides_value |=
+        !credential_cache_->GetCredentialStore(origin).GetCredentials().empty();
+    // The "Manage Passwords" entry point doesn't justify showing this fallback
+    // sheet for non-password fields.
     source_observer_.Run(this, IsFillingSourceAvailable(
-                                   autofill::IsFillable(focused_field_type)));
+                                   autofill::IsFillable(focused_field_type) &&
+                                   sheet_provides_value));
   } else {
     absl::optional<AccessorySheetData> data = GetSheetData();
     DCHECK(data.has_value());
@@ -443,7 +446,7 @@ void PasswordAccessoryControllerImpl::ChangeCurrentOriginSavePasswordsStatus(
   password_manager::PasswordStoreInterface* store =
       password_client_->GetProfilePasswordStore();
   if (saving_enabled) {
-    store->Unblocklist(form_digest, base::NullCallback());
+    store->Unblocklist(form_digest);
   } else {
     password_manager::PasswordForm form =
         password_manager_util::MakeNormalizedBlocklistedForm(
@@ -532,11 +535,10 @@ bool PasswordAccessoryControllerImpl::ShouldTriggerBiometricReauth(
   if (!selection.is_obfuscated())
     return false;
 
-  scoped_refptr<device_reauth::BiometricAuthenticator> authenticator =
-      password_client_->GetBiometricAuthenticator();
-  return password_manager_util::CanUseBiometricAuth(
-      authenticator.get(),
-      device_reauth::BiometricAuthRequester::kFallbackSheet);
+  scoped_refptr<device_reauth::DeviceAuthenticator> authenticator =
+      password_client_->GetDeviceAuthenticator();
+  return password_manager_util::CanUseBiometricAuth(authenticator.get(),
+                                                    password_client_);
 }
 
 void PasswordAccessoryControllerImpl::OnReauthCompleted(

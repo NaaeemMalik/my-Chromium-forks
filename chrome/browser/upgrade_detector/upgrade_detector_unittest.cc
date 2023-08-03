@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ class UpgradeDetectorTest : public ::testing::Test {
     return task_environment_.GetMockTickClock();
   }
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   ~UpgradeDetectorTest() override {
     if (!tz_overridden_)
       return;
@@ -85,27 +85,26 @@ class UpgradeDetectorTest : public ::testing::Test {
     env_->SetVar("TZ", tz);
     tzset();
   }
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
   void RunUntilIdle() { task_environment_.RunUntilIdle(); }
 
   // Sets the browser.relaunch_window preference in Local State.
   void SetRelaunchWindowPref(int hour, int minute, int duration_mins) {
     // Create the dict representing relaunch time interval.
-    base::Value entry(base::Value::Type::DICTIONARY);
-    entry.SetIntPath("start.hour", hour);
-    entry.SetIntPath("start.minute", minute);
-    entry.SetIntKey("duration_mins", duration_mins);
+    base::Value::Dict entry;
+    entry.SetByDottedPath("start.hour", hour);
+    entry.SetByDottedPath("start.minute", minute);
+    entry.Set("duration_mins", duration_mins);
     // Put it in a list.
-    base::Value entries(base::Value::Type::LIST);
+    base::Value::List entries;
     entries.Append(std::move(entry));
     // Put the list in the policy value.
-    base::Value value(base::Value::Type::DICTIONARY);
-    value.SetKey("entries", std::move(entries));
+    base::Value::Dict value;
+    value.Set("entries", std::move(entries));
 
-    scoped_local_state_.Get()->SetManagedPref(
-        prefs::kRelaunchWindow,
-        std::make_unique<base::Value>(std::move(value)));
+    scoped_local_state_.Get()->SetManagedPref(prefs::kRelaunchWindow,
+                                              base::Value(std::move(value)));
   }
 
   UpgradeDetector::RelaunchWindow CreateRelaunchWindow(int hour,
@@ -118,11 +117,11 @@ class UpgradeDetectorTest : public ::testing::Test {
  private:
   base::test::TaskEnvironment task_environment_;
   ScopedTestingLocalState scoped_local_state_;
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<base::Environment> env_;
   absl::optional<std::string> original_tz_;
   bool tz_overridden_ = false;
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 };
 
 TEST_F(UpgradeDetectorTest, RelaunchWindowPolicy) {
@@ -246,7 +245,7 @@ TEST_F(UpgradeDetectorTest, DeadlineAdjustmentOverMidnight) {
   RunUntilIdle();
 }
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 TEST_F(UpgradeDetectorTest, DeadlineAdjustmentDst) {
   // Set Europe timezone where daylight saving starts (UTC+1) at local 2:00am
   // on the last Sunday of March and ends at local 3:00am on the last Sunday of
@@ -302,4 +301,4 @@ TEST_F(UpgradeDetectorTest, DeadlineAdjustmentDst) {
   upgrade_detector.Shutdown();
   RunUntilIdle();
 }
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)

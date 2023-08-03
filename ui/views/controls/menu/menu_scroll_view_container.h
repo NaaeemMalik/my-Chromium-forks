@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,10 @@
 #include "ui/views/bubble/bubble_border.h"
 #include "ui/views/controls/menu/menu_types.h"
 #include "ui/views/view.h"
+
+namespace gfx {
+class RoundedCornersF;
+}  // namespace gfx
 
 namespace views {
 
@@ -40,6 +44,10 @@ class MenuScrollViewContainer : public View {
   void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void OnThemeChanged() override;
 
+  void SetBorderColorId(absl::optional<ui::ColorId> border_color_id) {
+    border_color_id_ = border_color_id;
+  }
+
  protected:
   // View override.
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
@@ -66,7 +74,16 @@ class MenuScrollViewContainer : public View {
   // Returns the last item in the menu if it is of type HIGHLIGHTED.
   MenuItemView* GetFootnote() const;
 
+  // Calcultes the rounded corners of the view based on: either the
+  // `rounded_corners()` if it's set in `MenuController`, or the
+  // `CornerRadiusForMenu` in the `MenuConfig` if `rounded_corners()` is not
+  // set.
+  gfx::RoundedCornersF GetRoundedCorners() const;
+
   class MenuScrollView;
+
+  // The background view.
+  raw_ptr<View> background_view_ = nullptr;
 
   // The scroll buttons.
   raw_ptr<View> scroll_up_button_;
@@ -83,6 +100,11 @@ class MenuScrollViewContainer : public View {
 
   // Corner radius of the background.
   int corner_radius_ = 0;
+
+  // Whether the menu uses ash system UI layout.
+  const bool use_ash_system_ui_layout_;
+
+  absl::optional<ui::ColorId> border_color_id_;
 };
 
 }  // namespace views

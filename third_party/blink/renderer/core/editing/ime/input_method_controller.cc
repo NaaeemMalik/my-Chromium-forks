@@ -26,13 +26,17 @@
 
 #include "third_party/blink/renderer/core/editing/ime/input_method_controller.h"
 
-#include "base/ignore_result.h"
+#include <tuple>
+
 #include "third_party/blink/public/mojom/input/focus_type.mojom-blink.h"
+#include "third_party/blink/public/web/web_frame_widget.h"
+#include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/dom_node_ids.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/events/event_dispatcher.h"
 #include "third_party/blink/renderer/core/dom/events/scoped_event_queue.h"
+#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/range.h"
 #include "third_party/blink/renderer/core/dom/text.h"
 #include "third_party/blink/renderer/core/editing/commands/delete_selection_command.h"
@@ -53,6 +57,7 @@
 #include "third_party/blink/renderer/core/events/composition_event.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/frame/local_frame_client.h"
 #include "third_party/blink/renderer/core/html/forms/html_input_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_text_area_element.h"
 #include "third_party/blink/renderer/core/input/event_handler.h"
@@ -75,7 +80,7 @@ bool NeedsIncrementalInsertion(const LocalFrame& frame,
 
   // No need to apply incremental insertion if the old text (text to be
   // replaced) or the new text (text to be inserted) is empty.
-  if (frame.SelectedText().IsEmpty() || new_text.IsEmpty())
+  if (frame.SelectedText().empty() || new_text.empty())
     return false;
 
   return true;
@@ -92,7 +97,7 @@ AtomicString GetInputModeAttribute(Element* element) {
     query_attribute = true;
   } else {
     element->GetDocument().UpdateStyleAndLayoutTree();
-    if (HasEditableStyle(*element))
+    if (IsEditable(*element))
       query_attribute = true;
   }
 
@@ -115,7 +120,7 @@ AtomicString GetEnterKeyHintAttribute(Element* element) {
     query_attribute = true;
   } else {
     element->GetDocument().UpdateStyleAndLayoutTree();
-    if (HasEditableStyle(*element))
+    if (IsEditable(*element))
       query_attribute = true;
   }
 
@@ -275,13 +280,19 @@ int ComputeAutocapitalizeFlags(const Element* element) {
     flags |= kWebTextInputFlagAutocapitalizeCharacters;
   } else if (autocapitalize == words) {
     flags |= kWebTextInputFlagAutocapitalizeWords;
-  } else if (autocapitalize == sentences || autocapitalize == "") {
-    // Note: we tell the IME to enable autocapitalization for both the default
-    // state ("") and the sentences states. We could potentially treat these
-    // differently if we had a platform that supported autocapitalization but
-    // didn't want to enable it unless explicitly requested by a web page, but
-    // this so far has not been necessary.
+  } else if (autocapitalize == sentences) {
     flags |= kWebTextInputFlagAutocapitalizeSentences;
+  } else if (autocapitalize == g_empty_atom) {
+    // https://html.spec.whatwg.org/multipage/interaction.html#autocapitalization
+    // If autocapitalize is empty, the UA can decide on an appropriate behavior
+    // depending on context. We use the presence of the autocomplete attribute
+    // with an email/url/password type as a hint to disable autocapitalization.
+    if (auto* form_control = DynamicTo<HTMLFormControlElement>(html_element);
+        form_control && form_control->IsAutocompleteEmailUrlOrPassword()) {
+      flags |= kWebTextInputFlagAutocapitalizeNone;
+    } else {
+      flags |= kWebTextInputFlagAutocapitalizeSentences;
+    }
   } else {
     NOTREACHED();
   }
@@ -396,9 +407,12 @@ void InputMethodController::DispatchBeforeInputFromComposition(
     return;
   // TODO(editing-dev): Pass appropriate |ranges| after it's defined on spec.
   // http://w3c.github.io/editing/input-events.html#dom-inputevent-inputtype
+  const StaticRangeVector* ranges = nullptr;
+  if (auto* node = target->ToNode())
+    ranges = TargetRangesForInputEvent(*node);
   InputEvent* before_input_event = InputEvent::CreateBeforeInput(
       input_type, data, InputTypeIsCancelable(input_type),
-      InputEvent::EventIsComposing::kIsComposing, nullptr);
+      InputEvent::EventIsComposing::kIsComposing, ranges);
   target->DispatchEvent(*before_input_event);
 }
 
@@ -459,7 +473,7 @@ void InputMethodController::InsertTextDuringCompositionWithEvents(
       // Calling |TypingCommand::insertText()| with empty text will result in an
       // incorrect ending selection. We need to delete selection first.
       // https://crbug.com/693481
-      if (text.IsEmpty())
+      if (text.empty())
         TypingCommand::DeleteSelection(*frame.GetDocument(), 0);
       frame.GetDocument()->UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
       TypingCommand::InsertText(*frame.GetDocument(), text, options,
@@ -539,6 +553,22 @@ void InputMethodController::SelectComposition() const {
   if (range.IsNull())
     return;
 
+  // When we select the composition (to be able to replace it), we must not
+  // claim that the selection is the result of an input event, even though
+  // the act of committing the composition _is_ an input event in itself.
+  // Otherwise, X11 clients would interpret the selection as a command to
+  // replace the primary selection (on the clipboard) with the contents
+  // of the composition.
+  bool old_handling_input_event = false;
+  WebFrameWidget* widget = nullptr;
+  if (GetFrame().Client() && GetFrame().Client()->GetWebFrame()) {
+    widget = GetFrame().Client()->GetWebFrame()->FrameWidget();
+  }
+  if (widget) {
+    old_handling_input_event = widget->HandlingInputEvent();
+    widget->SetHandlingInputEvent(false);
+  }
+
   // The composition can start inside a composed character sequence, so we have
   // to override checks. See <http://bugs.webkit.org/show_bug.cgi?id=15781>
 
@@ -549,6 +579,10 @@ void InputMethodController::SelectComposition() const {
   GetFrame().Selection().SetSelection(
       SelectionInDOMTree::Builder().SetBaseAndExtent(range).Build(),
       SetSelectionOptions());
+
+  if (widget) {
+    widget->SetHandlingInputEvent(old_handling_input_event);
+  }
 }
 
 bool IsTextTooLongAt(const Position& position) {
@@ -597,7 +631,7 @@ bool InputMethodController::FinishComposingText(
     RevealSelectionScope reveal_selection_scope(GetFrame());
 
     if (is_too_long) {
-      ignore_result(ReplaceComposition(ComposingText()));
+      std::ignore = ReplaceComposition(ComposingText());
     } else {
       Clear();
       DispatchCompositionEndEvent(GetFrame(), composing);
@@ -726,9 +760,9 @@ void InputMethodController::AddImeTextSpans(
     ContainerNode* base_element,
     unsigned offset_in_plain_chars) {
   for (const auto& ime_text_span : ime_text_spans) {
-    unsigned ime_text_span_start =
+    wtf_size_t ime_text_span_start =
         offset_in_plain_chars + ime_text_span.StartOffset();
-    unsigned ime_text_span_end =
+    wtf_size_t ime_text_span_end =
         offset_in_plain_chars + ime_text_span.EndOffset();
 
     EphemeralRange ephemeral_line_range =
@@ -773,7 +807,7 @@ void InputMethodController::AddImeTextSpans(
                  .MarkersIntersectingRange(
                      ToEphemeralRangeInFlatTree(ephemeral_line_range),
                      DocumentMarker::MarkerTypes::Spelling())
-                 .IsEmpty()) {
+                 .empty()) {
           continue;
         }
 
@@ -854,7 +888,7 @@ bool InputMethodController::InsertTextAndMoveCaret(
   EventQueueScope scope;
 
   // Don't fire events for a no-op operation.
-  if (!text.IsEmpty() || selection_range.length() > 0) {
+  if (!text.empty() || selection_range.length() > 0) {
     if (!InsertText(text))
       return false;
   }
@@ -960,7 +994,7 @@ void InputMethodController::SetComposition(
   // 3. Canceling the ongoing composition.
   //    Send a compositionend event when function deletes the existing
   //    composition node, i.e. !hasComposition() && test.isEmpty().
-  if (text.IsEmpty()) {
+  if (text.empty()) {
     // Suppress input and compositionend events until after we move the caret
     // to the new position.
     EventQueueScope scope;
@@ -994,7 +1028,7 @@ void InputMethodController::SetComposition(
     return;
   }
 
-  DCHECK(!text.IsEmpty());
+  DCHECK(!text.empty());
 
   Clear();
 
@@ -1077,7 +1111,7 @@ void InputMethodController::SetComposition(
   if (!HasComposition())
     return;
 
-  if (ime_text_spans.IsEmpty()) {
+  if (ime_text_spans.empty()) {
     GetDocument().Markers().AddCompositionMarker(
         CompositionEphemeralRange(), Color::kTransparent,
         ui::mojom::ImeTextSpanThickness::kThin,
@@ -1411,7 +1445,7 @@ void InputMethodController::ExtendSelectionAndDelete(int before, int after) {
                                    .End() &&
            before <= static_cast<int>(selection_offsets.Start()));
   // TODO(editing-dev): Find a way to distinguish Forward and Backward.
-  ignore_result(DeleteSelection());
+  std::ignore = DeleteSelection();
 }
 
 // TODO(ctzsm): We should reduce the number of selectionchange events.
@@ -1531,7 +1565,7 @@ void InputMethodController::GetLayoutBounds(gfx::Rect* control_bounds,
   // Selection bounds are currently populated only for EditContext.
   // For editable elements we use GetCompositionCharacterBounds to fetch the
   // selection bounds.
-  *control_bounds = element->BoundsInViewport();
+  *control_bounds = element->BoundsInWidget();
 }
 
 void InputMethodController::DidChangeVisibility(
@@ -1580,10 +1614,18 @@ WebTextInputInfo InputMethodController::TextInputInfo() const {
 
   // TODO(editing-dev): The use of UpdateStyleAndLayout
   // needs to be audited.  see http://crbug.com/590369 for more details.
-  GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
+  const EphemeralRange& first_range = FirstEphemeralRangeOf(
+      GetFrame().Selection().ComputeVisibleSelectionInDOMTreeDeprecated());
 
   DocumentLifecycle::DisallowTransitionScope disallow_transition(
       GetDocument().Lifecycle());
+
+  if (const Node* start_node = first_range.StartPosition().AnchorNode()) {
+    if (start_node->GetComputedStyle() &&
+        !start_node->GetComputedStyle()->IsHorizontalWritingMode()) {
+      info.flags |= kWebTextInputFlagVertical;
+    }
+  }
 
   cached_text_input_info_.EnsureCached(*element);
 
@@ -1593,8 +1635,6 @@ WebTextInputInfo InputMethodController::TextInputInfo() const {
   if (info.value.IsEmpty())
     return info;
 
-  const EphemeralRange& first_range = FirstEphemeralRangeOf(
-      GetFrame().Selection().ComputeVisibleSelectionInDOMTreeDeprecated());
   const PlainTextRange& selection_plain_text_range =
       cached_text_input_info_.GetSelection(first_range);
   if (selection_plain_text_range.IsNotNull()) {
@@ -1665,25 +1705,24 @@ int InputMethodController::ComputeWebTextInputNextPreviousFlags() const {
     return kWebTextInputFlagNone;
 
   int flags = kWebTextInputFlagNone;
-  if (page->GetFocusController().NextFocusableElementInForm(
-          element, mojom::blink::FocusType::kForward))
+  if (page->GetFocusController().NextFocusableElementForImeAndAutofill(
+          element, mojom::blink::FocusType::kForward)) {
     flags |= kWebTextInputFlagHaveNextFocusableElement;
+  }
 
-  if (page->GetFocusController().NextFocusableElementInForm(
-          element, mojom::blink::FocusType::kBackward))
+  if (page->GetFocusController().NextFocusableElementForImeAndAutofill(
+          element, mojom::blink::FocusType::kBackward)) {
     flags |= kWebTextInputFlagHavePreviousFocusableElement;
+  }
 
   return flags;
 }
 
 ui::TextInputAction InputMethodController::InputActionOfFocusedElement() const {
-  if (!RuntimeEnabledFeatures::EnterKeyHintAttributeEnabled())
-    return ui::TextInputAction::kDefault;
-
   AtomicString action =
       GetEnterKeyHintAttribute(GetDocument().FocusedElement());
 
-  if (action.IsEmpty())
+  if (action.empty())
     return ui::TextInputAction::kDefault;
   if (action == keywords::kEnter)
     return ui::TextInputAction::kEnter;
@@ -1705,7 +1744,7 @@ ui::TextInputAction InputMethodController::InputActionOfFocusedElement() const {
 WebTextInputMode InputMethodController::InputModeOfFocusedElement() const {
   AtomicString mode = GetInputModeAttribute(GetDocument().FocusedElement());
 
-  if (mode.IsEmpty())
+  if (mode.empty())
     return kWebTextInputModeDefault;
   if (mode == keywords::kNone)
     return kWebTextInputModeNone;
@@ -1811,7 +1850,7 @@ WebTextInputType InputMethodController::TextInputType() const {
   }
 
   GetDocument().UpdateStyleAndLayoutTree();
-  if (HasEditableStyle(*element))
+  if (IsEditable(*element))
     return kWebTextInputTypeContentEditable;
 
   return kWebTextInputTypeNone;

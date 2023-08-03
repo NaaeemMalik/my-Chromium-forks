@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,23 +52,7 @@ absl::optional<SingleProcStat> GetSingleProcStat(
 absl::optional<int64_t> GetCpuTimeJiffies(
     const base::FilePath& stat_file = base::FilePath("/proc/stat"));
 
-// Returns the total system memory used at the moment in kBs by reading
-// /proc/meminfo file.
-// The input |meminfo_file| is used for testing.
-absl::optional<int64_t> GetUsedMemTotalKB(
-    const base::FilePath& meminfo_file = base::FilePath("/proc/meminfo"));
-
 }  // namespace system
 }  // namespace ash
-
-// TODO(https://crbug.com/1164001): remove when Chrome OS code migration is
-// done.
-namespace chromeos {
-namespace system {
-using ::ash::system::GetCpuTimeJiffies;
-using ::ash::system::GetSingleProcStat;
-using ::ash::system::SingleProcStat;
-}  // namespace system
-}  // namespace chromeos
 
 #endif  // CHROME_BROWSER_ASH_SYSTEM_PROCFS_UTIL_H_

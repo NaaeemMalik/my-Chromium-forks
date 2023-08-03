@@ -1,14 +1,14 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ASH_POLICY_HANDLERS_SYSTEM_PROXY_HANDLER_H_
 #define CHROME_BROWSER_ASH_POLICY_HANDLERS_SYSTEM_PROXY_HANDLER_H_
 
-#include "base/memory/weak_ptr.h"
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/settings/cros_settings.h"
 
-namespace chromeos {
+namespace ash {
 class SystemProxyManager;
 }
 
@@ -19,7 +19,7 @@ namespace policy {
 // proxy credentials for system services connecting through System-proxy.
 class SystemProxyHandler {
  public:
-  explicit SystemProxyHandler(chromeos::CrosSettings* cros_settings);
+  explicit SystemProxyHandler(ash::CrosSettings* cros_settings);
 
   SystemProxyHandler(const SystemProxyHandler&) = delete;
   SystemProxyHandler& operator=(const SystemProxyHandler&) = delete;
@@ -27,16 +27,17 @@ class SystemProxyHandler {
   ~SystemProxyHandler();
 
   void SetSystemProxyManagerForTesting(
-      chromeos::SystemProxyManager* system_proxy_manager);
+      ash::SystemProxyManager* system_proxy_manager);
 
  private:
   void OnSystemProxySettingsPolicyChanged();
 
-  chromeos::SystemProxyManager* GetSystemProxyManager();
+  ash::SystemProxyManager* GetSystemProxyManager();
 
   // Owned by the test fixture.
-  chromeos::SystemProxyManager* system_proxy_manager_for_testing_ = nullptr;
-  chromeos::CrosSettings* cros_settings_;
+  raw_ptr<ash::SystemProxyManager, ExperimentalAsh>
+      system_proxy_manager_for_testing_ = nullptr;
+  raw_ptr<ash::CrosSettings, ExperimentalAsh> cros_settings_;
   base::CallbackListSubscription system_proxy_subscription_;
 };
 

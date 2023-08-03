@@ -91,8 +91,9 @@ class CORE_EXPORT FillLayer {
   const FillLayer* Next() const { return next_; }
   FillLayer* Next() { return next_; }
   FillLayer* EnsureNext() {
-    if (!next_)
+    if (!next_) {
       next_ = new FillLayer(GetType());
+    }
     return next_;
   }
 
@@ -206,8 +207,6 @@ class CORE_EXPORT FillLayer {
 
   bool VisuallyEqual(const FillLayer&) const;
 
-  bool ImagesAreLoaded() const;
-
   bool ImageOccludesNextLayers(const Document&, const ComputedStyle&) const;
   bool HasRepeatXY() const;
   bool ClipOccludesNextLayers() const;
@@ -251,6 +250,10 @@ class CORE_EXPORT FillLayer {
   bool AnyLayerHasDefaultAttachmentImage() const {
     ComputeCachedPropertiesIfNeeded();
     return any_layer_has_default_attachment_image_;
+  }
+  bool AnyLayerUsesCurrentColor() const {
+    ComputeCachedPropertiesIfNeeded();
+    return any_layer_uses_current_color_;
   }
 
   static EFillAttachment InitialFillAttachment(EFillLayerType) {
@@ -298,8 +301,9 @@ class CORE_EXPORT FillLayer {
   bool LayerPropertiesEqual(const FillLayer&) const;
 
   void ComputeCachedPropertiesIfNeeded() const {
-    if (!cached_properties_computed_)
+    if (!cached_properties_computed_) {
       ComputeCachedProperties();
+    }
   }
   void ComputeCachedProperties() const;
 
@@ -352,6 +356,9 @@ class CORE_EXPORT FillLayer {
   mutable unsigned any_layer_has_fixed_attachment_image_ : 1;
   // True if any of this or subsequent layers has default attachment image.
   mutable unsigned any_layer_has_default_attachment_image_ : 1;
+  // True if any of this or subsequent layers depends on the value of
+  // currentColor.
+  mutable unsigned any_layer_uses_current_color_ : 1;
   // Set once any of the above is accessed. The layers will be frozen
   // thereafter.
   mutable unsigned cached_properties_computed_ : 1;

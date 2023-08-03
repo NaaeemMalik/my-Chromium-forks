@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/policy/affiliation/affiliation_test_helper.h"
 #include "chrome/browser/ash/policy/core/device_policy_cros_browser_test.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
@@ -19,9 +20,9 @@ namespace policy {
 // Mixin to set up device and user affiliation ids. By default, device and user
 // affiliation ids will be identical, and the user will be affiliated.
 // `set_affiliated(false)` can be used to change this behavior.
-// This mixin relies on an available `chromeos::FakeSessionManagerClient` during
+// This mixin relies on an available `ash::FakeSessionManagerClient` during
 // `SetUpInProcessBrowserTestFixture()`. Users of this mixin can run
-// `chromeos::SessionManagerClient::InitializeFakeInMemory();` to ensure this is
+// `ash::SessionManagerClient::InitializeFakeInMemory();` to ensure this is
 // the case.
 class AffiliationMixin final : public InProcessBrowserTestMixin {
  public:
@@ -57,7 +58,8 @@ class AffiliationMixin final : public InProcessBrowserTestMixin {
  private:
   AffiliationTestHelper GetAffiliationTestHelper() const;
 
-  DevicePolicyCrosTestHelper* const policy_test_helper_;
+  const raw_ptr<DevicePolicyCrosTestHelper, ExperimentalAsh>
+      policy_test_helper_;
   bool affiliated_ = true;
   bool is_for_active_directory_ = false;
   AccountId account_id_;

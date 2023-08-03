@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors. All rights reserved.
+# Copyright 2014 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -73,6 +73,7 @@ static_library("libphonenumber_without_metadata") {
   public_deps = [ ":proto" ]
   deps = [
     ":proto",
+    "//third_party/abseil-cpp:absl",
     "//third_party/icu",
     "//third_party/protobuf:protobuf_lite",
   ]
@@ -129,4 +130,8 @@ fuzzer_test("libphonenumber_fuzzer") {
 fuzzer_test("charntorune_fuzzer") {
   sources = [ "charntorune_fuzzer.cc" ]
   deps = [ ":libphonenumber" ]
+<<<<<<< HEAD
+=======
+  libfuzzer_options = [ "max_len = 4096" ]
+>>>>>>> gtx-new
 }

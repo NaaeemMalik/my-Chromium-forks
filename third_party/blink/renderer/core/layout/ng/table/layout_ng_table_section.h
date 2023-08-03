@@ -1,32 +1,39 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_LAYOUT_NG_TABLE_SECTION_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_TABLE_LAYOUT_NG_TABLE_SECTION_H_
 
+#include "base/notreached.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/ng/layout_ng_block.h"
-#include "third_party/blink/renderer/core/layout/ng/table/layout_ng_table_section_interface.h"
 
 namespace blink {
 
 class LayoutNGTable;
+class LayoutNGTableRow;
 
 // NOTE:
 // Every child of LayoutNGTableSection must be LayoutNGTableRow.
-class CORE_EXPORT LayoutNGTableSection : public LayoutNGBlock,
-                                         public LayoutNGTableSectionInterface {
+class CORE_EXPORT LayoutNGTableSection : public LayoutNGBlock {
  public:
   explicit LayoutNGTableSection(Element*);
 
+  static LayoutNGTableSection* CreateAnonymousWithParent(const LayoutObject&);
+
   bool IsEmpty() const;
 
+  LayoutNGTableRow* FirstRow() const;
+  LayoutNGTableRow* LastRow() const;
   LayoutNGTable* Table() const;
 
   // LayoutBlock methods start.
 
-  void UpdateBlockLayout(bool relayout_children) override { NOTREACHED(); }
+  void UpdateBlockLayout(bool relayout_children) override {
+    NOT_DESTROYED();
+    NOTREACHED();
+  }
 
   const char* GetName() const override {
     NOT_DESTROYED();
@@ -46,7 +53,7 @@ class CORE_EXPORT LayoutNGTableSection : public LayoutNGBlock,
   LayoutBox* CreateAnonymousBoxWithSameTypeAs(
       const LayoutObject* parent) const override;
 
-  bool AllowsNonVisibleOverflow() const override {
+  bool RespectsCSSOverflow() const override {
     NOT_DESTROYED();
     return false;
   }
@@ -54,7 +61,6 @@ class CORE_EXPORT LayoutNGTableSection : public LayoutNGBlock,
   // Whether a section has opaque background depends on many factors, e.g.
   // border spacing, border collapsing, missing cells, etc. For simplicity,
   // just conservatively assume all table sections are not opaque.
-  // Copied from LayoutTableSection,
   bool ForegroundIsKnownToBeOpaqueInRect(const PhysicalRect&,
                                          unsigned) const override {
     NOT_DESTROYED();
@@ -73,51 +79,13 @@ class CORE_EXPORT LayoutNGTableSection : public LayoutNGBlock,
 
   // LayoutBlock methods end.
 
-  // LayoutNGTableSectionInterface methods start.
+  void SetNeedsCellRecalc();
 
-  const LayoutNGTableSectionInterface* ToLayoutNGTableSectionInterface()
-      const final {
-    NOT_DESTROYED();
-    return this;
-  }
+  unsigned NumRows() const;
 
-  LayoutNGTableSectionInterface* ToLayoutNGTableSectionInterface() {
-    NOT_DESTROYED();
-    return this;
-  }
+  unsigned NumCols(unsigned) const;
 
-  const LayoutObject* ToLayoutObject() const final {
-    NOT_DESTROYED();
-    return this;
-  }
-
-  LayoutNGTableInterface* TableInterface() const final;
-
-  void SetNeedsCellRecalc() final;
-
-  bool IsRepeatingHeaderGroup() const final {
-    NOT_DESTROYED();
-    // Used in printing, not used in LayoutNG
-    return false;
-  }
-
-  bool IsRepeatingFooterGroup() const final {
-    NOT_DESTROYED();
-    // Used in printing, not used in LayoutNG
-    return false;
-  }
-
-  unsigned NumRows() const final;
-
-  unsigned NumCols(unsigned) const final;
-
-  unsigned NumEffectiveColumns() const final;
-
-  LayoutNGTableRowInterface* FirstRowInterface() const final;
-
-  LayoutNGTableRowInterface* LastRowInterface() const final;
-
-  // LayoutNGTableSectionInterface methods end.
+  unsigned NumEffectiveColumns() const;
 
  protected:
   bool IsOfType(LayoutObjectType type) const override {
@@ -131,7 +99,7 @@ class CORE_EXPORT LayoutNGTableSection : public LayoutNGBlock,
 template <>
 struct DowncastTraits<LayoutNGTableSection> {
   static bool AllowFrom(const LayoutObject& object) {
-    return object.IsTableSection() && object.IsLayoutNGObject();
+    return object.IsTableSection();
   }
 };
 

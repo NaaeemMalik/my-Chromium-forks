@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,18 @@
 #define ASH_CAPTURE_MODE_CAPTURE_MODE_TYPES_H_
 
 namespace ash {
+
+// Specifies the camera preview snap position, it can be one of the four corners
+// of the surface being recorded. Note that these values are persisted to
+// histograms so existing values should remain unchanged and new values should
+// be added to the end.
+enum class CameraPreviewSnapPosition {
+  kTopLeft = 0,
+  kBottomLeft,
+  kBottomRight,
+  kTopRight,
+  kMaxValue = kTopRight,
+};
 
 // Defines the capture type Capture Mode is currently using.
 enum class CaptureModeType {
@@ -24,8 +36,6 @@ enum class CaptureModeSource {
 enum class CaptureAllowance {
   // Capture mode is allowed.
   kAllowed,
-  // Capture mode is blocked due to admin-enforced Data Leak Prevention policy.
-  kDisallowedByDlp,
   // Capture mode is blocked due to admin-enforced device policy.
   kDisallowedByPolicy,
   // Video recording is blocked due to app- or content- enforced content
@@ -54,6 +64,23 @@ enum class FineTunePosition {
   kBottomLeft,
   kLeftCenter,
 };
+
+// Defines the supported recording formats.
+enum class RecordingType {
+  kWebM,
+  kGif,
+};
+
+// Specifies the capture mode behavior types.
+enum class BehaviorType {
+  kDefault,
+  kProjector,
+};
+
+// Converts the enum class `RecordingType` to its integer value.
+constexpr int ToInt(RecordingType type) {
+  return static_cast<int>(type);
+}
 
 }  // namespace ash
 

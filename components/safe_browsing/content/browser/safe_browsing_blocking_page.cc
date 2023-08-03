@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,6 +15,7 @@
 #include "components/safe_browsing/content/browser/safe_browsing_navigation_observer_manager.h"
 #include "components/safe_browsing/content/browser/threat_details.h"
 #include "components/safe_browsing/content/browser/triggers/trigger_manager.h"
+#include "components/safe_browsing/content/browser/web_contents_key.h"
 #include "components/safe_browsing/core/browser/safe_browsing_metrics_collector.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
@@ -36,29 +37,6 @@ using security_interstitials::BaseSafeBrowsingErrorUI;
 using security_interstitials::SecurityInterstitialControllerClient;
 
 namespace safe_browsing {
-
-namespace {
-
-SafeBrowsingMetricsCollector::EventType GetEventTypeFromThreatSource(
-    ThreatSource threat_source) {
-  switch (threat_source) {
-    case ThreatSource::LOCAL_PVER4:
-    case ThreatSource::REMOTE:
-      return SafeBrowsingMetricsCollector::EventType::
-          DATABASE_INTERSTITIAL_BYPASS;
-    case ThreatSource::CLIENT_SIDE_DETECTION:
-      return SafeBrowsingMetricsCollector::EventType::CSD_INTERSTITIAL_BYPASS;
-    case ThreatSource::REAL_TIME_CHECK:
-      return SafeBrowsingMetricsCollector::EventType::
-          REAL_TIME_INTERSTITIAL_BYPASS;
-    default:
-      NOTREACHED() << "Unexpected threat source.";
-      return SafeBrowsingMetricsCollector::EventType::
-          DATABASE_INTERSTITIAL_BYPASS;
-  }
-}
-
-}  // namespace
 
 // static
 const security_interstitials::SecurityInterstitialPage::TypeID
@@ -147,8 +125,7 @@ void SafeBrowsingBlockingPage::OnInterstitialClosing() {
     OnDontProceedDone();
   } else {
     if (metrics_collector_) {
-      metrics_collector_->AddSafeBrowsingEventToPref(
-          GetEventTypeFromThreatSource(threat_source_));
+      metrics_collector_->AddBypassEventToPref(threat_source_);
     }
   }
   BaseBlockingPage::OnInterstitialClosing();
@@ -167,8 +144,9 @@ void SafeBrowsingBlockingPage::FinishThreatDetails(const base::TimeDelta& delay,
   // Finish computing threat details. TriggerManager will decide if its safe to
   // send the report.
   bool report_sent = trigger_manager_->FinishCollectingThreatDetails(
-      TriggerType::SECURITY_INTERSTITIAL, web_contents(), delay, did_proceed,
-      num_visits, sb_error_ui()->get_error_display_options());
+      TriggerType::SECURITY_INTERSTITIAL, GetWebContentsKey(web_contents()),
+      delay, did_proceed, num_visits,
+      sb_error_ui()->get_error_display_options());
 
   if (report_sent) {
     controller()->metrics_helper()->RecordUserInteraction(

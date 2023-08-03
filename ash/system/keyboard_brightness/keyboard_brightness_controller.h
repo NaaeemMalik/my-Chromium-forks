@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,19 +15,20 @@ namespace ash {
 class ASH_EXPORT KeyboardBrightnessController
     : public KeyboardBrightnessControlDelegate {
  public:
-  KeyboardBrightnessController();
+  KeyboardBrightnessController() = default;
 
+  // Disallow copy and move.
   KeyboardBrightnessController(const KeyboardBrightnessController&) = delete;
   KeyboardBrightnessController& operator=(const KeyboardBrightnessController&) =
       delete;
 
-  ~KeyboardBrightnessController() override;
+  ~KeyboardBrightnessController() override = default;
 
  private:
   // Overridden from KeyboardBrightnessControlDelegate:
-  void HandleKeyboardBrightnessDown(
-      const ui::Accelerator& accelerator) override;
-  void HandleKeyboardBrightnessUp(const ui::Accelerator& accelerator) override;
+  void HandleKeyboardBrightnessDown() override;
+  void HandleKeyboardBrightnessUp() override;
+  void HandleToggleKeyboardBacklight() override;
 };
 
 }  // namespace ash

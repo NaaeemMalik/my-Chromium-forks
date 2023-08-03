@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/tab_switcher/tab_strip/tab_strip_coordinator.h"
 
-#include "base/check_op.h"
+#import "base/check_op.h"
 #import "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/main/browser.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_strip/tab_strip_mediator.h"
@@ -51,7 +51,6 @@
       [[TabStripMediator alloc] initWithConsumer:self.tabStripViewController];
   self.mediator.webStateList = self.browser->GetWebStateList();
 
-  self.tabStripViewController.faviconDataSource = self.mediator;
   self.tabStripViewController.delegate = self.mediator;
 }
 
@@ -65,10 +64,6 @@
 
 - (UIViewController*)viewController {
   return self.tabStripViewController;
-}
-
-- (void)setLongPressDelegate:(id<PopupMenuLongPressDelegate>)longPressDelegate {
-  _longPressDelegate = longPressDelegate;
 }
 
 - (UIView<TabStripContaining>*)view {

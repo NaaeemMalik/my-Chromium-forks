@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/system/sys_info.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/default_clock.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/process_memory_dump.h"
@@ -53,7 +54,7 @@ namespace {
 //
 // Sync writes are necessary on Windows for quota calculations; POSIX
 // calculates file sizes correctly even when not synced to disk.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 const bool kSyncWrites = true;
 #else
 // TODO(dgrogan): Either remove the #if block or change this back to false.
@@ -67,7 +68,7 @@ LevelDBSnapshot::LevelDBSnapshot(TransactionalLevelDBDatabase* db)
     : db_(db->db()), snapshot_(db_->GetSnapshot()) {}
 
 LevelDBSnapshot::~LevelDBSnapshot() {
-  db_->ReleaseSnapshot(snapshot_);
+  db_->ReleaseSnapshot(snapshot_.ExtractAsDangling());
 }
 
 // static

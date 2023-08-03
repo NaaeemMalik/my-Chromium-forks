@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,6 @@ class SyncPrefObserver {
  public:
   virtual void OnSyncManagedPrefChange(bool is_sync_managed) = 0;
   virtual void OnFirstSetupCompletePrefChange(bool is_first_setup_complete) = 0;
-  virtual void OnSyncRequestedPrefChange(bool is_sync_requested) = 0;
   virtual void OnPreferredDataTypesPrefChange() = 0;
 
  protected:
@@ -60,14 +59,26 @@ class SyncPrefs {
   void SetFirstSetupComplete();
   void ClearFirstSetupComplete();
 
+  // Whether the user wants Sync to run. This is false by default, but gets set
+  // to true early in the Sync setup flow, after the user has pressed "turn on
+  // Sync" but before they have actually confirmed the settings (that's
+  // IsFirstSetupComplete()). After Sync is enabled, this can get set to false
+  // via signout (which also clears IsFirstSetupComplete) or, on ChromeOS Ash,
+  // when Sync gets reset from the dashboard.
   bool IsSyncRequested() const;
   void SetSyncRequested(bool is_requested);
-  void SetSyncRequestedIfNotSetExplicitly();
+  bool IsSyncRequestedSetExplicitly() const;
 
+  // Whether the "Sync everything" toggle is enabled. Note that even if this is
+  // true, some types may be disabled e.g. due to enterprise policy.
   bool HasKeepEverythingSynced() const;
 
-  // Returns UserSelectableTypeSet::All() if HasKeepEverythingSynced() is true.
+  // Returns UserSelectableTypeSet::All() if HasKeepEverythingSynced() is true
+  // (except if some types are force-disabled by policy).
   UserSelectableTypeSet GetSelectedTypes() const;
+
+  // Returns whether `type` is "managed" i.e. controlled by enterprise policy.
+  bool IsTypeManagedByPolicy(UserSelectableType type) const;
 
   // Sets the selection state for all |registered_types| and "keep everything
   // synced" flag.
@@ -87,39 +98,26 @@ class SyncPrefs {
   // including a separate "Sync All" toggle for OS types.
   bool IsSyncAllOsTypesEnabled() const;
   UserSelectableOsTypeSet GetSelectedOsTypes() const;
+  bool IsOsTypeManagedByPolicy(UserSelectableOsType type) const;
   void SetSelectedOsTypes(bool sync_all_os_types,
                           UserSelectableOsTypeSet registered_types,
                           UserSelectableOsTypeSet selected_types);
-  bool IsOsSyncFeatureEnabled() const;
-  void SetOsSyncFeatureEnabled(bool enabled);
 
   // Maps |type| to its corresponding preference name. Returns nullptr if |type|
   // isn't an OS type.
   static const char* GetPrefNameForOsType(UserSelectableOsType type);
 #endif
 
-  // Whether Sync is forced off by enterprise policy. Note that this only covers
-  // one out of two types of policy, "browser" policy. The second kind, "cloud"
-  // policy, is handled directly in SyncServiceImpl.
-  bool IsManaged() const;
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+  bool IsAppsSyncEnabledByOs() const;
+  void SetAppsSyncEnabledByOs(bool apps_sync_enabled);
+#endif
+
+  // Whether Sync is disabled on the client for all profiles and accounts.
+  bool IsSyncClientDisabledByPolicy() const;
 
   // Maps |type| to its corresponding preference name.
   static const char* GetPrefNameForType(UserSelectableType type);
-
-#if defined(OS_ANDROID)
-  // Sets a boolean pref representing that Sync should no longer respect whether
-  // Android master sync is enabled/disabled. It is set per-device and never
-  // gets cleared.
-  void SetDecoupledFromAndroidMasterSync();
-
-  // Gets the value for the boolean pref representing whether Sync should no
-  // longer respect if Android master sync is enabled/disabled. Returns false
-  // until |SetDecoupledFromAndroidMasterSync()| is called.
-  bool GetDecoupledFromAndroidMasterSync();
-#endif  // defined(OS_ANDROID)
-
-  // For testing.
-  void SetManagedForTest(bool is_managed);
 
   // Gets the local sync backend enabled state.
   bool IsLocalSyncEnabled() const;
@@ -141,7 +139,6 @@ class SyncPrefs {
 
   void OnSyncManagedPrefChanged();
   void OnFirstSetupCompletePrefChange();
-  void OnSyncRequestedPrefChange();
 
   // Never null.
   const raw_ptr<PrefService> pref_service_;
@@ -154,15 +151,14 @@ class SyncPrefs {
 
   BooleanPrefMember pref_first_setup_complete_;
 
-  BooleanPrefMember pref_sync_requested_;
-
   bool local_sync_enabled_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 };
 
-void ClearObsoletePassphrasePromptPrefs(PrefService* pref_service);
-void MigrateSyncSuppressedPref(PrefService* pref_service);
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+void MigrateSyncRequestedPrefPostMice(PrefService* pref_service);
+#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
 
 }  // namespace syncer
 

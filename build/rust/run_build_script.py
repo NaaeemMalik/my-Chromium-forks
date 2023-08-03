@@ -1,6 +1,6 @@
 #!/usr/bin/env vpython3
 
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -24,21 +24,21 @@
 # That's it. We don't even support the other standard cargo:rustc-
 # output messages.
 
-import os
-import sys
-
-# Set up path to be able to import build_utils
-sys.path.append(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir,
-                 os.pardir, 'build', 'android', 'gyp'))
-from util import build_utils
-
 import argparse
 import io
-import subprocess
-import re
+import os
 import platform
+import re
+import subprocess
+import sys
 import tempfile
+
+# Set up path to be able to import action_helpers
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir,
+                 os.pardir, 'build'))
+import action_helpers
+
 
 RUSTC_VERSION_LINE = re.compile(r"(\w+): (.*)")
 
@@ -75,6 +75,7 @@ def main():
                       help='where to write output rustc flags')
   parser.add_argument('--target', help='rust target triple')
   parser.add_argument('--features', help='features', nargs='+')
+  parser.add_argument('--env', help='environment variable', nargs='+')
   parser.add_argument('--rust-prefix', required=True, help='rust path prefix')
   parser.add_argument('--generated-files', nargs='+', help='any generated file')
   parser.add_argument('--out-dir', required=True, help='target out dir')
@@ -104,10 +105,21 @@ def main():
       env["TARGET"] = env["HOST"]
     else:
       env["TARGET"] = args.target
+    target_components = env["TARGET"].split("-")
+    env["CARGO_CFG_TARGET_ARCH"] = target_components[0]
     if args.features:
       for f in args.features:
         feature_name = f.upper().replace("-", "_")
         env["CARGO_FEATURE_%s" % feature_name] = "1"
+    if args.env:
+      for e in args.env:
+        (k, v) = e.split("=")
+        env[k] = v
+    # Pass through a couple which are useful for diagnostics
+    if os.environ.get("RUST_BACKTRACE"):
+      env["RUST_BACKTRACE"] = os.environ.get("RUST_BACKTRACE")
+    if os.environ.get("RUST_LOG"):
+      env["RUST_LOG"] = os.environ.get("RUST_LOG")
 
     # In the future we should, set all the variables listed here:
     # https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-build-scripts
@@ -130,7 +142,7 @@ def main():
 
     # AtomicOutput will ensure we only write to the file on disk if what we
     # give to write() is different than what's currently on disk.
-    with build_utils.AtomicOutput(args.output) as output:
+    with action_helpers.atomic_output(args.output) as output:
       output.write(flags.encode("utf-8"))
 
     # Copy any generated code out of the temporary directory,
@@ -143,7 +155,7 @@ def main():
         if not os.path.exists(out_dir):
           os.makedirs(out_dir)
         with open(in_path, 'rb') as input:
-          with build_utils.AtomicOutput(out_path) as output:
+          with action_helpers.atomic_output(out_path) as output:
             content = input.read()
             output.write(content)
 

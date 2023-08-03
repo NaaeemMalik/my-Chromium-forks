@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "net/http/http_auth_filter.h"
-#include "url/gurl.h"
+#include "url/scheme_host_port.h"
 
 // The Windows implementation of URLSecurityManager uses WinINet/IE's
 // URL security zone manager.  See the MSDN page "URL Security Zones" at
@@ -37,7 +37,8 @@ class URLSecurityManagerWin : public URLSecurityManagerAllowlist {
   ~URLSecurityManagerWin() override;
 
   // URLSecurityManager methods:
-  bool CanUseDefaultCredentials(const GURL& auth_origin) const override;
+  bool CanUseDefaultCredentials(
+      const url::SchemeHostPort& auth_scheme_host_port) const override;
 
  private:
   bool EnsureSystemSecurityManager();
@@ -45,17 +46,18 @@ class URLSecurityManagerWin : public URLSecurityManagerAllowlist {
   Microsoft::WRL::ComPtr<IInternetSecurityManager> security_manager_;
 };
 
-URLSecurityManagerWin::URLSecurityManagerWin() {}
-URLSecurityManagerWin::~URLSecurityManagerWin() {}
+URLSecurityManagerWin::URLSecurityManagerWin() = default;
+URLSecurityManagerWin::~URLSecurityManagerWin() = default;
 
 bool URLSecurityManagerWin::CanUseDefaultCredentials(
-    const GURL& auth_origin) const {
+    const url::SchemeHostPort& auth_scheme_host_port) const {
   if (HasDefaultAllowlist())
-    return URLSecurityManagerAllowlist::CanUseDefaultCredentials(auth_origin);
+    return URLSecurityManagerAllowlist::CanUseDefaultCredentials(
+        auth_scheme_host_port);
   if (!const_cast<URLSecurityManagerWin*>(this)->EnsureSystemSecurityManager())
     return false;
 
-  std::u16string url16 = base::ASCIIToUTF16(auth_origin.spec());
+  std::u16string url16 = base::ASCIIToUTF16(auth_scheme_host_port.Serialize());
   DWORD policy = 0;
   HRESULT hr;
   hr = security_manager_->ProcessUrlAction(

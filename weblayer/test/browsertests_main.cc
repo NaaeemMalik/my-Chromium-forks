@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,10 @@
 #include "content/public/test/network_service_test_helper.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "weblayer/test/test_launcher_delegate_impl.h"
-#include "weblayer/utility/content_utility_client_impl.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/win_util.h"
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 int main(int argc, char** argv) {
   base::CommandLine::Init(argc, argv);
@@ -21,29 +20,18 @@ int main(int argc, char** argv) {
   if (parallel_jobs == 0U)
     return 1;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Load and pin user32.dll to avoid having to load it once tests start while
   // on the main thread loop where blocking calls are disallowed.
   base::win::PinUser32();
-#endif  // OS_WIN
+#endif  // BUILDFLAG(IS_WIN)
 
   // Set up a working test environment for the network service in case it's
   // used. Only create this object in the utility process, so that its members
   // don't interfere with other test objects in the browser process.
   std::unique_ptr<content::NetworkServiceTestHelper>
-      network_service_test_helper;
-  if (base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-          switches::kProcessType) == switches::kUtilityProcess) {
-    network_service_test_helper =
-        std::make_unique<content::NetworkServiceTestHelper>();
-    weblayer::ContentUtilityClientImpl::
-        SetNetworkBinderCreationCallbackForTests(base::BindRepeating(
-            [](content::NetworkServiceTestHelper* helper,
-               service_manager::BinderRegistry* registry) {
-              helper->RegisterNetworkBinders(registry);
-            },
-            network_service_test_helper.get()));
-  }
+      network_service_test_helper = content::NetworkServiceTestHelper::Create();
+
   weblayer::TestLauncherDelegateImpl launcher_delegate;
   return content::LaunchTests(&launcher_delegate, parallel_jobs, argc, argv);
 }

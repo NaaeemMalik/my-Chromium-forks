@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_error.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_status.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -31,6 +30,7 @@ class CORE_EXPORT ImageResourceInfo : public GarbageCollectedMixin {
   ~ImageResourceInfo() = default;
   virtual const KURL& Url() const = 0;
   virtual base::TimeTicks LoadResponseEnd() const = 0;
+  virtual base::TimeTicks LoadStart() const = 0;
   virtual const ResourceResponse& GetResponse() const = 0;
   virtual bool IsCacheValidator() const = 0;
   enum DoesCurrentFrameHaveSingleSecurityOrigin {
@@ -60,6 +60,8 @@ class CORE_EXPORT ImageResourceInfo : public GarbageCollectedMixin {
   virtual bool IsAdResource() const = 0;
 
   virtual const HashSet<String>* GetUnsupportedImageMimeTypes() const = 0;
+
+  virtual absl::optional<WebURLRequest::Priority> RequestPriority() const = 0;
 
   void Trace(Visitor* visitor) const override {}
 };

@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -148,7 +148,8 @@ void SpellCheckHostMetrics::RecordSpellingServiceStats(bool enabled) {
   base::UmaHistogramBoolean("SpellCheck.SpellingService.Enabled", enabled);
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
+// static
 void SpellCheckHostMetrics::RecordAcceptLanguageStats(
     const LocalesSupportInfo& locales_info) {
   base::UmaHistogramExactLinear(
@@ -170,6 +171,7 @@ void SpellCheckHostMetrics::RecordAcceptLanguageStats(
       base::saturated_cast<int>(locales_info.unsupported_locales), 20);
 }
 
+// static
 void SpellCheckHostMetrics::RecordSpellcheckLanguageStats(
     const LocalesSupportInfo& locales_info) {
   base::UmaHistogramExactLinear(
@@ -187,4 +189,4 @@ void SpellCheckHostMetrics::RecordSpellcheckLanguageStats(
       base::saturated_cast<int>(locales_info.locales_supported_by_native_only),
       20);
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,7 +44,6 @@ class MockExtensionSystem : public ExtensionSystem {
   StateStore* rules_store() override;
   StateStore* dynamic_user_scripts_store() override;
   scoped_refptr<value_store::ValueStoreFactory> store_factory() override;
-  InfoMap* info_map() override;
   QuotaService* quota_service() override;
   AppSorting* app_sorting() override;
   const base::OneShotEvent& ready() const override;

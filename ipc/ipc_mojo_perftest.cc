@@ -1,22 +1,25 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
-#include <memory>
 
-#include "base/bind.h"
-#include "base/ignore_result.h"
+#include <memory>
+#include <tuple>
+
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/process/process_metrics.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/perf_time_logger.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "ipc/ipc_channel_mojo.h"
 #include "ipc/ipc_perftest_messages.h"
@@ -197,7 +200,8 @@ class MojoChannelPerfTest : public IPCChannelMojoTestBase {
     PerformanceChannelListener listener("ChannelProxy");
     auto channel_proxy = IPC::ChannelProxy::Create(
         TakeHandle().release(), IPC::Channel::MODE_SERVER, &listener,
-        GetIOThreadTaskRunner(), base::ThreadTaskRunnerHandle::Get());
+        GetIOThreadTaskRunner(),
+        base::SingleThreadTaskRunner::GetCurrentDefault());
     listener.Init(channel_proxy.get());
 
     LockThreadAffinity thread_locker(kSharedCore);
@@ -230,7 +234,8 @@ class MojoChannelPerfTest : public IPCChannelMojoTestBase {
         base::WaitableEvent::InitialState::NOT_SIGNALED);
     auto channel_proxy = IPC::SyncChannel::Create(
         TakeHandle().release(), IPC::Channel::MODE_SERVER, &listener,
-        GetIOThreadTaskRunner(), base::ThreadTaskRunnerHandle::Get(), false,
+        GetIOThreadTaskRunner(),
+        base::SingleThreadTaskRunner::GetCurrentDefault(), false,
         &shutdown_event);
     listener.Init(channel_proxy.get());
 
@@ -311,7 +316,7 @@ class MojoInterfacePerfTest : public mojo::core::test::MojoTestBase {
 
     ping_receiver_->Quit();
 
-    ignore_result(ping_receiver_.Unbind().PassPipe().release());
+    std::ignore = ping_receiver_.Unbind().PassPipe().release();
   }
 
   void OnPong(const std::string& value) {
@@ -383,7 +388,7 @@ class InterfacePassingTestDriverImpl : public mojom::InterfacePassingTestDriver,
                       std::move(handle))),
         quit_closure_(std::move(quit_closure)) {}
   ~InterfacePassingTestDriverImpl() override {
-    ignore_result(receiver_.Unbind().PassPipe().release());
+    std::ignore = receiver_.Unbind().PassPipe().release();
   }
 
  private:
@@ -462,7 +467,7 @@ class MojoInterfacePassingPerfTest : public mojo::core::test::MojoTestBase {
 
     driver_remote_->Quit();
 
-    ignore_result(driver_remote_.Unbind().PassPipe().release());
+    std::ignore = driver_remote_.Unbind().PassPipe().release();
   }
 
   void OnInitCallback() {
@@ -818,7 +823,7 @@ class CallbackPerfTest : public testing::Test {
     std::vector<PingPongTestParams> params = GetDefaultTestParams();
     for (size_t i = 0; i < params.size(); i++) {
       std::string hello("hello");
-      base::ThreadTaskRunnerHandle::Get()->PostTask(
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE, base::BindOnce(&CallbackPerfTest::SingleThreadPingPostTask,
                                     base::Unretained(this), hello));
       message_count_ = count_down_ = params[i].message_count();
@@ -829,7 +834,7 @@ class CallbackPerfTest : public testing::Test {
   }
 
   void SingleThreadPingPostTask(const std::string& value) {
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&CallbackPerfTest::SingleThreadPongPostTask,
                                   base::Unretained(this), value));
   }
@@ -853,7 +858,7 @@ class CallbackPerfTest : public testing::Test {
       }
     }
 
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&CallbackPerfTest::SingleThreadPingPostTask,
                                   base::Unretained(this), payload_));
   }

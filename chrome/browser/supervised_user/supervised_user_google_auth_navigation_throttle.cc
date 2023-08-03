@@ -1,10 +1,10 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/supervised_user/supervised_user_google_auth_navigation_throttle.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "build/build_config.h"
@@ -19,7 +19,7 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/supervised_user/child_accounts/child_account_service_android.h"
 #endif
 
@@ -42,7 +42,7 @@ SupervisedUserGoogleAuthNavigationThrottle::
         content::NavigationHandle* navigation_handle)
     : content::NavigationThrottle(navigation_handle),
       child_account_service_(ChildAccountServiceFactory::GetForProfile(profile))
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
       ,
       has_shown_reauth_(false)
 #endif
@@ -134,7 +134,7 @@ SupervisedUserGoogleAuthNavigationThrottle::ShouldProceed() {
   // account reconciliation). Nothing to do here except block the navigation
   // while re-minting is underway.
   return content::NavigationThrottle::DEFER;
-#elif defined(OS_ANDROID)
+#elif BUILDFLAG(IS_ANDROID)
   if (!has_shown_reauth_) {
     has_shown_reauth_ = true;
 
@@ -150,23 +150,34 @@ SupervisedUserGoogleAuthNavigationThrottle::ShouldProceed() {
       return content::NavigationThrottle::DEFER;
     }
 
-    ReauthenticateChildAccount(
-        web_contents, account_info.email,
-        base::BindRepeating(&SupervisedUserGoogleAuthNavigationThrottle::
-                                OnReauthenticationFailed,
-                            weak_ptr_factory_.GetWeakPtr()));
+    if (skip_jni_call_for_testing_) {
+      // Returns callback without JNI call for testing. Resets
+      // has_shown_reauth_.
+      base::BindRepeating(
+          &SupervisedUserGoogleAuthNavigationThrottle::OnReauthenticationFailed,
+          weak_ptr_factory_.GetWeakPtr())
+          .Run();
+    } else {
+      ReauthenticateChildAccount(
+          web_contents, account_info.email,
+          base::BindRepeating(&SupervisedUserGoogleAuthNavigationThrottle::
+                                  OnReauthenticationFailed,
+                              weak_ptr_factory_.GetWeakPtr()));
+    }
   }
   return content::NavigationThrottle::DEFER;
 #else
-  NOTREACHED();
-
-  // This should never happen but needs to be included to avoid compilation
-  // error on debug builds.
-  return content::NavigationThrottle::CANCEL_AND_IGNORE;
+  // On other platforms we do not currently provide the same guarantees that a
+  // user must be signed in for relevant domains.
+  // Allow the navigation to proceed even in an unauthenticated state.
+  //
+  // TODO(b/274402198): if we implement similar guarantees on Linux/Mac/Windows,
+  // trigger re-auth and defer navigation.
+  return content::NavigationThrottle::PROCEED;
 #endif
 }
 
 void SupervisedUserGoogleAuthNavigationThrottle::OnReauthenticationFailed() {
-  // Cancel the navifation if reauthentication failed.
+  // Cancel the navigation if reauthentication failed.
   CancelDeferredNavigation(content::NavigationThrottle::CANCEL_AND_IGNORE);
 }

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -80,13 +80,6 @@ ArcTtsService::~ArcTtsService() {
   arc_bridge_service_->tts()->SetHost(nullptr);
 }
 
-void ArcTtsService::OnTtsEventDeprecated(uint32_t id,
-                                         mojom::TtsEventType event_type,
-                                         uint32_t char_index,
-                                         const std::string& error_msg) {
-  OnTtsEvent(id, event_type, char_index, -1 /* length */, error_msg);
-}
-
 void ArcTtsService::OnTtsEvent(uint32_t id,
                                mojom::TtsEventType event_type,
                                uint32_t char_index,
@@ -154,6 +147,11 @@ void ArcTtsService::OnVoicesChanged(std::vector<mojom::TtsVoicePtr> voices) {
   impl->SetVoices(std::move(chrome_voices));
 
   content::TtsController::GetInstance()->VoicesChanged();
+}
+
+// static
+void ArcTtsService::EnsureFactoryBuilt() {
+  ArcTtsServiceFactory::GetInstance();
 }
 
 }  // namespace arc

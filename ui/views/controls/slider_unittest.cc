@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,6 +21,7 @@
 #include "ui/events/gesture_event_details.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/events/test/event_generator.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/test/ax_event_counter.h"
 #include "ui/views/test/slider_test_api.h"
 #include "ui/views/test/views_test_base.h"
@@ -202,7 +203,7 @@ void SliderTest::SetUp() {
       slider->SetAllowedValues(&values_);
       break;
     default:
-      NOTREACHED();
+      NOTREACHED_NORETURN();
   }
   gfx::Size size = slider->GetPreferredSize();
   slider->SetSize(size);
@@ -289,8 +290,22 @@ TEST_P(SliderTest, NukeAllowedValues) {
       slider()->GetValue());
 }
 
+TEST_P(SliderTest, AccessibleRole) {
+  ui::AXNodeData data;
+  slider()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kSlider);
+  EXPECT_EQ(slider()->GetAccessibleRole(), ax::mojom::Role::kSlider);
+
+  slider()->SetAccessibleRole(ax::mojom::Role::kMeter);
+
+  data = ui::AXNodeData();
+  slider()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kMeter);
+  EXPECT_EQ(slider()->GetAccessibleRole(), ax::mojom::Role::kMeter);
+}
+
 // No touch on desktop Mac. Tracked in http://crbug.com/445520.
-#if !defined(OS_MAC) || defined(USE_AURA)
+#if !BUILDFLAG(IS_MAC) || defined(USE_AURA)
 
 // Test the slider location after a tap gesture.
 TEST_P(SliderTest, SliderValueForTapGesture) {
@@ -463,7 +478,7 @@ TEST_P(SliderTest, SliderRaisesA11yEvents) {
   EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
 }
 
-#endif  // !defined(OS_MAC) || defined(USE_AURA)
+#endif  // !BUILDFLAG(IS_MAC) || defined(USE_AURA)
 
 INSTANTIATE_TEST_SUITE_P(All,
                          SliderTest,

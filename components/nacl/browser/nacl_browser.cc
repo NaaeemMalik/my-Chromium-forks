@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,14 +17,13 @@
 #include "base/pickle.h"
 #include "base/rand_util.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "url/gurl.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/windows_version.h"
 #endif
 
@@ -47,7 +46,7 @@ const base::FilePath::StringType NaClIrtName() {
 #if defined(ARCH_CPU_X86_FAMILY)
 #if defined(ARCH_CPU_X86_64)
   bool is64 = true;
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
   bool is64 = base::win::OSInfo::GetInstance()->IsWowX86OnAMD64();
 #else
   bool is64 = false;
@@ -57,7 +56,7 @@ const base::FilePath::StringType NaClIrtName() {
   else
     irt_name.append(FILE_PATH_LITERAL("x86_32"));
 
-#elif defined(ARCH_CPU_ARMEL)
+#elif defined(ARCH_CPU_ARM_FAMILY)
   irt_name.append(FILE_PATH_LITERAL("arm"));
 #elif defined(ARCH_CPU_MIPSEL)
   irt_name.append(FILE_PATH_LITERAL("mips32"));
@@ -68,7 +67,7 @@ const base::FilePath::StringType NaClIrtName() {
   return irt_name;
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 bool CheckEnvVar(const char* name, bool default_value) {
   bool result = default_value;
   const char* var = getenv(name);
@@ -87,8 +86,9 @@ void ReadCache(const base::FilePath& filename, std::string* data) {
 }
 
 void WriteCache(const base::FilePath& filename, const base::Pickle* pickle) {
-  base::WriteFile(filename, static_cast<const char*>(pickle->data()),
-                       pickle->size());
+  base::WriteFile(filename,
+                  base::make_span(static_cast<const uint8_t*>(pickle->data()),
+                                  pickle->size()));
 }
 
 void RemoveCache(const base::FilePath& filename, base::OnceClosure callback) {
@@ -142,10 +142,9 @@ base::File OpenNaClReadExecImpl(const base::FilePath& file_path,
 }
 
 NaClBrowser::NaClBrowser() {
-#if !defined(OS_ANDROID)
-      validation_cache_is_enabled_ =
-          CheckEnvVar("NACL_VALIDATION_CACHE",
-                      kValidationCacheEnabledByDefault);
+#if !BUILDFLAG(IS_ANDROID)
+  validation_cache_is_enabled_ =
+      CheckEnvVar("NACL_VALIDATION_CACHE", kValidationCacheEnabledByDefault);
 #endif
       DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
@@ -207,7 +206,7 @@ void NaClBrowser::InitIrtFilePath() {
   }
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 bool NaClBrowser::GetNaCl64ExePath(base::FilePath* exe_path) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   base::FilePath module_path;
@@ -403,8 +402,8 @@ void NaClBrowser::CheckWaiting() {
     // directly.  For example, this could result in use-after-free of the
     // process host.
     for (auto iter = waiting_.begin(); iter != waiting_.end(); ++iter) {
-      base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
-                                                    std::move(*iter));
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, std::move(*iter));
     }
     waiting_.clear();
   }
@@ -540,7 +539,7 @@ void NaClBrowser::MarkValidationCacheAsModified() {
   if (!validation_cache_is_modified_) {
     // Wait before persisting to disk.  This can coalesce multiple cache
     // modifications info a single disk write.
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&NaClBrowser::PersistValidationCache,
                        base::Unretained(this)),

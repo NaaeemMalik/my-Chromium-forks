@@ -1,4 +1,4 @@
-// Copyright 2017 The Crashpad Authors. All rights reserved.
+// Copyright 2017 The Crashpad Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,7 +59,8 @@ class ExceptionSnapshotLinux final : public ExceptionSnapshot {
   bool Initialize(ProcessReaderLinux* process_reader,
                   LinuxVMAddress siginfo_address,
                   LinuxVMAddress context_address,
-                  pid_t thread_id);
+                  pid_t thread_id,
+                  uint32_t* gather_indirectly_referenced_memory_cap);
 
   // ExceptionSnapshot:
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,34 +7,40 @@
  * 'settings-main' displays the selected settings page.
  */
 import 'gtx://resources/cr_components/managed_footnote/managed_footnote.js';
-import 'gtx://resources/cr_elements/shared_style_css.m.js';
-import 'gtx://resources/cr_elements/hidden_style_css.m.js';
-import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/cr_components/settings_prefs/prefs.js';
+import 'gtx://resources/cr_elements/cr_shared_style.css.js';
+import 'gtx://resources/cr_elements/cr_hidden_style.css.js';
+import 'gtx://resources/cr_elements/icons.html.js';
 import 'gtx://resources/js/search_highlight_utils.js';
 import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import '../about_page/about_page.js';
 import '../basic_page/basic_page.js';
-import '../prefs/prefs.js';
 import '../search_settings.js';
-import '../settings_shared_css.js';
-import '../settings_vars_css.js';
+import '../settings_shared.css.js';
+import '../settings_vars.css.js';
 
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {IronA11yAnnouncer} from 'gtx://resources/polymer/v3_0/iron-a11y-announcer/iron-a11y-announcer.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {getInstance as getAnnouncerInstance} from 'gtx://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {loadTimeData} from '../i18n_setup.js';
 import {PageVisibility} from '../page_visibility.js';
 import {routes} from '../route.js';
-import {Route, RouteObserverMixin, RouteObserverMixinInterface, Router} from '../router.js';
+import {RouteObserverMixin, Router} from '../router.js';
 
-type MainPageVisibility = {
-  about: boolean,
-  settings: boolean,
-};
+import {getTemplate} from './settings_main.html.js';
 
-const SettingsMainElementBase = RouteObserverMixin(PolymerElement) as
-    {new (): PolymerElement & RouteObserverMixinInterface};
+interface MainPageVisibility {
+  about: boolean;
+  settings: boolean;
+}
+
+export interface SettingsMainElement {
+  $: {
+    noSearchResults: HTMLElement,
+  };
+}
+
+const SettingsMainElementBase = RouteObserverMixin(PolymerElement);
 
 export class SettingsMainElement extends SettingsMainElementBase {
   static get is() {
@@ -42,7 +48,7 @@ export class SettingsMainElement extends SettingsMainElementBase {
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -100,6 +106,7 @@ export class SettingsMainElement extends SettingsMainElementBase {
     };
   }
 
+  prefs: {[key: string]: any};
   advancedToggleExpanded: boolean;
   private showPages_: MainPageVisibility;
   private inSearchMode_: boolean;
@@ -112,17 +119,10 @@ export class SettingsMainElement extends SettingsMainElementBase {
    * Updates the hidden state of the about and settings pages based on the
    * current route.
    */
-  currentRouteChanged(newRoute: Route) {
+  override currentRouteChanged() {
     const inAbout =
         routes.ABOUT.contains(Router.getInstance().getCurrentRoute());
     this.showPages_ = {about: inAbout, settings: !inAbout};
-
-    if (!newRoute.isSubpage()) {
-      document.title = inAbout ? loadTimeData.getStringF(
-                                     'settingsAltPageTitle',
-                                     loadTimeData.getString('aboutPageTitle')) :
-                                 loadTimeData.getString('settings');
-    }
   }
 
   private onShowingSubpage_() {
@@ -159,16 +159,10 @@ export class SettingsMainElement extends SettingsMainElementBase {
               this.inSearchMode_ && !result.didFindMatches;
 
           if (this.inSearchMode_) {
-            IronA11yAnnouncer.requestAvailability();
-            this.dispatchEvent(new CustomEvent('iron-announce', {
-              bubbles: true,
-              composed: true,
-              detail: {
-                text: this.showNoResultsFound_ ?
+            getAnnouncerInstance().announce(
+                this.showNoResultsFound_ ?
                     loadTimeData.getString('searchNoResults') :
-                    loadTimeData.getStringF('searchResults', query)
-              }
-            }));
+                    loadTimeData.getStringF('searchResults', query));
           }
         });
       }, 0);
@@ -178,6 +172,12 @@ export class SettingsMainElement extends SettingsMainElementBase {
   private showManagedHeader_(): boolean {
     return !this.inSearchMode_ && !this.showingSubpage_ &&
         !this.showPages_.about;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'settings-main': SettingsMainElement;
   }
 }
 

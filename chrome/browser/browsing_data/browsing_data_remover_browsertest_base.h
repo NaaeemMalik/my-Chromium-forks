@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@ class BrowsingDataRemoverBrowserTestBase : public PlatformBrowserTest {
   BrowsingDataRemoverBrowserTestBase();
   ~BrowsingDataRemoverBrowserTestBase() override;
 
-  void InitFeatureList(std::vector<base::Feature> enabled_features);
+  void InitFeatureList(std::vector<base::test::FeatureRef> enabled_features);
 
   void SetUpOnMainThread() override;
   // If `web_contents` is not specified, `GetActiveWebContents` will be used.
@@ -44,14 +44,14 @@ class BrowsingDataRemoverBrowserTestBase : public PlatformBrowserTest {
   int GetSiteDataCount(content::WebContents* web_contents = nullptr);
 
 // TODO(crbug/1179729): Support incognito browser tests on android.
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   bool IsIncognito() { return false; }
 #else
   Browser* GetBrowser() const;
   void UseIncognitoBrowser();
   void RestartIncognitoBrowser();
   bool IsIncognito() { return incognito_browser_ != nullptr; }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
   network::mojom::NetworkContext* network_context();
 
  protected:
@@ -59,9 +59,9 @@ class BrowsingDataRemoverBrowserTestBase : public PlatformBrowserTest {
   // window created by tests, more specific behaviour requires other means.
   content::WebContents* GetActiveWebContents();
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   content::WebContents* GetActiveWebContents(Browser* browser);
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
   // Returns the active Profile. On desktop this is in the first browser
   // window created by tests, more specific behaviour requires other means.
@@ -96,8 +96,8 @@ class BrowsingDataRemoverBrowserTestBase : public PlatformBrowserTest {
 
  private:
   base::test::ScopedFeatureList feature_list_;
-#if !defined(OS_ANDROID)
-  raw_ptr<Browser> incognito_browser_ = nullptr;
+#if !BUILDFLAG(IS_ANDROID)
+  raw_ptr<Browser, DanglingUntriaged> incognito_browser_ = nullptr;
 #endif
 };
 

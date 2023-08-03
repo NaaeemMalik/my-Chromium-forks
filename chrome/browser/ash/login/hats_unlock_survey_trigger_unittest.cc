@@ -1,14 +1,14 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
 #include "ash/public/cpp/tablet_mode.h"
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/hats/hats_config.h"
 #include "chrome/browser/ash/login/hats_unlock_survey_trigger.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
-#include "components/session_manager/core/session_manager.h"
 #include "components/session_manager/session_manager_types.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -46,7 +46,7 @@ class FakeImpl : public HatsUnlockSurveyTrigger::Impl {
   bool should_show_survey_ = true;
   bool show_survey_called_ = false;
   base::flat_map<std::string, std::string> product_specific_data_;
-  const HatsConfig* hats_config_;
+  raw_ptr<const HatsConfig, ExperimentalAsh> hats_config_;
 };
 
 }  // namespace
@@ -55,7 +55,10 @@ class HatsUnlockSurveyTriggerTest : public BrowserWithTestWindowTest {
  public:
   void SetUp() override {
     BrowserWithTestWindowTest::SetUp();
-    session_manager_.SetSessionState(session_manager::SessionState::LOCKED);
+
+    // SessionManager is created by
+    // |AshTestHelper::bluetooth_config_test_helper()|.
+    session_manager()->SetSessionState(session_manager::SessionState::LOCKED);
 
     account_id_ = AccountId::FromUserEmail(kUserEmail);
 
@@ -70,9 +73,12 @@ class HatsUnlockSurveyTriggerTest : public BrowserWithTestWindowTest {
   }
 
  protected:
-  session_manager::SessionManager session_manager_;
+  session_manager::SessionManager* session_manager() {
+    return session_manager::SessionManager::Get();
+  }
+
   AccountId account_id_;
-  FakeImpl* fake_impl_;
+  raw_ptr<FakeImpl, ExperimentalAsh> fake_impl_;
   std::unique_ptr<HatsUnlockSurveyTrigger> unlock_survey_trigger_;
 };
 
@@ -83,7 +89,7 @@ TEST_F(HatsUnlockSurveyTriggerTest, ShowSurveyCalled) {
 }
 
 TEST_F(HatsUnlockSurveyTriggerTest, ShowSurveyNotCalledIfSessionNotLocked) {
-  session_manager_.SetSessionState(
+  session_manager()->SetSessionState(
       session_manager::SessionState::LOGIN_PRIMARY);
 
   unlock_survey_trigger_->ShowSurveyIfSelected(

@@ -33,6 +33,7 @@
 
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
+#include "third_party/abseil-cpp/absl/base/attributes.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_export.h"
 
 namespace WTF {
@@ -46,10 +47,10 @@ WTF_EXPORT void Initialize();
 // thread_local variables can't be exported on Windows, so we use an extra
 // function call on component builds. Also, thread_local on Android is emulated
 // by the runtime lib; gettid(3) in bionic already caches tid in a TLS variable.
-#if defined(OS_ANDROID) || (defined(COMPONENT_BUILD) && defined(OS_WIN))
+#if BUILDFLAG(IS_ANDROID) || (defined(COMPONENT_BUILD) && BUILDFLAG(IS_WIN))
 WTF_EXPORT bool IsMainThread();
 #else
-WTF_EXPORT extern thread_local bool g_is_main_thread;
+WTF_EXPORT extern ABSL_CONST_INIT thread_local bool g_is_main_thread;
 inline bool IsMainThread() {
   return g_is_main_thread;
 }

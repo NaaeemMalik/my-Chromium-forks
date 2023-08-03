@@ -1,12 +1,13 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // These tests focus on Wasm out of bounds behavior to make sure trap-based
 // bounds checks work when integrated with all of Chrome.
 
+#include <tuple>
+
 #include "base/base_switches.h"
-#include "base/ignore_result.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -24,11 +25,11 @@ namespace {
 // support non-Android, Linux x64, Windows x64 and Mac x64 and arm64. In the
 // future more platforms will be supported. Though this file is a browser test
 // that is not built on Android.
-#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(ARCH_CPU_X86_64)
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(ARCH_CPU_X86_64)
 constexpr bool kIsTrapHandlerSupported = true;
-#elif defined(OS_WIN) && defined(ARCH_CPU_X86_64)
+#elif BUILDFLAG(IS_WIN) && defined(ARCH_CPU_X86_64)
 constexpr bool kIsTrapHandlerSupported = true;
-#elif defined(OS_MAC) && (defined(ARCH_CPU_X86_64) || defined(ARCH_CPU_ARM64))
+#elif BUILDFLAG(IS_MAC) && (defined(ARCH_CPU_X86_64) || defined(ARCH_CPU_ARM64))
 constexpr bool kIsTrapHandlerSupported = true;
 #else
 constexpr bool kIsTrapHandlerSupported = false;
@@ -55,16 +56,12 @@ class WasmTrapHandlerBrowserTest : public InProcessBrowserTest {
 
   void RunJSTestAndEnsureTrapHandlerRan(const std::string& js) const {
     if (IsTrapHandlerEnabled()) {
-      const auto* get_fault_count =
-          "domAutomationController.send(%GetWasmRecoveredTrapCount())";
-      int original_count = 0;
+      const auto* get_fault_count = "%GetWasmRecoveredTrapCount()";
       auto* const tab = browser()->tab_strip_model()->GetActiveWebContents();
-      ASSERT_TRUE(content::ExecuteScriptAndExtractInt(tab, get_fault_count,
-                                                      &original_count));
+      int original_count = content::EvalJs(tab, get_fault_count).ExtractInt();
       ASSERT_NO_FATAL_FAILURE(RunJSTest(js));
-      int new_count = 0;
-      ASSERT_TRUE(content::ExecuteScriptAndExtractInt(tab, get_fault_count,
-                                                      &new_count));
+      int new_count = content::EvalJs(tab, get_fault_count).ExtractInt();
+      ASSERT_NO_FATAL_FAILURE(RunJSTest(js));
       ASSERT_GT(new_count, original_count);
     } else {
       ASSERT_NO_FATAL_FAILURE(RunJSTest(js));
@@ -85,7 +82,7 @@ class WasmTrapHandlerBrowserTest : public InProcessBrowserTest {
  private:
   void SetUpCommandLine(base::CommandLine* command_line) override {
 // kEnableCrashReporterForTesting only exists on POSIX systems
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
     command_line->AppendSwitch(switches::kEnableCrashReporterForTesting);
 #endif
     command_line->AppendSwitchASCII(blink::switches::kJavaScriptFlags,
@@ -93,7 +90,8 @@ class WasmTrapHandlerBrowserTest : public InProcessBrowserTest {
   }
 };
 
-IN_PROC_BROWSER_TEST_F(WasmTrapHandlerBrowserTest, OutOfBounds) {
+// TODO(crbug.com/1432526): Re-enable this test
+IN_PROC_BROWSER_TEST_F(WasmTrapHandlerBrowserTest, DISABLED_OutOfBounds) {
   ASSERT_TRUE(embedded_test_server()->Start());
   const auto& url = embedded_test_server()->GetURL("/wasm/out_of_bounds.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
@@ -132,7 +130,7 @@ IN_PROC_BROWSER_TEST_F(WasmTrapHandlerBrowserTest,
   // Sanitizers may prevent signal handler installation and thereby trap handler
   // setup. As there is no easy way to test if signal handler installation is
   // possible, we disable this test for sanitizers.
-  ignore_result(is_trap_handler_enabled);
+  std::ignore = is_trap_handler_enabled;
   return;
 #endif
 

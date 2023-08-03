@@ -1,23 +1,23 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/navigation/navigation_item_impl.h"
 
-#include <stddef.h>
+#import <stddef.h>
 
-#include <memory>
-#include <utility>
+#import <memory>
+#import <utility>
 
-#include "base/check_op.h"
-#include "base/strings/utf_string_conversions.h"
-#include "components/url_formatter/url_formatter.h"
-#include "ios/web/common/features.h"
+#import "base/check_op.h"
+#import "base/strings/utf_string_conversions.h"
+#import "components/url_formatter/url_formatter.h"
+#import "ios/web/common/features.h"
 #import "ios/web/navigation/navigation_manager_impl.h"
-#include "ios/web/navigation/wk_navigation_util.h"
+#import "ios/web/navigation/wk_navigation_util.h"
 #import "ios/web/public/web_client.h"
-#include "ui/base/page_transition_types.h"
-#include "ui/gfx/text_elider.h"
+#import "ui/base/page_transition_types.h"
+#import "ui/gfx/text_elider.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -36,6 +36,8 @@ static int GetUniqueIDInConstructor() {
 
 namespace web {
 
+using HttpRequestHeaders = NavigationItem::HttpRequestHeaders;
+
 // Value 50 was picked experimentally by examining Chrome for iOS UI. Tab strip
 // on 12.9" iPad Pro trucates the title to less than 50 characters (title that
 // only consists of letters "i"). Tab strip has the biggest surface to fit
@@ -48,15 +50,7 @@ std::unique_ptr<NavigationItem> NavigationItem::Create() {
 }
 
 NavigationItemImpl::NavigationItemImpl()
-    : unique_id_(GetUniqueIDInConstructor()),
-      transition_type_(ui::PAGE_TRANSITION_LINK),
-      user_agent_type_(UserAgentType::NONE),
-      is_created_from_hash_change_(false),
-      should_skip_repost_form_confirmation_(false),
-      should_skip_serialization_(false),
-      navigation_initiation_type_(web::NavigationInitiationType::NONE),
-      is_untrusted_(false),
-      is_upgraded_to_https_(false) {}
+    : unique_id_(GetUniqueIDInConstructor()) {}
 
 NavigationItemImpl::~NavigationItemImpl() {
 }
@@ -68,23 +62,22 @@ NavigationItemImpl::NavigationItemImpl(const NavigationItemImpl& item)
       referrer_(item.referrer_),
       virtual_url_(item.virtual_url_),
       title_(item.title_),
-      page_display_state_(item.page_display_state_),
       transition_type_(item.transition_type_),
-      favicon_(item.favicon_),
+      favicon_status_(item.favicon_status_),
       ssl_(item.ssl_),
       timestamp_(item.timestamp_),
       user_agent_type_(item.user_agent_type_),
       http_request_headers_([item.http_request_headers_ mutableCopy]),
       serialized_state_object_([item.serialized_state_object_ copy]),
       is_created_from_hash_change_(item.is_created_from_hash_change_),
-      should_skip_repost_form_confirmation_(
-          item.should_skip_repost_form_confirmation_),
       should_skip_serialization_(item.should_skip_serialization_),
       post_data_([item.post_data_ copy]),
       navigation_initiation_type_(item.navigation_initiation_type_),
       is_untrusted_(item.is_untrusted_),
       cached_display_title_(item.cached_display_title_),
-      is_upgraded_to_https_(item.is_upgraded_to_https_) {}
+      https_upgrade_type_(item.https_upgrade_type_) {
+  CloneDataFrom(item);
+}
 
 int NavigationItemImpl::GetUniqueID() const {
   return unique_id_;
@@ -140,15 +133,6 @@ const std::u16string& NavigationItemImpl::GetTitle() const {
   return title_;
 }
 
-void NavigationItemImpl::SetPageDisplayState(
-    const web::PageDisplayState& display_state) {
-  page_display_state_ = display_state;
-}
-
-const PageDisplayState& NavigationItemImpl::GetPageDisplayState() const {
-  return page_display_state_;
-}
-
 const std::u16string& NavigationItemImpl::GetTitleForDisplay() const {
   // Most pages have real titles. Don't even bother caching anything if this is
   // the case.
@@ -174,12 +158,12 @@ ui::PageTransition NavigationItemImpl::GetTransitionType() const {
   return transition_type_;
 }
 
-const FaviconStatus& NavigationItemImpl::GetFavicon() const {
-  return favicon_;
+const FaviconStatus& NavigationItemImpl::GetFaviconStatus() const {
+  return favicon_status_;
 }
 
-FaviconStatus& NavigationItemImpl::GetFavicon() {
-  return favicon_;
+void NavigationItemImpl::SetFaviconStatus(const FaviconStatus& favicon_status) {
+  favicon_status_ = favicon_status;
 }
 
 const SSLStatus& NavigationItemImpl::GetSSL() const {
@@ -200,8 +184,6 @@ base::Time NavigationItemImpl::GetTimestamp() const {
 
 void NavigationItemImpl::SetUserAgentType(UserAgentType type) {
   user_agent_type_ = type;
-  DCHECK_EQ(!wk_navigation_util::URLNeedsUserAgentType(GetURL()),
-            user_agent_type_ == UserAgentType::NONE);
 }
 
 void NavigationItemImpl::SetUntrusted() {
@@ -220,12 +202,12 @@ bool NavigationItemImpl::HasPostData() const {
   return post_data_ != nil;
 }
 
-NSDictionary* NavigationItemImpl::GetHttpRequestHeaders() const {
+HttpRequestHeaders* NavigationItemImpl::GetHttpRequestHeaders() const {
   return [http_request_headers_ copy];
 }
 
 void NavigationItemImpl::AddHttpRequestHeaders(
-    NSDictionary* additional_headers) {
+    HttpRequestHeaders* additional_headers) {
   if (!additional_headers)
     return;
 
@@ -235,12 +217,13 @@ void NavigationItemImpl::AddHttpRequestHeaders(
     http_request_headers_ = [additional_headers mutableCopy];
 }
 
-void NavigationItemImpl::SetUpgradedToHttps() {
-  is_upgraded_to_https_ = true;
+void NavigationItemImpl::SetHttpsUpgradeType(
+    HttpsUpgradeType https_upgrade_type) {
+  https_upgrade_type_ = https_upgrade_type;
 }
 
-bool NavigationItemImpl::IsUpgradedToHttps() const {
-  return is_upgraded_to_https_;
+HttpsUpgradeType NavigationItemImpl::GetHttpsUpgradeType() const {
+  return https_upgrade_type_;
 }
 
 void NavigationItemImpl::SetSerializedStateObject(
@@ -268,14 +251,6 @@ void NavigationItemImpl::SetIsCreatedFromHashChange(bool hash_change) {
 
 bool NavigationItemImpl::IsCreatedFromHashChange() const {
   return is_created_from_hash_change_;
-}
-
-void NavigationItemImpl::SetShouldSkipRepostFormConfirmation(bool skip) {
-  should_skip_repost_form_confirmation_ = skip;
-}
-
-bool NavigationItemImpl::ShouldSkipRepostFormConfirmation() const {
-  return should_skip_repost_form_confirmation_;
 }
 
 void NavigationItemImpl::SetShouldSkipSerialization(bool skip) {
@@ -313,14 +288,13 @@ void NavigationItemImpl::ResetForCommit() {
 
 void NavigationItemImpl::RestoreStateFromItem(NavigationItem* other) {
   // Restore the UserAgent type in any case, as if the URLs are different it
-  // might mean that |this| is a next navigation. The page display state and the
+  // might mean that `this` is a next navigation. The page display state and the
   // virtual URL only make sense if it is the same item. The other headers might
   // not make sense after creating a new navigation to the page.
   if (other->GetUserAgentType() != UserAgentType::NONE) {
     SetUserAgentType(other->GetUserAgentType());
   }
   if (url_ == other->GetURL()) {
-    SetPageDisplayState(other->GetPageDisplayState());
     SetVirtualURL(other->GetVirtualURL());
   }
 }
@@ -349,19 +323,17 @@ NSString* NavigationItemImpl::GetDescription() const {
   return [NSString
       stringWithFormat:
           @"url:%s virtual_url_:%s originalurl:%s referrer: %s title:%s "
-          @"transition:%d "
-           "displayState:%@ userAgent:%s "
+          @"transition:%d userAgent:%s "
            "is_created_from_hash_change: %@ "
            "navigation_initiation_type: %d "
-           "is_upgraded_to_https: %@",
+           "https_upgrade_type: %s",
           url_.spec().c_str(), virtual_url_.spec().c_str(),
           original_request_url_.spec().c_str(), referrer_.url.spec().c_str(),
           base::UTF16ToUTF8(title_).c_str(), transition_type_,
-          page_display_state_.GetDescription(),
           GetUserAgentTypeDescription(user_agent_type_).c_str(),
           is_created_from_hash_change_ ? @"true" : @"false",
           navigation_initiation_type_,
-          is_upgraded_to_https_ ? @"true" : @"false"];
+          GetHttpsUpgradeTypeDescription(https_upgrade_type_).c_str()];
 }
 #endif
 

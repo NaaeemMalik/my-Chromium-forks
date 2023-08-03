@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.task.PostTask;
-import org.chromium.content_public.browser.UiThreadTaskTraits;
+import org.chromium.base.task.TaskTraits;
 import org.chromium.url.GURL;
 
 import java.util.ArrayList;
@@ -213,7 +213,7 @@ public class TemplateUrlService {
         // If the load has already been completed, post a load complete to the observer.  Done
         // as an asynchronous call to keep the client code predictable in the loaded/unloaded state.
         if (isLoaded()) {
-            PostTask.postTask(UiThreadTaskTraits.DEFAULT, () -> {
+            PostTask.postTask(TaskTraits.UI_DEFAULT, () -> {
                 if (!mLoadListeners.hasObserver(listener)) return;
 
                 listener.onTemplateUrlServiceLoaded();

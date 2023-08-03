@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -75,7 +75,7 @@ public class AdsBlockedDialogTest {
                 resources.getString(R.string.blocked_ads_dialog_title),
                 mModalDialogModel.get(ModalDialogProperties.TITLE));
         Assert.assertEquals("Dialog message should match.", mDialog.getFormattedMessageText(),
-                mModalDialogModel.get(ModalDialogProperties.MESSAGE));
+                mModalDialogModel.get(ModalDialogProperties.MESSAGE_PARAGRAPH_1));
         Assert.assertEquals("Dialog positive button text should match.",
                 resources.getString(R.string.blocked_ads_dialog_always_allow),
                 mModalDialogModel.get(ModalDialogProperties.POSITIVE_BUTTON_TEXT));
@@ -84,6 +84,8 @@ public class AdsBlockedDialogTest {
                 mModalDialogModel.get(ModalDialogProperties.NEGATIVE_BUTTON_TEXT));
         Assert.assertTrue("Dialog should be dismissed on touch outside.",
                 mModalDialogModel.get(ModalDialogProperties.CANCEL_ON_TOUCH_OUTSIDE));
+        Assert.assertTrue("Dialog should gain focus for accessibility.",
+                mModalDialogModel.get(ModalDialogProperties.FOCUS_DIALOG));
 
         Mockito.verify(mModalDialogManagerMock)
                 .showDialog(mModalDialogModel, ModalDialogManager.ModalDialogType.TAB);

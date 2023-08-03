@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,12 @@
 #include "chrome/browser/profiles/profile.h"
 #include "components/enterprise/browser/controller/browser_dm_token_storage.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "components/policy/core/common/management/platform_management_status_provider_win.h"
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
+#include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
+#include "chrome/browser/browser_process_platform_part.h"
 #include "components/user_manager/user_manager.h"
 #endif
 
@@ -35,7 +37,7 @@ BrowserCloudManagementStatusProvider::~BrowserCloudManagementStatusProvider() =
     default;
 
 EnterpriseManagementAuthority
-BrowserCloudManagementStatusProvider::GetAuthority() {
+BrowserCloudManagementStatusProvider::FetchAuthority() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   return EnterpriseManagementAuthority::NONE;
 #else
@@ -56,7 +58,28 @@ LocalBrowserManagementStatusProvider::~LocalBrowserManagementStatusProvider() =
     default;
 
 EnterpriseManagementAuthority
-LocalBrowserManagementStatusProvider::GetAuthority() {
+LocalBrowserManagementStatusProvider::FetchAuthority() {
+// BrowserPolicyConnector::HasMachineLevelPolicies is not supported on Chrome
+// OS.
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  return EnterpriseManagementAuthority::NONE;
+#else
+  return g_browser_process && g_browser_process->browser_policy_connector() &&
+                 g_browser_process->browser_policy_connector()
+                     ->HasMachineLevelPolicies()
+             ? EnterpriseManagementAuthority::COMPUTER_LOCAL
+             : EnterpriseManagementAuthority::NONE;
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+}
+
+LocalDomainBrowserManagementStatusProvider::
+    LocalDomainBrowserManagementStatusProvider() = default;
+
+LocalDomainBrowserManagementStatusProvider::
+    ~LocalDomainBrowserManagementStatusProvider() = default;
+
+EnterpriseManagementAuthority
+LocalDomainBrowserManagementStatusProvider::FetchAuthority() {
   auto result = EnterpriseManagementAuthority::NONE;
 // BrowserPolicyConnector::HasMachineLevelPolicies is not supported on Chrome
 // OS.
@@ -66,10 +89,10 @@ LocalBrowserManagementStatusProvider::GetAuthority() {
   if (g_browser_process->browser_policy_connector()
           ->HasMachineLevelPolicies()) {
     result = EnterpriseManagementAuthority::COMPUTER_LOCAL;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     if (policy::DomainEnrollmentStatusProvider::IsEnrolledToDomain())
       result = EnterpriseManagementAuthority::DOMAIN_LOCAL;
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
   }
   return result;
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
@@ -83,7 +106,7 @@ ProfileCloudManagementStatusProvider::~ProfileCloudManagementStatusProvider() =
     default;
 
 EnterpriseManagementAuthority
-ProfileCloudManagementStatusProvider::GetAuthority() {
+ProfileCloudManagementStatusProvider::FetchAuthority() {
   if (IsProfileManaged(profile_))
     return EnterpriseManagementAuthority::CLOUD;
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -92,7 +115,7 @@ ProfileCloudManagementStatusProvider::GetAuthority() {
   auto* primary_user = user_manager::UserManager::Get()->GetPrimaryUser();
   if (primary_user &&
       IsProfileManaged(
-          chromeos::ProfileHelper::Get()->GetProfileByUser(primary_user))) {
+          ash::ProfileHelper::Get()->GetProfileByUser(primary_user))) {
     return EnterpriseManagementAuthority::CLOUD;
   }
 #endif
@@ -100,15 +123,17 @@ ProfileCloudManagementStatusProvider::GetAuthority() {
 }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-DeviceManagementStatusProvider::DeviceManagementStatusProvider(
-    policy::BrowserPolicyConnectorAsh* browser_policy_connector)
-    : browser_policy_connector_(browser_policy_connector) {}
+DeviceManagementStatusProvider::DeviceManagementStatusProvider() = default;
 
 DeviceManagementStatusProvider::~DeviceManagementStatusProvider() = default;
 
-EnterpriseManagementAuthority DeviceManagementStatusProvider::GetAuthority() {
-  return browser_policy_connector_ &&
-                 browser_policy_connector_->IsDeviceEnterpriseManaged()
+EnterpriseManagementAuthority DeviceManagementStatusProvider::FetchAuthority() {
+  return g_browser_process && g_browser_process->platform_part() &&
+                 g_browser_process->platform_part()
+                     ->browser_policy_connector_ash() &&
+                 g_browser_process->platform_part()
+                     ->browser_policy_connector_ash()
+                     ->IsDeviceEnterpriseManaged()
              ? EnterpriseManagementAuthority::CLOUD_DOMAIN
              : EnterpriseManagementAuthority::NONE;
 }

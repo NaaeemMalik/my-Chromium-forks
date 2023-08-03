@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,18 +7,17 @@
 #include <iterator>
 #include <string>
 
-#include "base/bind.h"
-#include "base/cxx17_backports.h"
 #include "base/files/file.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -39,13 +38,12 @@ void CheckQuarantineResult(QuarantineFileResult result,
 class QuarantineTest : public testing::Test {
  public:
   void SetUp() override {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     ASSERT_TRUE(com_initializer_.Succeeded());
 #endif
     ASSERT_TRUE(test_dir_.CreateUniqueTempDir());
-    ASSERT_EQ(
-        static_cast<int>(base::size(kTestData)),
-        base::WriteFile(GetTestFilePath(), kTestData, base::size(kTestData)));
+    ASSERT_TRUE(
+        base::WriteFile(GetTestFilePath(), {kTestData, std::size(kTestData)}));
   }
 
  protected:
@@ -54,7 +52,7 @@ class QuarantineTest : public testing::Test {
   }
 
  private:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   base::win::ScopedCOMInitializer com_initializer_;
 #endif
   base::test::SingleThreadTaskEnvironment task_environment_;

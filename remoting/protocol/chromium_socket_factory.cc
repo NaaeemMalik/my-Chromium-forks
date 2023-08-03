@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@
 #include <memory>
 #include <string>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/rand_util.h"
 #include "base/time/time.h"
-#include "jingle/glue/utils.h"
+#include "components/webrtc/net_address_utils.h"
 #include "net/base/io_buffer.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
@@ -31,8 +31,7 @@
 #include "third_party/webrtc/rtc_base/net_helpers.h"
 #include "third_party/webrtc/rtc_base/socket.h"
 
-namespace remoting {
-namespace protocol {
+namespace remoting::protocol {
 
 namespace {
 
@@ -142,8 +141,7 @@ UdpPacketSocket::UdpPacketSocket()
     : state_(STATE_CLOSED),
       error_(0),
       send_pending_(false),
-      send_queue_size_(0) {
-}
+      send_queue_size_(0) {}
 
 UdpPacketSocket::~UdpPacketSocket() {
   Close();
@@ -154,8 +152,7 @@ bool UdpPacketSocket::Init(const rtc::SocketAddress& local_address,
                            uint16_t max_port) {
   DCHECK_LE(min_port, max_port);
   net::IPEndPoint local_endpoint;
-  if (!jingle_glue::SocketAddressToIPEndPoint(
-          local_address, &local_endpoint)) {
+  if (!webrtc::SocketAddressToIPEndPoint(local_address, &local_endpoint)) {
     return false;
   }
 
@@ -186,8 +183,7 @@ bool UdpPacketSocket::Init(const rtc::SocketAddress& local_address,
   }
 
   if (socket_->GetLocalAddress(&local_endpoint) != net::OK ||
-      !jingle_glue::IPEndPointToSocketAddress(local_endpoint,
-                                              &local_address_)) {
+      !webrtc::IPEndPointToSocketAddress(local_endpoint, &local_address_)) {
     return false;
   }
 
@@ -208,14 +204,16 @@ rtc::SocketAddress UdpPacketSocket::GetRemoteAddress() const {
   return rtc::SocketAddress();
 }
 
-int UdpPacketSocket::Send(const void* data, size_t data_size,
+int UdpPacketSocket::Send(const void* data,
+                          size_t data_size,
                           const rtc::PacketOptions& options) {
   // UDP sockets are not connected - this method should never be called.
   NOTREACHED();
   return EWOULDBLOCK;
 }
 
-int UdpPacketSocket::SendTo(const void* data, size_t data_size,
+int UdpPacketSocket::SendTo(const void* data,
+                            size_t data_size,
                             const rtc::SocketAddress& address,
                             const rtc::PacketOptions& options) {
   if (state_ != STATE_BOUND) {
@@ -228,7 +226,7 @@ int UdpPacketSocket::SendTo(const void* data, size_t data_size,
   }
 
   net::IPEndPoint endpoint;
-  if (!jingle_glue::SocketAddressToIPEndPoint(address, &endpoint)) {
+  if (!webrtc::SocketAddressToIPEndPoint(address, &endpoint)) {
     return EINVAL;
   }
 
@@ -312,8 +310,9 @@ void UdpPacketSocket::SetError(int error) {
 }
 
 void UdpPacketSocket::DoSend() {
-  if (send_pending_ || send_queue_.empty())
+  if (send_pending_ || send_queue_.empty()) {
     return;
+  }
 
   PendingPacket& packet = send_queue_.front();
   cricket::ApplyPacketOptions(
@@ -391,7 +390,7 @@ void UdpPacketSocket::HandleReadResult(int result) {
 
   if (result > 0) {
     rtc::SocketAddress address;
-    if (!jingle_glue::IPEndPointToSocketAddress(receive_address_, &address)) {
+    if (!webrtc::IPEndPointToSocketAddress(receive_address_, &address)) {
       NOTREACHED();
       LOG(ERROR) << "Failed to convert address received from RecvFrom().";
       return;
@@ -423,8 +422,9 @@ rtc::AsyncPacketSocket* ChromiumPacketSocketFactory::CreateUdpSocket(
     return nullptr;
   }
   std::unique_ptr<UdpPacketSocket> result(new UdpPacketSocket());
-  if (!result->Init(local_address, min_port, max_port))
+  if (!result->Init(local_address, min_port, max_port)) {
     return nullptr;
+  }
   return result.release();
 }
 
@@ -465,5 +465,4 @@ ChromiumPacketSocketFactory::CreateAsyncResolver() {
   return new rtc::AsyncResolver();
 }
 
-}  // namespace protocol
-}  // namespace remoting
+}  // namespace remoting::protocol

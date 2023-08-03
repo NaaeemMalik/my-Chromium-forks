@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef SERVICES_AUDIO_LOCAL_MUTER_H_
 #define SERVICES_AUDIO_LOCAL_MUTER_H_
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -37,7 +37,7 @@ class LocalMuter final : public media::mojom::LocalMuter,
 
   // SetAllBindingsLostCallback() must be called before the first call to
   // AddBinding().
-  void SetAllBindingsLostCallback(base::OnceClosure callback);
+  void SetAllBindingsLostCallback(base::RepeatingClosure callback);
   void AddReceiver(
       mojo::PendingAssociatedReceiver<media::mojom::LocalMuter> receiver);
 
@@ -57,7 +57,7 @@ class LocalMuter final : public media::mojom::LocalMuter,
   const base::UnguessableToken group_id_;
 
   mojo::AssociatedReceiverSet<media::mojom::LocalMuter> receivers_;
-  base::OnceClosure all_bindings_lost_callback_;
+  base::RepeatingClosure all_bindings_lost_callback_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython
-# Copyright 2020 The Chromium Authors. All rights reserved.
+#!/usr/bin/env vpython3
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -28,6 +28,12 @@ HEADERS = {
     'Accept': 'application/json',
     'Authorization': 'ResultSink %s' % AUTH_TOKEN
 }
+CRASH_TEST_LOG = """
+Exception Reason:
+App crashed and disconnected.
+
+Recovery Suggestion:
+"""
 
 
 class UnitTest(unittest.TestCase):
@@ -43,7 +49,8 @@ class UnitTest(unittest.TestCase):
         'expected': True,
         'tags': [],
         'testMetadata': {
-            'name': 'TestCase/testSomething'
+            'name': 'TestCase/testSomething',
+            'location': None,
         },
     }
     self.assertEqual(test_result, expected)
@@ -53,7 +60,8 @@ class UnitTest(unittest.TestCase):
         'TestCase/testSomething',
         'PASS',
         True,
-        short_log,
+        test_log=short_log,
+        duration=1233,
         file_artifacts={'name': '/path/to/name'})
     expected = {
         'testId': 'TestCase/testSomething',
@@ -69,9 +77,39 @@ class UnitTest(unittest.TestCase):
                 'filePath': '/path/to/name'
             },
         },
+        'duration': '1.233000000s',
         'tags': [],
         'testMetadata': {
-            'name': 'TestCase/testSomething'
+            'name': 'TestCase/testSomething',
+            'location': None,
+        },
+    }
+    self.assertEqual(test_result, expected)
+
+  def test_parsing_crash_message(self):
+    """Tests parsing crash message from test log and setting it as the
+    failure reason"""
+    test_result = result_sink_util._compose_test_result(
+        'TestCase/testSomething', 'FAIL', False, test_log=CRASH_TEST_LOG)
+    expected = {
+        'testId': 'TestCase/testSomething',
+        'status': 'FAIL',
+        'expected': False,
+        'summaryHtml': '<text-artifact artifact-id="Test Log" />',
+        'tags': [],
+        'failureReason': {
+            'primaryErrorMessage': 'App crashed and disconnected.'
+        },
+        'artifacts': {
+            'Test Log': {
+                'contents':
+                    base64.b64encode(CRASH_TEST_LOG.encode('utf-8')
+                                    ).decode('utf-8')
+            },
+        },
+        'testMetadata': {
+            'name': 'TestCase/testSomething',
+            'location': None,
         },
     }
     self.assertEqual(test_result, expected)
@@ -97,11 +135,12 @@ class UnitTest(unittest.TestCase):
         },
         'tags': [],
         'testMetadata': {
-            'name': 'TestCase/testSomething'
+            'name': 'TestCase/testSomething',
+            'location': None,
         },
     }
     test_result = result_sink_util._compose_test_result(
-        'TestCase/testSomething', 'PASS', True, len_4128_str)
+        'TestCase/testSomething', 'PASS', True, test_log=len_4128_str)
     self.assertEqual(test_result, expected)
 
   def test_compose_test_result_assertions(self):
@@ -136,13 +175,38 @@ class UnitTest(unittest.TestCase):
             'value': 'true',
         }],
         'testMetadata': {
-            'name': 'TestCase/testSomething'
+            'name': 'TestCase/testSomething',
+            'location': None,
         },
     }
     test_result = result_sink_util._compose_test_result(
         'TestCase/testSomething',
         'SKIP',
         True,
+        tags=[('disabled_test', 'true')])
+    self.assertEqual(test_result, expected)
+
+  def test_composed_with_location(self):
+    """Tests with test locations"""
+    test_loc = {'repo': 'https://test', 'fileName': '//test.cc'}
+    expected = {
+        'testId': 'TestCase/testSomething',
+        'status': 'SKIP',
+        'expected': True,
+        'tags': [{
+            'key': 'disabled_test',
+            'value': 'true',
+        }],
+        'testMetadata': {
+            'name': 'TestCase/testSomething',
+            'location': test_loc,
+        },
+    }
+    test_result = result_sink_util._compose_test_result(
+        'TestCase/testSomething',
+        'SKIP',
+        True,
+        test_loc=test_loc,
         tags=[('disabled_test', 'true')])
     self.assertEqual(test_result, expected)
 
@@ -160,7 +224,8 @@ class UnitTest(unittest.TestCase):
             'value': 'true',
         }],
         'testMetadata': {
-            'name': 'TestCase/testSomething'
+            'name': 'TestCase/testSomething',
+            'location': None,
         },
     }
     client = result_sink_util.ResultSinkClient()

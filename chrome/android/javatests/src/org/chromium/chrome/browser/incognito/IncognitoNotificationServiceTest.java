@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,16 @@ package org.chromium.chrome.browser.incognito;
 
 import static org.junit.Assert.assertTrue;
 
-import android.annotation.TargetApi;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.PendingIntent.CanceledException;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.service.notification.StatusBarNotification;
-import android.support.test.InstrumentationRegistry;
 import android.util.Pair;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.MediumTest;
 
 import org.hamcrest.Matchers;
@@ -32,8 +31,7 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.MinAndroidSdkLevel;
-import org.chromium.chrome.browser.customtabs.CustomTabsTestUtils;
+import org.chromium.chrome.browser.customtabs.CustomTabsIntentTestUtils;
 import org.chromium.chrome.browser.customtabs.IncognitoCustomTabActivityTestRule;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
@@ -138,8 +136,7 @@ public class IncognitoNotificationServiceTest {
     @Test
     @Feature("Incognito")
     @MediumTest
-    @DisabledTest
-    // https://crbug.com/1033835
+    @DisabledTest(message = "crbug.com/1033835")
     public void testNoAliveProcess() throws Exception {
         Context context = InstrumentationRegistry.getTargetContext();
         final TestTabModelDirectory tabbedModeDirectory = new TestTabModelDirectory(
@@ -213,8 +210,6 @@ public class IncognitoNotificationServiceTest {
     @Test
     @MediumTest
     @Feature("Incognito")
-    @TargetApi(Build.VERSION_CODES.M)
-    @MinAndroidSdkLevel(Build.VERSION_CODES.M)
     public void testCloseAllIncognitoNotificationIsDisplayed() {
         launchIncognitoTabAndEnsureNotificationDisplayed();
     }
@@ -222,16 +217,14 @@ public class IncognitoNotificationServiceTest {
     @Test
     @MediumTest
     @Feature("Incognito")
-    @TargetApi(Build.VERSION_CODES.M)
-    @MinAndroidSdkLevel(Build.VERSION_CODES.M)
     @Features.EnableFeatures(ChromeFeatureList.CCT_INCOGNITO)
     public void testCloseAllIncognitoNotificationForIncognitoCCT_DoesNotCloseCCT()
             throws PendingIntent.CanceledException {
         launchIncognitoTabAndEnsureNotificationDisplayed();
 
         // Create an Incognito CCT now.
-        Intent customTabIntent = CustomTabsTestUtils.createMinimalIncognitoCustomTabIntent(
-                InstrumentationRegistry.getContext(), "about:blank");
+        Intent customTabIntent = CustomTabsIntentTestUtils.createMinimalIncognitoCustomTabIntent(
+                ApplicationProvider.getApplicationContext(), "about:blank");
         mCustomTabActivityTestRule.startCustomTabActivityWithIntent(customTabIntent);
 
         // Click on "Close all Incognito tabs" notification.

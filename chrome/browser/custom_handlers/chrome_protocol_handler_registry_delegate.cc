@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,8 @@
 
 #include <utility>
 
-#include "base/bind.h"
 #include "base/check_op.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/functional/bind.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile_io_data.h"
 #include "chrome/common/pref_names.h"
@@ -50,7 +49,7 @@ void ChromeProtocolHandlerRegistryDelegate::RegisterWithOSAsDefaultClient(
   // The worker pointer is reference counted. While it is running, the
   // sequence it runs on will hold references it will be automatically freed
   // once all its tasks have finished.
-  base::MakeRefCounted<shell_integration::DefaultProtocolClientWorker>(protocol)
+  base::MakeRefCounted<shell_integration::DefaultSchemeClientWorker>(protocol)
       ->StartSetAsDefault(
           GetDefaultWebClientCallback(protocol, std::move(callback)));
 }
@@ -61,7 +60,7 @@ void ChromeProtocolHandlerRegistryDelegate::CheckDefaultClientWithOS(
   // The worker pointer is reference counted. While it is running, the
   // sequence it runs on will hold references it will be automatically freed
   // once all its tasks have finished.
-  base::MakeRefCounted<shell_integration::DefaultProtocolClientWorker>(protocol)
+  base::MakeRefCounted<shell_integration::DefaultSchemeClientWorker>(protocol)
       ->StartCheckIsDefault(
           GetDefaultWebClientCallback(protocol, std::move(callback)));
 }
@@ -69,20 +68,20 @@ void ChromeProtocolHandlerRegistryDelegate::CheckDefaultClientWithOS(
 // If true default protocol handlers will be removed if the OS level
 // registration for a protocol is no longer Chrome.
 bool ChromeProtocolHandlerRegistryDelegate::ShouldRemoveHandlersNotInOS() {
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // We don't do this on Linux as the OS registration there is not reliable,
   // and Chrome OS doesn't have any notion of OS registration.
   // TODO(benwells): When Linux support is more reliable remove this
   // difference (http://crbug.com/88255).
   return false;
 #else
-  return shell_integration::GetDefaultWebClientSetPermission() !=
+  return shell_integration::GetDefaultSchemeClientSetPermission() !=
          shell_integration::SET_DEFAULT_NOT_ALLOWED;
 #endif
 }
 
 void ChromeProtocolHandlerRegistryDelegate::
-    OnSetAsDefaultProtocolClientFinished(
+    OnSetAsDefaultClientForSchemeFinished(
         const std::string& protocol,
         DefaultClientCallback callback,
         shell_integration::DefaultWebClientState state) {
@@ -96,7 +95,7 @@ ChromeProtocolHandlerRegistryDelegate::GetDefaultWebClientCallback(
     const std::string& protocol,
     DefaultClientCallback callback) {
   return base::BindOnce(&ChromeProtocolHandlerRegistryDelegate::
-                            OnSetAsDefaultProtocolClientFinished,
+                            OnSetAsDefaultClientForSchemeFinished,
                         weak_ptr_factory_.GetWeakPtr(), protocol,
                         std::move(callback));
 }

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -59,7 +59,7 @@ TEST_F(IntersectionObserverTest, ObserveSchedulesFrame) {
 
   Compositor().BeginFrame();
   ASSERT_FALSE(Compositor().NeedsBeginFrame());
-  EXPECT_TRUE(observer->takeRecords(exception_state).IsEmpty());
+  EXPECT_TRUE(observer->takeRecords(exception_state).empty());
   EXPECT_EQ(observer_delegate->CallCount(), 0);
 
   Element* target = GetDocument().getElementById("target");
@@ -115,7 +115,6 @@ TEST_F(IntersectionObserverTest, NotificationSentWhenRootRemoved) {
 }
 
 TEST_F(IntersectionObserverTest, DocumentRootClips) {
-  ScopedIntersectionObserverDocumentScrollingElementRootForTest scope(true);
   WebView().MainFrameViewWidget()->Resize(gfx::Size(800, 600));
   SimRequest main_resource("https://example.com/", "text/html");
   SimRequest iframe_resource("https://example.com/iframe.html", "text/html");
@@ -324,7 +323,7 @@ TEST_F(IntersectionObserverTest, ResumePostsTask) {
   EXPECT_EQ(observer_delegate->CallCount(), 2);
   test::RunPendingTasks();
   EXPECT_EQ(observer_delegate->CallCount(), 2);
-  EXPECT_FALSE(observer->takeRecords(exception_state).IsEmpty());
+  EXPECT_FALSE(observer->takeRecords(exception_state).empty());
 
   // Generate a notification while document is suspended; then resume document.
   // Notification should happen in a post task.
@@ -786,7 +785,7 @@ TEST_F(IntersectionObserverTest, CachedRectsTest) {
     <style>
     body { margin: 0; }
     .spacer { height: 1000px; }
-    .scroller { overflow-y: scroll; height: 100px; }
+    .scroller { overflow-y: scroll; height: 100px; position: relative; }
     </style>
     <div id='root' class='scroller'>
       <div id='target1-container'>
@@ -843,9 +842,9 @@ TEST_F(IntersectionObserverTest, CachedRectsTest) {
   // Changing layout between root and target should invalidate.
   target1->parentElement()->SetInlineStyleProperty(CSSPropertyID::kMarginLeft,
                                                    "10px");
-  // Invalidation happens during style recalc, so force it here.
-  GetDocument().EnsurePaintLocationDataValidForNode(
-      target1, DocumentUpdateReason::kTest);
+  // Invalidation happens during compositing inputs update, so force it here.
+  GetDocument().View()->UpdateLifecycleToPrePaintClean(
+      DocumentUpdateReason::kTest);
   EXPECT_FALSE(observation1->CanUseCachedRectsForTesting());
 
   // Moving target2 out from the subscroller should allow it to cache rects.

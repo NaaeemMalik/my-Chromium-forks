@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,23 +6,27 @@
 
 #import <MaterialComponents/MaterialSnackbar.h>
 
-#include "base/metrics/user_metrics.h"
-#include "base/metrics/user_metrics_action.h"
-#include "base/strings/sys_string_conversions.h"
-#include "components/bookmarks/browser/bookmark_model.h"
-#include "components/bookmarks/browser/bookmark_node.h"
-#include "components/bookmarks/browser/bookmark_utils.h"
-#include "components/pref_registry/pref_registry_syncable.h"
-#include "components/prefs/pref_service.h"
-#include "ios/chrome/browser/bookmarks/bookmark_model_factory.h"
-#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#include "ios/chrome/browser/pref_names.h"
+#import "base/i18n/message_formatter.h"
+#import "base/metrics/user_metrics.h"
+#import "base/metrics/user_metrics_action.h"
+#import "base/strings/sys_string_conversions.h"
+#import "components/bookmarks/browser/bookmark_model.h"
+#import "components/bookmarks/browser/bookmark_node.h"
+#import "components/bookmarks/browser/bookmark_utils.h"
+#import "components/pref_registry/pref_registry_syncable.h"
+#import "components/prefs/pref_service.h"
+#import "ios/chrome/browser/bookmarks/local_or_syncable_bookmark_model_factory.h"
+#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/default_browser/utils.h"
+#import "ios/chrome/browser/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/shared/ui/util/url_with_title.h"
+#import "ios/chrome/browser/signin/authentication_service.h"
+#import "ios/chrome/browser/sync/sync_setup_service.h"
 #import "ios/chrome/browser/ui/bookmarks/bookmark_utils_ios.h"
-#import "ios/chrome/browser/ui/default_promo/default_browser_utils.h"
-#include "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#import "ios/chrome/browser/ui/util/url_with_title.h"
-#include "ios/chrome/grit/ios_strings.h"
-#include "ui/base/l10n/l10n_util.h"
+#import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -32,57 +36,60 @@ using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
 
 namespace {
+
 const int64_t kLastUsedFolderNone = -1;
+
 }  // namespace
 
-@interface BookmarkMediator ()
+@implementation BookmarkMediator {
+  // Profile bookmark model for this mediator.
+  base::WeakPtr<bookmarks::BookmarkModel> _profileBookmarkModel;
+  // Account bookmark model for this mediator.
+  base::WeakPtr<bookmarks::BookmarkModel> _accountBookmarkModel;
 
-// BrowserState for this mediator.
-@property(nonatomic, assign) ChromeBrowserState* browserState;
+  // Prefs model for this mediator.
+  PrefService* _prefs;
 
-@end
+  // Authentication service for this mediator.
+  base::WeakPtr<AuthenticationService> _authenticationService;
 
-@implementation BookmarkMediator
-
-@synthesize browserState = _browserState;
+  // The setup service for this mediator.
+  SyncSetupService* _syncSetupService;
+}
 
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
   registry->RegisterInt64Pref(prefs::kIosBookmarkFolderDefault,
                               kLastUsedFolderNone);
 }
 
-+ (const BookmarkNode*)folderForNewBookmarksInBrowserState:
-    (ChromeBrowserState*)browserState {
-  bookmarks::BookmarkModel* bookmarks =
-      ios::BookmarkModelFactory::GetForBrowserState(browserState);
-  const BookmarkNode* defaultFolder = bookmarks->mobile_node();
-
-  PrefService* prefs = browserState->GetPrefs();
-  int64_t node_id = prefs->GetInt64(prefs::kIosBookmarkFolderDefault);
-  if (node_id == kLastUsedFolderNone)
-    node_id = defaultFolder->id();
-  const BookmarkNode* result =
-      bookmarks::GetBookmarkNodeByID(bookmarks, node_id);
-
-  if (result)
-    return result;
-
-  return defaultFolder;
-}
-
-+ (void)setFolderForNewBookmarks:(const BookmarkNode*)folder
-                  inBrowserState:(ChromeBrowserState*)browserState {
-  DCHECK(folder && folder->is_folder());
-  browserState->GetPrefs()->SetInt64(prefs::kIosBookmarkFolderDefault,
-                                     folder->id());
-}
-
-- (instancetype)initWithBrowserState:(ChromeBrowserState*)browserState {
+- (instancetype)initWithWithProfileBookmarkModel:
+                    (bookmarks::BookmarkModel*)profileBookmarkModel
+                            accountBookmarkModel:
+                                (bookmarks::BookmarkModel*)accountBookmarkModel
+                                           prefs:(PrefService*)prefs
+                           authenticationService:
+                               (AuthenticationService*)authenticationService
+                                syncSetupService:
+                                    (SyncSetupService*)syncSetupService {
   self = [super init];
   if (self) {
-    _browserState = browserState;
+    _profileBookmarkModel = profileBookmarkModel->AsWeakPtr();
+    if (accountBookmarkModel) {
+      _accountBookmarkModel = accountBookmarkModel->AsWeakPtr();
+    }
+    _prefs = prefs;
+    _authenticationService = authenticationService->GetWeakPtr();
+    _syncSetupService = syncSetupService;
   }
   return self;
+}
+
+- (void)disconnect {
+  _profileBookmarkModel = nullptr;
+  _accountBookmarkModel = nullptr;
+  _prefs = nullptr;
+  _authenticationService = nullptr;
+  _syncSetupService = nullptr;
 }
 
 - (MDCSnackbarMessage*)addBookmarkWithTitle:(NSString*)title
@@ -91,12 +98,10 @@ const int64_t kLastUsedFolderNone = -1;
   base::RecordAction(base::UserMetricsAction("BookmarkAdded"));
   LogLikelyInterestedDefaultBrowserUserActivity(DefaultPromoTypeAllTabs);
 
-  const BookmarkNode* defaultFolder =
-      [[self class] folderForNewBookmarksInBrowserState:self.browserState];
-  BookmarkModel* bookmarkModel =
-      ios::BookmarkModelFactory::GetForBrowserState(self.browserState);
-  bookmarkModel->AddURL(defaultFolder, defaultFolder->children().size(),
-                        base::SysNSStringToUTF16(title), URL);
+  const BookmarkNode* defaultFolder = [self folderForNewBookmarks];
+  _profileBookmarkModel->AddNewURL(defaultFolder,
+                                   defaultFolder->children().size(),
+                                   base::SysNSStringToUTF16(title), URL);
 
   MDCSnackbarMessageAction* action = [[MDCSnackbarMessageAction alloc] init];
   action.handler = editAction;
@@ -105,12 +110,12 @@ const int64_t kLastUsedFolderNone = -1;
 
   NSString* folderTitle =
       bookmark_utils_ios::TitleForBookmarkNode(defaultFolder);
-  NSString* text =
-      self.browserState->GetPrefs()->GetInt64(
-          prefs::kIosBookmarkFolderDefault) != kLastUsedFolderNone
-          ? l10n_util::GetNSStringF(IDS_IOS_BOOKMARK_PAGE_SAVED_FOLDER,
-                                    base::SysNSStringToUTF16(folderTitle))
-          : l10n_util::GetNSString(IDS_IOS_BOOKMARK_PAGE_SAVED);
+  BOOL usesDefaultFolder =
+      (_prefs->GetInt64(prefs::kIosBookmarkFolderDefault) ==
+       kLastUsedFolderNone);
+  NSString* text = [self messageForAddingBookmarksInFolder:!usesDefaultFolder
+                                                     title:folderTitle
+                                                     count:1];
   TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
   MDCSnackbarMessage* message = [MDCSnackbarMessage messageWithText:text];
   message.action = action;
@@ -122,26 +127,81 @@ const int64_t kLastUsedFolderNone = -1;
                            toFolder:(const BookmarkNode*)folder {
   LogLikelyInterestedDefaultBrowserUserActivity(DefaultPromoTypeAllTabs);
 
-  BookmarkModel* bookmarkModel =
-      ios::BookmarkModelFactory::GetForBrowserState(self.browserState);
-
   for (URLWithTitle* urlWithTitle in URLs) {
     base::RecordAction(base::UserMetricsAction("BookmarkAdded"));
-    bookmarkModel->AddURL(folder, folder->children().size(),
-                          base::SysNSStringToUTF16(urlWithTitle.title),
-                          urlWithTitle.URL);
+    _profileBookmarkModel->AddNewURL(
+        folder, folder->children().size(),
+        base::SysNSStringToUTF16(urlWithTitle.title), urlWithTitle.URL);
   }
 
   NSString* folderTitle = bookmark_utils_ios::TitleForBookmarkNode(folder);
-  NSString* text =
-      folderTitle && [folderTitle length]
-          ? l10n_util::GetNSStringF(IDS_IOS_BOOKMARK_PAGE_SAVED_FOLDER,
-                                    base::SysNSStringToUTF16(folderTitle))
-          : l10n_util::GetNSString(IDS_IOS_BOOKMARK_PAGE_SAVED);
+  NSString* text = [self messageForAddingBookmarksInFolder:(folderTitle.length)
+                                                     title:folderTitle
+                                                     count:URLs.count];
   TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
   MDCSnackbarMessage* message = [MDCSnackbarMessage messageWithText:text];
   message.category = bookmark_utils_ios::kBookmarksSnackbarCategory;
   return message;
 }
 
+#pragma mark - Private
+
+- (const BookmarkNode*)folderForNewBookmarks {
+  const BookmarkNode* defaultFolder = _profileBookmarkModel->mobile_node();
+  int64_t node_id = _prefs->GetInt64(prefs::kIosBookmarkFolderDefault);
+  if (node_id == kLastUsedFolderNone) {
+    node_id = defaultFolder->id();
+  }
+  const BookmarkNode* result =
+      bookmarks::GetBookmarkNodeByID(_profileBookmarkModel.get(), node_id);
+
+  if (result && result->is_folder()) {
+    return result;
+  }
+
+  return defaultFolder;
+}
+
+// The localized strings for adding bookmarks.
+// `addFolder`: whether the folder name should appear in the message
+// `folderTitle`: The name of the folder. Assumed to be non-nil if `addFolder`
+// is true. `count`: the number of bookmarks. Used for localization.
+- (NSString*)messageForAddingBookmarksInFolder:(BOOL)addFolder
+                                         title:(NSString*)folderTitle
+                                         count:(int)count {
+  std::u16string result;
+  if (base::FeatureList::IsEnabled(
+          kEnableEmailInBookmarksReadingListSnackbar) &&
+      _syncSetupService->IsSyncRequested() &&
+      _syncSetupService->IsDataTypePreferred(syncer::ModelType::BOOKMARKS)) {
+    id<SystemIdentity> identity =
+        _authenticationService->GetPrimaryIdentity(signin::ConsentLevel::kSync);
+    DCHECK(identity);
+    std::u16string email = base::SysNSStringToUTF16(identity.userEmail);
+    if (addFolder) {
+      std::u16string title = base::SysNSStringToUTF16(folderTitle);
+      std::u16string pattern = l10n_util::GetStringUTF16(
+          IDS_IOS_BOOKMARK_PAGE_SAVED_INTO_ACCOUNT_FOLDER);
+      result = base::i18n::MessageFormatter::FormatWithNamedArgs(
+          pattern, "count", count, "title", title, "email", email);
+    } else {
+      std::u16string pattern =
+          l10n_util::GetStringUTF16(IDS_IOS_BOOKMARK_PAGE_SAVED_INTO_ACCOUNT);
+      result = base::i18n::MessageFormatter::FormatWithNamedArgs(
+          pattern, "count", count, "email", email);
+    }
+  } else {
+    if (addFolder) {
+      std::u16string title = base::SysNSStringToUTF16(folderTitle);
+      std::u16string pattern =
+          l10n_util::GetStringUTF16(IDS_IOS_BOOKMARK_PAGE_SAVED_FOLDER);
+      result = base::i18n::MessageFormatter::FormatWithNamedArgs(
+          pattern, "count", count, "title", title);
+    } else {
+      result =
+          l10n_util::GetPluralStringFUTF16(IDS_IOS_BOOKMARK_PAGE_SAVED, count);
+    }
+  }
+  return base::SysUTF16ToNSString(result);
+}
 @end

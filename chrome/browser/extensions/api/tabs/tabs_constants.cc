@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -89,6 +89,7 @@ const char kTabIndexNotFoundError[] = "No tab at index: *.";
 const char kNotFoundNextPageError[] = "Cannot find a next page in history.";
 const char kTabNotFoundError[] = "No tab with id: *.";
 const char kCannotDiscardTab[] = "Cannot discard tab with id: *.";
+const char kCannotDuplicateTab[] = "Cannot duplicate tab with id: *.";
 const char kCannotFindTabToDiscard[] = "Cannot find a tab to discard.";
 const char kTabStripNotEditableError[] =
     "Tabs cannot be edited right now (user may be dragging a tab).";

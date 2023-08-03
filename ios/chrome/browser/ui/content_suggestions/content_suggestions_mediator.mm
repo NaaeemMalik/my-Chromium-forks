@@ -1,50 +1,78 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_mediator.h"
 
-#include "base/bind.h"
-#include "base/mac/foundation_util.h"
-#include "base/strings/sys_string_conversions.h"
-#include "components/favicon/ios/web_favicon_driver.h"
-#include "components/ntp_snippets/category.h"
-#include "components/ntp_snippets/category_info.h"
-#include "components/ntp_tiles/metrics.h"
-#include "components/ntp_tiles/most_visited_sites.h"
-#include "components/ntp_tiles/ntp_tile.h"
+#import <MaterialComponents/MaterialSnackbar.h>
+
+#import "base/functional/bind.h"
+#import "base/functional/callback.h"
+#import "base/mac/foundation_util.h"
+#import "base/metrics/histogram_macros.h"
+#import "base/metrics/user_metrics.h"
+#import "base/metrics/user_metrics_action.h"
+#import "base/strings/sys_string_conversions.h"
+#import "components/favicon/ios/web_favicon_driver.h"
+#import "components/feed/core/v2/public/ios/pref_names.h"
+#import "components/history/core/browser/features.h"
+#import "components/ntp_tiles/features.h"
+#import "components/ntp_tiles/metrics.h"
+#import "components/ntp_tiles/most_visited_sites.h"
+#import "components/ntp_tiles/ntp_tile.h"
 #import "components/pref_registry/pref_registry_syncable.h"
-#include "components/reading_list/core/reading_list_model.h"
+#import "components/reading_list/core/reading_list_model.h"
 #import "components/reading_list/ios/reading_list_model_bridge_observer.h"
-#include "ios/chrome/browser/application_context.h"
-#include "ios/chrome/browser/ntp_tiles/most_visited_sites_observer_bridge.h"
+#import "components/search_engines/search_terms_data.h"
+#import "components/search_engines/template_url.h"
+#import "components/strings/grit/components_strings.h"
+#import "ios/chrome/app/application_delegate/app_state.h"
+#import "ios/chrome/browser/application_context/application_context.h"
+#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/default_browser/utils.h"
+#import "ios/chrome/browser/flags/system_flags.h"
+#import "ios/chrome/browser/ntp/features.h"
+#import "ios/chrome/browser/ntp/new_tab_page_tab_helper.h"
+#import "ios/chrome/browser/ntp_tiles/most_visited_sites_observer_bridge.h"
 #import "ios/chrome/browser/policy/policy_util.h"
-#import "ios/chrome/browser/pref_names.h"
+#import "ios/chrome/browser/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state_browser_agent.h"
+#import "ios/chrome/browser/shared/public/commands/application_commands.h"
+#import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
+#import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/signin/authentication_service.h"
+#import "ios/chrome/browser/signin/authentication_service_factory.h"
 #import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_most_visited_action_item.h"
 #import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_most_visited_item.h"
 #import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_return_to_recent_tab_item.h"
-#import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_whats_new_item.h"
+#import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_tile_constants.h"
+#import "ios/chrome/browser/ui/content_suggestions/cells/query_suggestion_view.h"
 #import "ios/chrome/browser/ui/content_suggestions/cells/suggested_content.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_category_wrapper.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_commands.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_data_sink.h"
+#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_constants.h"
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_favicon_mediator.h"
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_feature.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_header_provider.h"
+#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_mediator_util.h"
+#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_metrics_recorder.h"
+#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_tile_saver.h"
 #import "ios/chrome/browser/ui/content_suggestions/identifier/content_suggestions_section_information.h"
-#import "ios/chrome/browser/ui/content_suggestions/mediator_util.h"
-#import "ios/chrome/browser/ui/ntp/discover_feed_delegate.h"
+#import "ios/chrome/browser/ui/content_suggestions/start_suggest_service_factory.h"
+#import "ios/chrome/browser/ui/ntp/feed_delegate.h"
 #import "ios/chrome/browser/ui/ntp/new_tab_page_feature.h"
-#import "ios/chrome/browser/ui/ntp/notification_promo_whats_new.h"
-#include "ios/chrome/browser/ui/ntp/ntp_tile_saver.h"
-#import "ios/chrome/browser/ui/start_surface/start_surface_features.h"
-#include "ios/chrome/browser/ui/ui_feature_flags.h"
-#include "ios/chrome/browser/ui/util/ui_util.h"
+#import "ios/chrome/browser/ui/ntp/new_tab_page_metrics_delegate.h"
+#import "ios/chrome/browser/ui/start_surface/start_surface_util.h"
+#import "ios/chrome/browser/ui/whats_new/whats_new_util.h"
+#import "ios/chrome/browser/url/chrome_url_constants.h"
+#import "ios/chrome/browser/url_loading/url_loading_browser_agent.h"
+#import "ios/chrome/browser/url_loading/url_loading_params.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
-#include "ios/chrome/common/app_group/app_group_constants.h"
-#include "ios/chrome/grit/ios_strings.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "ui/base/l10n/l10n_util_mac.h"
+#import "ios/chrome/common/app_group/app_group_constants.h"
+#import "ios/chrome/grit/ios_strings.h"
+#import "third_party/abseil-cpp/absl/types/optional.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -53,6 +81,7 @@
 namespace {
 
 using CSCollectionViewItem = CollectionViewItem<SuggestedContent>;
+using RequestSource = SearchTermsData::RequestSource;
 
 // Maximum number of most visited tiles fetched.
 const NSInteger kMaxNumMostVisitedTiles = 4;
@@ -63,7 +92,6 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
                                           ReadingListModelBridgeObserver> {
   std::unique_ptr<ntp_tiles::MostVisitedSites> _mostVisitedSites;
   std::unique_ptr<ntp_tiles::MostVisitedSitesObserverBridge> _mostVisitedBridge;
-  std::unique_ptr<NotificationPromoWhatsNew> _notificationPromo;
   std::unique_ptr<ReadingListModelBridge> _readingListModelBridge;
 }
 
@@ -99,19 +127,11 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
 // Item for the "Return to Recent Tab" tile.
 @property(nonatomic, strong)
     ContentSuggestionsReturnToRecentTabItem* returnToRecentTabItem;
-// Section Info for the What's New promo section.
-@property(nonatomic, strong)
-    ContentSuggestionsSectionInformation* promoSectionInfo;
 // Section Info for the Most Visited section.
 @property(nonatomic, strong)
     ContentSuggestionsSectionInformation* mostVisitedSectionInfo;
 // Whether the page impression has been recorded.
 @property(nonatomic, assign) BOOL recordedPageImpression;
-// Map the section information created to the relevant category.
-@property(nonatomic, strong, nonnull)
-    NSMutableDictionary<ContentSuggestionsCategoryWrapper*,
-                        ContentSuggestionsSectionInformation*>*
-        sectionInformationByCategory;
 // Mediator fetching the favicons for the items.
 @property(nonatomic, strong) ContentSuggestionsFaviconMediator* faviconMediator;
 // Item for the reading list action item.  Reference is used to update the
@@ -125,12 +145,12 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
     BOOL showMostRecentTabStartSurfaceTile;
 // Whether the incognito mode is available.
 @property(nonatomic, assign) BOOL incognitoAvailable;
+// Browser reference.
+@property(nonatomic, assign) Browser* browser;
 
 @end
 
 @implementation ContentSuggestionsMediator
-
-@synthesize dataSink = _dataSink;
 
 #pragma mark - Public
 
@@ -141,7 +161,8 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
                                       mostVisitedSites
                  readingListModel:(ReadingListModel*)readingListModel
                       prefService:(PrefService*)prefService
-    isGoogleDefaultSearchProvider:(BOOL)isGoogleDefaultSearchProvider {
+    isGoogleDefaultSearchProvider:(BOOL)isGoogleDefaultSearchProvider
+                          browser:(Browser*)browser {
   self = [super init];
   if (self) {
     _incognitoAvailable = !IsIncognitoModeDisabled(prefService);
@@ -150,19 +171,12 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
     _contentSuggestionsPolicyEnabled =
         prefService->FindPreference(prefs::kNTPContentSuggestionsEnabled);
 
-    _sectionInformationByCategory = [[NSMutableDictionary alloc] init];
-
     _faviconMediator = [[ContentSuggestionsFaviconMediator alloc]
         initWithLargeIconService:largeIconService
                   largeIconCache:largeIconCache];
 
     _logoSectionInfo = LogoSectionInformation();
-    _promoSectionInfo = PromoSectionInformation();
     _mostVisitedSectionInfo = MostVisitedSectionInformation();
-
-    _notificationPromo = std::make_unique<NotificationPromoWhatsNew>(
-        GetApplicationContext()->GetLocalState());
-    _notificationPromo->Init();
 
     _mostVisitedSites = std::move(mostVisitedSites);
     _mostVisitedBridge =
@@ -172,13 +186,14 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
 
     _readingListModelBridge =
         std::make_unique<ReadingListModelBridge>(self, readingListModel);
+    _browser = browser;
   }
   return self;
 }
 
-// TODO: Whats this
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
   registry->RegisterInt64Pref(prefs::kIosDiscoverFeedLastRefreshTime, 0);
+  registry->RegisterInt64Pref(prefs::kIosDiscoverFeedLastUnseenRefreshTime, 0);
 }
 
 - (void)disconnect {
@@ -186,8 +201,31 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
   _mostVisitedSites.reset();
 }
 
+- (void)refreshMostVisitedTiles {
+  // Refresh in case there are new MVT to show.
+  _mostVisitedSites->RefreshTiles();
+  _mostVisitedSites->Refresh();
+}
+
 - (void)reloadAllData {
-  [self.dataSink reloadAllData];
+  if (!self.consumer) {
+    return;
+  }
+  if (self.returnToRecentTabItem) {
+    [self.consumer
+        showReturnToRecentTabTileWithConfig:self.returnToRecentTabItem];
+  }
+  if ([self.mostVisitedItems count] && ![self shouldHideMVTTiles]) {
+    [self.consumer setMostVisitedTilesWithConfigs:self.mostVisitedItems];
+  }
+  if (![self shouldHideShortcuts]) {
+    [self.consumer setShortcutTilesWithConfigs:self.actionButtonItems];
+  }
+  if (IsMagicStackEnabled()) {
+    [self.consumer setMagicStackOrder:@[
+      @(int(ContentSuggestionsModuleType::kShortcuts))
+    ]];
+  }
 }
 
 - (void)blockMostVisitedURL:(GURL)URL {
@@ -200,13 +238,10 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
   [self useFreshMostVisited];
 }
 
-- (NotificationPromoWhatsNew*)notificationPromo {
-  return _notificationPromo.get();
-}
-
-- (void)setDataSink:(id<ContentSuggestionsDataSink>)dataSink {
-  _dataSink = dataSink;
-  self.faviconMediator.dataSink = dataSink;
+- (void)setConsumer:(id<ContentSuggestionsConsumer>)consumer {
+  _consumer = consumer;
+  self.faviconMediator.consumer = consumer;
+  [self reloadAllData];
 }
 
 + (NSUInteger)maxSitesShown {
@@ -215,11 +250,10 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
 
 - (void)configureMostRecentTabItemWithWebState:(web::WebState*)webState
                                      timeLabel:(NSString*)timeLabel {
-  DCHECK(IsStartSurfaceEnabled());
   self.returnToRecentTabSectionInfo = ReturnToRecentTabSectionInformation();
   if (!self.returnToRecentTabItem) {
     self.returnToRecentTabItem =
-        [[ContentSuggestionsReturnToRecentTabItem alloc] initWithType:0];
+        [[ContentSuggestionsReturnToRecentTabItem alloc] init];
   }
 
   // Retrieve favicon associated with the page.
@@ -237,125 +271,187 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
 
   self.returnToRecentTabItem.title =
       l10n_util::GetNSString(IDS_IOS_RETURN_TO_RECENT_TAB_TITLE);
-  NSString* subtitle = [NSString
-      stringWithFormat:@"%@%@", base::SysUTF16ToNSString(webState->GetTitle()),
-                       timeLabel];
-  self.returnToRecentTabItem.subtitle = subtitle;
+  self.returnToRecentTabItem.subtitle = [self
+      constructReturnToRecentTabSubtitleWithPageTitle:base::SysUTF16ToNSString(
+                                                          webState->GetTitle())
+                                           timeString:timeLabel];
   self.showMostRecentTabStartSurfaceTile = YES;
-
-  [self.dataSink addSection:self.returnToRecentTabSectionInfo
-                 completion:^{
-                   [self.discoverFeedDelegate returnToRecentTabWasAdded];
-                 }];
+  [self.consumer
+      showReturnToRecentTabTileWithConfig:self.returnToRecentTabItem];
 }
 
 - (void)hideRecentTabTile {
-  DCHECK(IsStartSurfaceEnabled());
   if (self.showMostRecentTabStartSurfaceTile) {
     self.showMostRecentTabStartSurfaceTile = NO;
-    [self.dataSink clearSection:self.returnToRecentTabSectionInfo];
+    self.returnToRecentTabItem = nil;
+    [self.consumer hideReturnToRecentTabTile];
   }
+}
+
+#pragma mark - ContentSuggestionsCommands
+
+- (void)openMostVisitedItem:(NSObject*)item
+                    atIndex:(NSInteger)mostVisitedIndex {
+  // Checks if the item is a shortcut tile. Does not include Most Visited URL
+  // tiles.
+  if ([item isKindOfClass:[ContentSuggestionsMostVisitedActionItem class]]) {
+    [self.NTPMetricsDelegate shortcutTileOpened];
+    ContentSuggestionsMostVisitedActionItem* mostVisitedItem =
+        base::mac::ObjCCastStrict<ContentSuggestionsMostVisitedActionItem>(
+            item);
+    [self.contentSuggestionsMetricsRecorder
+        recordShortcutTileTapped:mostVisitedItem.collectionShortcutType];
+    switch (mostVisitedItem.collectionShortcutType) {
+      case NTPCollectionShortcutTypeBookmark:
+        LogLikelyInterestedDefaultBrowserUserActivity(DefaultPromoTypeAllTabs);
+        [self.dispatcher showBookmarksManager];
+        break;
+      case NTPCollectionShortcutTypeReadingList:
+        [self.dispatcher showReadingList];
+        break;
+      case NTPCollectionShortcutTypeRecentTabs:
+        [self.dispatcher showRecentTabs];
+        break;
+      case NTPCollectionShortcutTypeHistory:
+        [self.dispatcher showHistory];
+        break;
+      case NTPCollectionShortcutTypeWhatsNew:
+        SetWhatsNewUsed(self.promosManager);
+        [self.dispatcher showWhatsNew];
+        break;
+      case NTPCollectionShortcutTypeCount:
+        NOTREACHED();
+        break;
+    }
+    return;
+  }
+
+  ContentSuggestionsMostVisitedItem* mostVisitedItem =
+      base::mac::ObjCCastStrict<ContentSuggestionsMostVisitedItem>(item);
+
+  [self logMostVisitedOpening:mostVisitedItem atIndex:mostVisitedIndex];
+
+  UrlLoadParams params = UrlLoadParams::InCurrentTab(mostVisitedItem.URL);
+  params.web_params.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
+  UrlLoadingBrowserAgent::FromBrowser(self.browser)->Load(params);
+}
+
+- (void)openMostRecentTab {
+  [self.NTPMetricsDelegate recentTabTileOpened];
+  [self.contentSuggestionsMetricsRecorder recordMostRecentTabOpened];
+  [self hideRecentTabTile];
+  WebStateList* web_state_list = self.browser->GetWebStateList();
+  web::WebState* web_state =
+      StartSurfaceRecentTabBrowserAgent::FromBrowser(self.browser)
+          ->most_recent_tab();
+  if (!web_state) {
+    return;
+  }
+  int index = web_state_list->GetIndexOfWebState(web_state);
+  web_state_list->ActivateWebStateAt(index);
+}
+
+#pragma mark - ContentSuggestionsGestureCommands
+
+- (void)openNewTabWithMostVisitedItem:(ContentSuggestionsMostVisitedItem*)item
+                            incognito:(BOOL)incognito
+                              atIndex:(NSInteger)index
+                            fromPoint:(CGPoint)point {
+  if (incognito &&
+      IsIncognitoModeDisabled(self.browser->GetBrowserState()->GetPrefs())) {
+    // This should only happen when the policy changes while the option is
+    // presented.
+    return;
+  }
+  [self logMostVisitedOpening:item atIndex:index];
+  [self openNewTabWithURL:item.URL incognito:incognito originPoint:point];
+}
+
+- (void)openNewTabWithMostVisitedItem:(ContentSuggestionsMostVisitedItem*)item
+                            incognito:(BOOL)incognito
+                              atIndex:(NSInteger)index {
+  if (incognito &&
+      IsIncognitoModeDisabled(self.browser->GetBrowserState()->GetPrefs())) {
+    // This should only happen when the policy changes while the option is
+    // presented.
+    return;
+  }
+  [self logMostVisitedOpening:item atIndex:index];
+  [self openNewTabWithURL:item.URL incognito:incognito originPoint:CGPointZero];
+}
+
+- (void)openNewTabWithMostVisitedItem:(ContentSuggestionsMostVisitedItem*)item
+                            incognito:(BOOL)incognito {
+  [self openNewTabWithMostVisitedItem:item
+                            incognito:incognito
+                              atIndex:item.index];
+}
+
+- (void)removeMostVisited:(ContentSuggestionsMostVisitedItem*)item {
+  [self.contentSuggestionsMetricsRecorder recordMostVisitedTileRemoved];
+  [self blockMostVisitedURL:item.URL];
+  [self showMostVisitedUndoForURL:item.URL];
 }
 
 #pragma mark - StartSurfaceRecentTabObserving
 
 - (void)mostRecentTabWasRemoved:(web::WebState*)web_state {
-  DCHECK(IsStartSurfaceEnabled());
   [self hideRecentTabTile];
 }
 
 - (void)mostRecentTabFaviconUpdatedWithImage:(UIImage*)image {
   if (self.returnToRecentTabItem) {
     self.returnToRecentTabItem.icon = image;
-    [self.dataSink itemHasChanged:self.returnToRecentTabItem];
+    [self.consumer
+        updateReturnToRecentTabTileWithConfig:self.returnToRecentTabItem];
   }
 }
 
-#pragma mark - ContentSuggestionsDataSource
-
-- (NSArray<ContentSuggestionsSectionInformation*>*)sectionsInfo {
-  NSMutableArray<ContentSuggestionsSectionInformation*>* sectionsInfo =
-      [NSMutableArray array];
-
-  [sectionsInfo addObject:self.logoSectionInfo];
-
-  if (self.showMostRecentTabStartSurfaceTile) {
-    DCHECK(IsStartSurfaceEnabled());
-    [sectionsInfo addObject:self.returnToRecentTabSectionInfo];
+- (void)mostRecentTabTitleWasUpdated:(NSString*)title {
+  if (self.returnToRecentTabItem) {
+    SceneState* scene =
+        SceneStateBrowserAgent::FromBrowser(self.browser)->GetSceneState();
+    NSString* time_label = GetRecentTabTileTimeLabelForSceneState(scene);
+    self.returnToRecentTabItem.subtitle =
+        [self constructReturnToRecentTabSubtitleWithPageTitle:title
+                                                   timeString:time_label];
+    [self.consumer
+        updateReturnToRecentTabTileWithConfig:self.returnToRecentTabItem];
   }
-
-  if (_notificationPromo->CanShow()) {
-    [sectionsInfo addObject:self.promoSectionInfo];
-  }
-
-  [sectionsInfo addObject:self.mostVisitedSectionInfo];
-
-  return sectionsInfo;
-}
-
-- (NSArray<CSCollectionViewItem*>*)itemsForSectionInfo:
-    (ContentSuggestionsSectionInformation*)sectionInfo {
-  NSMutableArray<CSCollectionViewItem*>* convertedSuggestions =
-      [NSMutableArray array];
-
-  if (sectionInfo == self.logoSectionInfo) {
-    // Section empty on purpose.
-  } else if (sectionInfo == self.promoSectionInfo) {
-    if (_notificationPromo->CanShow()) {
-      ContentSuggestionsWhatsNewItem* item =
-          [[ContentSuggestionsWhatsNewItem alloc] initWithType:0];
-      item.icon = _notificationPromo->GetIcon();
-      item.text = base::SysUTF8ToNSString(_notificationPromo->promo_text());
-      [convertedSuggestions addObject:item];
-    }
-  } else if (sectionInfo == self.returnToRecentTabSectionInfo) {
-    DCHECK(IsStartSurfaceEnabled());
-    [convertedSuggestions addObject:self.returnToRecentTabItem];
-  } else if (sectionInfo == self.mostVisitedSectionInfo) {
-    [convertedSuggestions addObjectsFromArray:self.mostVisitedItems];
-    if (!ShouldHideShortcutsForStartSurface()) {
-      [convertedSuggestions addObjectsFromArray:self.actionButtonItems];
-    }
-  }
-
-  return convertedSuggestions;
-}
-
-- (UIView*)headerViewForWidth:(CGFloat)width {
-  return [self.headerProvider
-      headerForWidth:width
-      safeAreaInsets:[self.discoverFeedDelegate safeAreaInsetsForDiscoverFeed]];
 }
 
 #pragma mark - MostVisitedSitesObserving
 
 - (void)onMostVisitedURLsAvailable:
     (const ntp_tiles::NTPTilesVector&)mostVisited {
+  if ([self shouldHideMVTTiles]) {
+    return;
+  }
+
   // This is used by the content widget.
-  ntp_tile_saver::SaveMostVisitedToDisk(
+  content_suggestions_tile_saver::SaveMostVisitedToDisk(
       mostVisited, self.faviconMediator.mostVisitedAttributesProvider,
       app_group::ContentWidgetFaviconsFolder());
 
   self.freshMostVisitedItems = [NSMutableArray array];
+  int index = 0;
   for (const ntp_tiles::NTPTile& tile : mostVisited) {
     ContentSuggestionsMostVisitedItem* item =
         ConvertNTPTile(tile, self.mostVisitedSectionInfo);
-    item.commandHandler = self.commandHandler;
+    item.commandHandler = self;
     item.incognitoAvailable = self.incognitoAvailable;
+    item.index = index;
+    DCHECK(index < kShortcutMinimumIndex);
+    index++;
     [self.faviconMediator fetchFaviconForMostVisited:item];
     [self.freshMostVisitedItems addObject:item];
-  }
-
-  if ([self.mostVisitedItems count] > 0) {
-    // If some content is already displayed to the user, do not update without a
-    // user action.
-    return;
   }
 
   [self useFreshMostVisited];
 
   if (mostVisited.size() && !self.recordedPageImpression) {
     self.recordedPageImpression = YES;
+    [self recordMostVisitedTilesDisplayed];
     [self.faviconMediator setMostVisitedDataForLogging:mostVisited];
     ntp_tiles::metrics::RecordPageImpression(mostVisited.size());
   }
@@ -363,7 +459,7 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
 
 - (void)onIconMadeAvailable:(const GURL&)siteURL {
   // This is used by the content widget.
-  ntp_tile_saver::UpdateSingleFavicon(
+  content_suggestions_tile_saver::UpdateSingleFavicon(
       siteURL, self.faviconMediator.mostVisitedAttributesProvider,
       app_group::ContentWidgetFaviconsFolder());
 
@@ -375,26 +471,186 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
   }
 }
 
-#pragma mark - ContentSuggestionsMetricsRecorderDelegate
-
-- (ContentSuggestionsCategoryWrapper*)categoryWrapperForSectionInfo:
-    (ContentSuggestionsSectionInformation*)sectionInfo {
-  return [[self.sectionInformationByCategory allKeysForObject:sectionInfo]
-      firstObject];
-}
-
 #pragma mark - Private
+
+// Updates `prefs::kIosSyncSegmentsNewTabPageDisplayCount` with the number of
+// remaining New Tab Page displays that include synced history in the Most
+// Visited Tiles.
+- (void)recordMostVisitedTilesDisplayed {
+  PrefService* local_state = GetApplicationContext()->GetLocalState();
+
+  CHECK(local_state != nullptr);
+
+  const int displayCount =
+      local_state->GetInteger(prefs::kIosSyncSegmentsNewTabPageDisplayCount) +
+      1;
+
+  local_state->SetInteger(prefs::kIosSyncSegmentsNewTabPageDisplayCount,
+                          displayCount);
+}
 
 // Replaces the Most Visited items currently displayed by the most recent ones.
 - (void)useFreshMostVisited {
+  if ([self shouldHideMVTTiles]) {
+    return;
+  }
   self.mostVisitedItems = self.freshMostVisitedItems;
-    // All data needs to be reloaded in order to force a re-layout, this is
-    // cheaper since the Feed is not part of this ViewController when Discover
-    // is enabled.
-    [self reloadAllData];
-    // TODO(crbug.com/1170995): Potentially remove once ContentSuggestions can
-    // be added as part of a header.
-    [self.discoverFeedDelegate contentSuggestionsWasUpdated];
+  [self.consumer setMostVisitedTilesWithConfigs:self.mostVisitedItems];
+  [self.feedDelegate contentSuggestionsWasUpdated];
+}
+
+// Opens the `URL` in a new tab `incognito` or not. `originPoint` is the origin
+// of the new tab animation if the tab is opened in background, in window
+// coordinates.
+- (void)openNewTabWithURL:(const GURL&)URL
+                incognito:(BOOL)incognito
+              originPoint:(CGPoint)originPoint {
+  // Open the tab in background if it is non-incognito only.
+  UrlLoadParams params = UrlLoadParams::InNewTab(URL);
+  params.SetInBackground(!incognito);
+  params.in_incognito = incognito;
+  params.append_to = OpenPosition::kCurrentTab;
+  params.origin_point = originPoint;
+  UrlLoadingBrowserAgent::FromBrowser(self.browser)->Load(params);
+}
+
+// Logs a histogram due to a Most Visited item being opened.
+- (void)logMostVisitedOpening:(ContentSuggestionsMostVisitedItem*)item
+                      atIndex:(NSInteger)mostVisitedIndex {
+  [self.NTPMetricsDelegate mostVisitedTileOpened];
+  [self.contentSuggestionsMetricsRecorder
+      recordMostVisitedTileOpened:item
+                          atIndex:mostVisitedIndex
+                         webState:self.browser->GetWebStateList()
+                                      ->GetActiveWebState()];
+}
+
+// Shows a snackbar with an action to undo the removal of the most visited item
+// with a `URL`.
+- (void)showMostVisitedUndoForURL:(GURL)URL {
+  GURL copiedURL = URL;
+
+  MDCSnackbarMessageAction* action = [[MDCSnackbarMessageAction alloc] init];
+  __weak ContentSuggestionsMediator* weakSelf = self;
+  action.handler = ^{
+    ContentSuggestionsMediator* strongSelf = weakSelf;
+    if (!strongSelf)
+      return;
+    [strongSelf allowMostVisitedURL:copiedURL];
+  };
+  action.title = l10n_util::GetNSString(IDS_NEW_TAB_UNDO_THUMBNAIL_REMOVE);
+  action.accessibilityIdentifier = @"Undo";
+
+  TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
+  MDCSnackbarMessage* message = [MDCSnackbarMessage
+      messageWithText:l10n_util::GetNSString(
+                          IDS_IOS_NEW_TAB_MOST_VISITED_ITEM_REMOVED)];
+  message.action = action;
+  message.category = @"MostVisitedUndo";
+  [self.dispatcher showSnackbarMessage:message];
+}
+
+- (NSString*)constructReturnToRecentTabSubtitleWithPageTitle:
+                 (NSString*)pageTitle
+                                                  timeString:(NSString*)time {
+  return [NSString stringWithFormat:@"%@%@", pageTitle, time];
+}
+
+- (BOOL)shouldShowWhatsNewActionItem {
+  if (!IsWhatsNewEnabled() || WasWhatsNewUsed()) {
+    return NO;
+  }
+
+  AuthenticationService* authService =
+      AuthenticationServiceFactory::GetForBrowserState(
+          self.browser->GetBrowserState());
+  BOOL isSignedIn =
+      authService->HasPrimaryIdentity(signin::ConsentLevel::kSignin);
+
+  return !isSignedIn;
+}
+
+// Checks if users have met conditions to drop from the experiment to hide the
+// Most Visited Tiles and Shortcuts from the NTP.
+- (BOOL)isTileAblationComplete {
+  // Conditions:
+  // MVT/Shortcuts Should be shown again if:
+  // 1. User has used Bling < `kTileAblationMinimumUseThresholdInDays` days AND
+  // NTP Impressions > `kMinimumImpressionThresholdTileAblation`; or
+  // 2. User has used Bling >= `kTileAblationMaximumUseThresholdInDays` days
+  // or
+  // 3. NTP Impressions > `kMaximumImpressionThresholdTileAblation`;
+  // NTP impression time threshold is >=
+  // `kTileAblationImpressionThresholdMinutes` minutes per impression.
+  // (eg. 2 NTP impressions within <5 minutes of each other will count as 1 NTP
+  // impression for the purposes of this test.
+
+  // Return NO if the experimental setting to ignore `isTileAblationComplete` is
+  // true.
+  if (experimental_flags::ShouldIgnoreTileAblationConditions()) {
+    return NO;
+  }
+
+  // Return early if ablation was already complete.
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+  if ([defaults boolForKey:kDoneWithTileAblationKey]) {
+    return YES;
+  }
+
+  int impressions = [defaults integerForKey:kNumberOfNTPImpressionsRecordedKey];
+  NSDate* firstImpressionDate = base::mac::ObjCCast<NSDate>(
+      [defaults objectForKey:kFirstImpressionRecordedTileAblationKey]);
+  // Return early if no NTP impression has been recorded.
+  if (firstImpressionDate == nil) {
+    return NO;
+  }
+  base::Time firstImpressionTime = base::Time::FromNSDate(firstImpressionDate);
+
+  if (  // User has used Bling < `kTileAblationMinimumUseThresholdInDays` days
+        // AND NTP Impressions > `kMinimumImpressionThresholdTileAblation`; or
+      (base::Time::Now() - firstImpressionTime >=
+           base::Days(kTileAblationMinimumUseThresholdInDays) &&
+       impressions >= kMinimumImpressionThresholdTileAblation) ||
+      // User has used Bling >= `kTileAblationMaximumUseThresholdInDays` days
+      (base::Time::Now() - firstImpressionTime >=
+       base::Days(kTileAblationMaximumUseThresholdInDays)) ||
+      // NTP Impressions >= `kMaximumImpressionThresholdTileAblation`;
+      (impressions >= kMaximumImpressionThresholdTileAblation)) {
+    [defaults setBool:YES forKey:kDoneWithTileAblationKey];
+    return YES;
+  }
+  return NO;
+}
+
+// Returns whether the shortcut tiles should be hidden.
+- (BOOL)shouldHideShortcuts {
+  if (ShoudHideShortcuts()) {
+    return YES;
+  }
+  if ([self isTileAblationComplete]) {
+    return NO;
+  }
+  ntp_tiles::NewTabPageFieldTrialExperimentBehavior behavior =
+      ntp_tiles::GetNewTabPageFieldTrialExperimentType();
+  return behavior == ntp_tiles::NewTabPageFieldTrialExperimentBehavior::
+                         kTileAblationHideAll;
+}
+
+// Returns whether the MVT tiles should be hidden.
+- (BOOL)shouldHideMVTTiles {
+  if (ShouldHideMVT()) {
+    return YES;
+  }
+  if ([self isTileAblationComplete]) {
+    return NO;
+  }
+  ntp_tiles::NewTabPageFieldTrialExperimentBehavior behavior =
+      ntp_tiles::GetNewTabPageFieldTrialExperimentType();
+
+  return behavior == ntp_tiles::NewTabPageFieldTrialExperimentBehavior::
+                         kTileAblationHideAll ||
+         behavior == ntp_tiles::NewTabPageFieldTrialExperimentBehavior::
+                         kTileAblationHideMVTOnly;
 }
 
 #pragma mark - Properties
@@ -404,8 +660,9 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
     self.readingListItem = ReadingListActionItem();
     self.readingListItem.count = self.readingListUnreadCount;
     _actionButtonItems = @[
-      BookmarkActionItem(), self.readingListItem, RecentTabsActionItem(),
-      HistoryActionItem()
+      [self shouldShowWhatsNewActionItem] ? WhatsNewActionItem()
+                                          : BookmarkActionItem(),
+      self.readingListItem, RecentTabsActionItem(), HistoryActionItem()
     ];
     for (ContentSuggestionsMostVisitedActionItem* item in _actionButtonItems) {
       item.accessibilityTraits = UIAccessibilityTraitButton;
@@ -427,6 +684,14 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
   }
 }
 
+- (void)setContentSuggestionsMetricsRecorder:
+    (ContentSuggestionsMetricsRecorder*)contentSuggestionsMetricsRecorder {
+  CHECK(self.faviconMediator);
+  _contentSuggestionsMetricsRecorder = contentSuggestionsMetricsRecorder;
+  self.faviconMediator.contentSuggestionsMetricsRecorder =
+      self.contentSuggestionsMetricsRecorder;
+}
+
 - (BOOL)contentSuggestionsEnabled {
   return self.articleForYouEnabled->GetValue()->GetBool() &&
          self.contentSuggestionsPolicyEnabled->GetValue()->GetBool();
@@ -442,7 +707,7 @@ const NSInteger kMaxNumMostVisitedTiles = 4;
   self.readingListUnreadCount = model->unread_size();
   if (self.readingListItem) {
     self.readingListItem.count = self.readingListUnreadCount;
-    [self.dataSink itemHasChanged:self.readingListItem];
+    [self.consumer updateShortcutTileConfig:self.readingListItem];
   }
 }
 

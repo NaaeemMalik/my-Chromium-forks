@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,52 @@
 #define COMPONENTS_FEED_CORE_V2_PUBLIC_TYPES_H_
 
 #include <iosfwd>
-#include <map>
 #include <string>
+#include <vector>
 
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "base/types/id_type.h"
 #include "base/version.h"
+#include "components/signin/public/identity_manager/account_info.h"
 #include "components/version_info/channel.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 namespace feed {
 
+// Information about the user account. Currently, for Feed purposes, we use
+// account information only when the user is signed-in with Sync enabled. If
+// Sync is disabled, AccountInfo should be empty.
+struct AccountInfo {
+  AccountInfo();
+  AccountInfo(const std::string& gaia, const std::string& email);
+  explicit AccountInfo(CoreAccountInfo account_info);
+  bool operator==(const AccountInfo& rhs) const;
+  bool operator!=(const AccountInfo& rhs) const { return !(*this == rhs); }
+  bool IsEmpty() const;
+
+  std::string gaia;
+  std::string email;
+};
+std::ostream& operator<<(std::ostream& os, const AccountInfo& o);
+
 enum class RefreshTaskId {
   kRefreshForYouFeed,
-  // TODO(1152592): Refresh is not currently used for the Web Feed. Remove this
-  // code if we don't need it.
+  // TODO(1152592): Refresh is not currently used for the Web Feed. Remove
+  // this code if we don't need it.
   kRefreshWebFeed,
+};
+
+enum class AccountTokenFetchStatus {
+  // Token fetch was not attempted, or status is unknown.
+  kUnspecified = 0,
+  // Successfully fetch the correct token.
+  kSuccess = 1,
+  // The primary account changed before fetching the token completed.
+  kUnexpectedAccount = 2,
+  // Timed out while fetching the token.
+  kTimedOut = 3,
 };
 
 // Information about the Chrome build and feature flags.
@@ -44,10 +72,6 @@ using EphemeralChangeId = base::IdTypeU32<class EphemeralChangeIdClass>;
 using SurfaceId = base::IdTypeU32<class SurfaceIdClass>;
 using ImageFetchId = base::IdTypeU32<class ImageFetchIdClass>;
 
-// A map of trial names (key) to group names (value) that is
-// sent from the server.
-typedef std::map<std::string, std::string> Experiments;
-
 struct NetworkResponseInfo {
   NetworkResponseInfo();
   ~NetworkResponseInfo();
@@ -63,7 +87,10 @@ struct NetworkResponseInfo {
   GURL base_request_url;
   size_t response_body_bytes = 0;
   size_t encoded_size_bytes = 0;
-  bool was_signed_in = false;
+  // If it was a signed-in request, this is the associated account info.
+  AccountInfo account_info;
+  AccountTokenFetchStatus account_token_fetch_status =
+      AccountTokenFetchStatus::kUnspecified;
   base::TimeTicks fetch_time_ticks;
   base::TimeTicks loader_start_time_ticks;
 };
@@ -75,10 +102,6 @@ struct NetworkResponse {
   std::string response_bytes;
   // HTTP status code if available, or net::Error otherwise.
   int status_code;
-
-  NetworkResponse() = default;
-  NetworkResponse(NetworkResponse&& other) = default;
-  NetworkResponse& operator=(NetworkResponse&& other) = default;
 };
 
 // For the snippets-internals page.
@@ -99,8 +122,8 @@ std::string SerializeDebugStreamData(const DebugStreamData& data);
 absl::optional<DebugStreamData> DeserializeDebugStreamData(
     base::StringPiece base64_encoded);
 
-// Information about a web page which may be used to determine an associated web
-// feed.
+// Information about a web page which may be used to determine an associated
+// web feed.
 class WebFeedPageInformation {
  public:
   WebFeedPageInformation();
@@ -112,16 +135,23 @@ class WebFeedPageInformation {
 
   // The URL for the page. `url().has_ref()` is always false.
   const GURL& url() const { return url_; }
+  // The Canonical URL for the page, if one was found. `url().has_ref()` is
+  // always false
+  const GURL& canonical_url() const { return canonical_url_; }
   // The list of RSS urls embedded in the page with the <link> tag.
   const std::vector<GURL>& GetRssUrls() const { return rss_urls_; }
 
   // Set the URL for the page. Trims off the URL ref.
   void SetUrl(const GURL& url);
 
+  // Set the canonical URL for the page. Trims off the URL ref.
+  void SetCanonicalUrl(const GURL& url);
+
   void SetRssUrls(const std::vector<GURL>& rss_urls);
 
  private:
   GURL url_;
+  GURL canonical_url_;
   std::vector<GURL> rss_urls_;
 };
 std::ostream& operator<<(std::ostream& os, const WebFeedPageInformation& value);
@@ -169,9 +199,9 @@ struct WebFeedMetadata {
 };
 std::ostream& operator<<(std::ostream& out, const WebFeedMetadata& value);
 
-// This must be kept in sync with WebFeedSubscriptionRequestStatus in enums.xml.
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
+// This must be kept in sync with WebFeedSubscriptionRequestStatus in
+// enums.xml. These values are persisted to logs. Entries should not be
+// renumbered and numeric values should never be reused.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.feed.webfeed
 enum class WebFeedSubscriptionRequestStatus {
   kUnknown = 0,
@@ -185,7 +215,98 @@ enum class WebFeedSubscriptionRequestStatus {
 std::ostream& operator<<(std::ostream& out,
                          WebFeedSubscriptionRequestStatus value);
 
+// This must be kept in sync with WebFeedQueryRequestStatus in
+// enums.xml. These values are persisted to logs. Entries should not be
+// renumbered and numeric values should never be reused.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.feed.webfeed
+enum class WebFeedQueryRequestStatus {
+  kUnknown = 0,
+  kSuccess = 1,
+  kFailedOffline = 2,
+  kFailedUnknownError = 3,
+  kAbortWebFeedQueryPendingClearAll = 4,
+  kFailedInvalidUrl = 5,
+  kMaxValue = kFailedInvalidUrl,
+};
+std::ostream& operator<<(std::ostream& out, WebFeedQueryRequestStatus value);
+
 using NetworkRequestId = base::IdTypeU32<class NetworkRequestIdClass>;
+
+// Values for the UMA
+// ContentSuggestions.Feed.WebFeed.PageInformationRequested histogram.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused. This must be kept in sync with
+// WebFeedPageInformationRequestReason in enums.xml.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.feed.webfeed
+enum class WebFeedPageInformationRequestReason : int {
+  // The user requested to Follow the current web page.
+  kUserRequestedFollow = 0,
+  // A Follow recommendation is being considered the current web page.
+  kFollowRecommendation = 1,
+  // The Follow menu item state needs to reflect the current web page.
+  kMenuItemPresentation = 2,
+
+  kMaxValue = kMenuItemPresentation,
+};
+
+// Values for feed type
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.feed
+enum class StreamKind : int {
+  // Stream type is unknown.
+  kUnknown = 0,
+  // For you stream.
+  kForYou = 1,
+  // Following stream.
+  kFollowing = 2,
+  // Single Web Feed (Cormorant) stream.
+  kSingleWebFeed = 3,
+
+  kMaxValue = kSingleWebFeed,
+};
+
+// Singe Web entry points
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.feed
+enum class SingleWebFeedEntryPoint : int {
+  // Three dot menu
+  kMenu = 0,
+  // Feed Atteribution
+  kAttribution = 1,
+  // Feed Recomentation
+  kRecommendation = 2,
+  // Feed Recomentation
+  kGroupHeader = 3,
+  // Other
+  kOther = 4,
+
+  kMaxValue = kOther,
+};
+std::ostream& operator<<(std::ostream& out, SingleWebFeedEntryPoint value);
+
+// For testing and debugging only.
+std::ostream& operator<<(std::ostream& out,
+                         WebFeedPageInformationRequestReason value);
+
+// Used to tell how to open an URL.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.feed
+enum class OpenActionType : int {
+  // The default open action.
+  kDefault = 0,
+  // "Open in new tab" action.
+  kNewTab = 1,
+  // "Open in new tab in group" action.
+  kNewTabInGroup = 2,
+};
+
+// Describes how tab group feature is enabled.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.feed
+enum class TabGroupEnabledState : int {
+  // No tab group is enabled.
+  kNone = 0,
+  // "Open in new tab in group" replaces "Open in new tab".
+  kReplaced = 1,
+  // Both "Open in new tab in group" and "Open in new tab" are shown.
+  kBoth = 2,
+};
 
 }  // namespace feed
 

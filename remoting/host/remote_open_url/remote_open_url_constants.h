@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ namespace remoting {
 
 extern const char kRemoteOpenUrlDataChannelName[];
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 
 // The ProgID of the URL forwarder.
 extern const wchar_t kUrlForwarderProgId[];
@@ -19,7 +19,7 @@ extern const wchar_t kUrlForwarderProgId[];
 // The ProgID for undecided default browser, which launches OpenWith.exe.
 extern const wchar_t kUndecidedProgId[];
 
-#endif  // defined (OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 }  // namespace remoting
 

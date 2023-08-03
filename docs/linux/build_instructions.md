@@ -21,6 +21,21 @@ Are you a Google employee? See
 Most development is done on Ubuntu (currently 18.04, Bionic Beaver). There are
 some instructions for other distros below, but they are mostly unsupported.
 
+### Docker requirements
+
+While it is not a common setup, Chromium compilation should work from within a
+Docker container. If you choose to compile from within a container for whatever
+reason, you will need to make sure that the following tools are available:
+
+* `curl`
+* `git`
+* `lsb_release`
+* `python3`
+* `sudo`
+
+There may be additional Docker-specific issues during compilation. See
+[this bug](https://crbug.com/1377520) for additional details on this.
+
 ## Install `depot_tools`
 
 Clone the `depot_tools` repository:
@@ -190,7 +205,7 @@ See [related bug](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=808181).
 
 #### ccache
 
-You can use [ccache](https://ccache.samba.org) to speed up local builds (again,
+You can use [ccache](https://ccache.dev) to speed up local builds (again,
 this is not useful if you're using Goma).
 
 Increase your ccache hit rate by setting `CCACHE_BASEDIR` to a parent directory
@@ -199,7 +214,7 @@ that the working directories all have in common (e.g.,
 `CCACHE_SLOPPINESS=include_file_mtime` (since if you are using multiple working
 directories, header times in svn sync'ed portions of your trees will be
 different - see
-[the ccache troubleshooting section](http://ccache.samba.org/manual.html#_troubleshooting)
+[the ccache troubleshooting section](https://ccache.dev/manual/latest.html#_troubleshooting)
 for additional information). If you use symbolic links from your home directory
 to get to the local physical disk directory where you keep those working
 development directories, consider putting
@@ -242,6 +257,19 @@ hyperthreaded, 12 GB RAM)
 *   Without tmpfs
     *   15m:40s
 
+### Smaller builds
+
+The Chrome binary contains embedded symbols by default. You can reduce its size
+by using the Linux `strip` command to remove this debug information. You can
+also reduce binary size by disabling debug mode, disabling dchecks, and turning
+on all optimizations by enabling official build mode, with these GN args:
+
+```
+is_debug = false
+dcheck_always_on = false
+is_official_build = true
+```
+
 ## Build Chromium
 
 Build Chromium (the "chrome" target) with Ninja using the command:
@@ -266,13 +294,44 @@ Once it is built, you can simply run the browser:
 $ out/Default/chrome
 ```
 
-## Running test targets
-
-You can run the tests in the same way. You can also limit which tests are
-run using the `--gtest_filter` arg, e.g.:
+If you're using a remote machine that supports Chrome Remote Desktop, you can
+add this to your .bashrc / .bash_profile.
 
 ```shell
-$ out/Default/unit_tests --gtest_filter="PushClientTest.*"
+if [[ -z "${DISPLAY}" ]]; then
+  export DISPLAY=:$(
+    find /tmp/.X11-unix -maxdepth 1 -mindepth 1 -name 'X*' |
+      grep -o '[0-9]\+$' | head -n 1
+  )
+fi
+```
+
+This means if you launch Chrome from an SSH session, the UI output will be
+available in Chrome Remote Desktop.
+
+## Running test targets
+
+Tests are split into multiple test targets based on their type and where they
+exist in the directory structure. To see what target a given unit test or
+browser test file corresponds to, the following command can be used:
+
+```shell
+$ gn refs out/Default --testonly=true --type=executable --all chrome/browser/ui/browser_list_unittest.cc
+//chrome/test:unit_tests
+```
+
+In the example above, the target is unit_tests. The unit_tests binary can be
+built by running the following command:
+
+```shell
+$ autoninja -C out/Default unit_tests
+```
+
+You can run the tests by running the unit_tests binary. You can also limit which
+tests are run using the `--gtest_filter` arg, e.g.:
+
+```shell
+$ out/Default/unit_tests --gtest_filter="BrowserListUnitTest.*"
 ```
 
 You can find out more about GoogleTest at its
@@ -312,6 +371,12 @@ collect2: ld terminated with signal 6 Aborted terminate called after throwing an
 collect2: ld terminated with signal 11 [Segmentation fault], core dumped
 ```
 
+or:
+
+```
+LLVM ERROR: out of memory
+```
+
 you are probably running out of memory when linking. You *must* use a 64-bit
 system to build. Try the following build settings (see [GN build
 configuration](https://www.chromium.org/developers/gn-build-configuration) for
@@ -322,6 +387,11 @@ other settings):
 *   Turn off symbols: `symbol_level = 0`
 *   Build in component mode (this is for development only, it will be slower and
     may have broken functionality): `is_component_build = true`
+*   For official (ThinLTO) builds on Linux, increase the vm.max_map_count kernel
+    parameter: increase the `vm.max_map_count` value from default (like 65530)
+    to for example 262144. You can run the `sudo sysctl -w vm.max_map_count=262144`
+    command to set it in the current session from the shell, or add the
+    `vm.max_map_count=262144` to /etc/sysctl.conf to save it permanently.
 
 ### More links
 

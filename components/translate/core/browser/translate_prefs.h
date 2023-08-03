@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,16 +16,13 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "url/gurl.h"
 
 class PrefService;
-
-namespace base {
-class DictionaryValue;
-}  // namespace base
 
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -39,11 +36,23 @@ namespace translate {
 
 // Enables or disables using the most recent target language as the default
 // target language option.
-extern const base::Feature kTranslateRecentTarget;
+BASE_DECLARE_FEATURE(kTranslateRecentTarget);
 
 // This allows the user to disable translate by using the
 // `--disable-features=Translate` command-line flag.
-extern const base::Feature kTranslate;
+BASE_DECLARE_FEATURE(kTranslate);
+
+// Whether to migrate the obsolete always-translate languages pref to the new
+// pref during object construction as a fix for crbug/1291356, which had
+// previously not been migrated at all on iOS. This also enables a more
+// conservative pref merging process that aims to merge in old always-translate
+// language values from the obsolete pref without conflicting with any values in
+// the new pref that may have been added.
+//
+// TODO(crbug/1303963): This base::Feature only exists to allow a less risky
+// merge into iOS M98. This base::Feature should be removed once it's no longer
+// relevant and the enabled behavior should become the only behavior.
+BASE_DECLARE_FEATURE(kMigrateAlwaysTranslateLanguagesFix);
 
 // Whether to migrate the obsolete always-translate languages pref to the new
 // pref during object construction as a fix for crbug/1291356, which had
@@ -59,7 +68,7 @@ extern const base::Feature kMigrateAlwaysTranslateLanguagesFix;
 
 // Minimum number of times the user must accept a translation before we show
 // a shortcut to the "Always Translate" functionality.
-#if defined(OS_ANDROID) || defined(OS_IOS)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
 // The "Always Translate" shortcut is always shown on iOS and Android.
 constexpr int kAlwaysTranslateShortcutMinimumAccepts = 1;
 #else
@@ -70,18 +79,16 @@ constexpr int kAlwaysTranslateShortcutMinimumAccepts = 3;
 // a shortcut to the "Never Translate" functionality.
 // Android and iOS implementations do not offer a drop down (for space reasons),
 // so we are more aggressive about showing this shortcut.
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 // On Android, this shows the "Never Translate" shortcut after two denials just
 // like on iOS. However, the last event is not counted so we must subtract one
 // to get the same behavior.
 constexpr int kNeverTranslateShortcutMinimumDenials = 1;
-#elif defined(OS_IOS)
+#elif BUILDFLAG(IS_IOS)
 constexpr int kNeverTranslateShortcutMinimumDenials = 2;
 #else
 constexpr int kNeverTranslateShortcutMinimumDenials = 3;
 #endif
-
-class TranslateAcceptLanguages;
 
 // This class holds various info about a language, that are related to Translate
 // Preferences and Language Settings.
@@ -113,17 +120,16 @@ class TranslatePrefs {
   // TODO(crbug.com/524927): Remove kPrefNeverPromptSites after
   // 3 milestones (M74).
   static const char kPrefNeverPromptSitesDeprecated[];
-  static const char kPrefNeverPromptSitesWithTime[];
   static const char kPrefTranslateDeniedCount[];
   static const char kPrefTranslateIgnoredCount[];
   static const char kPrefTranslateAcceptedCount[];
   // Deprecated 10/2021.
   static const char kPrefAlwaysTranslateListDeprecated[];
-#if defined(OS_ANDROID) || defined(OS_IOS)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
   static const char kPrefTranslateAutoAlwaysCount[];
   static const char kPrefTranslateAutoNeverCount[];
 #endif
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   static const char kPrefExplicitLanguageAskShown[];
 #endif
 
@@ -152,11 +158,11 @@ class TranslatePrefs {
   // the rest of the code.
   static std::string MapPreferenceName(const std::string& pref_name);
 
-  // Checks if the "offer translate" (i.e. automatic translate bubble) feature
-  // is enabled.
+  // Returns true if the "offer translate" pref is enabled (i.e. allowing for
+  // automatic Full Page Translate bubbles).
   bool IsOfferTranslateEnabled() const;
 
-  // Checks if translate is allowed by policy.
+  // Returns true if Translate is allowed by policy.
   bool IsTranslateAllowedByPolicy() const;
 
   // Sets the country that the application is run in. Determined by the
@@ -177,8 +183,8 @@ class TranslatePrefs {
   void BlockLanguage(base::StringPiece source_language);
   void UnblockLanguage(base::StringPiece source_language);
   // Returns the languages that should be blocked by default as a
-  // base::(List)Value.
-  static base::Value GetDefaultBlockedLanguages();
+  // base::Value::List.
+  static base::Value::List GetDefaultBlockedLanguages();
   void ResetBlockedLanguagesToDefault();
   // Prevent empty blocked languages by resetting them to the default value.
   // (crbug.com/902354)
@@ -289,7 +295,7 @@ class TranslatePrefs {
   void IncrementTranslationAcceptedCount(base::StringPiece language);
   void ResetTranslationAcceptedCount(base::StringPiece language);
 
-#if defined(OS_ANDROID) || defined(OS_IOS)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
   // These methods are used to track how many times the auto-always translation
   // has been triggered for a specific language.
   int GetTranslationAutoAlwaysCount(base::StringPiece language) const;
@@ -303,7 +309,7 @@ class TranslatePrefs {
   void ResetTranslationAutoNeverCount(base::StringPiece language);
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // These methods are used to determine whether the explicit language ask
   // prompt was displayed to the user already.
   bool GetExplicitLanguageAskPromptShown() const;
@@ -322,8 +328,13 @@ class TranslatePrefs {
   // Gets the user selected language list from language settings.
   void GetUserSelectedLanguageList(std::vector<std::string>* languages) const;
 
-  bool CanTranslateLanguage(TranslateAcceptLanguages* accept_languages,
-                            base::StringPiece language);
+  // Returns true if translate should trigger the UI on English
+  // pages, even when the UI language is English. This function also records
+  // whether the backoff threshold was reached in UMA.
+  bool ShouldForceTriggerTranslateOnEnglishPages();
+  static void SetShouldForceTriggerTranslateOnEnglishPagesForTesting();
+
+  bool CanTranslateLanguage(base::StringPiece language);
   bool ShouldAutoTranslate(base::StringPiece source_language,
                            std::string* target_language);
   // True if the detailed language settings are enabled for this user.
@@ -337,16 +348,16 @@ class TranslatePrefs {
   std::string GetRecentTargetLanguage() const;
 
   // Gets the value for the pref that represents how often the
-  // kOverrideTranslateTriggerInIndia experiment made translate trigger on an
+  // force English in India feature made translate trigger on an
   // English page when it otherwise wouldn't have. This pref is used to
-  // determine whether the experiment should be suppressed for a particular user
+  // determine whether the feature should be suppressed for a particular user
   int GetForceTriggerOnEnglishPagesCount() const;
   // Increments the pref that represents how often the
-  // kOverrideTranslateTriggerInIndia experiment made translate trigger on an
+  // force English in India feature made translate trigger on an
   // English page when it otherwise wouldn't have.
   void ReportForceTriggerOnEnglishPages();
   // Sets to -1 the pref that represents how often the
-  // kOverrideTranslateTriggerInIndia experiment made translate trigger on an
+  // force English in India feature made translate trigger on an
   // English page when it otherwise wouldn't have. This is a special value that
   // signals that the backoff should not happen for that user.
   void ReportAcceptedAfterForceTriggerOnEnglishPages();
@@ -359,10 +370,6 @@ class TranslatePrefs {
 
   static void RegisterProfilePrefsForMigration(
       user_prefs::PrefRegistrySyncable* registry);
-
-  static void MigrateObsoleteProfilePrefs(PrefService* pref_service);
-
-  static void ClearObsoleteProfilePrefs(PrefService* pref_service);
 
  private:
   FRIEND_TEST_ALL_PREFIXES(TranslatePrefsTest,
@@ -382,6 +389,7 @@ class TranslatePrefs {
   FRIEND_TEST_ALL_PREFIXES(TranslatePrefsTest, MoveLanguageDown);
   FRIEND_TEST_ALL_PREFIXES(TranslatePrefsTest, ResetBlockedLanguagesToDefault);
   FRIEND_TEST_ALL_PREFIXES(TranslatePrefsTest, MigrateNeverPromptSites);
+  FRIEND_TEST_ALL_PREFIXES(TranslatePrefsTest, SiteNeverPromptList);
   friend class TranslatePrefsTest;
 
   void ClearNeverPromptSiteList();
@@ -391,25 +399,21 @@ class TranslatePrefs {
   bool IsValueOnNeverPromptList(const char* pref_id,
                                 base::StringPiece value) const;
   void AddValueToNeverPromptList(const char* pref_id, base::StringPiece value);
+  // Used for testing. The public version passes in base::Time::Now()
+  void AddSiteToNeverPromptList(base::StringPiece site, base::Time time);
   void RemoveValueFromNeverPromptList(const char* pref_id,
                                       base::StringPiece value);
   size_t GetListSize(const char* pref_id) const;
 
   bool IsDictionaryEmpty(const char* pref_id) const;
 
-  // Retrieves the dictionary mapping the number of times translation has been
-  // denied for a language, creating it if necessary.
-  base::DictionaryValue* GetTranslationDeniedCountDictionary();
-
-  // Retrieves the dictionary mapping the number of times translation has been
-  // accepted for a language, creating it if necessary.
-  base::DictionaryValue* GetTranslationAcceptedCountDictionary() const;
-
   raw_ptr<PrefService> prefs_;  // Weak.
 
   std::string country_;  // The country the app runs in.
 
   std::unique_ptr<language::LanguagePrefs> language_prefs_;
+
+  static bool force_translate_on_english_for_testing_;
 };
 
 }  // namespace translate

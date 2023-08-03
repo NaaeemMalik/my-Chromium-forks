@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/files/file_path.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/test/javascript_test_observer.h"
@@ -27,16 +28,15 @@ class StructuredMessageHandler : public content::TestMessageHandler {
   // a "type" field that indicates the nature of message.
   virtual MessageResponse HandleStructuredMessage(
       const std::string& type,
-      base::DictionaryValue* msg) = 0;
+      const base::Value::Dict& msg) = 0;
 
  protected:
   // The structured message is missing an expected field.
-  MessageResponse MissingField(
-      const std::string& type,
-      const std::string& field) WARN_UNUSED_RESULT;
+  [[nodiscard]] MessageResponse MissingField(const std::string& type,
+                                             const std::string& field);
 
   // Something went wrong while decoding the message.
-  MessageResponse InternalError(const std::string& reason) WARN_UNUSED_RESULT;
+  [[nodiscard]] MessageResponse InternalError(const std::string& reason);
 };
 
 // A simple structured message handler for tests that load nexes.
@@ -49,8 +49,9 @@ class LoadTestMessageHandler : public StructuredMessageHandler {
 
   void Log(const std::string& type, const std::string& message);
 
-  MessageResponse HandleStructuredMessage(const std::string& type,
-                                          base::DictionaryValue* msg) override;
+  MessageResponse HandleStructuredMessage(
+      const std::string& type,
+      const base::Value::Dict& msg) override;
 
   bool test_passed() const {
     return test_passed_;
@@ -158,9 +159,10 @@ class NaClBrowserTestGLibcExtension : public NaClBrowserTestGLibc {
 // PNaCl tests take a long time on windows debug builds
 // and sometimes time out.  Disable until it is made faster:
 // https://code.google.com/p/chromium/issues/detail?id=177555
-#if (defined(OS_WIN) && !defined(NDEBUG))
+#if (BUILDFLAG(IS_WIN) && !defined(NDEBUG))
 #  define MAYBE_PNACL(test_name) DISABLED_##test_name
-#elif (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(ADDRESS_SANITIZER)
+#elif (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && \
+    defined(ADDRESS_SANITIZER)
 // NaClBrowserTestPnacl tests are very flaky on ASan, see crbug.com/1003259.
 #  define MAYBE_PNACL(test_name) DISABLED_##test_name
 #else
@@ -170,7 +172,7 @@ class NaClBrowserTestGLibcExtension : public NaClBrowserTestGLibc {
 // NaCl glibc toolchain is not available on MIPS
 // It also no longer runs on recent versions of MacOS, and is flaky on Windows
 // due to use of cygwin.
-#if defined(ARCH_CPU_MIPS_FAMILY) || defined(OS_MAC) || defined(OS_WIN)
+#if defined(ARCH_CPU_MIPS_FAMILY) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 #  define MAYBE_GLIBC(test_name) DISABLED_##test_name
 #else
 #  define MAYBE_GLIBC(test_name) test_name

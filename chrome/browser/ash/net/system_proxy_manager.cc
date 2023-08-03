@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,29 +8,30 @@
 
 #include "ash/components/arc/arc_prefs.h"
 #include "ash/constants/ash_features.h"
-#include "base/bind.h"
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/values.h"
 #include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/notifications/request_system_proxy_credentials_view.h"
 #include "chrome/browser/ash/notifications/system_proxy_notification.h"
-#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/login/login_handler.h"
 #include "chrome/common/pref_names.h"
-#include "chromeos/dbus/system_proxy/system_proxy_client.h"
-#include "chromeos/login/login_state/login_state.h"
-#include "chromeos/network/network_event_log.h"
-#include "chromeos/network/network_state.h"
-#include "chromeos/network/network_state_handler.h"
-#include "chromeos/network/proxy/proxy_config_service_impl.h"
-#include "chromeos/network/proxy/ui_proxy_config_service.h"
+#include "chromeos/ash/components/dbus/system_proxy/system_proxy_client.h"
+#include "chromeos/ash/components/login/login_state/login_state.h"
+#include "chromeos/ash/components/network/network_event_log.h"
+#include "chromeos/ash/components/network/network_state.h"
+#include "chromeos/ash/components/network/network_state_handler.h"
+#include "chromeos/ash/components/network/proxy/proxy_config_service_impl.h"
+#include "chromeos/ash/components/network/proxy/ui_proxy_config_service.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -48,6 +49,8 @@
 #include "ui/gfx/native_widget_types.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
+
+namespace ash {
 
 namespace {
 
@@ -67,7 +70,7 @@ class SystemProxyLoginHandler : public content::LoginDelegate {
       const std::string& username,
       const std::string& password,
       LoginAuthRequiredCallback auth_required_callback) {
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&SystemProxyLoginHandler::InvokeWithCredentials,
                        weak_factory_.GetWeakPtr(), username, password,
@@ -90,24 +93,20 @@ class SystemProxyLoginHandler : public content::LoginDelegate {
 // system services and the PlayStore. If enabled via flag, system-proxy can only
 // be used by system services which explicitly ask to use system-proxy for HTTP
 // proxy authentication. Otherwise, system-proxy is disabled.
-chromeos::SystemProxyManager::SystemProxyState DetermineSystemProxyState(
+SystemProxyManager::SystemProxyState DetermineSystemProxyState(
     bool policy_enabled) {
   if (policy_enabled)
-    return chromeos::SystemProxyManager::SystemProxyState::kEnabledForAll;
+    return SystemProxyManager::SystemProxyState::kEnabledForAll;
 
-  if (base::FeatureList::IsEnabled(
-          ash::features::kSystemProxyForSystemServices)) {
-    return chromeos::SystemProxyManager::SystemProxyState::
-        kEnabledForSystemServices;
+  if (base::FeatureList::IsEnabled(features::kSystemProxyForSystemServices)) {
+    return SystemProxyManager::SystemProxyState::kEnabledForSystemServices;
   }
-  return chromeos::SystemProxyManager::SystemProxyState::kDisabled;
+  return SystemProxyManager::SystemProxyState::kDisabled;
 }
 
+SystemProxyManager* g_system_proxy_manager_ = nullptr;
+
 }  // namespace
-
-namespace chromeos {
-
-static SystemProxyManager* g_system_proxy_manager_ = nullptr;
 
 SystemProxyManager::SystemProxyManager(PrefService* local_state) {
   // Connect to System-proxy signals.
@@ -127,7 +126,8 @@ SystemProxyManager::SystemProxyManager(PrefService* local_state) {
       base::BindRepeating(&SystemProxyManager::OnKerberosEnabledChanged,
                           weak_factory_.GetWeakPtr()));
   DCHECK(NetworkHandler::IsInitialized());
-  NetworkHandler::Get()->network_state_handler()->AddObserver(this, FROM_HERE);
+  network_state_handler_observer_.Observe(
+      NetworkHandler::Get()->network_state_handler());
 
   system_proxy_state_ = DetermineSystemProxyState(/*policy_enabled=*/false);
 
@@ -144,8 +144,6 @@ SystemProxyManager::~SystemProxyManager() {
     SendShutDownRequest(system_proxy::TrafficOrigin::ALL);
   }
   DCHECK(NetworkHandler::IsInitialized());
-  NetworkHandler::Get()->network_state_handler()->RemoveObserver(this,
-                                                                 FROM_HERE);
 }
 
 // static
@@ -167,15 +165,15 @@ void SystemProxyManager::Shutdown() {
 }
 
 std::string SystemProxyManager::SystemServicesProxyPacString(
-    SystemProxyOverride system_proxy_override) const {
-  if (system_proxy_override == SystemProxyOverride::kOptOut ||
+    chromeos::SystemProxyOverride system_proxy_override) const {
+  if (system_proxy_override == chromeos::SystemProxyOverride::kOptOut ||
       system_services_address_.empty()) {
     return std::string();
   }
 
   if (system_proxy_state_ == SystemProxyState::kEnabledForAll ||
       (system_proxy_state_ == SystemProxyState::kEnabledForSystemServices &&
-       system_proxy_override == SystemProxyOverride::kOptIn)) {
+       system_proxy_override == chromeos::SystemProxyOverride::kOptIn)) {
     return "PROXY " + system_services_address_;
   }
 
@@ -411,8 +409,9 @@ void SystemProxyManager::SendKerberosAuthenticationDetails() {
   if (primary_profile_) {
     request.set_active_principal_name(
         primary_profile_->GetPrefs()
-            ->Get(prefs::kKerberosActivePrincipalName)
-            ->GetString());
+            ->GetValue(prefs::kKerberosActivePrincipalName)
+            // TODO (https://crbug.com/1344857) Maybe call GetString directly.
+            .GetString());
   }
   SystemProxyClient::Get()->SetAuthenticationDetails(
       request, base::BindOnce(&SystemProxyManager::OnSetAuthenticationDetails,
@@ -450,7 +449,7 @@ void SystemProxyManager::SetSendAuthDetailsClosureForTest(
   send_auth_details_closure_for_test_ = closure;
 }
 
-ash::RequestSystemProxyCredentialsView*
+RequestSystemProxyCredentialsView*
 SystemProxyManager::GetActiveAuthDialogForTest() {
   return active_auth_dialog_;
 }
@@ -474,7 +473,7 @@ bool SystemProxyManager::CanUsePolicyCredentials(
   }
   if (!LoginState::IsInitialized() ||
       (!LoginState::Get()->IsPublicSessionUser() &&
-       !LoginState::Get()->IsKioskApp())) {
+       !LoginState::Get()->IsKioskSession())) {
     VLOG(1) << "Only kiosk app and MGS can reuse the policy provided proxy "
                "credentials for authentication";
     return false;
@@ -539,7 +538,7 @@ void SystemProxyManager::OnProxyConfigChanged() {
 bool SystemProxyManager::IsManagedProxyConfigured() {
   DCHECK(NetworkHandler::IsInitialized());
   NetworkHandler* network_handler = NetworkHandler::Get();
-  base::Value proxy_settings(base::Value::Type::DICTIONARY);
+  base::Value::Dict proxy_settings;
 
   // |ui_proxy_config_service| may be missing in tests. If the device is offline
   // (no network connected) the |DefaultNetwork| is null.
@@ -551,7 +550,7 @@ bool SystemProxyManager::IsManagedProxyConfigured() {
         network_handler->network_state_handler()->DefaultNetwork()->guid(),
         &proxy_settings);
   }
-  if (proxy_settings.DictEmpty())
+  if (proxy_settings.empty())
     return false;  // no managed proxy set
 
   if (IsProxyConfiguredByUserViaExtension())
@@ -564,7 +563,7 @@ bool SystemProxyManager::IsProxyConfiguredByUserViaExtension() {
   if (!extension_prefs_util_)
     return false;
 
-  std::unique_ptr<extensions::api::settings_private::PrefObject> pref =
+  absl::optional<extensions::api::settings_private::PrefObject> pref =
       extension_prefs_util_->GetPref(proxy_config::prefs::kProxy);
   return pref && pref->extension_can_be_disabled &&
          *pref->extension_can_be_disabled;
@@ -679,7 +678,7 @@ void SystemProxyManager::ShowAuthenticationNotification(
     bool show_error) {
   if (active_auth_dialog_)
     return;
-  notification_handler_ = std::make_unique<ash::SystemProxyNotification>(
+  notification_handler_ = std::make_unique<SystemProxyNotification>(
       protection_space, show_error,
       base::BindOnce(&SystemProxyManager::ShowAuthenticationDialog,
                      weak_factory_.GetWeakPtr()));
@@ -695,7 +694,7 @@ void SystemProxyManager::ShowAuthenticationDialog(
   if (notification_handler_)
     notification_handler_->Close();
 
-  active_auth_dialog_ = new ash::RequestSystemProxyCredentialsView(
+  active_auth_dialog_ = new RequestSystemProxyCredentialsView(
       protection_space.origin(), show_error_label,
       base::BindOnce(&SystemProxyManager::OnDialogClosed,
                      weak_factory_.GetWeakPtr(), protection_space));
@@ -742,4 +741,4 @@ void SystemProxyManager::CloseAuthenticationUI() {
   auth_widget_->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
 }
 
-}  // namespace chromeos
+}  // namespace ash

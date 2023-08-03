@@ -1,40 +1,39 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/file_system_provider/request_manager.h"
 
-#include <utility>
-
-#include "base/bind.h"
 #include "base/files/file.h"
+#include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
-#include "chrome/browser/extensions/window_controller_list.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "extensions/browser/app_window/app_window_registry.h"
-#include "extensions/common/constants.h"
 
 namespace ash {
 namespace file_system_provider {
 namespace {
 
-// Timeout in seconds, before a request is considered as stale and hence
+// Timeout in minutes, before a request is considered as stale and hence
 // aborted.
-const int kDefaultTimeout = 10;
+const int kDefaultTimeout = 5;
 
 }  // namespace
 
 RequestManager::RequestManager(
     Profile* profile,
-    const std::string& provider_id,
     NotificationManagerInterface* notification_manager)
     : profile_(profile),
-      provider_id_(provider_id),
       notification_manager_(notification_manager),
       next_id_(1),
-      timeout_(base::Seconds(kDefaultTimeout)) {}
+      timeout_(base::Minutes(kDefaultTimeout)) {}
+
+RequestManager::RequestManager(
+    Profile* profile,
+    NotificationManagerInterface* notification_manager,
+    base::TimeDelta timeout)
+    : profile_(profile),
+      notification_manager_(notification_manager),
+      next_id_(1),
+      timeout_(timeout) {}
 
 RequestManager::~RequestManager() {
   // Abort all of the active requests.
@@ -42,8 +41,7 @@ RequestManager::~RequestManager() {
   while (it != requests_.end()) {
     const int request_id = it->first;
     ++it;
-    RejectRequest(request_id, std::make_unique<RequestValue>(),
-                  base::File::FILE_ERROR_ABORT);
+    RejectRequest(request_id, RequestValue(), base::File::FILE_ERROR_ABORT);
   }
 
   DCHECK_EQ(0u, requests_.size());
@@ -86,20 +84,17 @@ int RequestManager::CreateRequest(RequestType type,
   return request_id;
 }
 
-base::File::Error RequestManager::FulfillRequest(
-    int request_id,
-    std::unique_ptr<RequestValue> response,
-    bool has_more) {
-  CHECK(response.get());
+base::File::Error RequestManager::FulfillRequest(int request_id,
+                                                 const RequestValue& response,
+                                                 bool has_more) {
   auto request_it = requests_.find(request_id);
   if (request_it == requests_.end())
     return base::File::FILE_ERROR_NOT_FOUND;
 
   for (auto& observer : observers_)
-    observer.OnRequestFulfilled(request_id, *response.get(), has_more);
+    observer.OnRequestFulfilled(request_id, response, has_more);
 
-  request_it->second->handler->OnSuccess(request_id, std::move(response),
-                                         has_more);
+  request_it->second->handler->OnSuccess(request_id, response, has_more);
 
   if (!has_more) {
     DestroyRequest(request_id);
@@ -112,18 +107,20 @@ base::File::Error RequestManager::FulfillRequest(
   return base::File::FILE_OK;
 }
 
-base::File::Error RequestManager::RejectRequest(
-    int request_id,
-    std::unique_ptr<RequestValue> response,
-    base::File::Error error) {
-  CHECK(response.get());
+base::File::Error RequestManager::RejectRequest(int request_id,
+                                                const RequestValue& response,
+                                                base::File::Error error) {
   auto request_it = requests_.find(request_id);
   if (request_it == requests_.end())
     return base::File::FILE_ERROR_NOT_FOUND;
 
+  if (error == base::File::FILE_ERROR_ABORT) {
+    request_it->second->handler->OnAbort(request_id);
+  }
+
   for (auto& observer : observers_)
-    observer.OnRequestRejected(request_id, *response.get(), error);
-  request_it->second->handler->OnError(request_id, std::move(response), error);
+    observer.OnRequestRejected(request_id, response, error);
+  request_it->second->handler->OnError(request_id, response, error);
   DestroyRequest(request_id);
 
   return base::File::FILE_OK;
@@ -163,19 +160,14 @@ void RequestManager::OnRequestTimeout(int request_id) {
     observer.OnRequestTimeouted(request_id);
 
   if (!notification_manager_) {
-    RejectRequest(request_id, std::make_unique<RequestValue>(),
-                  base::File::FILE_ERROR_ABORT);
+    RejectRequest(request_id, RequestValue(), base::File::FILE_ERROR_ABORT);
     return;
   }
 
-  if (!IsInteractingWithUser()) {
-    notification_manager_->ShowUnresponsiveNotification(
-        request_id,
-        base::BindOnce(&RequestManager::OnUnresponsiveNotificationResult,
-                       weak_ptr_factory_.GetWeakPtr(), request_id));
-  } else {
-    ResetTimer(request_id);
-  }
+  notification_manager_->ShowUnresponsiveNotification(
+      request_id,
+      base::BindOnce(&RequestManager::OnUnresponsiveNotificationResult,
+                     weak_ptr_factory_.GetWeakPtr(), request_id));
 }
 
 void RequestManager::OnUnresponsiveNotificationResult(
@@ -190,8 +182,7 @@ void RequestManager::OnUnresponsiveNotificationResult(
     return;
   }
 
-  RejectRequest(request_id, std::make_unique<RequestValue>(),
-                base::File::FILE_ERROR_ABORT);
+  RejectRequest(request_id, RequestValue(), base::File::FILE_ERROR_ABORT);
 }
 
 void RequestManager::ResetTimer(int request_id) {
@@ -203,39 +194,6 @@ void RequestManager::ResetTimer(int request_id) {
       FROM_HERE, timeout_,
       base::BindOnce(&RequestManager::OnRequestTimeout,
                      weak_ptr_factory_.GetWeakPtr(), request_id));
-}
-
-bool RequestManager::IsInteractingWithUser() const {
-  // First try for app windows. If not found, then fall back to browser windows
-  // and tabs.
-
-  const extensions::AppWindowRegistry* const registry =
-      extensions::AppWindowRegistry::Get(profile_);
-  DCHECK(registry);
-  if (registry->GetCurrentAppWindowForApp(provider_id_))
-    return true;
-
-  // This loop is heavy, but it's not called often. Only when a request timeouts
-  // which is at most once every 10 seconds per request (except tests).
-  const extensions::WindowControllerList::ControllerList& windows =
-      extensions::WindowControllerList::GetInstance()->windows();
-  for (auto* window : windows) {
-    const Browser* const browser = window->GetBrowser();
-    if (!browser)
-      continue;
-    const TabStripModel* const tabs = browser->tab_strip_model();
-    DCHECK(tabs);
-    for (int i = 0; i < tabs->count(); ++i) {
-      content::WebContents* const web_contents = tabs->GetWebContentsAt(i);
-      const GURL& url = web_contents->GetURL();
-      if (url.SchemeIs(extensions::kExtensionScheme) &&
-          url.host_piece() == provider_id_) {
-        return true;
-      }
-    }
-  }
-
-  return false;
 }
 
 void RequestManager::DestroyRequest(int request_id) {

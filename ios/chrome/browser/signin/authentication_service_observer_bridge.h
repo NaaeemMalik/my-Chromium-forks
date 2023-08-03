@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,21 +13,20 @@
 
 // Objective-C protocol mirroring AuthenticationService::Observer.
 @protocol AuthenticationServiceObserving <NSObject>
-@optional
-- (void)onPrimaryAccountRestricted;
+- (void)onServiceStatusChanged;
 @end
 
 // Simple observer bridge that forwards all events to its delegate observer.
 class AuthenticationServiceObserverBridge
     : public AuthenticationServiceObserver {
  public:
-  explicit AuthenticationServiceObserverBridge(
+  AuthenticationServiceObserverBridge(
       AuthenticationService* service,
       id<AuthenticationServiceObserving> observer);
   ~AuthenticationServiceObserverBridge() override;
 
   // AuthenticationServiceObserver implementation.
-  void OnPrimaryAccountRestricted() override;
+  void OnServiceStatusChanged() override;
 
  private:
   __weak id<AuthenticationServiceObserving> observer_ = nil;

@@ -1,9 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/autofill/payments/autofill_progress_dialog_views.h"
 
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/ui/autofill/payments/autofill_progress_dialog_controller.h"
 #include "chrome/browser/ui/autofill/payments/payments_ui_constants.h"
 #include "chrome/browser/ui/views/autofill/payments/payments_view_util.h"
@@ -44,6 +45,7 @@ AutofillProgressDialogViews::AutofillProgressDialogViews(
       controller_->GetLoadingMessage(), views::style::CONTEXT_DIALOG_BODY_TEXT,
       views::style::STYLE_SECONDARY));
   label_->SetMultiLine(true);
+  label_->SetEnabledColorId(ui::kColorThrobber);
 }
 
 AutofillProgressDialogViews::~AutofillProgressDialogViews() {
@@ -76,7 +78,7 @@ void AutofillProgressDialogViews::Dismiss(bool show_confirmation_before_closing,
     progress_throbber_->Stop();
     label_->SetText(controller_->GetConfirmationMessage());
     progress_throbber_->SetChecked(true);
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&AutofillProgressDialogViews::CloseWidget,
                        weak_ptr_factory_.GetWeakPtr(), is_canceled_by_user),
@@ -95,12 +97,6 @@ void AutofillProgressDialogViews::AddedToWidget() {
   GetBubbleFrameView()->SetTitleView(
       std::make_unique<TitleWithIconAndSeparatorView>(
           GetWindowTitle(), TitleWithIconAndSeparatorView::Icon::GOOGLE_PAY));
-}
-
-void AutofillProgressDialogViews::OnThemeChanged() {
-  views::DialogDelegateView::OnThemeChanged();
-  SkColor enabled_color = GetColorProvider()->GetColor(ui::kColorThrobber);
-  label_->SetEnabledColor(enabled_color);
 }
 
 std::u16string AutofillProgressDialogViews::GetWindowTitle() const {

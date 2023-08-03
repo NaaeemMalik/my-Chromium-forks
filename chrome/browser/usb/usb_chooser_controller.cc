@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -27,9 +27,9 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "services/device/public/cpp/usb/usb_ids.h"
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 using content::RenderFrameHost;
 using content::WebContents;
@@ -45,7 +45,7 @@ std::u16string FormatUsbDeviceName(
   if (device_name.empty()) {
     uint16_t vendor_id = device_info.vendor_id;
     uint16_t product_id = device_info.product_id;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     if (const char* product_name =
             device::UsbIds::GetProductName(vendor_id, product_id)) {
       return base::UTF8ToUTF16(product_name);
@@ -55,7 +55,7 @@ std::u16string FormatUsbDeviceName(
           IDS_DEVICE_CHOOSER_DEVICE_NAME_UNKNOWN_DEVICE_WITH_VENDOR_NAME,
           base::UTF8ToUTF16(vendor_name));
     }
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
     device_name = l10n_util::GetStringFUTF16(
         IDS_DEVICE_CHOOSER_DEVICE_NAME_UNKNOWN_DEVICE_WITH_VENDOR_ID_AND_PRODUCT_ID,
         base::ASCIIToUTF16(base::StringPrintf("%04x", vendor_id)),
@@ -90,10 +90,8 @@ UsbChooserController::UsbChooserController(
     RenderFrameHost* render_frame_host,
     std::vector<device::mojom::UsbDeviceFilterPtr> device_filters,
     blink::mojom::WebUsbService::GetPermissionCallback callback)
-    : ChooserController(CreateExtensionAwareChooserTitle(
-          render_frame_host,
-          IDS_USB_DEVICE_CHOOSER_PROMPT_ORIGIN,
-          IDS_USB_DEVICE_CHOOSER_PROMPT_EXTENSION_NAME)),
+    : ChooserController(
+          CreateChooserTitle(render_frame_host, IDS_USB_DEVICE_CHOOSER_PROMPT)),
       filters_(std::move(device_filters)),
       callback_(std::move(callback)),
       requesting_frame_(render_frame_host) {
@@ -180,7 +178,7 @@ void UsbChooserController::Select(const std::vector<size_t>& indices) {
   // this callback.
   auto on_device_info_refreshed = base::BindOnce(
       &OnDeviceInfoRefreshed, chooser_context_, origin_, std::move(callback_));
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   chooser_context_->RefreshDeviceInfo(guid,
                                       std::move(on_device_info_refreshed));
 #else
@@ -234,7 +232,7 @@ void UsbChooserController::OnDeviceRemoved(
   }
 }
 
-void UsbChooserController::OnDeviceManagerConnectionError() {
+void UsbChooserController::OnBrowserContextShutdown() {
   observation_.Reset();
 }
 

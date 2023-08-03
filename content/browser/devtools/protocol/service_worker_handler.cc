@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,19 +6,17 @@
 
 #include <memory>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/containers/flat_set.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/post_task.h"
 #include "content/browser/background_sync/background_sync_context_impl.h"
 #include "content/browser/background_sync/background_sync_manager.h"
 #include "content/browser/devtools/service_worker_devtools_agent_host.h"
 #include "content/browser/devtools/service_worker_devtools_manager.h"
 #include "content/browser/devtools/shared_worker_devtools_manager.h"
 #include "content/browser/renderer_host/frame_tree.h"
-#include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/service_worker/embedded_worker_status.h"
 #include "content/browser/service_worker/service_worker_context_watcher.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
@@ -204,7 +202,8 @@ Response ServiceWorkerHandler::Unregister(const std::string& scope_url) {
   if (!context_)
     return CreateContextErrorResponse();
   GURL url(scope_url);
-  blink::StorageKey key(url::Origin::Create(url));
+  const blink::StorageKey key =
+      blink::StorageKey::CreateFirstParty(url::Origin::Create(url));
   context_->UnregisterServiceWorker(url, key, base::DoNothing());
   return Response::Success();
 }
@@ -215,7 +214,8 @@ Response ServiceWorkerHandler::StartWorker(const std::string& scope_url) {
   if (!context_)
     return CreateContextErrorResponse();
   context_->StartActiveServiceWorker(
-      GURL(scope_url), blink::StorageKey(url::Origin::Create(GURL(scope_url))),
+      GURL(scope_url),
+      blink::StorageKey::CreateFirstParty(url::Origin::Create(GURL(scope_url))),
       base::DoNothing());
   return Response::Success();
 }
@@ -225,8 +225,9 @@ Response ServiceWorkerHandler::SkipWaiting(const std::string& scope_url) {
     return CreateDomainNotEnabledErrorResponse();
   if (!context_)
     return CreateContextErrorResponse();
-  context_->SkipWaitingWorker(
-      GURL(scope_url), blink::StorageKey(url::Origin::Create(GURL(scope_url))));
+  context_->SkipWaitingWorker(GURL(scope_url),
+                              blink::StorageKey::CreateFirstParty(
+                                  url::Origin::Create(GURL(scope_url))));
   return Response::Success();
 }
 
@@ -266,8 +267,9 @@ Response ServiceWorkerHandler::UpdateRegistration(
     return CreateDomainNotEnabledErrorResponse();
   if (!context_)
     return CreateContextErrorResponse();
-  context_->UpdateRegistration(
-      GURL(scope_url), blink::StorageKey(url::Origin::Create(GURL(scope_url))));
+  context_->UpdateRegistration(GURL(scope_url),
+                               blink::StorageKey::CreateFirstParty(
+                                   url::Origin::Create(GURL(scope_url))));
   return Response::Success();
 }
 
@@ -337,7 +339,8 @@ Response ServiceWorkerHandler::DispatchSyncEvent(
       base::WrapRefCounted(storage_partition_->GetBackgroundSyncContext());
 
   context_->FindReadyRegistrationForId(
-      id, blink::StorageKey(url::Origin::Create(GURL(origin))),
+      id,
+      blink::StorageKey::CreateFirstParty(url::Origin::Create(GURL(origin))),
       base::BindOnce(&DidFindRegistrationForDispatchSyncEvent,
                      std::move(sync_context), tag, last_chance));
 
@@ -360,7 +363,8 @@ Response ServiceWorkerHandler::DispatchPeriodicSyncEvent(
       base::WrapRefCounted(storage_partition_->GetBackgroundSyncContext());
 
   context_->FindReadyRegistrationForId(
-      id, blink::StorageKey(url::Origin::Create(GURL(origin))),
+      id,
+      blink::StorageKey::CreateFirstParty(url::Origin::Create(GURL(origin))),
       base::BindOnce(&DidFindRegistrationForDispatchPeriodicSyncEvent,
                      std::move(sync_context), tag));
 

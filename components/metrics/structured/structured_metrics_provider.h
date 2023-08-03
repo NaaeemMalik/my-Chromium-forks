@@ -1,20 +1,22 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_METRICS_STRUCTURED_STRUCTURED_METRICS_PROVIDER_H_
 #define COMPONENTS_METRICS_STRUCTURED_STRUCTURED_METRICS_PROVIDER_H_
 
+#include <deque>
 #include <memory>
 
+#include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/time/time.h"
 #include "components/metrics/metrics_provider.h"
-#include "components/metrics/structured/event_base.h"
+#include "components/metrics/structured/event.h"
 #include "components/metrics/structured/key_data.h"
+#include "components/metrics/structured/project_validator.h"
 #include "components/metrics/structured/recorder.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace metrics {
 namespace structured {
@@ -48,7 +50,7 @@ class ExternalMetrics;
 //
 // After initialization, this class accepts events to record from
 // StructuredMetricsProvider::OnRecord via Recorder::Record via
-// EventBase::Record. These events are not uploaded immediately, and are cached
+// Event::Record. These events are not uploaded immediately, and are cached
 // in ready-to-upload form.
 //
 // On a call to ProvideCurrentSessionData, the cache of unsent logs is added to
@@ -56,7 +58,8 @@ class ExternalMetrics;
 class StructuredMetricsProvider : public metrics::MetricsProvider,
                                   public Recorder::RecorderImpl {
  public:
-  StructuredMetricsProvider();
+  explicit StructuredMetricsProvider(
+      metrics::MetricsProvider* system_profile_provider);
   ~StructuredMetricsProvider() override;
   StructuredMetricsProvider(const StructuredMetricsProvider&) = delete;
   StructuredMetricsProvider& operator=(const StructuredMetricsProvider&) =
@@ -65,6 +68,8 @@ class StructuredMetricsProvider : public metrics::MetricsProvider,
  private:
   friend class Recorder;
   friend class StructuredMetricsProviderTest;
+  friend class StructuredMetricsProviderHwidTest;
+  friend class TestStructuredMetricsProvider;
 
   // State machine for step 4 of initialization. These are stored in three files
   // that are asynchronously read from disk at startup. When all files have
@@ -77,6 +82,14 @@ class StructuredMetricsProvider : public metrics::MetricsProvider,
     kInitialized = 3,
   };
 
+  // Should only be used for tests.
+  //
+  // TODO(crbug/1350322): Use this ctor to replace existing ctor.
+  StructuredMetricsProvider(const base::FilePath& device_key_path,
+                            base::TimeDelta write_delay,
+                            base::TimeDelta min_independent_metrics_interval,
+                            metrics::MetricsProvider* system_profile_provider);
+
   void OnKeyDataInitialized();
   void OnRead(ReadStatus status);
   void OnWrite(WriteStatus status);
@@ -85,8 +98,9 @@ class StructuredMetricsProvider : public metrics::MetricsProvider,
 
   // Recorder::RecorderImpl:
   void OnProfileAdded(const base::FilePath& profile_path) override;
-  void OnRecord(const EventBase& event) override;
+  void OnEventRecord(const Event& event) override;
   void OnReportingStateChanged(bool enabled) override;
+  void OnSystemProfileInitialized() override;
   absl::optional<int> LastKeyRotation(uint64_t project_name_hash) override;
 
   // metrics::MetricsProvider:
@@ -101,7 +115,31 @@ class StructuredMetricsProvider : public metrics::MetricsProvider,
 
   void WriteNowForTest();
   void SetExternalMetricsDirForTest(const base::FilePath& dir);
-  void SetDeviceKeyDataPathForTest(const base::FilePath& path);
+
+  // Records events before |init_state_| is kInitialized.
+  void RecordEventBeforeInitialization(const Event& event);
+
+  // Records |event| to persistent disk to be eventually sent.
+  void RecordEvent(const Event& event);
+
+  // Hashes events and persists the events to disk. Should be called once |this|
+  // has been initialized.
+  void HashUnhashedEventsAndPersist();
+
+  // Populates system profile needed for Structured Metrics.
+  // Independent metric uploads will rely on a SystemProfileProvider
+  // to supply the system profile since ChromeOSMetricsProvider will
+  // not be called to populate the SystemProfile.
+  void ProvideSystemProfile(SystemProfileProto* system_profile);
+
+  // Checks if |project_name_hash| can be uploaded.
+  bool CanUploadProject(uint64_t project_name_hash) const;
+
+  // Builds a cache of disallow projects from the Finch controlled variable.
+  void CacheDisallowedProjectsSet();
+
+  // Adds a project to the diallowed list for testing.
+  void AddDisallowedProjectForTest(uint64_t project_name_hash);
 
   // Beyond this number of logging events between successive calls to
   // ProvideCurrentSessionData, we stop recording events.
@@ -162,15 +200,45 @@ class StructuredMetricsProvider : public metrics::MetricsProvider,
   // On-device storage within the user's cryptohome for unsent logs.
   std::unique_ptr<PersistentProto<EventsProto>> events_;
 
+  // Store for events that were recorded before user/device keys are loaded.
+  std::deque<Event> unhashed_events_;
+
   // Storage for all event's keys, and hashing logic for values. This stores
   // keys on disk. |profile_key_data_| stores keys for per-profile projects,
   // and |device_key_data_| stores keys for per-device projects.
   std::unique_ptr<KeyData> profile_key_data_;
   std::unique_ptr<KeyData> device_key_data_;
 
-  // Used to override the otherwise hardcoded path for device keys in unit tests
-  // only.
-  absl::optional<base::FilePath> device_key_data_path_for_test_;
+  // Whether the system profile has been initialized.
+  bool system_profile_initialized_ = false;
+
+  // File path where device keys will be persisted.
+  const base::FilePath device_key_path_;
+
+  // Delay period for PersistentProto writes. Default value of 1000 ms used if
+  // not specified in ctor.
+  base::TimeDelta write_delay_;
+
+  // The minimum waiting time between successive deliveries of independent
+  // metrics to the metrics service via ProvideIndependentMetrics. This is set
+  // carefully: metrics logs are stored in a queue of limited size, and are
+  // uploaded roughly every 30 minutes.
+  //
+  // If this value is 0, then there will be no waiting time and events will be
+  // available on every ProvideIndependentMetrics.
+  base::TimeDelta min_independent_metrics_interval_;
+
+  // Interface for providing the SystemProfile to metrics.
+  // See chrome/browser/metrics/chrome_metrics_service_client.h
+  base::raw_ptr<metrics::MetricsProvider> system_profile_provider_;
+
+  // A set of projects that are not allowed to be recorded. This is a cache of
+  // GetDisabledProjects().
+  base::flat_set<uint64_t> disallowed_projects_;
+
+  // The number of scans of external metrics that occurred since the last
+  // upload. This is only incremented if events were added by the scan.
+  int external_metrics_scans_ = 0;
 
   base::WeakPtrFactory<StructuredMetricsProvider> weak_factory_{this};
 };

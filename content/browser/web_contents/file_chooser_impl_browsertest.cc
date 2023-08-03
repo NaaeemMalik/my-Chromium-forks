@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/web_contents/file_chooser_impl.h"
 
-#include "base/bind.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
@@ -27,7 +27,7 @@ using FileChooserImplBrowserTest = ContentBrowserTest;
 IN_PROC_BROWSER_TEST_F(FileChooserImplBrowserTest, FileChooserAfterRfhDeath) {
   EXPECT_TRUE(NavigateToURL(shell(), GURL(url::kAboutBlankURL)));
   auto* rfh = static_cast<RenderFrameHostImpl*>(
-      shell()->web_contents()->GetMainFrame());
+      shell()->web_contents()->GetPrimaryMainFrame());
   mojo::Remote<blink::mojom::FileChooser> chooser =
       FileChooserImpl::CreateBoundForTesting(rfh);
 
@@ -85,7 +85,7 @@ IN_PROC_BROWSER_TEST_F(FileChooserImplBrowserTest,
   shell()->web_contents()->SetDelegate(delegate.get());
 
   auto* rfh = static_cast<RenderFrameHostImpl*>(
-      shell()->web_contents()->GetMainFrame());
+      shell()->web_contents()->GetPrimaryMainFrame());
   auto chooser_and_remote = FileChooserImpl::CreateForTesting(rfh);
   auto* chooser = chooser_and_remote.first;
 
@@ -124,7 +124,7 @@ IN_PROC_BROWSER_TEST_F(FileChooserImplBrowserTest,
   shell()->web_contents()->SetDelegate(delegate.get());
 
   auto* rfh = static_cast<RenderFrameHostImpl*>(
-      shell()->web_contents()->GetMainFrame());
+      shell()->web_contents()->GetPrimaryMainFrame());
   auto chooser_and_remote = FileChooserImpl::CreateForTesting(rfh);
   auto* chooser = chooser_and_remote.first;
 

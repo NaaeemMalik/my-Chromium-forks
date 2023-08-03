@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/system/sys_info.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
@@ -182,7 +182,7 @@ void NaClHostMessageFilter::LaunchNaClContinuation(
 
   // TODO(yusukes): Fix NaClProcessHost::~NaClProcessHost() and remove the
   // ifdef.
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
   const std::vector<NaClResourcePrefetchRequest>& original_request_list =
       launch_params.resource_prefetch_request_list;
   content::SiteInstance* site_instance = rfh->GetSiteInstance();
@@ -260,11 +260,9 @@ void NaClHostMessageFilter::LaunchNaClContinuationOnUIThread(
   base::PlatformFile nexe_file =
       IPC::PlatformFileForTransitToPlatformFile(launch_params.nexe_file);
 
-  // TODO(b/200965779): Remove nonsfi_mode parameters from NaClProcessHost.
   NaClProcessHost* host = new NaClProcessHost(
       GURL(launch_params.manifest_url), base::File(nexe_file), nexe_token,
       prefetched_resource_files, permissions, launch_params.permission_bits,
-      launch_params.uses_nonsfi_mode, /*nonsfi_mode_allowed=*/false,
       off_the_record_, launch_params.process_type, profile_directory_);
   GURL manifest_url(launch_params.manifest_url);
   base::FilePath manifest_path;
@@ -346,17 +344,16 @@ void NaClHostMessageFilter::OnTranslationFinished(int instance, bool success) {
       render_process_id_, instance, success);
 }
 
-void NaClHostMessageFilter::OnMissingArchError(int render_view_id) {
-  nacl::NaClBrowser::GetDelegate()->
-      ShowMissingArchInfobar(render_process_id_, render_view_id);
+void NaClHostMessageFilter::OnMissingArchError(int render_frame_id) {
+  nacl::NaClBrowser::GetDelegate()->ShowMissingArchInfobar(render_process_id_,
+                                                           render_frame_id);
 }
 
 void NaClHostMessageFilter::OnOpenNaClExecutable(int render_frame_id,
                                                  const GURL& file_url,
-                                                 bool enable_validation_caching,
                                                  IPC::Message* reply_msg) {
   nacl_file_host::OpenNaClExecutable(this, render_frame_id, file_url,
-                                     enable_validation_caching, reply_msg);
+                                     reply_msg);
 }
 
 void NaClHostMessageFilter::OnNaClDebugEnabledForURL(const GURL& nmf_url,

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ class StabilityMetricsProvider : public MetricsProvider {
   void LogLaunch();
 
  private:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // This function is virtual for testing. The |last_live_timestamp| is a
   // time point where the previous browser was known to be alive, and is used
   // to determine whether the system session embedding that timestamp terminated

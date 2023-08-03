@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,15 @@
 
 #include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "cc/paint/node_id.h"
 #include "cc/paint/paint_export.h"
 #include "cc/paint/paint_image.h"
+#include "cc/paint/skottie_color_map.h"
 #include "cc/paint/skottie_frame_data.h"
+#include "cc/paint/skottie_text_property_value.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 
 class SkTextBlob;
@@ -28,11 +31,9 @@ class PaintPreviewTracker;
 namespace cc {
 class SkottieWrapper;
 class PaintFlags;
-class PaintOpBuffer;
+class PaintRecord;
 
 enum class UsePaintCache { kDisabled = 0, kEnabled };
-
-using PaintRecord = PaintOpBuffer;
 
 // PaintCanvas is the cc/paint wrapper of SkCanvas.  It has a more restricted
 // interface than SkCanvas (trimmed back to only what Chrome uses).  Its reason
@@ -72,8 +73,10 @@ class CC_PAINT_EXPORT PaintCanvas {
   virtual void flush() = 0;
 
   virtual int save() = 0;
-  virtual int saveLayer(const SkRect* bounds, const PaintFlags* flags) = 0;
-  virtual int saveLayerAlpha(const SkRect* bounds, uint8_t alpha) = 0;
+  virtual int saveLayer(const PaintFlags& flags) = 0;
+  virtual int saveLayer(const SkRect& bounds, const PaintFlags& flags) = 0;
+  virtual int saveLayerAlphaf(float alpha) = 0;
+  virtual int saveLayerAlphaf(const SkRect& bounds, float alpha) = 0;
 
   virtual void restore() = 0;
   virtual int getSaveCount() const = 0;
@@ -82,10 +85,6 @@ class CC_PAINT_EXPORT PaintCanvas {
   virtual void scale(SkScalar sx, SkScalar sy) = 0;
   void scale(SkScalar s) { scale(s, s); }
   virtual void rotate(SkScalar degrees) = 0;
-  // TODO(aaronhk): crbug.com/1153330 deprecate these in favor of the SkM44
-  // versions.
-  virtual void concat(const SkMatrix& matrix) = 0;
-  virtual void setMatrix(const SkMatrix& matrix) = 0;
   virtual void concat(const SkM44& matrix) = 0;
   virtual void setMatrix(const SkM44& matrix) = 0;
 
@@ -128,15 +127,13 @@ class CC_PAINT_EXPORT PaintCanvas {
              UsePaintCache::kEnabled);
   }
 
-  virtual SkRect getLocalClipBounds() const = 0;
   virtual bool getLocalClipBounds(SkRect* bounds) const = 0;
-  virtual SkIRect getDeviceClipBounds() const = 0;
   virtual bool getDeviceClipBounds(SkIRect* bounds) const = 0;
-  virtual void drawColor(SkColor color, SkBlendMode mode) = 0;
-  void drawColor(SkColor color) { drawColor(color, SkBlendMode::kSrcOver); }
+  virtual void drawColor(SkColor4f color, SkBlendMode mode) = 0;
+  void drawColor(SkColor4f color) { drawColor(color, SkBlendMode::kSrcOver); }
 
   // TODO(enne): This is a synonym for drawColor with kSrc.  Remove it.
-  virtual void clear(SkColor color) = 0;
+  virtual void clear(SkColor4f color) = 0;
 
   virtual void drawLine(SkScalar x0,
                         SkScalar y0,
@@ -190,7 +187,9 @@ class CC_PAINT_EXPORT PaintCanvas {
   virtual void drawSkottie(scoped_refptr<SkottieWrapper> skottie,
                            const SkRect& dst,
                            float t,
-                           SkottieFrameDataMap images) = 0;
+                           SkottieFrameDataMap images,
+                           const SkottieColorMap& color_map,
+                           SkottieTextPropertyValueMap text_map) = 0;
 
   virtual void drawTextBlob(sk_sp<SkTextBlob> blob,
                             SkScalar x,
@@ -205,10 +204,8 @@ class CC_PAINT_EXPORT PaintCanvas {
 
   // Unlike SkCanvas::drawPicture, this only plays back the PaintRecord and does
   // not add an additional clip.  This is closer to SkPicture::playback.
-  virtual void drawPicture(sk_sp<const PaintRecord> record) = 0;
+  virtual void drawPicture(PaintRecord record) = 0;
 
-  virtual bool isClipEmpty() const = 0;
-  virtual SkMatrix getTotalMatrix() const = 0;
   virtual SkM44 getLocalToDevice() const = 0;
 
   virtual bool NeedsFlush() const = 0;
@@ -240,8 +237,12 @@ class CC_PAINT_EXPORT PaintCanvas {
   virtual void setNodeId(int) = 0;
 
  private:
-  printing::MetafileSkia* metafile_ = nullptr;
-  paint_preview::PaintPreviewTracker* tracker_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION printing::MetafileSkia* metafile_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION paint_preview::PaintPreviewTracker* tracker_ = nullptr;
 };
 
 class CC_PAINT_EXPORT PaintCanvasAutoRestore {

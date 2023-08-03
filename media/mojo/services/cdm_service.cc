@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -163,10 +163,9 @@ void CdmService::CreateCdmFactory(
   if (!client_)
     return;
 
-  cdm_factory_receivers_.AddReceiver(
-      std::make_unique<CdmFactoryImpl>(client_.get(),
-                                       std::move(frame_interfaces)),
-      std::move(receiver));
+  cdm_factory_receivers_.Add(std::make_unique<CdmFactoryImpl>(
+                                 client_.get(), std::move(frame_interfaces)),
+                             std::move(receiver));
 }
 
 }  // namespace media

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "content/browser/renderer_host/input/timeout_monitor.h"
@@ -289,7 +288,7 @@ class MouseWheelEventQueueTest : public testing::Test,
   }
 
   static void RunTasksAndWait(base::TimeDelta delay) {
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE, base::RunLoop::QuitCurrentWhenIdleClosureDeprecated(),
         delay);
     base::RunLoop().Run();
@@ -668,7 +667,7 @@ TEST_F(MouseWheelEventQueueTest, WheelScrollLatching) {
   EXPECT_EQ(1U, GetAndResetSentEventCount());
 }
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 TEST_F(MouseWheelEventQueueTest, DoNotSwapXYForShiftScroll) {
   // Send an event with shift modifier, zero value for delta X, and no direction
   // for |rails_mode|. Do not swap the scroll direction.

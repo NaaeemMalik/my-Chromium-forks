@@ -4,6 +4,7 @@
 <translation id="1002108253973310084">Inguqulo yephrothokholi engahambisani iye yatholwa. Sicela wenze isiqiniseko sokuthi unenguqulo yakamuva yesofthiwe efakiwe kuwo womabili amakhompyutha uphinde uzame futhi.</translation>
 <translation id="1008557486741366299">Hhayi manje</translation>
 <translation id="1201402288615127009">Okulandelayo</translation>
+<translation id="1296511125400541222">Copyright 2023 Ababhali be-Chromium. Wonke Amalungelo Agodliwe</translation>
 <translation id="1297009705180977556">Iphutha ukuxhuma ku-<ph name="HOSTNAME" /></translation>
 <translation id="1450760146488584666">Into eceliwe ayikho.</translation>
 <translation id="1480046233931937785">Amakhredithi</translation>
@@ -26,7 +27,6 @@ Uma i-'<ph name="SERVICE_SCRIPT_NAME" />' isivele ithikhiwe, yekisa ukuyithikha 
 <translation id="225614027745146050">Siyakwamukela</translation>
 <translation id="2320166752086256636">Fihla ikhibhodi</translation>
 <translation id="2329392777730037872">Yenqabile ukuvula i-<ph name="URL" /> kwiklayenti.</translation>
-<translation id="2333212046079545895">Copyright 2021 Google LLC. Wonke Amalungelo Agodliwe.</translation>
 <translation id="2359808026110333948">Qhubeka</translation>
 <translation id="2366718077645204424">Ayikwazi ukufinyelela kumsingathi. Lokhu kungenzeka kubangelwe ukulungiselelwa kwenethiwekhi oyisebenzisayo.</translation>
 <translation id="2370754117186920852"><ph name="OPTIONAL_OFFLINE_REASON" />  Ugcine ukubonwa ku-inthanethi ngo-<ph name="RELATIVE_TIMESTAMP" />.</translation>
@@ -76,7 +76,6 @@ Uma i-'<ph name="SERVICE_SCRIPT_NAME" />' isivele ithikhiwe, yekisa ukuyithikha 
 <translation id="4405930547258349619">Ilabhulali yomongo</translation>
 <translation id="443560535555262820">Vula okuncanyelwayo kokufinyeleleka</translation>
 <translation id="4450893287417543264">Ungabonisi futhi</translation>
-<translation id="4512952200932940229">I-Copyright 2021 Ababhali be-Chromium. Wonke amalungelo agciniwe.</translation>
 <translation id="4513946894732546136">Impendulo</translation>
 <translation id="4563926062592110512">Iklayenti linqanyuliwe: <ph name="CLIENT_USERNAME" />.</translation>
 <translation id="4618411825115957973">I-<ph name="URL_FORWARDER_NAME" /> ayilungiselelwanga kahle. Sicela ukhethe isiphequluli sewebhu esizenzakalelayo esihlukile bese uphinda unika amandla ukudluliselwa kwe-URL.</translation>
@@ -90,6 +89,7 @@ Uma i-'<ph name="SERVICE_SCRIPT_NAME" />' isivele ithikhiwe, yekisa ukuyithikha 
 <translation id="4808503597364150972">Sicela ufake iphinikhodi yakho ye-<ph name="HOSTNAME" />.</translation>
 <translation id="4812684235631257312">Umsingathi</translation>
 <translation id="4867841927763172006">Thumela u-PrtScn</translation>
+<translation id="4960795469833295568">Copyright 2023 Google LLC. Wonke Amalungelo Agodliwe.</translation>
 <translation id="4974476491460646149">Uxhumo luvalekile ku-<ph name="HOSTNAME" /></translation>
 <translation id="4985296110227979402">Kuzomele uqale usethe ikhompuyutha yakho ngokufinyelela kude</translation>
 <translation id="4987330545941822761">Ideskithophu Yesilawuli Kude ye-Chrome ayikwazi ukunquma isiphequluli ukuvula ama-URL endaweni. Sicela ukhethe ohlwini olungezansi.</translation>

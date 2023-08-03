@@ -1,11 +1,13 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/public/platform/resource_load_info_notifier_wrapper.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/task/single_thread_task_runner.h"
+#include "build/build_config.h"
 #include "net/base/ip_endpoint.h"
 #include "net/url_request/redirect_info.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
@@ -24,7 +26,7 @@ ResourceLoadInfoNotifierWrapper::ResourceLoadInfoNotifierWrapper(
         weak_wrapper_resource_load_info_notifier)
     : ResourceLoadInfoNotifierWrapper(
           std::move(weak_wrapper_resource_load_info_notifier),
-          base::ThreadTaskRunnerHandle::Get()) {}
+          base::SingleThreadTaskRunner::GetCurrentDefault()) {}
 
 ResourceLoadInfoNotifierWrapper::ResourceLoadInfoNotifierWrapper(
     base::WeakPtr<WeakWrapperResourceLoadInfoNotifier>
@@ -39,7 +41,7 @@ ResourceLoadInfoNotifierWrapper::ResourceLoadInfoNotifierWrapper(
 
 ResourceLoadInfoNotifierWrapper::~ResourceLoadInfoNotifierWrapper() = default;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 void ResourceLoadInfoNotifierWrapper::NotifyUpdateUserGestureCarryoverInfo() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (task_runner_->BelongsToCurrentThread()) {
@@ -102,8 +104,7 @@ void ResourceLoadInfoNotifierWrapper::NotifyResourceRedirectReceived(
 }
 
 void ResourceLoadInfoNotifierWrapper::NotifyResourceResponseReceived(
-    network::mojom::URLResponseHeadPtr response_head,
-    PreviewsState previews_state) {
+    network::mojom::URLResponseHeadPtr response_head) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (response_head->network_accessed) {
     if (resource_load_info_->request_destination ==
@@ -130,9 +131,9 @@ void ResourceLoadInfoNotifierWrapper::NotifyResourceResponseReceived(
   if (task_runner_->BelongsToCurrentThread()) {
     if (weak_wrapper_resource_load_info_notifier_) {
       weak_wrapper_resource_load_info_notifier_->NotifyResourceResponseReceived(
-          resource_load_info_->request_id, resource_load_info_->final_url,
-          std::move(response_head), resource_load_info_->request_destination,
-          previews_state);
+          resource_load_info_->request_id,
+          url::SchemeHostPort(resource_load_info_->final_url),
+          std::move(response_head), resource_load_info_->request_destination);
     }
     return;
   }
@@ -147,9 +148,9 @@ void ResourceLoadInfoNotifierWrapper::NotifyResourceResponseReceived(
       base::BindOnce(
           &mojom::ResourceLoadInfoNotifier::NotifyResourceResponseReceived,
           weak_wrapper_resource_load_info_notifier_,
-          resource_load_info_->request_id, resource_load_info_->final_url,
-          std::move(response_head), resource_load_info_->request_destination,
-          previews_state));
+          resource_load_info_->request_id,
+          url::SchemeHostPort(resource_load_info_->final_url),
+          std::move(response_head), resource_load_info_->request_destination));
 }
 
 void ResourceLoadInfoNotifierWrapper::NotifyResourceTransferSizeUpdated(
@@ -179,6 +180,8 @@ void ResourceLoadInfoNotifierWrapper::NotifyResourceLoadCompleted(
                        status.error_code);
 
   resource_load_info_->was_cached = status.exists_in_cache;
+  resource_load_info_->was_in_network_service_memory_cache =
+      status.exists_in_memory_cache;
   resource_load_info_->net_error = status.error_code;
   resource_load_info_->total_received_bytes = status.encoded_data_length;
   resource_load_info_->raw_body_bytes = status.encoded_body_length;

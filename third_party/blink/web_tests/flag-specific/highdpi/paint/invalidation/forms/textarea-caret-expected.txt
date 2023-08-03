@@ -1,42 +1,40 @@
 {
   "layers": [
     {
-      "name": "Scrolling Contents Layer",
+      "name": "Scrolling background of LayoutNGView #document",
       "bounds": [1200, 900],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF",
       "invalidations": [
-        [12, 12, 271, 53]
+        [9, 9, 276, 58]
       ]
     },
     {
       "name": "LayoutNGTextControlMultiLine TEXTAREA id='editor'",
-      "position": [-1, -1],
-      "bounds": [273, 55],
-      "backgroundColor": "#FFFFFF",
+      "position": [1, 1],
+      "bounds": [268, 28],
+      "drawsContent": false,
+      "transform": 1
+    },
+    {
+      "name": "Scroll corner of LayoutNGTextControlMultiLine TEXTAREA id='editor'",
+      "position": [225, 7],
+      "bounds": [44, 44],
       "invalidations": [
-        [0, 0, 273, 55]
+        [0, 0, 44, 44]
       ],
       "transform": 1
     },
     {
-      "name": "ContentsLayer for Horizontal Scrollbar Layer",
-      "position": [1, 30],
+      "name": "HorizontalScrollbar",
+      "position": [1, 29],
       "bounds": [246, 22],
+      "contentsOpaque": true,
       "transform": 1
     },
     {
-      "name": "Scroll Corner Layer",
-      "position": [247, 29],
-      "bounds": [22, 22],
-      "invalidations": [
-        [0, 0, 22, 22]
-      ],
-      "transform": 1
-    },
-    {
-      "name": "Scrolling Contents Layer",
-      "position": [2, 2],
+      "name": "LayoutNGTextControlMultiLine TEXTAREA id='editor'",
+      "position": [1, 1],
       "bounds": [723, 28],
       "backgroundColor": "#FFFFFF",
       "invalidations": [
@@ -45,11 +43,21 @@
       "transform": 2
     },
     {
-      "name": "Decoration Layer",
-      "position": [-1, -1],
-      "bounds": [273, 55],
+      "name": "Caret",
+      "position": [722, 4],
+      "bounds": [2, 22],
+      "contentsOpaque": true,
       "invalidations": [
-        [0, 0, 273, 55]
+        [0, 0, 2, 22]
+      ],
+      "transform": 2
+    },
+    {
+      "name": "LayoutNGTextControlMultiLine TEXTAREA id='editor'",
+      "position": [-3, -3],
+      "bounds": [276, 58],
+      "invalidations": [
+        [0, 0, 276, 58]
       ],
       "transform": 1
     }

@@ -22,8 +22,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_VIEW_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_LAYOUT_VIEW_H_
 
-#include <memory>
-
+#include "base/check_op.h"
 #include "base/dcheck_is_on.h"
 #include "third_party/blink/public/mojom/scroll/scrollbar_mode.mojom-blink.h"
 #include "third_party/blink/renderer/core/core_export.h"
@@ -31,18 +30,15 @@
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
 #include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/layout/layout_quote.h"
-#include "third_party/blink/renderer/core/layout/layout_state.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
 #include "third_party/blink/renderer/platform/graphics/overlay_scrollbar_clip_behavior.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
 
 namespace blink {
 
 class LayoutQuote;
 class LocalFrameView;
-class NamedPagesMapper;
-class PaintLayerCompositor;
 class ViewFragmentationContext;
 
 // LayoutView is the root of the layout tree and the Document's LayoutObject.
@@ -61,17 +57,13 @@ class ViewFragmentationContext;
 // Because there is one LayoutView per rooted layout tree (or Frame), this class
 // is used to add members shared by this tree (e.g. m_layoutState or
 // m_layoutQuoteHead).
-class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
+class CORE_EXPORT LayoutView : public LayoutBlockFlow {
  public:
-  explicit LayoutView(Document*);
+  explicit LayoutView(ContainerNode* document);
   ~LayoutView() override;
   void Trace(Visitor*) const override;
 
   void WillBeDestroyed() override;
-
-  // Called when the Document is shutdown, to have the compositor clean up
-  // during frame detach, while pointers remain valid.
-  void CleanUpCompositor();
 
   // hitTest() will update layout, style and compositing first while
   // hitTestNoLifecycleUpdate() does not.
@@ -109,7 +101,6 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
   bool IsChildAllowed(LayoutObject*, const ComputedStyle&) const override;
 
   void UpdateLayout() override;
-  void UpdateLogicalWidth() override;
   void ComputeLogicalHeight(LayoutUnit logical_height,
                             LayoutUnit logical_top,
                             LogicalExtentComputedValues&) const override;
@@ -145,24 +136,14 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
   void UpdateAfterLayout() override;
 
   // See comments for the equivalent method on LayoutObject.
-  bool MapToVisualRectInAncestorSpace(const LayoutBoxModelObject* ancestor,
-                                      PhysicalRect&,
-                                      MapCoordinatesFlags mode,
-                                      VisualRectFlags) const;
-
   // |ancestor| can be nullptr, which will map the rect to the main frame's
   // space, even if the main frame is remote (or has intermediate remote
   // frames in the chain).
   bool MapToVisualRectInAncestorSpaceInternal(
       const LayoutBoxModelObject* ancestor,
       TransformState&,
-      MapCoordinatesFlags,
-      VisualRectFlags) const;
-
-  bool MapToVisualRectInAncestorSpaceInternal(
-      const LayoutBoxModelObject* ancestor,
-      TransformState&,
       VisualRectFlags = kDefaultVisualRectFlags) const override;
+
   PhysicalOffset OffsetForFixedPosition() const;
   PhysicalOffset PixelSnappedOffsetForFixedPosition() const;
 
@@ -173,7 +154,7 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
 
   void CommitPendingSelection();
 
-  void AbsoluteQuads(Vector<FloatQuad>&,
+  void AbsoluteQuads(Vector<gfx::QuadF>&,
                      MapCoordinatesFlags mode = 0) const override;
 
   PhysicalRect ViewRect() const override;
@@ -196,11 +177,6 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
   void CalculateScrollbarModes(mojom::blink::ScrollbarMode& h_mode,
                                mojom::blink::ScrollbarMode& v_mode) const;
 
-  LayoutState* GetLayoutState() const {
-    NOT_DESTROYED();
-    return layout_state_;
-  }
-
   bool CanHaveAdditionalCompositingReasons() const override {
     NOT_DESTROYED();
     return true;
@@ -217,23 +193,17 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
 
   LayoutUnit PageLogicalHeight() const {
     NOT_DESTROYED();
-    return page_logical_height_;
+    return IsHorizontalWritingMode() ? page_size_.height : page_size_.width;
   }
-  void SetPageLogicalHeight(LayoutUnit height) {
+  void SetPageSize(PhysicalSize size) {
     NOT_DESTROYED();
-    page_logical_height_ = height;
+    page_size_ = size;
   }
 
-  NamedPagesMapper* GetNamedPagesMapper() const {
-    NOT_DESTROYED();
-    return named_pages_mapper_.get();
-  }
-
-  PaintLayerCompositor* Compositor();
+  // TODO(1229581): Make non-virtual.
+  virtual AtomicString NamedPageAtIndex(wtf_size_t page_index) const = 0;
 
   PhysicalRect DocumentRect() const;
-
-  IntervalArena* GetIntervalArena();
 
   void SetLayoutQuoteHead(LayoutQuote* head) {
     NOT_DESTROYED();
@@ -293,17 +263,13 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
 
   // Returns the viewport size in (CSS pixels) that vh and vw units are
   // calculated from.
-  FloatSize ViewportSizeForViewportUnits() const;
-
-  void PushLayoutState(LayoutState& layout_state) {
-    NOT_DESTROYED();
-    layout_state_ = &layout_state;
-  }
-  void PopLayoutState() {
-    NOT_DESTROYED();
-    DCHECK(layout_state_);
-    layout_state_ = layout_state_->Next();
-  }
+  gfx::SizeF ViewportSizeForViewportUnits() const;
+  // https://drafts.csswg.org/css-values-4/#small-viewport-size
+  gfx::SizeF SmallViewportSizeForViewportUnits() const;
+  // https://drafts.csswg.org/css-values-4/#large-viewport-size
+  gfx::SizeF LargeViewportSizeForViewportUnits() const;
+  // https://drafts.csswg.org/css-values-4/#dynamic-viewport-size
+  gfx::SizeF DynamicViewportSizeForViewportUnits() const;
 
   PhysicalRect LocalVisualRectIgnoringVisibility() const override;
 
@@ -321,7 +287,7 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
   Vector<gfx::Rect> GetTickmarks() const;
   bool HasTickmarks() const;
 
-  RecalcLayoutOverflowResult RecalcLayoutOverflow() final;
+  RecalcLayoutOverflowResult RecalcLayoutOverflow() override;
 
   // The visible background area, in the local coordinates. The view background
   // will be painted in this rect. It's also the positioning area of fixed-
@@ -349,23 +315,22 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
                           TransformState&,
                           MapCoordinatesFlags) const override;
 
-  bool ShouldUsePrintingLayout() const;
+  static bool ShouldUsePrintingLayout(const Document&);
+  bool ShouldUsePrintingLayout() const {
+    NOT_DESTROYED();
+    return ShouldUsePrintingLayout(GetDocument());
+  }
 
   void MapLocalToAncestor(const LayoutBoxModelObject* ancestor,
                           TransformState&,
                           MapCoordinatesFlags) const override;
 
- private:
-  bool CanHaveChildren() const override;
+  LogicalSize InitialContainingBlockSize() const;
 
-  void UpdateBlockLayout(bool relayout_children) override;
+  TrackedDescendantsMap& SvgTextDescendantsMap();
 
-#if DCHECK_IS_ON()
-  void CheckLayoutState();
-#endif
-
-  void UpdateFromStyle() override;
-
+ protected:
+  void StyleDidChange(StyleDifference, const ComputedStyle* old_style) override;
   int ViewLogicalWidthForBoxSizing() const {
     NOT_DESTROYED();
     return ViewLogicalWidth(kIncludeScrollbars);
@@ -375,30 +340,36 @@ class CORE_EXPORT LayoutView final : public LayoutBlockFlow {
     return ViewLogicalHeight(kIncludeScrollbars);
   }
 
-  bool UpdateLogicalWidthAndColumnWidth() override;
+ private:
+  bool CanHaveChildren() const override;
+  void UpdateFromStyle() override;
+
+  // The CompositeBackgroundAttachmentFixed optimization doesn't apply to
+  // LayoutView which paints background specially.
+  bool ComputeCanCompositeBackgroundAttachmentFixed() const override {
+    NOT_DESTROYED();
+    return false;
+  }
 
   Member<LocalFrameView> frame_view_;
 
-  // The page logical height.
+  // The page size.
   // This is only used during printing to split the content into pages.
-  // Outside of printing, this is 0.
-  LayoutUnit page_logical_height_;
-
-  // LayoutState is an optimization used during layout.
-  // |m_layoutState| will be nullptr outside of layout.
-  //
-  // See the class comment for more details.
-  LayoutState* layout_state_;
+  // Outside of printing, this is 0x0.
+  PhysicalSize page_size_;
 
   Member<ViewFragmentationContext> fragmentation_context_;
-  std::unique_ptr<NamedPagesMapper> named_pages_mapper_;
-  Member<PaintLayerCompositor> compositor_;
-  scoped_refptr<IntervalArena> interval_arena_;
 
   Member<LayoutQuote> layout_quote_head_;
   unsigned layout_counter_count_ = 0;
   unsigned layout_list_item_count_ = 0;
   bool needs_marker_counter_update_ = false;
+
+  // This map keeps track of SVG <text> descendants.
+  // LayoutNGSVGText needs to do re-layout on transform changes of any ancestor
+  // because LayoutNGSVGText's layout result depends on scaling factors
+  // computed with ancestor transforms.
+  Member<TrackedDescendantsMap> svg_text_descendants_;
 
   unsigned hit_test_count_;
   unsigned hit_test_cache_hits_;

@@ -1,21 +1,23 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
-import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.js';
+import 'gtx://resources/cr_elements/cr_shared_style.css.js';
 import './strings.m.js';
 
-import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.js';
+import {assert} from 'gtx://resources/js/assert_ts.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {highlightUpdatedItems, trackUpdatedItems} from './api_listener.js';
+import {BookmarksApiProxyImpl} from './bookmarks_api_proxy.js';
 import {DialogFocusManager} from './dialog_focus_manager.js';
+import {getTemplate} from './edit_dialog.html.js';
 import {BookmarkNode} from './types.js';
 
 export interface BookmarksEditDialogElement {
@@ -24,7 +26,7 @@ export interface BookmarksEditDialogElement {
     saveButton: HTMLElement,
     url: CrInputElement,
     name: CrInputElement,
-  }
+  };
 }
 
 export class BookmarksEditDialogElement extends PolymerElement {
@@ -33,7 +35,7 @@ export class BookmarksEditDialogElement extends PolymerElement {
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -84,7 +86,8 @@ export class BookmarksEditDialogElement extends PolymerElement {
 
     this.titleValue_ = editItem.title;
     if (!this.isFolder_) {
-      this.urlValue_ = assert(editItem.url!);
+      assert(editItem.url);
+      this.urlValue_ = editItem.url;
     }
 
     DialogFocusManager.getInstance().showDialog(this.$.dialog);
@@ -135,7 +138,7 @@ export class BookmarksEditDialogElement extends PolymerElement {
     return false;
   }
 
-  private onSaveButtonTap_() {
+  private onSaveButtonClick_() {
     const edit: { title: string, url?: string, parentId?: string|null } =
         { 'title': this.titleValue_ };
     if (!this.isFolder_) {
@@ -151,12 +154,13 @@ export class BookmarksEditDialogElement extends PolymerElement {
     } else {
       edit['parentId'] = this.parentId_;
       trackUpdatedItems();
-      chrome.bookmarks.create(edit, highlightUpdatedItems);
+      BookmarksApiProxyImpl.getInstance().create(edit).then(
+          highlightUpdatedItems);
     }
     this.$.dialog.close();
   }
 
-  private onCancelButtonTap_() {
+  private onCancelButtonClick_() {
     this.$.dialog.cancel();
   }
 }

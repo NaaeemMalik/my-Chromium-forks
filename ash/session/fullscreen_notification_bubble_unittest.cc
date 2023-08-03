@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "ash/test/ash_test_base.h"
+#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/aura/client/aura_constants.h"
@@ -53,7 +54,7 @@ class FullscreenNotificationBubbleTest : public AshTestBase {
   std::unique_ptr<aura::Window> window_;
   std::unique_ptr<FullscreenNotificationBubble> bubble_;
 
-  WindowState* window_state_ = nullptr;
+  raw_ptr<WindowState, ExperimentalAsh> window_state_ = nullptr;
 };
 
 TEST_F(FullscreenNotificationBubbleTest, AutoHideBubbleAfterDelay) {
@@ -83,6 +84,22 @@ TEST_F(FullscreenNotificationBubbleTest, HideBubbleOnExitFullscreen) {
   // The bubble is hidden early if the user exits full screen mode via full
   // screen key.
   PressAndReleaseKey(ui::VKEY_ZOOM);
+  EXPECT_FALSE(widget->IsVisible());
+}
+
+TEST_F(FullscreenNotificationBubbleTest, HandleWindowDestruction) {
+  views::Widget* widget = bubble_->widget_for_test();
+  EXPECT_FALSE(widget->IsVisible());
+
+  bubble_->ShowForWindowState(window_state_);
+  EXPECT_TRUE(widget->IsVisible());
+
+  // Destroy the window before the timer is elapsed.
+  window_.reset();
+  EXPECT_FALSE(widget->IsVisible());
+
+  task_environment()->FastForwardBy(
+      base::Seconds(kExpectedAutoHideDelayInSeconds));
   EXPECT_FALSE(widget->IsVisible());
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,11 +24,11 @@ class TestBrowserListObserver : public BrowserListObserver {
   // A weak pointer to the last Browser that was observed being added to the
   // BrowserList's regular browsers.
   Browser* GetLastAddedBrowser() { return last_added_browser_; }
-  // A weak pointer to the last Browser that was observed being added to the
-  // BrowserList's incognito browsers.
-  Browser* GetLastRemovedBrowser() { return last_removed_browser_; }
   // A weak pointer to the last Browser that was observed being removed from the
   // BrowserList's regular browsers.
+  Browser* GetLastRemovedBrowser() { return last_removed_browser_; }
+  // A weak pointer to the last Browser that was observed being added to the
+  // BrowserList's incognito browsers.
   Browser* GetLastAddedIncognitoBrowser() {
     return last_added_incognito_browser_;
   }
@@ -55,6 +55,7 @@ class TestBrowserListObserver : public BrowserListObserver {
                         Browser* browser) override;
   void OnIncognitoBrowserRemoved(const BrowserList* browser_list,
                                  Browser* browser) override;
+  void OnBrowserListShutdown(BrowserList* browser_list) override;
 
  private:
   // Backing vars for the corresponding getter methods.

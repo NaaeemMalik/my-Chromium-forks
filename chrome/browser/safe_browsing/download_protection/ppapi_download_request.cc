@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,23 +6,24 @@
 
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/strings/escape.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/policy/chrome_browser_policy_connector.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
 #include "chrome/browser/safe_browsing/download_protection/download_protection_util.h"
 #include "components/safe_browsing/content/common/file_type_policies.h"
 #include "components/safe_browsing/core/browser/db/database_manager.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/utils.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/web_contents.h"
 #include "google_apis/google_api_keys.h"
-#include "net/base/escape.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_cache.h"
 #include "net/http/http_status_code.h"
@@ -39,19 +40,25 @@ const char PPAPIDownloadRequest::kDownloadRequestUrl[] =
 
 PPAPIDownloadRequest::PPAPIDownloadRequest(
     const GURL& requestor_url,
-    const GURL& initiating_frame_url,
-    content::WebContents* web_contents,
+    content::RenderFrameHost* initiating_frame,
     const base::FilePath& default_file_path,
     const std::vector<base::FilePath::StringType>& alternate_extensions,
     Profile* profile,
     CheckDownloadCallback callback,
     DownloadProtectionService* service,
     scoped_refptr<SafeBrowsingDatabaseManager> database_manager)
-    : requestor_url_(requestor_url),
-      initiating_frame_url_(initiating_frame_url),
+    : content::WebContentsObserver(
+          content::WebContents::FromRenderFrameHost(initiating_frame)),
+      requestor_url_(requestor_url),
+      initiating_frame_url_(
+          initiating_frame ? initiating_frame->GetLastCommittedURL() : GURL()),
+      initiating_outermost_main_frame_id_(
+          initiating_frame
+              ? initiating_frame->GetOutermostMainFrame()->GetGlobalId()
+              : content::GlobalRenderFrameHostId()),
       initiating_main_frame_url_(
-          web_contents ? web_contents->GetLastCommittedURL() : GURL()),
-      tab_id_(sessions::SessionTabHelper::IdForTab(web_contents)),
+          web_contents() ? web_contents()->GetLastCommittedURL() : GURL()),
+      tab_id_(sessions::SessionTabHelper::IdForTab(web_contents())),
       default_file_path_(default_file_path),
       alternate_extensions_(alternate_extensions),
       callback_(std::move(callback)),
@@ -60,25 +67,22 @@ PPAPIDownloadRequest::PPAPIDownloadRequest(
       start_time_(base::TimeTicks::Now()),
       supported_path_(
           GetSupportedFilePath(default_file_path, alternate_extensions)),
-      profile_(profile),
-      web_contents_(web_contents) {
+      profile_(profile) {
   DCHECK(profile);
   is_extended_reporting_ = IsExtendedReportingEnabled(*profile->GetPrefs());
   is_enhanced_protection_ = IsEnhancedProtectionEnabled(*profile->GetPrefs());
 
   // web_contents can be null in tests.
-  if (!web_contents) {
+  if (!web_contents()) {
     return;
   }
 
-  Observe(web_contents);
-
   SafeBrowsingNavigationObserverManager* observer_manager =
-      service->GetNavigationObserverManager(web_contents);
+      service->GetNavigationObserverManager(web_contents());
   if (observer_manager) {
-    has_user_gesture_ = observer_manager->HasUserGesture(web_contents);
+    has_user_gesture_ = observer_manager->HasUserGesture(web_contents());
     if (has_user_gesture_) {
-      observer_manager->OnUserGestureConsumed(web_contents);
+      observer_manager->OnUserGestureConsumed(web_contents());
     }
   }
 }
@@ -120,13 +124,18 @@ void PPAPIDownloadRequest::Start() {
       FROM_HERE,
       base::BindOnce(&PPAPIDownloadRequest::OnRequestTimedOut,
                      weakptr_factory_.GetWeakPtr()),
-      base::Milliseconds(service_->download_request_timeout_ms()));
+      service_->GetDownloadRequestTimeout());
 
-  content::GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(&PPAPIDownloadRequest::CheckAllowlistsOnIOThread,
-                     requestor_url_, database_manager_,
-                     weakptr_factory_.GetWeakPtr()));
+  if (base::FeatureList::IsEnabled(safe_browsing::kSafeBrowsingOnUIThread)) {
+    CheckAllowlistsOnSBThread(requestor_url_, database_manager_,
+                              weakptr_factory_.GetWeakPtr());
+  } else {
+    content::GetIOThreadTaskRunner({})->PostTask(
+        FROM_HERE,
+        base::BindOnce(&PPAPIDownloadRequest::CheckAllowlistsOnSBThread,
+                       requestor_url_, database_manager_,
+                       weakptr_factory_.GetWeakPtr()));
+  }
 }
 
 // static
@@ -134,7 +143,7 @@ GURL PPAPIDownloadRequest::GetDownloadRequestUrl() {
   GURL url(kDownloadRequestUrl);
   std::string api_key = google_apis::GetAPIKey();
   if (!api_key.empty())
-    url = url.Resolve("?key=" + net::EscapeQueryParamValue(api_key, true));
+    url = url.Resolve("?key=" + base::EscapeQueryParamValue(api_key, true));
 
   return url;
 }
@@ -143,12 +152,15 @@ void PPAPIDownloadRequest::WebContentsDestroyed() {
   Finish(RequestOutcome::REQUEST_DESTROYED, DownloadCheckResult::UNKNOWN);
 }
 
-// Allowlist checking needs to the done on the IO thread.
-void PPAPIDownloadRequest::CheckAllowlistsOnIOThread(
+// Allowlist checking needs to the done on the SB thread.
+void PPAPIDownloadRequest::CheckAllowlistsOnSBThread(
     const GURL& requestor_url,
     scoped_refptr<SafeBrowsingDatabaseManager> database_manager,
     base::WeakPtr<PPAPIDownloadRequest> download_request) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK_CURRENTLY_ON(
+      base::FeatureList::IsEnabled(safe_browsing::kSafeBrowsingOnUIThread)
+          ? content::BrowserThread::UI
+          : content::BrowserThread::IO);
   DVLOG(2) << " checking allowlists for requestor URL:" << requestor_url;
 
   bool url_was_allowlisted =
@@ -190,8 +202,8 @@ void PPAPIDownloadRequest::SendRequest() {
   request.set_download_type(ClientDownloadRequest::PPAPI_SAVE_REQUEST);
   ClientDownloadRequest::Resource* resource = request.add_resources();
   resource->set_type(ClientDownloadRequest::PPAPI_DOCUMENT);
-  resource->set_url(requestor_url_.spec());
-  request.set_url(requestor_url_.spec());
+  resource->set_url(ShortURLForReporting(requestor_url_));
+  request.set_url(ShortURLForReporting(requestor_url_));
   request.set_file_basename(supported_path_.BaseName().AsUTF8Unsafe());
   request.set_length(0);
   request.mutable_digests()->set_md5(std::string());
@@ -208,7 +220,8 @@ void PPAPIDownloadRequest::SendRequest() {
   }
 
   service_->AddReferrerChainToPPAPIClientDownloadRequest(
-      web_contents_, initiating_frame_url_, initiating_main_frame_url_, tab_id_,
+      web_contents(), initiating_frame_url_,
+      initiating_outermost_main_frame_id_, initiating_main_frame_url_, tab_id_,
       has_user_gesture_, &request);
 
   if (!request.SerializeToString(&client_download_request_data_)) {
@@ -254,11 +267,23 @@ void PPAPIDownloadRequest::SendRequest() {
           "from dangerous sites' under Privacy. This feature is enabled by "
           "default."
         chrome_policy {
+          RealTimeDownloadProtectionRequestAllowed {
+            RealTimeDownloadProtectionRequestAllowed: false
+          }
+        }
+        chrome_policy {
+          SafeBrowsingProtectionLevel {
+            policy_options {mode: MANDATORY}
+            SafeBrowsingProtectionLevel: 0
+          }
+        }
+        chrome_policy {
           SafeBrowsingEnabled {
             policy_options {mode: MANDATORY}
             SafeBrowsingEnabled: false
           }
         }
+        deprecated_policies: "SafeBrowsingEnabled"
       })");
   auto resource_request = std::make_unique<network::ResourceRequest>();
   resource_request->url = GetDownloadRequestUrl();

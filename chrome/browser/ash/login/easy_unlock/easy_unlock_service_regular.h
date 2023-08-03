@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,22 +8,16 @@
 #include <memory>
 #include <string>
 
-#include "ash/components/proximity_auth/screenlock_bridge.h"
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/ash/login/easy_unlock/easy_unlock_service.h"
-#include "chromeos/components/multidevice/remote_device_ref.h"
-#include "chromeos/services/device_sync/proto/cryptauth_api.pb.h"
-#include "chromeos/services/device_sync/public/cpp/device_sync_client.h"
-#include "chromeos/services/multidevice_setup/public/cpp/multidevice_setup_client.h"
-// TODO(https://crbug.com/1164001): move to forward declaration
-#include "chromeos/services/secure_channel/public/cpp/client/secure_channel_client.h"
-#include "components/prefs/pref_change_registrar.h"
-
-namespace base {
-class ListValue;
-}  // namespace base
+#include "chromeos/ash/components/multidevice/remote_device_ref.h"
+#include "chromeos/ash/components/proximity_auth/screenlock_bridge.h"
+#include "chromeos/ash/services/device_sync/proto/cryptauth_api.pb.h"
+#include "chromeos/ash/services/device_sync/public/cpp/device_sync_client.h"
+#include "chromeos/ash/services/multidevice_setup/public/cpp/multidevice_setup_client.h"
 
 namespace proximity_auth {
 class ProximityAuthProfilePrefManager;
@@ -32,13 +26,18 @@ class ProximityAuthProfilePrefManager;
 class Profile;
 
 namespace ash {
+
 class EasyUnlockNotificationController;
+class SmartLockFeatureUsageMetrics;
+
+namespace secure_channel {
+class SecureChannelClient;
+}
 
 // EasyUnlockService instance that should be used for regular, non-signin
 // profiles.
 class EasyUnlockServiceRegular
     : public EasyUnlockService,
-      public proximity_auth::ScreenlockBridge::Observer,
       public device_sync::DeviceSyncClient::Observer,
       public multidevice_setup::MultiDeviceSetupClient::Observer {
  public:
@@ -71,28 +70,14 @@ class EasyUnlockServiceRegular
   void UseLoadedRemoteDevices(
       const multidevice::RemoteDeviceRefList& remote_devices);
 
-  // Persists Smart Lock host and local device to prefs, and then informs
-  // the base class to potentially update Smart Lock host and local device
-  // stored in the TPM.
-  void SetStoredRemoteDevices(const base::ListValue& devices);
-
   // EasyUnlockService implementation:
   proximity_auth::ProximityAuthPrefManager* GetProximityAuthPrefManager()
       override;
-  EasyUnlockService::Type GetType() const override;
   AccountId GetAccountId() const override;
-  const base::ListValue* GetRemoteDevices() const override;
-  std::string GetChallenge() const override;
-  std::string GetWrappedSecret() const override;
-  void RecordEasySignInOutcome(const AccountId& account_id,
-                               bool success) const override;
-  void RecordPasswordLoginEvent(const AccountId& account_id) const override;
   void InitializeInternal() override;
   void ShutdownInternal() override;
   bool IsAllowedInternal() const override;
-  bool IsEligible() const override;
   bool IsEnabled() const override;
-  bool IsChromeOSLoginEnabled() const override;
 
   void OnSuspendDoneInternal() override;
 
@@ -112,7 +97,15 @@ class EasyUnlockServiceRegular
       const std::set<std::string>& public_keys_before_sync,
       const std::set<std::string>& public_keys_after_sync);
 
-  // proximity_auth::ScreenlockBridge::Observer implementation:
+  // Called when ready to begin recording Smart Lock feature usage
+  // within Standard Feature Usage Logging (SFUL) framework.
+  void StartFeatureUsageMetrics();
+
+  // Called when ready to stop recording Smart Lock feature usage
+  // within SFUL framework.
+  void StopFeatureUsageMetrics();
+
+  // EasyUnlockService:
   void OnScreenDidLock(proximity_auth::ScreenlockBridge::LockHandler::ScreenType
                            screen_type) override;
   void OnScreenDidUnlock(
@@ -142,10 +135,17 @@ class EasyUnlockServiceRegular
   std::unique_ptr<EasyUnlockNotificationController> notification_controller_;
 
   // Used to fetch local device and remote device data.
-  device_sync::DeviceSyncClient* device_sync_client_;
+  raw_ptr<device_sync::DeviceSyncClient, DanglingUntriaged | ExperimentalAsh>
+      device_sync_client_;
 
   // Used to determine the FeatureState of Smart Lock.
-  multidevice_setup::MultiDeviceSetupClient* multidevice_setup_client_;
+  raw_ptr<multidevice_setup::MultiDeviceSetupClient,
+          DanglingUntriaged | ExperimentalAsh>
+      multidevice_setup_client_;
+
+  // Tracks Smart Lock feature usage for the Standard Feature Usage Logging
+  // (SFUL) framework.
+  std::unique_ptr<SmartLockFeatureUsageMetrics> feature_usage_metrics_;
 
   // Stores the unlock keys for EasyUnlock before the current device sync, so we
   // can compare it to the unlock keys after syncing.
@@ -157,18 +157,9 @@ class EasyUnlockServiceRegular
   // notification.
   bool shown_pairing_changed_notification_ = false;
 
-  // Listens to pref changes.
-  PrefChangeRegistrar registrar_;
-
   base::WeakPtrFactory<EasyUnlockServiceRegular> weak_ptr_factory_{this};
 };
 
 }  // namespace ash
-
-// TODO(https://crbug.com/1164001): remove after the //chrome/browser/chromeos
-// source migration is finished.
-namespace chromeos {
-using ::ash::EasyUnlockServiceRegular;
-}
 
 #endif  // CHROME_BROWSER_ASH_LOGIN_EASY_UNLOCK_EASY_UNLOCK_SERVICE_REGULAR_H_

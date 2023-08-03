@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,28 +45,28 @@ TEST(ServerLogEntryHostTest, AddHostFields) {
   key_value_pairs["session-state"] = "connected";
   std::set<std::string> keys;
   keys.insert("cpu");
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   key_value_pairs["os-name"] = "Windows";
   keys.insert("os-version");
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
   key_value_pairs["os-name"] = "Mac";
   keys.insert("os-version");
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
   key_value_pairs["os-name"] = "ChromeOS";
   keys.insert("os-version");
-#elif defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   key_value_pairs["os-name"] = "Linux";
   keys.insert("os-version");
 #endif
 
-  // The check below will compile but fail if VERSION isn't defined (STRINGIZE
-  // silently converts undefined values).
-  #ifndef VERSION
-  #error VERSION must be defined
-  #endif
+// The check below will compile but fail if VERSION isn't defined (STRINGIZE
+// silently converts undefined values).
+#ifndef VERSION
+#error VERSION must be defined
+#endif
   key_value_pairs["host-version"] = STRINGIZE(VERSION);
-  ASSERT_TRUE(VerifyStanza(key_value_pairs, keys, stanza.get(), &error)) <<
-      error;
+  ASSERT_TRUE(VerifyStanza(key_value_pairs, keys, stanza.get(), &error))
+      << error;
 }
 
 TEST(ServerLogEntryHostTest, AddModeField1) {
@@ -81,8 +81,8 @@ TEST(ServerLogEntryHostTest, AddModeField1) {
   key_value_pairs["session-state"] = "connected";
   key_value_pairs["mode"] = "it2me";
   std::set<std::string> keys;
-  ASSERT_TRUE(VerifyStanza(key_value_pairs, keys, stanza.get(), &error)) <<
-      error;
+  ASSERT_TRUE(VerifyStanza(key_value_pairs, keys, stanza.get(), &error))
+      << error;
 }
 
 TEST(ServerLogEntryHostTest, AddModeField2) {
@@ -97,8 +97,8 @@ TEST(ServerLogEntryHostTest, AddModeField2) {
   key_value_pairs["session-state"] = "connected";
   key_value_pairs["mode"] = "me2me";
   std::set<std::string> keys;
-  ASSERT_TRUE(VerifyStanza(key_value_pairs, keys, stanza.get(), &error)) <<
-      error;
+  ASSERT_TRUE(VerifyStanza(key_value_pairs, keys, stanza.get(), &error))
+      << error;
 }
 
 }  // namespace remoting

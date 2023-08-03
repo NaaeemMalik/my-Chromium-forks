@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,12 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/stringprintf.h"
 #include "base/system/sys_info.h"
 #include "base/task/thread_pool.h"
 #include "base/trace_event/trace_log.h"
@@ -32,7 +31,7 @@
 #include "third_party/zlib/zlib.h"
 #include "url/gurl.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <io.h>
 #endif
 
@@ -89,7 +88,7 @@ void ProfilingProcessHost::SaveTraceToFileOnBlockingThread(
 
   // Pass ownership of the underlying fd/HANDLE to zlib.
   base::PlatformFile platform_file = file.TakePlatformFile();
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // The underlying handle |platform_file| is also closed when |fd| is closed.
   int fd = _open_osfhandle(reinterpret_cast<intptr_t>(platform_file), 0);
 #else

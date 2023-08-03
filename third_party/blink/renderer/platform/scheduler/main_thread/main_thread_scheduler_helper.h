@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "third_party/blink/renderer/platform/scheduler/common/scheduler_helper.h"
 
+#include "base/task/single_thread_task_runner.h"
 #include "third_party/blink/renderer/platform/scheduler/main_thread/main_thread_task_queue.h"
 
 namespace blink {
@@ -35,8 +36,6 @@ class PLATFORM_EXPORT MainThreadSchedulerHelper : public SchedulerHelper {
   scoped_refptr<MainThreadTaskQueue> ControlMainThreadTaskQueue();
   scoped_refptr<base::SingleThreadTaskRunner> DeprecatedDefaultTaskRunner();
 
-  const scoped_refptr<base::SingleThreadTaskRunner>& DefaultTaskRunner()
-      override;
   const scoped_refptr<base::SingleThreadTaskRunner>& ControlTaskRunner()
       override;
 

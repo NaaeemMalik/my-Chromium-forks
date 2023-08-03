@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/url_constants.h"
-#include "components/cloud_devices/common/cloud_devices_urls.h"
-#include "components/services/app_service/public/mojom/types.mojom-shared.h"
+#include "components/app_constants/constants.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/error_utils.h"
 #include "extensions/common/manifest_constants.h"
@@ -51,24 +50,6 @@ bool ReadLaunchDimension(const extensions::Manifest* manifest,
   return true;
 }
 
-bool HasValidComponentBookmarkAppURL(const GURL& url) {
-  // For component Bookmark Apps we additionally accept gtx:// and
-  // gtx-untrusted://.
-  //
-  // Making gtx-untrusted:// work with URLPattern has many side-effects e.g.
-  // it makes gtx-untrusted:// URLs scriptable. Given that
-  // gtx-untrusted:// support is only needed temporarily until Bookmark Apps
-  // are deprecated, we simply check the parsed URL scheme, rather than adding
-  // gtx-untrusted:// to URLPattern and dealing with all the side-effects.
-  if (url.SchemeIs(content::kChromeUIScheme))
-    return true;
-  if (url.SchemeIs(content::kChromeUIUntrustedScheme))
-    return true;
-
-  URLPattern pattern(Extension::kValidBookmarkAppSchemes);
-  return pattern.IsValidScheme(url.scheme());
-}
-
 static base::LazyInstance<AppLaunchInfo>::DestructorAtExit
     g_empty_app_launch_info = LAZY_INSTANCE_INITIALIZER;
 
@@ -80,13 +61,9 @@ const AppLaunchInfo& GetAppLaunchInfo(const Extension* extension) {
 
 }  // namespace
 
-AppLaunchInfo::AppLaunchInfo()
-    : launch_container_(LaunchContainer::kLaunchContainerTab),
-      launch_width_(0),
-      launch_height_(0) {}
+AppLaunchInfo::AppLaunchInfo() = default;
 
-AppLaunchInfo::~AppLaunchInfo() {
-}
+AppLaunchInfo::~AppLaunchInfo() = default;
 
 // static
 const std::string& AppLaunchInfo::GetLaunchLocalPath(
@@ -100,7 +77,7 @@ const GURL& AppLaunchInfo::GetLaunchWebURL(const Extension* extension) {
 }
 
 // static
-extensions::LaunchContainer AppLaunchInfo::GetLaunchContainer(
+apps::LaunchContainer AppLaunchInfo::GetLaunchContainer(
     const Extension* extension) {
   return GetAppLaunchInfo(extension).launch_container_;
 }
@@ -118,10 +95,11 @@ int AppLaunchInfo::GetLaunchHeight(const Extension* extension) {
 // static
 GURL AppLaunchInfo::GetFullLaunchURL(const Extension* extension) {
   const AppLaunchInfo& info = GetAppLaunchInfo(extension);
-  if (info.launch_local_path_.empty())
+  if (info.launch_local_path_.empty()) {
     return info.launch_web_url_;
-  else
+  } else {
     return extension->url().Resolve(info.launch_local_path_);
+  }
 }
 
 bool AppLaunchInfo::Parse(Extension* extension, std::u16string* error) {
@@ -135,7 +113,8 @@ bool AppLaunchInfo::LoadLaunchURL(Extension* extension, std::u16string* error) {
   // Launch URL can be either local (to gtx-extension:// root) or an absolute
   // web URL.
   if (const base::Value* temp =
-          extension->manifest()->FindPath(keys::kLaunchLocalPath)) {
+          extension->manifest()->FindPath(keys::kLaunchLocalPath);
+      temp) {
     if (extension->manifest()->FindPath(keys::kLaunchWebURL)) {
       *error = errors::kLaunchPathAndURLAreExclusive;
       return false;
@@ -165,8 +144,8 @@ bool AppLaunchInfo::LoadLaunchURL(Extension* extension, std::u16string* error) {
     }
 
     launch_local_path_ = launch_path;
-  } else if (const base::Value* temp =
-                 extension->manifest()->FindPath(keys::kLaunchWebURL)) {
+  } else if (temp = extension->manifest()->FindPath(keys::kLaunchWebURL);
+             temp) {
     if (!temp->is_string()) {
       *error = ErrorUtils::FormatErrorMessageUTF16(
           errors::kInvalidLaunchValue,
@@ -185,27 +164,10 @@ bool AppLaunchInfo::LoadLaunchURL(Extension* extension, std::u16string* error) {
       return false;
     }
 
-    if (!extension->from_bookmark()) {
-      URLPattern pattern(Extension::kValidWebExtentSchemes);
-      // For non-Bookmark Apps, we only accept kValidWebExtentSchemes.
-      if (!pattern.IsValidScheme(url.scheme())) {
-        set_launch_web_url_error();
-        return false;
-      }
-    } else if (extension->location() !=
-               mojom::ManifestLocation::kExternalComponent) {
-      // For non-component Bookmark Apps we only accept
-      // kValidBookmarkAppSchemes.
-      URLPattern pattern(Extension::kValidBookmarkAppSchemes);
-      if (!pattern.IsValidScheme(url.scheme())) {
-        set_launch_web_url_error();
-        return false;
-      }
-    } else {
-      if (!HasValidComponentBookmarkAppURL(url)) {
-        set_launch_web_url_error();
-        return false;
-      }
+    URLPattern pattern(Extension::kValidWebExtentSchemes);
+    if (!pattern.IsValidScheme(url.scheme())) {
+      set_launch_web_url_error();
+      return false;
     }
 
     launch_web_url_ = url;
@@ -215,16 +177,13 @@ bool AppLaunchInfo::LoadLaunchURL(Extension* extension, std::u16string* error) {
   }
 
   // For the Chrome component app, override launch url to new tab.
-  if (extension->id() == extension_misc::kChromeAppId) {
+  if (extension->id() == app_constants::kChromeAppId) {
     launch_web_url_ = GURL(chrome::kChromeUINewTabURL);
     return true;
   }
 
   // If there is no extent, we default the extent based on the launch URL.
-  // Skip this step if the extension is from a bookmark app, as they are
-  // permissionless.
-  if (extension->web_extent().is_empty() && !launch_web_url_.is_empty() &&
-      !extension->from_bookmark()) {
+  if (extension->web_extent().is_empty() && !launch_web_url_.is_empty()) {
     URLPattern pattern(Extension::kValidWebExtentSchemes);
     if (!pattern.SetScheme("*")) {
       *error = ErrorUtils::FormatErrorMessageUTF16(
@@ -250,14 +209,6 @@ bool AppLaunchInfo::LoadLaunchURL(Extension* extension, std::u16string* error) {
       GURL gallery_url(gallery_url_str);
       OverrideLaunchURL(extension, gallery_url);
     }
-  } else if (extension->id() == extension_misc::kCloudPrintAppId) {
-    // In order for the --type=service switch to work, we must update the launch
-    // URL and web extent.
-    GURL url =
-        cloud_devices::GetCloudPrintRelativeURL("enable_chrome_connector");
-    if (!url.is_empty()) {
-      OverrideLaunchURL(extension, url);
-    }
   }
 
   return true;
@@ -278,9 +229,9 @@ bool AppLaunchInfo::LoadLaunchContainer(Extension* extension,
       tmp_launcher_container->GetString();
 
   if (launch_container_string == values::kLaunchContainerPanelDeprecated) {
-    launch_container_ = LaunchContainer::kLaunchContainerPanelDeprecated;
+    launch_container_ = apps::LaunchContainer::kLaunchContainerPanelDeprecated;
   } else if (launch_container_string == values::kLaunchContainerTab) {
-    launch_container_ = LaunchContainer::kLaunchContainerTab;
+    launch_container_ = apps::LaunchContainer::kLaunchContainerTab;
   } else {
     *error = errors::kInvalidLaunchContainer;
     return false;
@@ -289,7 +240,8 @@ bool AppLaunchInfo::LoadLaunchContainer(Extension* extension,
   // TODO(manucornet): Remove this special behavior now that panels are
   // deprecated.
   bool can_specify_initial_size =
-      launch_container_ == LaunchContainer::kLaunchContainerPanelDeprecated;
+      launch_container_ ==
+      apps::LaunchContainer::kLaunchContainerPanelDeprecated;
 
   // Validate the container width if present.
   if (!ReadLaunchDimension(extension->manifest(),
@@ -336,11 +288,9 @@ void AppLaunchInfo::OverrideLaunchURL(Extension* extension,
   extension->AddWebExtentPattern(pattern);
 }
 
-AppLaunchManifestHandler::AppLaunchManifestHandler() {
-}
+AppLaunchManifestHandler::AppLaunchManifestHandler() = default;
 
-AppLaunchManifestHandler::~AppLaunchManifestHandler() {
-}
+AppLaunchManifestHandler::~AppLaunchManifestHandler() = default;
 
 bool AppLaunchManifestHandler::Parse(Extension* extension,
                                      std::u16string* error) {

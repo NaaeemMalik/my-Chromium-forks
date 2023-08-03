@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,11 @@
 #include <memory>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "components/sync/base/passphrase_enums.h"
-#include "components/sync/driver/mock_sync_service.h"
-#include "components/sync/driver/sync_user_settings_mock.h"
+#include "components/sync/test/mock_sync_service.h"
+#include "components/sync/test/sync_user_settings_mock.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -51,7 +51,7 @@ class PassphraseTypeMetricsProviderTest : public testing::Test {
 
   void ExpectRecordedPassphraseType(PassphraseTypeForMetrics expected) {
     base::HistogramTester histogram_tester;
-    metrics_provider_->ProvideCurrentSessionData(nullptr);
+    metrics_provider_->OnDidCreateMetricsLog();
     histogram_tester.ExpectUniqueSample("Sync.PassphraseType2", expected, 1);
   }
 

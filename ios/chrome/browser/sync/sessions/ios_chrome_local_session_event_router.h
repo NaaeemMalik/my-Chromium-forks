@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <stddef.h>
 
 #include <memory>
-#include <set>
 
 #include "base/callback_list.h"
 #include "components/sync/model/syncable_service.h"
@@ -84,10 +83,6 @@ class IOSChromeLocalSessionEventRouter
     IOSChromeLocalSessionEventRouter* router_;
   };
 
-  // Observation registrars for each browser state; each one owns an instance
-  // of IOSChromeLocalSessionEventRouter::Observer.
-  std::set<std::unique_ptr<AllWebStateListObservationRegistrar>> registrars_;
-
   // Called before the Batch operation starts for a web state list.
   void OnSessionEventStarting();
 
@@ -97,14 +92,18 @@ class IOSChromeLocalSessionEventRouter
   // Called when a tab is parented.
   void OnTabParented(web::WebState* web_state);
 
-  // Called on observation of a change in |web_state|.
+  // Called on observation of a change in `web_state`.
   void OnWebStateChange(web::WebState* web_state);
 
-  sync_sessions::LocalSessionEventHandler* handler_;
+  // Observation registrars for the associated browser state; owns an instance
+  // of IOSChromeLocalSessionEventRouter::Observer.
+  std::unique_ptr<AllWebStateListObservationRegistrar> const registrar_;
+
+  sync_sessions::LocalSessionEventHandler* handler_ = nullptr;
   sync_sessions::SyncSessionsClient* const sessions_client_;
   syncer::SyncableService::StartSyncFlare flare_;
 
-  base::CallbackListSubscription tab_parented_subscription_;
+  base::CallbackListSubscription const tab_parented_subscription_;
 
   // Track the number of WebStateList we are observing that are in a batch
   // operation.

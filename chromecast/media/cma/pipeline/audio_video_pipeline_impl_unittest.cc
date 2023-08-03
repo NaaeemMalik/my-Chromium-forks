@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/cxx17_backports.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "chromecast/media/api/test/mock_cma_backend.h"
 #include "chromecast/media/base/decrypt_context_impl.h"
 #include "chromecast/media/cdm/cast_cdm_context.h"
@@ -47,7 +46,7 @@ namespace media {
 
 ACTION_P2(PushBuffer, delegate, buffer_pts) {
   if (arg0->end_of_stream()) {
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&CmaBackend::Decoder::Delegate::OnEndOfStream,
                                   base::Unretained(*delegate)));
   } else {
@@ -132,7 +131,8 @@ class PipelineHelper {
                                   &last_push_pts_[STREAM_VIDEO]));
 
     media_pipeline_ = std::make_unique<MediaPipelineImpl>();
-    media_pipeline_->Initialize(kLoadTypeURL, std::move(backend));
+    media_pipeline_->Initialize(kLoadTypeURL, std::move(backend),
+                                /* is_buffering_enabled */ true);
 
     if (have_audio_) {
       ::media::AudioDecoderConfig audio_config(
@@ -250,7 +250,7 @@ class PipelineHelper {
     frame_provider->Configure(
         std::vector<bool>(
             provider_delayed_pattern,
-            provider_delayed_pattern + base::size(provider_delayed_pattern)),
+            provider_delayed_pattern + std::size(provider_delayed_pattern)),
         std::move(frame_generator));
     frame_provider->SetDelayFlush(true);
     return std::move(frame_provider);

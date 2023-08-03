@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/task/task_runner_util.h"
-#include "base/threading/sequenced_task_runner_handle.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -40,7 +39,7 @@ static void MakeAsyncCopyRequest(
           std::move(callback));
   request->set_area(source_rect);
   request->set_result_task_runner(
-      base::SequencedTaskRunnerHandle::Get());
+      base::SequencedTaskRunner::GetCurrentDefault());
   layer->RequestCopyOfOutput(std::move(request));
 }
 
@@ -102,7 +101,7 @@ void GrabWindowSnapshotAsyncAura(aura::Window* window,
                      std::move(callback)));
 }
 
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 bool GrabWindowSnapshot(gfx::NativeWindow window,
                         const gfx::Rect& snapshot_bounds,
                         gfx::Image* image) {

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,17 @@
 #include <tuple>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/media/webrtc/capture_policy_utils.h"
-#include "chrome/browser/media/webrtc/desktop_media_list_ash.h"
 #include "chrome/browser/media/webrtc/desktop_media_picker.h"
 #include "chrome/browser/media/webrtc/desktop_media_picker_factory_impl.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/native_desktop_media_list.h"
 #include "chrome/browser/media/webrtc/tab_desktop_media_list.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/grit/chromium_strings.h"
@@ -91,7 +89,7 @@ void DesktopMediaPickerController::OnInitialMediaListFound() {
     // system-wide audio loopback) at this time.
     content::DesktopMediaID media_id = source_list->GetSource(0).id;
     DCHECK_EQ(media_id.type, content::DesktopMediaID::TYPE_SCREEN);
-#if defined(USE_CRAS) || defined(OS_WIN)
+#if defined(USE_CRAS) || BUILDFLAG(IS_WIN)
     media_id.audio_share = params_.request_audio;
 #else
     media_id.audio_share = false;
@@ -104,7 +102,7 @@ void DesktopMediaPickerController::OnInitialMediaListFound() {
 }
 
 void DesktopMediaPickerController::ShowPickerDialog() {
-  picker_ = picker_factory_->CreatePicker(/*request=*/nullptr);
+  picker_ = picker_factory_->CreatePicker();
   if (!picker_) {
     OnPickerDialogResults(
         "Desktop Capture API is not yet implemented for this platform.", {});

@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 
 #include "content/public/common/sandboxed_process_launcher_delegate.h"
 #include "content/public/common/zygote/zygote_buildflags.h"
-#include "ppapi/shared_impl/ppapi_permissions.h"
 
-#if BUILDFLAG(USE_ZYGOTE_HANDLE)
+#if BUILDFLAG(USE_ZYGOTE)
 #include "content/public/common/zygote/zygote_handle.h"  // nogncheck
 #endif
 
@@ -20,8 +19,7 @@ namespace content {
 class CONTENT_EXPORT PpapiPluginSandboxedProcessLauncherDelegate
     : public content::SandboxedProcessLauncherDelegate {
  public:
-  explicit PpapiPluginSandboxedProcessLauncherDelegate(
-      const ppapi::PpapiPermissions& permissions);
+  PpapiPluginSandboxedProcessLauncherDelegate() = default;
 
   PpapiPluginSandboxedProcessLauncherDelegate(
       const PpapiPluginSandboxedProcessLauncherDelegate&) = delete;
@@ -30,24 +28,21 @@ class CONTENT_EXPORT PpapiPluginSandboxedProcessLauncherDelegate
 
   ~PpapiPluginSandboxedProcessLauncherDelegate() override = default;
 
-#if defined(OS_WIN)
-  bool PreSpawnTarget(sandbox::TargetPolicy* policy) override;
-#endif  // OS_WIN
+#if BUILDFLAG(IS_WIN)
+  std::string GetSandboxTag() override;
+  bool InitializeConfig(sandbox::TargetConfig* config) override;
+  bool AllowWindowsFontsDir() override;
+#endif  // BUILDFLAG(IS_WIN)
 
-#if BUILDFLAG(USE_ZYGOTE_HANDLE)
-  ZygoteHandle GetZygote() override;
-#endif  // BUILDFLAG(USE_ZYGOTE_HANDLE)
+#if BUILDFLAG(USE_ZYGOTE)
+  ZygoteCommunication* GetZygote() override;
+#endif  // BUILDFLAG(USE_ZYGOTE)
 
   sandbox::mojom::Sandbox GetSandboxType() override;
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   bool DisclaimResponsibility() override;
   bool EnableCpuSecurityMitigations() override;
-#endif
-
- private:
-#if defined(OS_WIN)
-  const ppapi::PpapiPermissions permissions_;
 #endif
 };
 }  // namespace content

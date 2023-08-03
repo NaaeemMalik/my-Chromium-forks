@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "android_webview/browser/gfx/browser_view_renderer.h"
 #include "android_webview/browser/gfx/gpu_service_webview.h"
 #include "android_webview/browser/gfx/viz_compositor_thread_runner_webview.h"
-#include "android_webview/browser/scoped_add_feature_flags.h"
 #include "android_webview/browser/tracing/aw_trace_event_args_allowlist.h"
 #include "android_webview/common/aw_descriptors.h"
 #include "android_webview/common/aw_features.h"
@@ -25,28 +24,34 @@
 #include "android_webview/renderer/aw_content_renderer_client.h"
 #include "base/android/apk_assets.h"
 #include "base/android/build_info.h"
-#include "base/bind.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/cpu.h"
-#include "base/cpu_affinity_posix.h"
+#include "base/functional/bind.h"
 #include "base/i18n/icu_util.h"
 #include "base/i18n/rtl.h"
 #include "base/posix/global_descriptors.h"
+#include "base/scoped_add_feature_flags.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_split.h"
+#include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
 #include "cc/base/switches.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/crash/core/common/crash_key.h"
-#include "components/gwp_asan/buildflags/buildflags.h"
+#include "components/embedder_support/switches.h"
+#include "components/memory_system/initializer.h"
+#include "components/memory_system/parameters.h"
 #include "components/metrics/unsent_log_store_metrics.h"
-#include "components/power_scheduler/power_scheduler.h"
 #include "components/safe_browsing/android/safe_browsing_api_handler_bridge.h"
 #include "components/services/heap_profiling/public/cpp/profiling_client.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
+#include "components/translate/core/common/translate_util.h"
+#include "components/variations/variations_ids_provider.h"
 #include "components/version_info/android/channel_getter.h"
 #include "components/viz/common/features.h"
+#include "content/public/app/initialize_mojo_core.h"
 #include "content/public/browser/android/media_url_interceptor_register.h"
 #include "content/public/browser/browser_main_runner.h"
 #include "content/public/browser/browser_thread.h"
@@ -59,11 +64,13 @@
 #include "gin/v8_initializer.h"
 #include "gpu/command_buffer/service/gpu_switches.h"
 #include "gpu/config/gpu_finch_features.h"
-#include "gpu/ipc/gl_in_process_context.h"
 #include "media/base/media_switches.h"
 #include "media/media_buildflags.h"
+#include "net/base/features.h"
 #include "services/network/public/cpp/features.h"
+#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/blink/public/common/features.h"
+#include "tools/v8_context_snapshot/buildflags.h"
 #include "ui/base/ui_base_paths.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/events/gesture_detection/gesture_configuration.h"
@@ -73,17 +80,13 @@
 #include "components/spellcheck/common/spellcheck_features.h"
 #endif  // ENABLE_SPELLCHECK
 
-#if BUILDFLAG(ENABLE_GWP_ASAN)
-#include "components/gwp_asan/client/gwp_asan.h"  // nogncheck
-#endif
-
 namespace android_webview {
 
 AwMainDelegate::AwMainDelegate() = default;
 
 AwMainDelegate::~AwMainDelegate() = default;
 
-bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
+absl::optional<int> AwMainDelegate::BasicStartupComplete() {
   TRACE_EVENT0("startup", "AwMainDelegate::BasicStartupComplete");
   base::CommandLine* cl = base::CommandLine::ForCurrentProcess();
 
@@ -147,6 +150,10 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
   // the document lifecycle.
   cl->AppendSwitch(switches::kDisableBackForwardCache);
 
+  // Deemed that performance benefit is not worth the stability cost.
+  // See crbug.com/1309151.
+  cl->AppendSwitch(switches::kDisableGpuShaderDiskCache);
+
   if (cl->GetSwitchValueASCII(switches::kProcessType).empty()) {
     // Browser process (no type specified).
 
@@ -162,16 +169,40 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
     if (AwDrawFnImpl::IsUsingVulkan())
       cl->AppendSwitch(switches::kWebViewDrawFunctorUsesVulkan);
 
-#if !defined(USE_V8_CONTEXT_SNAPSHOT) || defined(INCLUDE_BOTH_V8_SNAPSHOTS)
-    // The snapshot for USE_V8_CONTEXT_SNAPSHOT is handled in the renderer.
+#if BUILDFLAG(USE_V8_CONTEXT_SNAPSHOT)
+    const gin::V8SnapshotFileType file_type =
+        gin::V8SnapshotFileType::kWithAdditionalContext;
+#else
     const gin::V8SnapshotFileType file_type = gin::V8SnapshotFileType::kDefault;
+#endif
     base::android::RegisterApkAssetWithFileDescriptorStore(
         content::kV8Snapshot32DataDescriptor,
         gin::V8Initializer::GetSnapshotFilePath(true, file_type));
     base::android::RegisterApkAssetWithFileDescriptorStore(
         content::kV8Snapshot64DataDescriptor,
         gin::V8Initializer::GetSnapshotFilePath(false, file_type));
-#endif
+
+    {
+      // Disable origin trial features on WebView unless the flag was explicitly
+      // specified via command-line.
+      std::string disabled_origin_trials_switch_value = cl->GetSwitchValueASCII(
+          embedder_support::kOriginTrialDisabledFeatures);
+      base::flat_set<std::string> disabled_origin_trials(
+          base::SplitString(disabled_origin_trials_switch_value, "|",
+                            base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY));
+
+      // Disable origin trials for the FedCM API on WebView because the FedCM
+      // API is not implemented on WebView. The inserted feature string should
+      // match a name in
+      // third_party/blink/renderer/platform/runtime_enabled_features.json5.
+      // Currently, there is no method to obtain these strings directly so it is
+      // hard coded.
+      disabled_origin_trials.insert("FedCM");
+
+      cl->AppendSwitchASCII(
+          embedder_support::kOriginTrialDisabledFeatures,
+          base::JoinString(std::move(disabled_origin_trials).extract(), "|"));
+    }
   }
 
   if (cl->HasSwitch(switches::kWebViewSandboxedRenderer)) {
@@ -179,7 +210,7 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
   }
 
   {
-    ScopedAddFeatureFlags features(cl);
+    base::ScopedAddFeatureFlags features(cl);
 
     if (base::android::BuildInfo::GetInstance()->sdk_int() >=
         base::android::SDK_VERSION_OREO) {
@@ -198,6 +229,13 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
       features.DisableIfNotSet(::features::kDefaultANGLEVulkan);
     }
 
+    if (cl->HasSwitch(switches::kWebViewFencedFrames)) {
+      features.EnableIfNotSet(blink::features::kFencedFrames);
+      features.EnableIfNotSet(blink::features::kFencedFramesAPIChanges);
+      features.EnableIfNotSet(blink::features::kSharedStorageAPI);
+      features.EnableIfNotSet(::features::kPrivacySandboxAdsAPIsOverride);
+    }
+
     // WebView uses kWebViewVulkan to control vulkan. Pre-emptively disable
     // kVulkan in case it becomes enabled by default.
     features.DisableIfNotSet(::features::kVulkan);
@@ -205,21 +243,12 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
     features.DisableIfNotSet(::features::kWebPayments);
     features.DisableIfNotSet(::features::kServiceWorkerPaymentApps);
 
-    // WebView does not and should not support WebAuthN.
-    features.DisableIfNotSet(::features::kWebAuth);
-
-    // WebView requires SkiaRenderer.
-    features.EnableIfNotSet(::features::kUseSkiaRenderer);
-
     // WebView does not support overlay fullscreen yet for video overlays.
     features.DisableIfNotSet(media::kOverlayFullscreenVideo);
 
     // WebView does not support EME persistent license yet, because it's not
     // clear on how user can remove persistent media licenses from UI.
     features.DisableIfNotSet(media::kMediaDrmPersistentLicense);
-
-    // WebView does not support Picture-in-Picture yet.
-    features.DisableIfNotSet(media::kPictureInPictureAPI);
 
     features.DisableIfNotSet(::features::kBackgroundFetch);
 
@@ -233,14 +262,11 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
     // TODO(https://crbug.com/1012899): WebXR is not yet supported on WebView.
     features.DisableIfNotSet(::features::kWebXr);
 
-    features.DisableIfNotSet(::features::kWebXrArModule);
-
-    features.DisableIfNotSet(device::features::kWebXrHitTest);
+    // TODO(https://crbug.com/1312827): Digital Goods API is not yet supported
+    // on WebView.
+    features.DisableIfNotSet(::features::kDigitalGoodsApi);
 
     features.DisableIfNotSet(::features::kDynamicColorGamut);
-
-    // De-jelly is never supported on WebView.
-    features.EnableIfNotSet(::features::kDisableDeJelly);
 
     // COOP is not supported on WebView yet. See:
     // https://groups.google.com/a/chromium.org/forum/#!topic/blink-dev/XBKAGb2_7uAi.
@@ -248,8 +274,7 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
 
     features.DisableIfNotSet(::features::kInstalledApp);
 
-    features.EnableIfNotSet(
-        metrics::UnsentLogStoreMetrics::kRecordLastUnsentLogMetadataMetrics);
+    features.EnableIfNotSet(metrics::kRecordLastUnsentLogMetadataMetrics);
 
     features.DisableIfNotSet(::features::kPeriodicBackgroundSync);
 
@@ -257,19 +282,44 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
     // WebView.
     features.DisableIfNotSet(blink::features::kUserAgentClientHint);
 
+    // Disable Reducing User Agent minor version on WebView.
+    features.DisableIfNotSet(blink::features::kReduceUserAgentMinorVersion);
+
     // Disabled until viz scheduling can be improved.
     features.DisableIfNotSet(::features::kUseSurfaceLayerForVideoDefault);
 
+    // Enabled by default for webview.
+    features.EnableIfNotSet(::features::kWebViewThreadSafeMediaDefault);
+
     // Disable dr-dc on webview.
     features.DisableIfNotSet(::features::kEnableDrDc);
+
+    // TODO(crbug.com/1100993): Web Bluetooth is not yet supported on WebView.
+    features.DisableIfNotSet(::features::kWebBluetooth);
+
+    // TODO(crbug.com/933055): WebUSB is not yet supported on WebView.
+    features.DisableIfNotSet(::features::kWebUsb);
+
+    // Disable TFLite based language detection on webview until webview supports
+    // ML model delivery via Optimization Guide component.
+    // TODO(crbug.com/1292622): Enable the feature on Webview.
+    features.DisableIfNotSet(::translate::kTFLiteLanguageDetectionEnabled);
+
+    // Disable key pinning enforcement on webview.
+    features.DisableIfNotSet(net::features::kStaticKeyPinningEnforcement);
+
+    // Have the network service in the browser process even if we have separate
+    // renderer processes. See also: switches::kInProcessGPU above.
+    features.EnableIfNotSet(::features::kNetworkServiceInProcess);
+
+    // FedCM is not yet supported on WebView.
+    features.DisableIfNotSet(::features::kFedCm);
+
+    // Disable network-change migration on WebView due to crbug.com/1430082.
+    features.DisableIfNotSet(net::features::kMigrateSessionsOnNetworkChangeV2);
   }
 
   android_webview::RegisterPathProvider();
-
-  safe_browsing_api_handler_ =
-      std::make_unique<safe_browsing::SafeBrowsingApiHandlerBridge>();
-  safe_browsing::SafeBrowsingApiHandler::SetInstance(
-      safe_browsing_api_handler_.get());
 
   // Used only if the argument filter is enabled in tracing config,
   // as is the case by default in aw_tracing_controller.cc
@@ -287,7 +337,7 @@ bool AwMainDelegate::BasicStartupComplete(int* exit_code) {
   // partially-initialized, which the TLS object is supposed to protect again.
   heap_profiling::InitTLSSlot();
 
-  return false;
+  return absl::nullopt;
 }
 
 void AwMainDelegate::PreSandboxStartup() {
@@ -352,50 +402,35 @@ void AwMainDelegate::ProcessExiting(const std::string& process_type) {
   logging::CloseLogFile();
 }
 
-bool AwMainDelegate::ShouldCreateFeatureList() {
-  // TODO(https://crbug.com/887468): Move the creation of FeatureList from
-  // AwBrowserMainParts::PreCreateThreads() to
+bool AwMainDelegate::ShouldCreateFeatureList(InvokedIn invoked_in) {
+  // In the browser process the FeatureList is created in
   // AwMainDelegate::PostEarlyInitialization().
-  return false;
+  return absl::holds_alternative<InvokedInChildProcess>(invoked_in);
 }
 
-// This function is called only on the browser process.
-void AwMainDelegate::PostEarlyInitialization(bool is_running_tests) {
-  InitIcuAndResourceBundleBrowserSide();
-  aw_feature_list_creator_->CreateFeatureListAndFieldTrials();
-  PostFieldTrialInitialization();
+bool AwMainDelegate::ShouldInitializeMojo(InvokedIn invoked_in) {
+  return ShouldCreateFeatureList(invoked_in);
 }
 
-void AwMainDelegate::PostFieldTrialInitialization() {
-  version_info::Channel channel = version_info::android::GetChannel();
-  bool is_canary_dev = (channel == version_info::Channel::CANARY ||
-                        channel == version_info::Channel::DEV);
-  const base::CommandLine& command_line =
-      *base::CommandLine::ForCurrentProcess();
-  std::string process_type =
-      command_line.GetSwitchValueASCII(switches::kProcessType);
-  bool is_browser_process = process_type.empty();
+variations::VariationsIdsProvider*
+AwMainDelegate::CreateVariationsIdsProvider() {
+  return variations::VariationsIdsProvider::Create(
+      variations::VariationsIdsProvider::Mode::kDontSendSignedInVariations);
+}
 
-  ALLOW_UNUSED_LOCAL(is_canary_dev);
-  ALLOW_UNUSED_LOCAL(is_browser_process);
-
-  // Enable LITTLE-cores only mode/idle power mode throttling if the features
-  // are enabled, but only for child processes, as the browser process is shared
-  // with the hosting app.
-  if (!is_browser_process) {
-    power_scheduler::PowerScheduler::GetInstance()
-        ->InitializePolicyFromFeatureList();
+absl::optional<int> AwMainDelegate::PostEarlyInitialization(
+    InvokedIn invoked_in) {
+  const bool is_browser_process =
+      absl::holds_alternative<InvokedInBrowserProcess>(invoked_in);
+  if (is_browser_process) {
+    InitIcuAndResourceBundleBrowserSide();
+    aw_feature_list_creator_->CreateFeatureListAndFieldTrials();
+    content::InitializeMojoCore();
   }
 
-#if BUILDFLAG(ENABLE_GWP_ASAN_MALLOC)
-  gwp_asan::EnableForMalloc(is_canary_dev || is_browser_process,
-                            process_type.c_str());
-#endif
+  InitializeMemorySystem(is_browser_process);
 
-#if BUILDFLAG(ENABLE_GWP_ASAN_PARTITIONALLOC)
-  gwp_asan::EnableForPartitionAlloc(is_canary_dev || is_browser_process,
-                                    process_type.c_str());
-#endif
+  return absl::nullopt;
 }
 
 content::ContentClient* AwMainDelegate::CreateContentClient() {
@@ -421,6 +456,11 @@ gpu::SharedImageManager* GetSharedImageManager() {
   return GpuServiceWebView::GetInstance()->shared_image_manager();
 }
 
+gpu::Scheduler* GetScheduler() {
+  DCHECK(GpuServiceWebView::GetInstance());
+  return GpuServiceWebView::GetInstance()->scheduler();
+}
+
 viz::VizCompositorThreadRunner* GetVizCompositorThreadRunner() {
   return VizCompositorThreadRunnerWebView::GetInstance();
 }
@@ -431,6 +471,7 @@ content::ContentGpuClient* AwMainDelegate::CreateContentGpuClient() {
   content_gpu_client_ = std::make_unique<AwContentGpuClient>(
       base::BindRepeating(&GetSyncPointManager),
       base::BindRepeating(&GetSharedImageManager),
+      base::BindRepeating(&GetScheduler),
       base::BindRepeating(&GetVizCompositorThreadRunner));
   return content_gpu_client_.get();
 }
@@ -440,4 +481,28 @@ content::ContentRendererClient* AwMainDelegate::CreateContentRendererClient() {
   return content_renderer_client_.get();
 }
 
+void AwMainDelegate::InitializeMemorySystem(const bool is_browser_process) {
+  const version_info::Channel channel = version_info::android::GetChannel();
+  const bool is_canary_dev = (channel == version_info::Channel::CANARY ||
+                              channel == version_info::Channel::DEV);
+  const std::string process_type =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+          switches::kProcessType);
+  const bool gwp_asan_boost_sampling = is_canary_dev || is_browser_process;
+
+  // Add PoissonAllocationSampler. On Android WebView we do not have obvious
+  // observers of PoissonAllocationSampler. Unfortunately, some potential
+  // candidates are still linked and may sneak in through hidden paths.
+  // Therefore, we include PoissonAllocationSampler unconditionally.
+  // TODO(crbug.com/1411454): Which observers of PoissonAllocationSampler are
+  // really in use on Android WebView? Can we add the sampler conditionally or
+  // remove it completely?
+  memory_system::Initializer()
+      .SetGwpAsanParameters(gwp_asan_boost_sampling, process_type)
+      .SetDispatcherParameters(memory_system::DispatcherParameters::
+                                   PoissonAllocationSamplerInclusion::kEnforce,
+                               memory_system::DispatcherParameters::
+                                   AllocationTraceRecorderInclusion::kIgnore)
+      .Initialize(memory_system_);
+}
 }  // namespace android_webview

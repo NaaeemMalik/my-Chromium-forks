@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "content/public/test/browser_task_environment.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/manifest_constants.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -42,27 +43,26 @@ class ExtensionInstalledBubbleModelTest : public BrowserWithTestWindowTest {
   void AddOmniboxKeyword(extensions::ExtensionBuilder* builder,
                          const std::string& keyword) {
     using ManifestKeys = extensions::api::omnibox::ManifestKeys;
-    auto info = std::make_unique<base::DictionaryValue>();
-    info->SetStringKey(ManifestKeys::Omnibox::kKeyword, keyword);
+    base::Value::Dict info;
+    info.Set(ManifestKeys::Omnibox::kKeyword, keyword);
     builder->SetManifestKey(ManifestKeys::kOmnibox, std::move(info));
   }
 
   void AddRegularAction(extensions::ExtensionBuilder* builder) {
     builder->SetManifestKey(extensions::manifest_keys::kAction,
-                            std::make_unique<base::DictionaryValue>());
+                            base::Value::Dict());
   }
 
   void AddBrowserActionKeyBinding(extensions::ExtensionBuilder* builder,
                                   const std::string& key) {
-    base::Value command(base::Value::Type::DICTIONARY);
-    command.SetStringKey("suggested_key", key);
-    command.SetStringKey("description", "Invoke the page action");
-    auto commands =
-        std::make_unique<base::Value>(base::Value::Type::DICTIONARY);
-    commands->SetKey(extensions::manifest_values::kBrowserActionCommandEvent,
-                     std::move(command));
+    base::Value::Dict command;
+    command.Set("suggested_key", key);
+    command.Set("description", "Invoke the page action");
+    base::Value::Dict commands;
+    commands.Set(extensions::manifest_values::kBrowserActionCommandEvent,
+                 base::Value(std::move(command)));
     builder->SetManifestKey(extensions::manifest_keys::kCommands,
-                            std::move(commands));
+                            std::make_unique<base::Value>(std::move(commands)));
   }
 
   extensions::ExtensionService* extension_service() {
@@ -119,10 +119,9 @@ TEST_F(ExtensionInstalledBubbleModelTest, OmniboxExtension) {
 
 TEST_F(ExtensionInstalledBubbleModelTest, PageActionExtension) {
   // An extension with a page action...
-  auto extension =
-      extensions::ExtensionBuilder("Foo")
-          .SetAction(extensions::ExtensionBuilder::ActionType::PAGE_ACTION)
-          .Build();
+  auto extension = extensions::ExtensionBuilder("Foo")
+                       .SetAction(extensions::ActionInfo::TYPE_PAGE)
+                       .Build();
   extension_service()->AddExtension(extension.get());
 
   ExtensionInstalledBubbleModel model(browser()->profile(), extension.get(),
@@ -142,7 +141,7 @@ TEST_F(ExtensionInstalledBubbleModelTest, PageActionExtension) {
 TEST_F(ExtensionInstalledBubbleModelTest, ExtensionWithKeyBinding) {
   // An extension with a browser action and a key binding...
   auto builder = extensions::ExtensionBuilder("Foo");
-  builder.SetAction(extensions::ExtensionBuilder::ActionType::BROWSER_ACTION);
+  builder.SetAction(extensions::ActionInfo::TYPE_BROWSER);
   AddBrowserActionKeyBinding(&builder, "Alt+Shift+E");
   auto extension = builder.Build();
 

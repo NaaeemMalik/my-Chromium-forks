@@ -1,9 +1,4 @@
 {
-  "$build/chromium_tests": {
-    "project_trigger_overrides": {
-      "chromium": "chromium-m98"
-    }
-  },
   "$build/chromium_tests_builder_config": {
     "builder_config": {
       "builder_db": {
@@ -12,7 +7,7 @@
             "builder_id": {
               "bucket": "ci",
               "builder": "Linux Builder (dbg)",
-              "project": "chromium"
+              "project": "chromium-m114"
             },
             "builder_spec": {
               "build_gs_bucket": "chromium-linux-archive",
@@ -27,9 +22,6 @@
                 "target_bits": 64
               },
               "legacy_gclient_config": {
-                "apply_configs": [
-                  "enable_reclient"
-                ],
                 "config": "chromium"
               }
             }
@@ -38,7 +30,7 @@
             "builder_id": {
               "bucket": "ci",
               "builder": "Linux Tests (dbg)(1)",
-              "project": "chromium"
+              "project": "chromium-m114"
             },
             "builder_spec": {
               "build_gs_bucket": "chromium-linux-archive",
@@ -53,15 +45,12 @@
                 "target_bits": 64
               },
               "legacy_gclient_config": {
-                "apply_configs": [
-                  "enable_reclient"
-                ],
                 "config": "chromium"
               },
               "parent": {
                 "bucket": "ci",
                 "builder": "Linux Builder (dbg)",
-                "project": "chromium"
+                "project": "chromium-m114"
               }
             }
           }
@@ -71,14 +60,14 @@
         {
           "bucket": "ci",
           "builder": "Linux Builder (dbg)",
-          "project": "chromium"
+          "project": "chromium-m114"
         }
       ],
       "builder_ids_in_scope_for_testing": [
         {
           "bucket": "ci",
           "builder": "Linux Tests (dbg)(1)",
-          "project": "chromium"
+          "project": "chromium-m114"
         }
       ],
       "mirroring_builder_group_and_names": [

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <map>
 #include <memory>
 
-#include "base/callback_forward.h"
+#include "base/containers/flat_set.h"
+#include "base/functional/callback_forward.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
@@ -64,6 +65,14 @@ class PlatformSensor : public base::RefCountedThreadSafe<PlatformSensor> {
 
   // Can be overridden to reset this sensor by the PlatformSensorProvider.
   virtual void SensorReplaced();
+
+  // Checks if new value is significantly different than old value.
+  // When the reading we get does not differ significantly from our current
+  // value, we discard this reading and do not emit any events. This is a
+  // privacy measure to avoid giving readings that are too specific.
+  virtual bool IsSignificantlyDifferent(const SensorReading& lhs,
+                                        const SensorReading& rhs,
+                                        mojom::SensorType sensor_type);
 
   mojom::SensorType GetType() const;
 
@@ -134,7 +143,12 @@ class PlatformSensor : public base::RefCountedThreadSafe<PlatformSensor> {
   // updated, and false otherwise.
   // Note: this method is thread-safe.
   bool UpdateSharedBuffer(const SensorReading& reading,
-                          bool do_significance_check);
+                          bool do_significance_check)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
+  // Check if multiple instances of PlatformSensor can exist at once. It weas
+  // first suggested in crbug.com/1383180.
+  static base::flat_set<mojom::SensorType>& GetInitializedSensors();
 
   scoped_refptr<base::SequencedTaskRunner> main_task_runner_;
 
@@ -143,9 +157,11 @@ class PlatformSensor : public base::RefCountedThreadSafe<PlatformSensor> {
   mojom::SensorType type_;
   ConfigMap config_map_;
   raw_ptr<PlatformSensorProvider> provider_;
-  bool is_active_ = false;
+  bool is_active_ GUARDED_BY(lock_);
   absl::optional<SensorReading> last_raw_reading_ GUARDED_BY(lock_);
-  mutable base::Lock lock_;  // Protect last_raw_reading_.
+  absl::optional<SensorReading> last_rounded_reading_ GUARDED_BY(lock_);
+  // Protect last_raw_reading_ & last_rounded_reading_.
+  mutable base::Lock lock_;
   base::WeakPtrFactory<PlatformSensor> weak_factory_{this};
 };
 

@@ -1,11 +1,10 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.android_webview.test;
 
-import android.support.test.InstrumentationRegistry;
-
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
 import org.junit.After;
@@ -16,7 +15,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.android_webview.AwContents;
+<<<<<<< HEAD
 import org.chromium.android_webview.AwFeatureList;
+=======
+>>>>>>> gtx-new
 import org.chromium.android_webview.test.AwActivityTestRule.PopupInfo;
 import org.chromium.android_webview.test.util.CommonResources;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -260,11 +262,8 @@ public class NavigationHistoryTest {
                 CommonResources.FAVICON_STATIC_HTML, null);
 
         NavigationHistory list = getNavigationHistory(mAwContents);
-        if (AwFeatureList.isEnabled(BlinkFeatures.INITIAL_NAVIGATION_ENTRY)) {
-            Assert.assertEquals(1, list.getEntryCount());
-        } else {
-            Assert.assertEquals(0, list.getEntryCount());
-        }
+        Assert.assertEquals(1, list.getEntryCount());
+
         mActivityTestRule.getAwSettingsOnUiThread(mAwContents).setImagesEnabled(true);
         int faviconLoadCount = mContentsClient.getFaviconHelper().getCallCount();
         mActivityTestRule.loadUrlSync(mAwContents, mContentsClient.getOnPageFinishedHelper(), url);
@@ -311,23 +310,19 @@ public class NavigationHistoryTest {
     }
 
     // Test that a WebContents which hasn't navigated to any URL has a
-    // NavigationHistory that is either empty (if expectInitialEntry is true) or
-    // has 1 entry: the initial NavigationEntry (if expectInitialEntry is false).
-    private void testFreshWebContentsInitialNavigationHistoryHelper(boolean expectInitialEntry)
-            throws Throwable {
+    // NavigationHistory that has 1 entry: the initial NavigationEntry.
+    @Test
+    @SmallTest
+    public void testFreshWebContentsInitialNavigationHistory() throws Throwable {
         NavigationHistory navHistory = mAwContents.getNavigationHistory();
-        if (expectInitialEntry) {
-            Assert.assertEquals(1, navHistory.getEntryCount());
-            Assert.assertEquals(0, navHistory.getCurrentEntryIndex());
-            Assert.assertTrue(navHistory.getEntryAtIndex(0).isInitialEntry());
-            Assert.assertEquals(GURL.emptyGURL(), navHistory.getEntryAtIndex(0).getUrl());
-        } else {
-            Assert.assertEquals(0, navHistory.getEntryCount());
-            Assert.assertEquals(-1, navHistory.getCurrentEntryIndex());
-        }
+        Assert.assertEquals(1, navHistory.getEntryCount());
+        Assert.assertEquals(0, navHistory.getCurrentEntryIndex());
+        Assert.assertTrue(navHistory.getEntryAtIndex(0).isInitialEntry());
+        Assert.assertEquals(GURL.emptyGURL(), navHistory.getEntryAtIndex(0).getUrl());
+
         // Navigate the WebContents' main frame to another URL, which will
         // create a new NavigationEntry that replaces the initial
-        // NavigationEntry if it existed.
+        // NavigationEntry.
         String nonEmptyUrl = mWebServer.setResponse("/nonEmptyURL.html", "", null);
         mActivityTestRule.loadUrlSync(
                 mAwContents, mContentsClient.getOnPageFinishedHelper(), nonEmptyUrl);
@@ -342,28 +337,11 @@ public class NavigationHistoryTest {
         Assert.assertEquals(nonEmptyUrl, navHistory.getEntryAtIndex(0).getUrl().getSpec());
     }
 
+    // Tests that NavigationHistory in a new popup WebContents contains the
+    // initial NavigationEntry.
     @Test
     @SmallTest
-    @Feature({"AndroidWebView"})
-    @CommandLineFlags.Add("enable-features=" + BlinkFeatures.INITIAL_NAVIGATION_ENTRY)
-    public void testFreshWebContentsInitialNavigationHistory_InitialNavigationEntryEnabled()
-            throws Throwable {
-        testFreshWebContentsInitialNavigationHistoryHelper(/*expectInitialEntry=*/true);
-    }
-    @Test
-    @SmallTest
-    @Feature({"AndroidWebView"})
-    @CommandLineFlags.Add("disable-features=" + BlinkFeatures.INITIAL_NAVIGATION_ENTRY)
-    public void testFreshWebContentsInitialNavigationHistory_InitialNavigationEntryDisabled()
-            throws Throwable {
-        testFreshWebContentsInitialNavigationHistoryHelper(/*expectInitialEntry=*/false);
-    }
-
-    // Test that a new popup WebContents which hasn't navigated to any URL has a
-    // NavigationHistory that is either empty (if expectInitialEntry is true) or
-    // has 1 entry: the initial NavigationEntry (if expectInitialEntry is false).
-    private void testPopupInitialNavigationHistoryHelper(boolean expectInitialEntry)
-            throws Throwable {
+    public void testPopupInitialNavigationHistory() throws Throwable {
         // Open a popup without an URL.
         final String parentPageHtml = CommonResources.makeHtmlPageFrom("",
                 "<script>"
@@ -376,23 +354,15 @@ public class NavigationHistoryTest {
         final AwContents popupContents = popupInfo.popupContents;
 
         // Test that the new WebContents, which stays on the initial empty
-        // document, stays on the initial NavigationEntry (if expectInitialEntry
-        // is true) or doesn't have a NavigationEntry (if expectInitialEntry is
-        // false).
+        // document, stays on the initial NavigationEntry.
         NavigationHistory navHistory = popupContents.getNavigationHistory();
-        if (expectInitialEntry) {
-            Assert.assertEquals(1, navHistory.getEntryCount());
-            Assert.assertEquals(0, navHistory.getCurrentEntryIndex());
-            Assert.assertTrue(navHistory.getEntryAtIndex(0).isInitialEntry());
-            Assert.assertEquals(GURL.emptyGURL(), navHistory.getEntryAtIndex(0).getUrl());
-        } else {
-            Assert.assertEquals(0, navHistory.getEntryCount());
-            Assert.assertEquals(-1, navHistory.getCurrentEntryIndex());
-        }
+        Assert.assertEquals(1, navHistory.getEntryCount());
+        Assert.assertEquals(0, navHistory.getCurrentEntryIndex());
+        Assert.assertTrue(navHistory.getEntryAtIndex(0).isInitialEntry());
+        Assert.assertEquals(GURL.emptyGURL(), navHistory.getEntryAtIndex(0).getUrl());
 
         // Navigate the popup main frame to another URL, which will create a new
-        // NavigationEntry that replaces the initial NavigationEntry if it
-        // existed.
+        // NavigationEntry that replaces the initial NavigationEntry.
         TestCallbackHelperContainer.OnPageFinishedHelper popupOnPageFinishedHelper =
                 popupInfo.popupContentsClient.getOnPageFinishedHelper();
         String nonEmptyUrl = mWebServer.setResponse("/nonEmptyURL.html", "", null);
@@ -408,26 +378,5 @@ public class NavigationHistoryTest {
         // false and it will be exposed to WebBackForwardList.
         Assert.assertFalse(navHistory.getEntryAtIndex(0).isInitialEntry());
         Assert.assertEquals(nonEmptyUrl, navHistory.getEntryAtIndex(0).getUrl().getSpec());
-    }
-
-    // Tests that NavigationHistory in a new popup WebContents contains the
-    // initial NavigationEntry when InitialNavigationEntry is enabled.
-    @Test
-    @SmallTest
-    @Feature({"AndroidWebView"})
-    @CommandLineFlags.Add("enable-features=" + BlinkFeatures.INITIAL_NAVIGATION_ENTRY)
-    public void testPopupInitialNavigationHistory_InitialNavigationEntryEnabled() throws Throwable {
-        testPopupInitialNavigationHistoryHelper(/*expectInitialEntry=*/true);
-    }
-
-    // Tests that NavigationHistory in a new popup WebContents is empty when
-    // InitialNavigationEntry is disabled.
-    @Test
-    @SmallTest
-    @Feature({"AndroidWebView"})
-    @CommandLineFlags.Add("disable-features=" + BlinkFeatures.INITIAL_NAVIGATION_ENTRY)
-    public void testPopupInitialNavigationHistoryWithInitialNavigationEntryDisabled()
-            throws Throwable {
-        testPopupInitialNavigationHistoryHelper(/*expectInitialEntry=*/false);
     }
 }

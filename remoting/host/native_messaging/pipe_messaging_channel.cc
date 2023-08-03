@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/files/file.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/process/process_info.h"
 #include "base/values.h"
@@ -30,7 +30,7 @@ PipeMessagingChannel::~PipeMessagingChannel() {
 
 // static
 void PipeMessagingChannel::ReopenStdinStdout() {
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   base::FilePath dev_null("/dev/null");
   int new_stdin =
       base::File(dev_null, base::File::FLAG_OPEN | base::File::FLAG_READ)
@@ -40,7 +40,7 @@ void PipeMessagingChannel::ReopenStdinStdout() {
       base::File(dev_null, base::File::FLAG_OPEN | base::File::FLAG_WRITE)
           .TakePlatformFile();
   DCHECK_EQ(new_stdout, STDOUT_FILENO);
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 }
 
 void PipeMessagingChannel::Start(EventHandler* event_handler) {
@@ -55,20 +55,22 @@ void PipeMessagingChannel::Start(EventHandler* event_handler) {
       base::BindOnce(&PipeMessagingChannel::Shutdown, weak_ptr_));
 }
 
-void PipeMessagingChannel::ProcessMessage(
-    std::unique_ptr<base::Value> message) {
+void PipeMessagingChannel::ProcessMessage(base::Value message) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (event_handler_)
+  if (event_handler_) {
     event_handler_->OnMessage(std::move(message));
+  }
 }
 
-void PipeMessagingChannel::SendMessage(std::unique_ptr<base::Value> message) {
+void PipeMessagingChannel::SendMessage(
+    absl::optional<base::ValueView> message) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   bool success = message && native_messaging_writer_;
-  if (success)
+  if (success) {
     success = native_messaging_writer_->WriteMessage(*message);
+  }
 
   if (!success) {
     // Close the write pipe so no more responses will be sent.

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,9 @@ AlwaysOnTopController::AlwaysOnTopController(
   DCHECK(!desks_util::IsDeskContainer(always_on_top_container_));
   DCHECK(!desks_util::IsDeskContainer(pip_container_));
   always_on_top_container_->SetLayoutManager(
-      new WorkspaceLayoutManager(always_on_top_container_));
-  pip_container_->SetLayoutManager(new WorkspaceLayoutManager(pip_container_));
+      std::make_unique<WorkspaceLayoutManager>(always_on_top_container_));
+  pip_container_->SetLayoutManager(
+      std::make_unique<WorkspaceLayoutManager>(pip_container_));
   // Container should be empty.
   DCHECK(always_on_top_container_->children().empty());
   DCHECK(pip_container_->children().empty());
@@ -83,7 +84,7 @@ void AlwaysOnTopController::ClearLayoutManagers() {
 
 void AlwaysOnTopController::SetLayoutManagerForTest(
     std::unique_ptr<WorkspaceLayoutManager> layout_manager) {
-  always_on_top_container_->SetLayoutManager(layout_manager.release());
+  always_on_top_container_->SetLayoutManager(std::move(layout_manager));
 }
 
 void AlwaysOnTopController::AddWindow(aura::Window* window) {
@@ -107,13 +108,13 @@ void AlwaysOnTopController::ReparentWindow(aura::Window* window) {
 
 void AlwaysOnTopController::OnWindowHierarchyChanged(
     const HierarchyChangeParams& params) {
-  if (params.old_parent == always_on_top_container_ ||
-      params.old_parent == pip_container_) {
+  if (params.old_parent == always_on_top_container_.get() ||
+      params.old_parent == pip_container_.get()) {
     RemoveWindow(params.target);
   }
 
-  if (params.new_parent == always_on_top_container_ ||
-      params.new_parent == pip_container_) {
+  if (params.new_parent == always_on_top_container_.get() ||
+      params.new_parent == pip_container_.get()) {
     AddWindow(params.target);
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,8 @@
 #include "ash/components/arc/test/arc_util_test_support.h"
 #include "ash/components/arc/test/fake_webapk_instance.h"
 #include "ash/constants/ash_features.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/apps/app_service/webapk/webapk_prefs.h"
 #include "chrome/browser/apps/app_service/webapk/webapk_test_server.h"
 #include "chrome/browser/ash/arc/arc_util.h"
@@ -42,7 +41,6 @@ absl::optional<arc::ArcFeatures> GetArcFeatures() {
 class WebApkPolicyBrowserTest : public policy::PolicyTest {
  public:
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    scoped_feature_list_.InitAndEnableFeature(ash::features::kWebApkGenerator);
     arc::SetArcAvailableCommandLineForTesting(command_line);
   }
 
@@ -77,7 +75,6 @@ class WebApkPolicyBrowserTest : public policy::PolicyTest {
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<arc::FakeWebApkInstance> fake_webapk_instance_;
   base::RepeatingCallback<absl::optional<arc::ArcFeatures>()>
       arc_features_getter_;
@@ -98,7 +95,7 @@ IN_PROC_BROWSER_TEST_F(WebApkPolicyBrowserTest, DefaultInstallWebApk) {
   // installation.
   base::RunLoop run_loop;
   pref_registrar.Add(apps::webapk_prefs::kGeneratedWebApksPref,
-                     base::BindLambdaForTesting([&]() { run_loop.Quit(); }));
+                     run_loop.QuitClosure());
 
   const web_app::AppId app_id =
       web_app::InstallWebAppFromManifest(browser(), app_url);

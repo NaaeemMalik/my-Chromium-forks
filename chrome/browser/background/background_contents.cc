@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ BackgroundContents::BackgroundContents(
     content::RenderFrameHost* opener,
     bool is_new_browsing_instance,
     Delegate* delegate,
-    const content::StoragePartitionId& partition_id,
+    const content::StoragePartitionConfig& partition_config,
     content::SessionStorageNamespace* session_storage_namespace)
     : delegate_(delegate),
       extension_host_delegate_(extensions::ExtensionsBrowserClient::Get()
@@ -51,7 +51,7 @@ BackgroundContents::BackgroundContents(
   if (session_storage_namespace) {
     content::SessionStorageNamespaceMap session_storage_namespace_map;
     session_storage_namespace_map.insert(
-        std::make_pair(partition_id, session_storage_namespace));
+        std::make_pair(partition_config, session_storage_namespace));
     web_contents_ = WebContents::CreateWithSessionStorage(
         create_params, session_storage_namespace_map);
   } else {
@@ -95,8 +95,7 @@ bool BackgroundContents::ShouldSuppressDialogs(WebContents* source) {
   return true;
 }
 
-void BackgroundContents::DidNavigatePrimaryMainFramePostCommit(
-    WebContents* tab) {
+void BackgroundContents::PrimaryPageChanged(content::Page& page) {
   // Note: because BackgroundContents are only available to extension apps,
   // navigation is limited to urls within the app's extent. This is enforced in
   // RenderView::decidePolicyForNavigation. If BackgroundContents become
@@ -113,11 +112,11 @@ void BackgroundContents::AddNewContents(
     std::unique_ptr<WebContents> new_contents,
     const GURL& target_url,
     WindowOpenDisposition disposition,
-    const gfx::Rect& initial_rect,
+    const blink::mojom::WindowFeatures& window_features,
     bool user_gesture,
     bool* was_blocked) {
   delegate_->AddWebContents(std::move(new_contents), target_url, disposition,
-                            initial_rect, was_blocked);
+                            window_features, was_blocked);
 }
 
 bool BackgroundContents::IsNeverComposited(content::WebContents* web_contents) {

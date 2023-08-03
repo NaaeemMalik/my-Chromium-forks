@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/callback_forward.h"
-#include "base/compiler_specific.h"
+#include "base/functional/callback_forward.h"
 
 namespace remoting {
 
@@ -51,7 +50,7 @@ class It2MeConfirmationDialogFactory {
 
  private:
   // This field is only used on ChromeOS.
-  ALLOW_UNUSED_TYPE It2MeConfirmationDialog::DialogStyle dialog_style_ =
+  [[maybe_unused]] It2MeConfirmationDialog::DialogStyle dialog_style_ =
       It2MeConfirmationDialog::DialogStyle::kConsumer;
 };
 

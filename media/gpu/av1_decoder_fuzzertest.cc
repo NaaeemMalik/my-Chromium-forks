@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 
 #include <fuzzer/FuzzedDataProvider.h>
 
-#include "base/ignore_result.h"
+#include <tuple>
+
 #include "base/logging.h"
 #include "media/base/decoder_buffer.h"
 #include "media/base/video_codecs.h"
@@ -68,7 +69,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     decoder.Reset();
   }
-  ignore_result(decoder.Flush());
+  std::ignore = decoder.Flush();
 
   return 0;
 }

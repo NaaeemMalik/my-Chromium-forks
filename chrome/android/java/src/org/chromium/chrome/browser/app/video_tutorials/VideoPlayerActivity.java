@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,11 @@ import android.util.Pair;
 import android.view.WindowManager;
 
 import org.chromium.base.IntentUtils;
+import org.chromium.chrome.browser.BackPressHelper;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.SynchronousInitializationActivity;
 import org.chromium.chrome.browser.WebContentsFactory;
+import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.video_tutorials.FeatureType;
 import org.chromium.chrome.browser.video_tutorials.Tutorial;
@@ -58,23 +60,21 @@ public class VideoPlayerActivity extends SynchronousInitializationActivity {
         int featureType =
                 IntentUtils.safeGetIntExtra(getIntent(), EXTRA_VIDEO_TUTORIAL, FeatureType.INVALID);
         videoTutorialService.getTutorial(featureType, mCoordinator::playVideoTutorial);
+        if (!BackPressManager.isSecondaryActivityEnabled()) {
+            // See comments in VideoPlayerMediator#handleBackPressed.
+            BackPressHelper.create(this, getOnBackPressedDispatcher(), mCoordinator::onBackPressed);
+        }
     }
 
     private Pair<WebContents, ContentView> createWebContents() {
         Profile profile = Profile.getLastUsedRegularProfile();
-        WebContents webContents = WebContentsFactory.createWebContents(profile, false);
+        WebContents webContents = WebContentsFactory.createWebContents(profile, false, false);
         ContentView contentView =
                 ContentView.createContentView(this, null /* eventOffsetHandler */, webContents);
         webContents.initialize(VersionConstants.PRODUCT_VERSION,
                 ViewAndroidDelegate.createBasicDelegate(contentView), contentView, mWindowAndroid,
                 WebContents.createDefaultInternalsHolder());
         return Pair.create(webContents, contentView);
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (mCoordinator.onBackPressed()) return;
-        super.onBackPressed();
     }
 
     @Override

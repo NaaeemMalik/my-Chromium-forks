@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,8 @@ MockFunctionScope::MockFunctionScope(ScriptState* script_state)
     : script_state_(script_state) {}
 
 MockFunctionScope::~MockFunctionScope() {
-  v8::MicrotasksScope::PerformCheckpoint(script_state_->GetIsolate());
+  script_state_->GetContext()->GetMicrotaskQueue()->PerformCheckpoint(
+      script_state_->GetIsolate());
   for (MockFunction* mock_function : mock_functions_) {
     testing::Mock::VerifyAndClearExpectations(mock_function);
   }
@@ -24,16 +25,16 @@ v8::Local<v8::Function> MockFunctionScope::ExpectCall(String* captor) {
   mock_functions_.push_back(
       MakeGarbageCollected<MockFunction>(script_state_, captor));
   EXPECT_CALL(*mock_functions_.back(), Call(script_state_, testing::_));
-  return MakeGarbageCollected<NewScriptFunction>(script_state_,
-                                                 mock_functions_.back())
+  return MakeGarbageCollected<ScriptFunction>(script_state_,
+                                              mock_functions_.back())
       ->V8Function();
 }
 
 v8::Local<v8::Function> MockFunctionScope::ExpectCall() {
   mock_functions_.push_back(MakeGarbageCollected<MockFunction>());
   EXPECT_CALL(*mock_functions_.back(), Call(script_state_, testing::_));
-  return MakeGarbageCollected<NewScriptFunction>(script_state_,
-                                                 mock_functions_.back())
+  return MakeGarbageCollected<ScriptFunction>(script_state_,
+                                              mock_functions_.back())
       ->V8Function();
 }
 
@@ -41,8 +42,8 @@ v8::Local<v8::Function> MockFunctionScope::ExpectNoCall() {
   mock_functions_.push_back(MakeGarbageCollected<MockFunction>());
   EXPECT_CALL(*mock_functions_.back(), Call(script_state_, testing::_))
       .Times(0);
-  return MakeGarbageCollected<NewScriptFunction>(script_state_,
-                                                 mock_functions_.back())
+  return MakeGarbageCollected<ScriptFunction>(script_state_,
+                                              mock_functions_.back())
       ->V8Function();
 }
 

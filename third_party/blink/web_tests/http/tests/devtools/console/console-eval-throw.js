@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,12 @@
 
   async function dumpMessages(next, message) {
     await ConsoleTestRunner.dumpConsoleMessagesIgnoreErrorStackFrames();
-    SDK.consoleModel.addEventListener(SDK.ConsoleModel.Events.ConsoleCleared, afterCleared);
+    const consoleModel = SDK.targetManager.primaryPageTarget().model(SDK.ConsoleModel);
+    consoleModel.addEventListener(SDK.ConsoleModel.Events.ConsoleCleared, afterCleared);
     Console.ConsoleView.clearConsole();
 
     function afterCleared() {
-      SDK.consoleModel.removeEventListener(SDK.ConsoleModel.Events.ConsoleCleared, afterCleared);
+      consoleModel.removeEventListener(SDK.ConsoleModel.Events.ConsoleCleared, afterCleared);
       next();
     }
   }

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ addUnloadCallback(() => {
   windowUnload.signal();
 });
 
-const NEVER_SETTLED_PROMISE: Promise<never> = new Promise(
+const NEVER_SETTLED_PROMISE = new Promise<never>(
     () => {
         // This doesn't call the resolve function so the Promise will never
         // be resolved or rejected.
@@ -37,26 +37,29 @@ async function wrapMojoResponse<T>(call: Promise<T>|undefined): Promise<T> {
   return result as T;
 }
 
-const mojoResponseHandler = {
+const mojoResponseHandler: ProxyHandler<MojoEndpoint> = {
   get: function(target, property) {
-    if (target[property] instanceof Function) {
-      return (...args) => {
+    const val = Reflect.get(target, property);
+    if (val instanceof Function) {
+      return (...args: unknown[]) => {
         if (windowUnload.isSignaled()) {
           // Don't try to call the mojo function if window is already unloaded,
           // since the connection would have already been closed, and there
           // would be uncaught exception if we try to call the mojo function.
           return NEVER_SETTLED_PROMISE;
         }
-        return wrapMojoResponse(target[property](...args));
+        return wrapMojoResponse(
+            Reflect.apply(val, target, args) as Promise<unknown>| undefined);
       };
     }
-    return target[property];
+    return val;
   },
 };
 
 /**
  * Closes the given mojo endpoint once the page is unloaded.
  * Reference b/176139064.
+ *
  * @param endpoint The mojo endpoint.
  */
 function closeWhenUnload(endpoint: MojoEndpoint) {
@@ -65,11 +68,12 @@ function closeWhenUnload(endpoint: MojoEndpoint) {
 
 /**
  * Returns a mojo |endpoint| and returns a proxy of it.
+ *
  * @return The proxy of the given endpoint.
  */
 export function wrapEndpoint<T extends MojoEndpoint>(endpoint: T): T {
   closeWhenUnload(endpoint);
-  return new Proxy(endpoint, mojoResponseHandler);
+  return new Proxy(endpoint, mojoResponseHandler as ProxyHandler<T>);
 }
 
 /**

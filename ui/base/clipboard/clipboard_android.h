@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #include <stdint.h>
 
 #include "base/android/scoped_java_ref.h"
-#include "base/callback_forward.h"
 #include "base/component_export.h"
+#include "base/functional/callback_forward.h"
 #include "base/time/time.h"
 
 namespace ui {
@@ -121,6 +121,10 @@ class ClipboardAndroid : public Clipboard {
                  size_t markup_len,
                  const char* url_data,
                  size_t url_len) override;
+  void WriteUnsanitizedHTML(const char* markup_data,
+                            size_t markup_len,
+                            const char* url_data,
+                            size_t url_len) override;
   void WriteSvg(const char* markup_data, size_t markup_len) override;
   void WriteRTF(const char* rtf_data, size_t data_len) override;
   void WriteFilenames(std::vector<ui::FileInfo> filenames) override;

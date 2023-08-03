@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include "third_party/blink/renderer/core/layout/background_bleed_avoidance.h"
 #include "third_party/blink/renderer/core/layout/geometry/box_sides.h"
 #include "third_party/blink/renderer/core/layout/geometry/physical_size.h"
+#include "third_party/blink/renderer/core/layout/ng/geometry/ng_box_strut.h"
 #include "third_party/blink/renderer/core/style/style_image.h"
-#include "third_party/blink/renderer/platform/geometry/layout_rect_outsets.h"
 #include "third_party/blink/renderer/platform/graphics/color.h"
 #include "third_party/blink/renderer/platform/graphics/image_orientation.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -144,9 +144,9 @@ class BoxPainterBase {
   };
 
  protected:
-  virtual LayoutRectOutsets ComputeBorders() const = 0;
-  virtual LayoutRectOutsets ComputePadding() const = 0;
-  LayoutRectOutsets AdjustedBorderOutsets(const FillLayerInfo&) const;
+  virtual NGPhysicalBoxStrut ComputeBorders() const = 0;
+  virtual NGPhysicalBoxStrut ComputePadding() const = 0;
+  NGPhysicalBoxStrut AdjustedBorderOutsets(const FillLayerInfo&) const;
   void PaintFillLayerTextFillBox(const PaintInfo&,
                                  const FillLayerInfo&,
                                  Image*,
@@ -168,7 +168,6 @@ class BoxPainterBase {
       const FillLayer&,
       BackgroundBleedAvoidance,
       bool is_painting_background_in_contents_space) const = 0;
-  virtual bool IsPaintingBackgroundInContentsSpace(const PaintInfo&) const = 0;
   static void PaintInsetBoxShadow(
       const PaintInfo&,
       const FloatRoundedRect&,
@@ -176,7 +175,7 @@ class BoxPainterBase {
       PhysicalBoxSides sides_to_include = PhysicalBoxSides());
 
  private:
-  LayoutRectOutsets ComputeSnappedBorders() const;
+  NGPhysicalBoxStrut ComputeSnappedBorders() const;
 
   const Document* document_;
   const ComputedStyle& style_;

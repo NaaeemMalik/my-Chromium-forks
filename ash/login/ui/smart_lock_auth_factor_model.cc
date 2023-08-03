@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,40 @@
 #include "ash/login/ui/auth_icon_view.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/strings/grit/ash_strings.h"
-#include "ash/style/ash_color_provider.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/vector_icon_types.h"
 
 namespace ash {
 
+// static
+SmartLockAuthFactorModel::Factory*
+    SmartLockAuthFactorModel::Factory::factory_instance_ = nullptr;
+
+// static
+std::unique_ptr<SmartLockAuthFactorModel>
+SmartLockAuthFactorModel::Factory::Create(
+    SmartLockState initial_state,
+    base::RepeatingCallback<void()> arrow_button_tap_callback) {
+  if (factory_instance_) {
+    return factory_instance_->CreateInstance(initial_state,
+                                             arrow_button_tap_callback);
+  }
+  return std::make_unique<SmartLockAuthFactorModel>(initial_state,
+                                                    arrow_button_tap_callback);
+}
+
+// static
+void SmartLockAuthFactorModel::Factory::SetFactoryForTesting(
+    SmartLockAuthFactorModel::Factory* factory) {
+  factory_instance_ = factory;
+}
+
 SmartLockAuthFactorModel::SmartLockAuthFactorModel(
+    SmartLockState initial_state,
     base::RepeatingCallback<void()> arrow_button_tap_callback)
-    : arrow_button_tap_callback_(arrow_button_tap_callback) {}
+    : state_(initial_state),
+      arrow_button_tap_callback_(arrow_button_tap_callback) {}
 
 SmartLockAuthFactorModel::~SmartLockAuthFactorModel() = default;
 
@@ -26,35 +50,10 @@ void SmartLockAuthFactorModel::OnArrowButtonTapOrClickEvent() {
   }
 }
 
-void SmartLockAuthFactorModel::SetEasyUnlockIconState(
-    EasyUnlockIconState state) {
-  switch (state) {
-    case EasyUnlockIconState::NONE:
-      FALLTHROUGH;
-    case EasyUnlockIconState::HARDLOCKED:
-      SetSmartLockState(SmartLockState::kDisabled);
-      break;
-    case EasyUnlockIconState::LOCKED_WITH_PROXIMITY_HINT:
-      SetSmartLockState(SmartLockState::kPhoneFoundLockedAndDistant);
-      break;
-    case EasyUnlockIconState::LOCKED:
-      SetSmartLockState(SmartLockState::kPhoneNotFound);
-      break;
-    case EasyUnlockIconState::LOCKED_TO_BE_ACTIVATED:
-      SetSmartLockState(SmartLockState::kPhoneFoundLockedAndProximate);
-      break;
-    case EasyUnlockIconState::UNLOCKED:
-      SetSmartLockState(SmartLockState::kPhoneAuthenticated);
-      break;
-    case EasyUnlockIconState::SPINNER:
-      SetSmartLockState(SmartLockState::kConnectingToPhone);
-      break;
-  }
-}
-
 void SmartLockAuthFactorModel::SetSmartLockState(SmartLockState state) {
-  if (state_ == state)
+  if (state_ == state) {
     return;
+  }
 
   // Clear out the timeout if the state changes. This shouldn't happen
   // ordinarily -- permanent error states are permanent after all -- but this is
@@ -79,29 +78,27 @@ AuthFactorModel::AuthFactorState SmartLockAuthFactorModel::GetAuthFactorState()
 
   switch (state_) {
     case SmartLockState::kDisabled:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kInactive:
       return AuthFactorState::kUnavailable;
     case SmartLockState::kPhoneNotFound:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kConnectingToPhone:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneFoundLockedAndDistant:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneFoundUnlockedAndDistant:
       return AuthFactorState::kAvailable;
     case SmartLockState::kPhoneAuthenticated:
       return AuthFactorState::kClickRequired;
     case SmartLockState::kPhoneFoundLockedAndProximate:
       return AuthFactorState::kReady;
-    case SmartLockState::kPasswordReentryRequired:
-      FALLTHROUGH;
     case SmartLockState::kPrimaryUserAbsent:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneNotAuthenticated:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kBluetoothDisabled:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneNotLockable:
       return AuthFactorState::kErrorPermanent;
   }
@@ -113,19 +110,24 @@ AuthFactorType SmartLockAuthFactorModel::GetType() const {
 
 int SmartLockAuthFactorModel::GetLabelId() const {
   if (auth_result_.has_value()) {
-    return auth_result_.value() ? IDS_SMART_LOCK_LABEL_PHONE_LOCKED
-                                : IDS_AUTH_FACTOR_LABEL_CANNOT_UNLOCK;
+    if (auth_result_.value()) {
+      return IDS_AUTH_FACTOR_LABEL_UNLOCKED;
+    }
+
+    // Once the Smart Lock error message has timed out, prompt the
+    // user to enter their password (since Smart Lock has permanently failed).
+    return has_permanent_error_display_timed_out_
+               ? IDS_AUTH_FACTOR_LABEL_PASSWORD_REQUIRED
+               : IDS_AUTH_FACTOR_LABEL_CANNOT_UNLOCK;
   }
 
   switch (state_) {
     case SmartLockState::kDisabled:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kInactive:
-      FALLTHROUGH;
-    case SmartLockState::kPasswordReentryRequired:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPrimaryUserAbsent:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneNotAuthenticated:
       return can_use_pin_ ? IDS_AUTH_FACTOR_LABEL_PASSWORD_OR_PIN_REQUIRED
                           : IDS_AUTH_FACTOR_LABEL_PASSWORD_REQUIRED;
@@ -136,7 +138,7 @@ int SmartLockAuthFactorModel::GetLabelId() const {
     case SmartLockState::kConnectingToPhone:
       return IDS_SMART_LOCK_LABEL_LOOKING_FOR_PHONE;
     case SmartLockState::kPhoneFoundLockedAndDistant:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneFoundUnlockedAndDistant:
       return IDS_SMART_LOCK_LABEL_PHONE_TOO_FAR;
     case SmartLockState::kPhoneNotFound:
@@ -150,8 +152,7 @@ int SmartLockAuthFactorModel::GetLabelId() const {
 }
 
 bool SmartLockAuthFactorModel::ShouldAnnounceLabel() const {
-  // TODO(crbug.com/1233614): Return 'true' depending on SmartLockState.
-  return false;
+  return true;
 }
 
 int SmartLockAuthFactorModel::GetAccessibleNameId() const {
@@ -182,7 +183,7 @@ void SmartLockAuthFactorModel::UpdateIcon(AuthIconView* icon) {
       icon->StopProgressAnimation();
       return;
     case SmartLockState::kPhoneFoundLockedAndDistant:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneFoundUnlockedAndDistant:
       icon->SetIcon(kLockScreenSmartLockBluetoothIcon,
                     AuthIconView::Color::kPrimary);
@@ -199,13 +200,11 @@ void SmartLockAuthFactorModel::UpdateIcon(AuthIconView* icon) {
       icon->StopProgressAnimation();
       return;
     case SmartLockState::kPrimaryUserAbsent:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneNotAuthenticated:
-      FALLTHROUGH;
-    case SmartLockState::kPasswordReentryRequired:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kPhoneNotLockable:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kBluetoothDisabled:
       icon->SetIcon(kLockScreenSmartLockDisabledIcon,
                     AuthIconView::Color::kDisabled);
@@ -213,9 +212,9 @@ void SmartLockAuthFactorModel::UpdateIcon(AuthIconView* icon) {
       return;
     case SmartLockState::kPhoneAuthenticated:
       // Click to enter -- icon handled by parent view.
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kDisabled:
-      FALLTHROUGH;
+      [[fallthrough]];
     case SmartLockState::kInactive:
       // Intentionally blank.
       return;

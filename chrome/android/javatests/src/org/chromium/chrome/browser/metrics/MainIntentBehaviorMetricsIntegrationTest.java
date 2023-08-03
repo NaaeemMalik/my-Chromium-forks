@@ -1,19 +1,20 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.metrics;
 
+import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertThat;
 
 import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.net.Uri;
-import android.support.test.InstrumentationRegistry;
 
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 
 import org.hamcrest.Matchers;
@@ -25,24 +26,23 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.UserActionTester;
-import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.bookmarks.BookmarkActivity;
-import org.chromium.chrome.browser.download.DownloadActivity;
+import org.chromium.chrome.browser.app.bookmarks.BookmarkActivity;
+import org.chromium.chrome.browser.app.download.home.DownloadActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.history.HistoryActivity;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
-import org.chromium.chrome.browser.settings.DummySettingsForTest;
 import org.chromium.chrome.browser.settings.SettingsActivity;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.test.ChromeActivityTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.ActivityTestUtils;
 import org.chromium.chrome.test.util.MenuUtils;
+import org.chromium.components.browser_ui.settings.PlaceholderSettingsForTest;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /**
@@ -57,8 +57,8 @@ public class MainIntentBehaviorMetricsIntegrationTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
     @Rule
-    public SettingsActivityTestRule<DummySettingsForTest> mSettingsActivityTestRule =
-            new SettingsActivityTestRule<>(DummySettingsForTest.class);
+    public SettingsActivityTestRule<PlaceholderSettingsForTest> mSettingsActivityTestRule =
+            new SettingsActivityTestRule<>(PlaceholderSettingsForTest.class);
 
     private UserActionTester mActionTester;
 
@@ -146,7 +146,6 @@ public class MainIntentBehaviorMetricsIntegrationTest {
     }
 
     @MediumTest
-    @DisabledTest(message = "crbug.com/879165")
     @Test
     public void testLaunch_From_InAppActivities() {
         try {

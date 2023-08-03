@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,14 +12,18 @@
 #include <string>
 #include <vector>
 
-#include "base/callback_forward.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/ref_counted.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "build/build_config.h"
+#include "build/chromecast_buildflags.h"
 #include "content/common/content_export.h"
+#include "content/public/common/alternative_error_page_override_info.mojom.h"
 #include "content/public/common/content_client.h"
 #include "media/base/audio_parameters.h"
+#include "media/base/key_system_info.h"
 #include "media/base/supported_types.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/platform/url_loader_throttle_provider.h"
@@ -30,7 +34,7 @@
 #include "ui/base/page_transition_types.h"
 #include "v8/include/v8-forward.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "media/base/speech_recognition_client.h"
 #endif
 
@@ -58,11 +62,16 @@ struct WebURLError;
 enum class ProtocolHandlerSecurityLevel;
 }  // namespace blink
 
+#if BUILDFLAG(ENABLE_CAST_RECEIVER)
+namespace cast_streaming {
+class ResourceProvider;
+}  // namespace cast_streaming
+#endif
+
 namespace media {
 class DecoderFactory;
 class Demuxer;
 class GpuVideoAcceleratorFactories;
-class KeySystemProperties;
 class MediaLog;
 class RendererFactory;
 }
@@ -91,7 +100,12 @@ class CONTENT_EXPORT ContentRendererClient {
   virtual void RenderFrameCreated(RenderFrame* render_frame) {}
 
   // Notifies that a new WebView has been created.
-  virtual void WebViewCreated(blink::WebView* web_view) {}
+  // `outermost_origin` is only set if it is an extension scheme, otherwise
+  // it will be null. It is null to avoid leaking unnecessary information into
+  // the renderer.
+  virtual void WebViewCreated(blink::WebView* web_view,
+                              bool was_created_by_renderer,
+                              const url::Origin* outermost_origin) {}
 
   // Returns the bitmap to show when a plugin crashed, or NULL for none.
   virtual SkBitmap* GetSadPluginBitmap();
@@ -136,17 +150,23 @@ class CONTENT_EXPORT ContentRendererClient {
   // be set to a HTML page containing the details of the error and maybe links
   // to more info. Note that |error_html| may be not written to in certain cases
   // (lack of information on the error code) so the caller should take care to
-  // initialize it with a safe default before the call.
-  virtual void PrepareErrorPage(content::RenderFrame* render_frame,
-                                const blink::WebURLError& error,
-                                const std::string& http_method,
-                                std::string* error_html) {}
+  // initialize it with a safe default before the call. |info| contains PWA
+  // information used to customise error page, and is set to null if
+  // the webpage that goes offline is not within the scope of a PWA.
+
+  virtual void PrepareErrorPage(
+      content::RenderFrame* render_frame,
+      const blink::WebURLError& error,
+      const std::string& http_method,
+      mojom::AlternativeErrorPageOverrideInfoPtr alternative_error_page_info,
+      std::string* error_html) {}
 
   virtual void PrepareErrorPageForHttpStatusError(
       content::RenderFrame* render_frame,
       const blink::WebURLError& error,
       const std::string& http_method,
       int http_status,
+      mojom::AlternativeErrorPageOverrideInfoPtr alternative_error_page_info,
       std::string* error_html);
 
   // Allows the embedder to control when media resources are loaded. Embedders
@@ -164,12 +184,17 @@ class CONTENT_EXPORT ContentRendererClient {
   virtual std::unique_ptr<media::Demuxer> OverrideDemuxerForUrl(
       RenderFrame* render_frame,
       const GURL& url,
-      scoped_refptr<base::SingleThreadTaskRunner> task_runner);
+      scoped_refptr<base::SequencedTaskRunner> task_runner);
 
   // Allows the embedder to provide a WebSocketHandshakeThrottleProvider. If it
   // returns NULL then none will be used.
   virtual std::unique_ptr<blink::WebSocketHandshakeThrottleProvider>
   CreateWebSocketHandshakeThrottleProvider();
+
+  // Called immediately after the sandbox is initialized on the main thread.
+  // (If the renderer is run with --no-sandbox, it is still called in
+  // RendererMain at about the same time.)
+  virtual void PostSandboxInitialized() {}
 
   // Called on the main-thread immediately after the io thread is
   // created.
@@ -191,7 +216,7 @@ class CONTENT_EXPORT ContentRendererClient {
   // Returns the security level to use for Navigator.RegisterProtocolHandler().
   virtual blink::ProtocolHandlerSecurityLevel GetProtocolHandlerSecurityLevel();
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // TODO(sgurun) This callback is deprecated and will be removed as soon
   // as android webview completes implementation of a resource throttle based
   // shouldoverrideurl implementation. See crbug.com/325351
@@ -199,7 +224,6 @@ class CONTENT_EXPORT ContentRendererClient {
   // Returns true if the navigation was handled by the embedder and should be
   // ignored by WebKit. This method is used by CEF and android_webview.
   virtual bool HandleNavigation(RenderFrame* render_frame,
-                                bool render_view_was_created_by_renderer,
                                 blink::WebFrame* frame,
                                 const blink::WebURLRequest& request,
                                 blink::WebNavigationType type,
@@ -244,15 +268,8 @@ class CONTENT_EXPORT ContentRendererClient {
   // language.
   virtual bool IsOriginIsolatedPepperPlugin(const base::FilePath& plugin_path);
 
-  // Allows embedder to register the key system(s) it supports by populating
-  // |key_systems|.
-  virtual void AddSupportedKeySystems(
-      std::vector<std::unique_ptr<media::KeySystemProperties>>* key_systems);
-
-  // Signal that embedder has changed key systems.
-  // TODO(chcunningham): Refactor this to a proper change "observer" API that is
-  // less fragile (don't assume AddSupportedKeySystems has just one caller).
-  virtual bool IsKeySystemsUpdateNeeded();
+  // Allows embedder to register the key system(s) it supports.
+  virtual void GetSupportedKeySystems(media::GetSupportedKeySystemsCB cb);
 
   // Allows embedder to describe customized audio capabilities.
   virtual bool IsSupportedAudioType(const media::AudioType& type);
@@ -274,7 +291,7 @@ class CONTENT_EXPORT ContentRendererClient {
   virtual std::unique_ptr<blink::WebContentSettingsClient>
   CreateWorkerContentSettingsClient(RenderFrame* render_frame);
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Creates a speech recognition client used to transcribe audio into captions.
   virtual std::unique_ptr<media::SpeechRecognitionClient>
   CreateSpeechRecognitionClient(
@@ -378,8 +395,8 @@ class CONTENT_EXPORT ContentRendererClient {
   virtual blink::WebFrame* FindFrame(blink::WebLocalFrame* relative_to_frame,
                                      const std::string& name);
 
-  // Returns true if it is safe to redirect to |url|, otherwise returns false.
-  virtual bool IsSafeRedirectTarget(const GURL& url);
+  // Returns true only if it's safe to redirect `from_url` to `to_url`.
+  virtual bool IsSafeRedirectTarget(const GURL& from_url, const GURL& to_url);
 
   // The user agent string is given from the browser process. This is called at
   // most once.
@@ -405,6 +422,13 @@ class CONTENT_EXPORT ContentRendererClient {
       media::DecoderFactory* decoder_factory,
       base::RepeatingCallback<media::GpuVideoAcceleratorFactories*()>
           get_gpu_factories_cb);
+
+#if BUILDFLAG(ENABLE_CAST_RECEIVER)
+  // Creates a new cast_streaming::ResourceProvider. Will only be called once
+  // per RenderFrame.
+  virtual std::unique_ptr<cast_streaming::ResourceProvider>
+  CreateCastStreamingResourceProvider();
+#endif
 };
 
 }  // namespace content

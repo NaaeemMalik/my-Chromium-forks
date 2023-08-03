@@ -1,11 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/device/public/cpp/test/scoped_nfc_overrider.h"
 #include <memory>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "services/device/device_service.h"
 #include "services/device/public/mojom/nfc.mojom.h"
 
@@ -32,6 +32,10 @@ class FakeNFC : public mojom::NFC {
     std::move(callback).Run(nullptr);
   }
   void CancelPush() override {}
+  void MakeReadOnly(MakeReadOnlyCallback callback) override {
+    std::move(callback).Run(nullptr);
+  }
+  void CancelMakeReadOnly() override {}
   void Watch(uint32_t id, WatchCallback callback) override {
     std::move(callback).Run(nullptr);
   }

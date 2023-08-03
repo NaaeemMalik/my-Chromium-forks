@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <utility>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "ui/gfx/native_widget_types.h"
@@ -32,7 +32,7 @@ namespace ui {
 //   // Create desired windows and views here. Runs on the UI thread.
 // }
 //
-// #if defined(OS_WIN)
+// #if BUILDFLAG(IS_WIN)
 // int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
 //   sandbox::SandboxInterfaceInfo sandbox_info = {nullptr};
 //   content::InitializeSandboxInfo(&sandbox_info);
@@ -52,7 +52,7 @@ class VIEWS_CONTENT_CLIENT_EXPORT ViewsContentClient {
       base::OnceCallback<void(content::BrowserContext* browser_context,
                               gfx::NativeWindow window_context)>;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   ViewsContentClient(HINSTANCE instance,
                      sandbox::SandboxInterfaceInfo* sandbox_info);
 #else
@@ -95,12 +95,12 @@ class VIEWS_CONTENT_CLIENT_EXPORT ViewsContentClient {
   base::OnceClosure& quit_closure() { return quit_closure_; }
 
  private:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   HINSTANCE instance_;
   raw_ptr<sandbox::SandboxInterfaceInfo> sandbox_info_;
 #else
   int argc_;
-  const char** argv_;
+  raw_ptr<const char*> argv_;
 #endif
   OnPreMainMessageLoopRunCallback on_pre_main_message_loop_run_callback_;
   base::OnceClosure on_resources_loaded_callback_;

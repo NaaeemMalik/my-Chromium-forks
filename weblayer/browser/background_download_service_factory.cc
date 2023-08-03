@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
+#include "base/no_destructor.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/task_traits.h"
@@ -69,8 +70,7 @@ class SimpleDownloadManagerCoordinatorFactory
   // BrowserContextKeyedService:
   KeyedService* BuildServiceInstanceFor(
       content::BrowserContext* context) const override {
-    auto* service_instance = new download::SimpleDownloadManagerCoordinator(
-        {}, !context->IsOffTheRecord());
+    auto* service_instance = new download::SimpleDownloadManagerCoordinator({});
     service_instance->SetSimpleDownloadManager(context->GetDownloadManager(),
                                                true);
     return service_instance;

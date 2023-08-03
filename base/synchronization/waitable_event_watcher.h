@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/object_watcher.h"
 #include "base/win/scoped_handle.h"
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
 #include <dispatch/dispatch.h>
 
 #include "base/mac/scoped_dispatch_object.h"
@@ -24,8 +24,8 @@
 #include "base/synchronization/waitable_event.h"
 #endif
 
-#if !defined(OS_WIN)
-#include "base/callback.h"
+#if !BUILDFLAG(IS_WIN)
+#include "base/functional/callback.h"
 #endif
 
 namespace base {
@@ -71,7 +71,7 @@ class WaitableEvent;
 // right after, the callback may be called with deleted WaitableEvent pointer.
 
 class BASE_EXPORT WaitableEventWatcher
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     : public win::ObjectWatcher::Delegate
 #endif
 {
@@ -83,7 +83,7 @@ class BASE_EXPORT WaitableEventWatcher
   WaitableEventWatcher(const WaitableEventWatcher&) = delete;
   WaitableEventWatcher& operator=(const WaitableEventWatcher&) = delete;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   ~WaitableEventWatcher() override;
 #else
   ~WaitableEventWatcher();
@@ -106,7 +106,7 @@ class BASE_EXPORT WaitableEventWatcher
   void StopWatching();
 
  private:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   void OnObjectSignaled(HANDLE h) override;
 
   // Duplicated handle of the event passed to StartWatching().
@@ -118,7 +118,7 @@ class BASE_EXPORT WaitableEventWatcher
 
   EventCallback callback_;
   raw_ptr<WaitableEvent> event_ = nullptr;
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
   // Invokes the callback and resets the source. Must be called on the task
   // runner on which StartWatching() was called.
   void InvokeCallback();
@@ -145,14 +145,14 @@ class BASE_EXPORT WaitableEventWatcher
   scoped_refptr<Flag> cancel_flag_;
 
   // Enqueued in the wait list of the watched WaitableEvent.
-  raw_ptr<AsyncWaiter> waiter_ = nullptr;
+  raw_ptr<AsyncWaiter, DanglingUntriaged> waiter_ = nullptr;
 
   // Kernel of the watched WaitableEvent.
   scoped_refptr<WaitableEvent::WaitableEventKernel> kernel_;
 
   // Ensures that StartWatching() and StopWatching() are called on the same
   // sequence.
-  SequenceChecker sequence_checker_;
+  SEQUENCE_CHECKER(sequence_checker_);
 #endif
 };
 

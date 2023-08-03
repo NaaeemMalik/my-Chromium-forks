@@ -1,9 +1,9 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {NativeEventTarget as EventTarget} from 'gtx://resources/js/cr/event_target.m.js';
+import {assert} from 'gtx://resources/ash/common/assert.js';
+import {NativeEventTarget as EventTarget} from 'gtx://resources/ash/common/event_target.js';
 
 import {LRUCache} from '../../common/js/lru_cache.js';
 import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
@@ -442,7 +442,7 @@ ListThumbnailLoader.Task = class {
         .then(metadata => {
           const loadTargets = [
             ThumbnailLoader.LoadTarget.CONTENT_METADATA,
-            ThumbnailLoader.LoadTarget.EXTERNAL_METADATA
+            ThumbnailLoader.LoadTarget.EXTERNAL_METADATA,
           ];
 
           // If the file is on a network filesystem, don't generate thumbnails

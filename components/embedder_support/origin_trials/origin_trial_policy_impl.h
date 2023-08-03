@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,6 +37,8 @@ class OriginTrialPolicyImpl : public blink::OriginTrialPolicy {
   bool SetPublicKeysFromASCIIString(const std::string& ascii_public_key);
   bool SetDisabledFeatures(const std::string& disabled_feature_list);
   bool SetDisabledTokens(const std::string& disabled_token_list);
+
+  const std::set<std::string>* GetDisabledTokensForTesting() const override;
 
  private:
   std::vector<blink::OriginTrialPublicKey> public_keys_;

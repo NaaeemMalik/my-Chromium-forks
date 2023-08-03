@@ -1,10 +1,9 @@
 #! /usr/bin/env python3
 #
-# Copyright 2017 The Chromium Authors. All rights reserved.
+# Copyright 2017 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
 
 import argparse
 import json
@@ -21,8 +20,11 @@ def merge_shard_results(summary_json, jsons_to_merge):
   try:
     with open(summary_json) as f:
       summary = json.load(f)
-  except (IOError, ValueError) as e:
-    raise Exception('Summary json cannot be loaded.') from e
+  except (IOError, ValueError):
+    # TODO(crbug.com/1245494):Re-enable this check after the recipe module
+    # chromium_swarming can run it with py3
+    # pylint: disable=raise-missing-from
+    raise Exception('Summary json cannot be loaded.')
 
   # Merge all JSON files together. Keep track of missing shards.
   merged = {
@@ -151,7 +153,7 @@ def standard_gtest_merge(
     output_json, summary_json, jsons_to_merge):
 
   output = merge_shard_results(summary_json, jsons_to_merge)
-  with open(output_json, 'wb') as f:
+  with open(output_json, 'w') as f:
     json.dump(output, f)
 
   return 0

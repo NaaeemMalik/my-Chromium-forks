@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,13 @@
 #include "build/build_config.h"
 #include "components/paint_preview/common/subset_font.h"
 #include "third_party/skia/include/core/SkCanvas.h"
+#include "third_party/skia/include/core/SkData.h"
+#include "third_party/skia/include/core/SkImage.h"
+#include "third_party/skia/include/core/SkImageInfo.h"
+#include "third_party/skia/include/core/SkMatrix.h"
 #include "third_party/skia/include/core/SkPictureRecorder.h"
+#include "third_party/skia/include/core/SkString.h"
+#include "third_party/skia/include/encode/SkPngEncoder.h"
 
 namespace paint_preview {
 
@@ -70,7 +76,7 @@ sk_sp<SkData> SerializeTypeface(SkTypeface* typeface, void* ctx) {
     return typeface->serialize(SkTypeface::SerializeBehavior::kDontIncludeData);
   }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   {
     SkString familyName;
     typeface->getFamilyName(&familyName);
@@ -118,7 +124,7 @@ sk_sp<SkData> SerializeImage(SkImage* image, void* ctx) {
     // Use the default PNG at quality 100 as it is safe.
     // TODO(crbug/1198304): Investigate supporting JPEG at quality 100 for
     // opaque images.
-    encoded_data = image->encodeToData();
+    encoded_data = SkPngEncoder::Encode(nullptr, image, {});
   }
 
   if (!encoded_data)

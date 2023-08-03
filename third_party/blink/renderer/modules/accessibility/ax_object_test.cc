@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/core/display_lock/display_lock_utilities.h"
+#include "third_party/blink/renderer/core/fullscreen/fullscreen.h"
+#include "third_party/blink/renderer/core/html/html_dialog_element.h"
 #include "third_party/blink/renderer/modules/accessibility/ax_object_cache_impl.h"
 #include "third_party/blink/renderer/modules/accessibility/testing/accessibility_test.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
@@ -87,6 +89,61 @@ TEST_F(AccessibilityTest, IsEditableInTextField) {
   EXPECT_FALSE(input->HasContentEditableAttributeSet());
   EXPECT_FALSE(input_text->HasContentEditableAttributeSet());
   EXPECT_FALSE(textarea->HasContentEditableAttributeSet());
+  EXPECT_FALSE(textarea_text->HasContentEditableAttributeSet());
+
+  EXPECT_FALSE(root->IsMultiline());
+  EXPECT_FALSE(input->IsMultiline());
+  EXPECT_FALSE(input_text->IsMultiline());
+  EXPECT_TRUE(textarea->IsMultiline());
+  EXPECT_FALSE(textarea_text->IsMultiline());
+
+  EXPECT_FALSE(root->IsRichlyEditable());
+  EXPECT_FALSE(input->IsRichlyEditable());
+  EXPECT_FALSE(input_text->IsRichlyEditable());
+  EXPECT_FALSE(textarea->IsRichlyEditable());
+  EXPECT_FALSE(textarea_text->IsRichlyEditable());
+}
+
+TEST_F(AccessibilityTest, IsEditableInTextFieldWithContentEditableTrue) {
+  SetBodyInnerHTML(R"HTML(
+      <!-- This is technically an authoring error, but we should still handle
+           it correctly. -->
+      <input type="text" id="input" value="Test" contenteditable="true">
+      <textarea id="textarea" contenteditable="true">
+        Test
+      </textarea>)HTML");
+
+  const AXObject* root = GetAXRootObject();
+  ASSERT_NE(nullptr, root);
+  const AXObject* input = GetAXObjectByElementId("input");
+  ASSERT_NE(nullptr, input);
+  const AXObject* input_text =
+      input->FirstChildIncludingIgnored()->UnignoredChildAt(0);
+  ASSERT_NE(nullptr, input_text);
+  ASSERT_EQ(ax::mojom::blink::Role::kStaticText, input_text->RoleValue());
+  const AXObject* textarea = GetAXObjectByElementId("textarea");
+  ASSERT_NE(nullptr, textarea);
+  const AXObject* textarea_text =
+      textarea->FirstChildIncludingIgnored()->UnignoredChildAt(0);
+  ASSERT_NE(nullptr, textarea_text);
+  ASSERT_EQ(ax::mojom::blink::Role::kStaticText, textarea_text->RoleValue());
+
+  EXPECT_FALSE(root->IsEditable());
+  EXPECT_TRUE(input->IsEditable());
+  EXPECT_TRUE(input_text->IsEditable());
+  EXPECT_TRUE(textarea->IsEditable());
+  EXPECT_TRUE(textarea_text->IsEditable());
+
+  EXPECT_FALSE(root->IsEditableRoot());
+  EXPECT_FALSE(input->IsEditableRoot());
+  EXPECT_FALSE(input_text->IsEditableRoot());
+  EXPECT_FALSE(textarea->IsEditableRoot());
+  EXPECT_FALSE(textarea_text->IsEditableRoot());
+
+  EXPECT_FALSE(root->HasContentEditableAttributeSet());
+  EXPECT_TRUE(input->HasContentEditableAttributeSet());
+  EXPECT_FALSE(input_text->HasContentEditableAttributeSet());
+  EXPECT_TRUE(textarea->HasContentEditableAttributeSet());
   EXPECT_FALSE(textarea_text->HasContentEditableAttributeSet());
 
   EXPECT_FALSE(root->IsMultiline());
@@ -552,7 +609,9 @@ TEST_F(AccessibilityTest, TreeNavigationWithContinuations) {
   // an expected tree.
   //
 
-  EXPECT_EQ(ax_root, ax_link->ParentObjectUnignored());
+  // BlockInInline changes |ax_body| not to be ignored. See the design doc at
+  // crbug.com/716930 for more details.
+  EXPECT_EQ(ax_body, ax_link->ParentObjectUnignored());
   EXPECT_EQ(ax_body, ax_link->ParentObjectIncludedInTree());
 
   EXPECT_EQ(ax_link, ax_text_before->ParentObjectUnignored());
@@ -824,7 +883,7 @@ TEST_F(AccessibilityTest, AxNodeObjectInPageLinkTargetNonAscii) {
   }
 }
 
-TEST_P(ParameterizedAccessibilityTest, NextOnLine) {
+TEST_F(AccessibilityTest, NextOnLine) {
   SetBodyInnerHTML(R"HTML(
     <style>
     html {
@@ -1017,7 +1076,7 @@ TEST_F(AccessibilityTest, LineBreakInDisplayLockedIsLineBreakingObject) {
   EXPECT_TRUE(br->IsLineBreakingObject());
 }
 
-TEST_P(ParameterizedAccessibilityTest, ListMarkerIsNotLineBreakingObject) {
+TEST_F(AccessibilityTest, ListMarkerIsNotLineBreakingObject) {
   SetBodyInnerHTML(R"HTML(
       <style>
         ul li::marker {
@@ -1194,9 +1253,6 @@ TEST_F(AccessibilityTest, IsSelectedFromFocusSupported) {
 }
 
 TEST_F(AccessibilityTest, GetBoundsInFrameCoordinatesSvgText) {
-  // This test doesn't work with the legacy SVG text.
-  if (!RuntimeEnabledFeatures::SVGTextNGEnabled())
-    return;
   SetBodyInnerHTML(R"HTML(
   <svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
     <text id="t1" x="100">Text1</text>
@@ -1213,6 +1269,303 @@ TEST_F(AccessibilityTest, GetBoundsInFrameCoordinatesSvgText) {
   // Check if bounding boxes for SVG <text> respect to positioning
   // attributes such as 'x'.
   EXPECT_GT(bounds1.X(), bounds2.X());
+}
+
+TEST_F(AccessibilityTest, ComputeIsInertReason) {
+  ScopedInertAttributeForTest enabled_scope(true);
+  NonThrowableExceptionState exception_state;
+  SetBodyInnerHTML(R"HTML(
+    <div id="div1" inert>inert</div>
+    <dialog id="dialog1">dialog</dialog>
+    <dialog id="dialog2" inert>inert dialog</dialog>
+    <p id="p1">fullscreen</p>
+    <p id="p2" inert>inert fullscreen</p>
+  )HTML");
+
+  Document& document = GetDocument();
+  Element* body = document.body();
+  Element* div1 = GetElementById("div1");
+  Node* div1_text = div1->firstChild();
+  auto* dialog1 = To<HTMLDialogElement>(GetElementById("dialog1"));
+  Node* dialog1_text = dialog1->firstChild();
+  auto* dialog2 = To<HTMLDialogElement>(GetElementById("dialog2"));
+  Node* dialog2_text = dialog2->firstChild();
+  Element* p1 = GetElementById("p1");
+  Node* p1_text = p1->firstChild();
+  Element* p2 = GetElementById("p2");
+  Node* p2_text = p2->firstChild();
+
+  auto AssertInertReasons = [&](Node* node, AXIgnoredReason expectation) {
+    AXObject* object = GetAXObjectCache().GetOrCreate(node);
+    ASSERT_NE(object, nullptr);
+    AXObject::IgnoredReasons reasons;
+    ASSERT_TRUE(object->ComputeIsInert(&reasons));
+    ASSERT_EQ(reasons.size(), 1u);
+    ASSERT_EQ(reasons[0].reason, expectation);
+  };
+  auto AssertNotInert = [&](Node* node) {
+    AXObject* object = GetAXObjectCache().GetOrCreate(node);
+    ASSERT_NE(object, nullptr);
+    AXObject::IgnoredReasons reasons;
+    ASSERT_FALSE(object->ComputeIsInert(&reasons));
+    ASSERT_EQ(reasons.size(), 0u);
+  };
+  auto EnterFullscreen = [&](Element* element) {
+    LocalFrame::NotifyUserActivation(
+        document.GetFrame(), mojom::UserActivationNotificationType::kTest);
+    Fullscreen::RequestFullscreen(*element);
+    Fullscreen::DidResolveEnterFullscreenRequest(document, /*granted*/ true);
+  };
+  auto ExitFullscreen = [&]() {
+    Fullscreen::FullyExitFullscreen(document);
+    Fullscreen::DidExitFullscreen(document);
+  };
+
+  AssertNotInert(body);
+  AssertInertReasons(div1, kAXInertElement);
+  AssertInertReasons(div1_text, kAXInertSubtree);
+  AssertNotInert(dialog1);
+  AssertNotInert(dialog1_text);
+  AssertInertReasons(dialog2, kAXInertElement);
+  AssertInertReasons(dialog2_text, kAXInertSubtree);
+  AssertNotInert(p1);
+  AssertNotInert(p1_text);
+  AssertInertReasons(p2, kAXInertElement);
+  AssertInertReasons(p2_text, kAXInertSubtree);
+
+  dialog1->showModal(exception_state);
+
+  AssertInertReasons(body, kAXActiveModalDialog);
+  AssertInertReasons(div1, kAXInertElement);
+  AssertInertReasons(div1_text, kAXInertSubtree);
+  AssertNotInert(dialog1);
+  AssertNotInert(dialog1_text);
+  AssertInertReasons(dialog2, kAXInertElement);
+  AssertInertReasons(dialog2_text, kAXInertSubtree);
+  AssertInertReasons(p1, kAXActiveModalDialog);
+  AssertInertReasons(p1_text, kAXActiveModalDialog);
+  AssertInertReasons(p2, kAXInertElement);
+  AssertInertReasons(p2_text, kAXInertSubtree);
+
+  dialog2->showModal(exception_state);
+
+  AssertInertReasons(body, kAXActiveModalDialog);
+  AssertInertReasons(div1, kAXInertElement);
+  AssertInertReasons(div1_text, kAXInertSubtree);
+  AssertInertReasons(dialog1, kAXActiveModalDialog);
+  AssertInertReasons(dialog1_text, kAXActiveModalDialog);
+  AssertInertReasons(dialog2, kAXInertElement);
+  AssertInertReasons(dialog2_text, kAXInertSubtree);
+  AssertInertReasons(p1, kAXActiveModalDialog);
+  AssertInertReasons(p1_text, kAXActiveModalDialog);
+  AssertInertReasons(p2, kAXInertElement);
+  AssertInertReasons(p2_text, kAXInertSubtree);
+
+  EnterFullscreen(p1);
+
+  AssertInertReasons(body, kAXActiveModalDialog);
+  AssertInertReasons(div1, kAXInertElement);
+  AssertInertReasons(div1_text, kAXInertSubtree);
+  AssertInertReasons(dialog1, kAXActiveModalDialog);
+  AssertInertReasons(dialog1_text, kAXActiveModalDialog);
+  AssertInertReasons(dialog2, kAXInertElement);
+  AssertInertReasons(dialog2_text, kAXInertSubtree);
+  AssertInertReasons(p1, kAXActiveModalDialog);
+  AssertInertReasons(p1_text, kAXActiveModalDialog);
+  AssertInertReasons(p2, kAXInertElement);
+  AssertInertReasons(p2_text, kAXInertSubtree);
+
+  dialog1->close();
+  dialog2->close();
+
+  AssertInertReasons(body, kAXActiveFullscreenElement);
+  AssertInertReasons(div1, kAXInertElement);
+  AssertInertReasons(div1_text, kAXInertSubtree);
+  AssertInertReasons(dialog1, kAXActiveFullscreenElement);
+  AssertInertReasons(dialog1_text, kAXActiveFullscreenElement);
+  AssertInertReasons(dialog2, kAXInertElement);
+  AssertInertReasons(dialog2_text, kAXInertSubtree);
+  AssertNotInert(p1);
+  AssertNotInert(p1_text);
+  AssertInertReasons(p2, kAXInertElement);
+  AssertInertReasons(p2_text, kAXInertSubtree);
+
+  ExitFullscreen();
+  EnterFullscreen(p2);
+
+  AssertInertReasons(body, kAXActiveFullscreenElement);
+  AssertInertReasons(div1, kAXInertElement);
+  AssertInertReasons(div1_text, kAXInertSubtree);
+  AssertInertReasons(dialog1, kAXActiveFullscreenElement);
+  AssertInertReasons(dialog1_text, kAXActiveFullscreenElement);
+  AssertInertReasons(dialog2, kAXInertElement);
+  AssertInertReasons(dialog2_text, kAXInertSubtree);
+  AssertInertReasons(p1, kAXActiveFullscreenElement);
+  AssertInertReasons(p1_text, kAXActiveFullscreenElement);
+  AssertInertReasons(p2, kAXInertElement);
+  AssertInertReasons(p2_text, kAXInertSubtree);
+
+  ExitFullscreen();
+
+  AssertNotInert(body);
+  AssertInertReasons(div1, kAXInertElement);
+  AssertInertReasons(div1_text, kAXInertSubtree);
+  AssertNotInert(dialog1);
+  AssertNotInert(dialog1_text);
+  AssertInertReasons(dialog2, kAXInertElement);
+  AssertInertReasons(dialog2_text, kAXInertSubtree);
+  AssertNotInert(p1);
+  AssertNotInert(p1_text);
+  AssertInertReasons(p2, kAXInertElement);
+  AssertInertReasons(p2_text, kAXInertSubtree);
+}
+
+TEST_F(AccessibilityTest, ComputeIsInertWithNonHTMLElements) {
+  ScopedInertAttributeForTest enabled_scope(true);
+  SetBodyInnerHTML(R"HTML(
+    <main inert>
+      main
+      <foo inert>
+        foo
+        <svg inert>
+          foo
+          <foreignObject inert>
+            foo
+            <div inert>
+              div
+              <math inert>
+                div
+                <mi inert>
+                  div
+                  <span inert>
+                    span
+                  </span>
+                </mi>
+              </math>
+            </div>
+          </foreignObject>
+        </svg>
+      </foo>
+    </main>
+  )HTML");
+
+  Document& document = GetDocument();
+  Element* element = document.QuerySelector("main");
+  while (element) {
+    Node* node = element->firstChild();
+    AXObject* ax_node = GetAXObjectCache().GetOrCreate(node);
+
+    // The text indicates the expected inert root, which is the nearest HTML
+    // element ancestor with the 'inert' attribute.
+    AtomicString selector(node->textContent().Impl());
+    Element* inert_root = document.QuerySelector(selector);
+    AXObject* ax_inert_root = GetAXObjectCache().GetOrCreate(inert_root);
+
+    AXObject::IgnoredReasons reasons;
+    ASSERT_TRUE(ax_node->ComputeIsInert(&reasons));
+    ASSERT_EQ(reasons.size(), 1u);
+    ASSERT_EQ(reasons[0].reason, kAXInertSubtree);
+    ASSERT_EQ(reasons[0].related_object.Get(), ax_inert_root);
+
+    element = ElementTraversal::FirstChild(*element);
+  }
+}
+
+TEST_F(AccessibilityTest, CanSetFocusInCanvasFallbackContent) {
+  ScopedInertAttributeForTest enabled_scope(true);
+  SetBodyInnerHTML(R"HTML(
+    <canvas>
+      <section>
+        <div tabindex="-1" id="div"></div>
+        <span tabindex="-1" id="span"></div>
+        <a tabindex="-1" id="a"></a>
+      </section>
+      <section hidden>
+        <div tabindex="-1" id="div-hidden"></div>
+        <span tabindex="-1" id="span-hidden"></div>
+        <a tabindex="-1" id="a-hidden"></a>
+      </section>
+      <section inert>
+        <div tabindex="-1" id="div-inert"></div>
+        <span tabindex="-1" id="span-inert"></div>
+        <a tabindex="-1" id="a-inert"></a>
+      </section>
+      <section hidden inert>
+        <div tabindex="-1" id="div-hidden-inert"></div>
+        <span tabindex="-1" id="span-hidden-inert"></div>
+        <a tabindex="-1" id="a-hidden-inert"></a>
+      </section>
+    </div>
+  )HTML");
+
+  // Elements being used as relevant canvas fallback content can be focusable.
+  ASSERT_TRUE(GetAXObjectByElementId("div")->CanSetFocusAttribute());
+  ASSERT_TRUE(GetAXObjectByElementId("span")->CanSetFocusAttribute());
+  ASSERT_TRUE(GetAXObjectByElementId("a")->CanSetFocusAttribute());
+
+  // But they are not focusable if in a display:none subtree...
+  ASSERT_FALSE(GetAXObjectByElementId("div-hidden")->CanSetFocusAttribute());
+  ASSERT_FALSE(GetAXObjectByElementId("span-hidden")->CanSetFocusAttribute());
+  ASSERT_FALSE(GetAXObjectByElementId("a-hidden")->CanSetFocusAttribute());
+
+  // ...nor if inert...
+  ASSERT_FALSE(GetAXObjectByElementId("div-inert")->CanSetFocusAttribute());
+  ASSERT_FALSE(GetAXObjectByElementId("span-inert")->CanSetFocusAttribute());
+  ASSERT_FALSE(GetAXObjectByElementId("a-inert")->CanSetFocusAttribute());
+
+  // ...nor a combination of both.
+  ASSERT_FALSE(
+      GetAXObjectByElementId("div-hidden-inert")->CanSetFocusAttribute());
+  ASSERT_FALSE(
+      GetAXObjectByElementId("span-hidden-inert")->CanSetFocusAttribute());
+  ASSERT_FALSE(
+      GetAXObjectByElementId("a-hidden-inert")->CanSetFocusAttribute());
+}
+
+TEST_F(AccessibilityTest, GetParentNodeForComputeParent) {
+  SetBodyInnerHTML(
+      R"HTML(<img usemap="#map"><map name="map"><area id="area"
+      shape="rect" coords="0,0,5,5" href="about:blank" alt="Area">)HTML");
+
+  AXObjectCacheImpl& cache = GetAXObjectCache();
+
+  // The parent of the area isn't the DOM parent, but the image because that
+  // mirrors the structure of the ax tree.
+  Element* area = GetElementById("area");
+  AXObject* parent = AXObject::ComputeNonARIAParent(cache, area);
+  EXPECT_TRUE(IsA<HTMLImageElement>(parent->GetNode()));
+
+  parent = AXObject::ComputeNonARIAParent(cache, parent->GetNode());
+  EXPECT_TRUE(IsA<HTMLBodyElement>(parent->GetNode()));
+
+  parent = AXObject::ComputeNonARIAParent(cache, parent->GetNode());
+  EXPECT_TRUE(IsA<HTMLHtmlElement>(parent->GetNode()));
+
+  parent = AXObject::ComputeNonARIAParent(cache, parent->GetNode());
+  EXPECT_TRUE(IsA<Document>(parent->GetNode()));
+
+  parent = AXObject::ComputeNonARIAParent(cache, parent->GetNode());
+  EXPECT_EQ(parent, nullptr);
+}
+
+TEST_F(AccessibilityTest, CanComputeAsNaturalParent) {
+  SetBodyInnerHTML(R"HTML(M<img usemap="#map"><map name="map"><hr><progress>
+    <div><input type="range">M)HTML");
+
+  Element* elem = GetDocument().QuerySelector("img");
+  EXPECT_FALSE(AXObject::CanComputeAsNaturalParent(elem));
+  elem = GetDocument().QuerySelector("map");
+  EXPECT_FALSE(AXObject::CanComputeAsNaturalParent(elem));
+  elem = GetDocument().QuerySelector("hr");
+  EXPECT_FALSE(AXObject::CanComputeAsNaturalParent(elem));
+  elem = GetDocument().QuerySelector("progress");
+  EXPECT_FALSE(AXObject::CanComputeAsNaturalParent(elem));
+  elem = GetDocument().QuerySelector("input");
+  EXPECT_FALSE(AXObject::CanComputeAsNaturalParent(elem));
+  elem = GetDocument().QuerySelector("div");
+  EXPECT_TRUE(AXObject::CanComputeAsNaturalParent(elem));
+  elem = GetDocument().QuerySelector("input");
+  EXPECT_FALSE(AXObject::CanComputeAsNaturalParent(elem));
 }
 
 }  // namespace test

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,15 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "third_party/blink/public/platform/platform.h"
+#include "third_party/blink/renderer/platform/scheduler/public/main_thread.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
-#include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_mojo.h"
+#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_std.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/wtf.h"
@@ -96,39 +96,23 @@ class BlobBytesStreamer {
   SEQUENCE_CHECKER(sequence_checker_);
 };
 
-// This keeps the process alive while blobs are being transferred.
-void IncreaseChildProcessRefCount() {
-  if (!WTF::IsMainThread()) {
-    PostCrossThreadTask(*Thread::MainThread()->GetTaskRunner(), FROM_HERE,
-                        CrossThreadBindOnce(&IncreaseChildProcessRefCount));
-    return;
-  }
-  Platform::Current()->SuddenTerminationChanged(false);
-}
-
-void DecreaseChildProcessRefCount() {
-  if (!WTF::IsMainThread()) {
-    PostCrossThreadTask(*Thread::MainThread()->GetTaskRunner(), FROM_HERE,
-                        CrossThreadBindOnce(&DecreaseChildProcessRefCount));
-    return;
-  }
-  Platform::Current()->SuddenTerminationChanged(true);
-}
-
 }  // namespace
 
 constexpr size_t BlobBytesProvider::kMaxConsolidatedItemSizeInBytes;
+
 BlobBytesProvider::BlobBytesProvider() {
   IncreaseChildProcessRefCount();
 }
+
 BlobBytesProvider::~BlobBytesProvider() {
   DecreaseChildProcessRefCount();
 }
 
 void BlobBytesProvider::AppendData(scoped_refptr<RawData> data) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!data_.IsEmpty()) {
-    uint64_t last_offset = offsets_.IsEmpty() ? 0 : offsets_.back();
+
+  if (!data_.empty()) {
+    uint64_t last_offset = offsets_.empty() ? 0 : offsets_.back();
     offsets_.push_back(last_offset + data_.back()->length());
   }
   data_.push_back(std::move(data));
@@ -136,7 +120,8 @@ void BlobBytesProvider::AppendData(scoped_refptr<RawData> data) {
 
 void BlobBytesProvider::AppendData(base::span<const char> data) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (data_.IsEmpty() ||
+
+  if (data_.empty() ||
       data_.back()->length() + data.size() > kMaxConsolidatedItemSizeInBytes) {
     AppendData(RawData::Create());
   }
@@ -152,6 +137,29 @@ void BlobBytesProvider::Bind(
       {base::MayBlock(), base::TaskPriority::USER_VISIBLE});
   // TODO(mek): Consider binding BytesProvider on the IPC thread instead,
   // only
+  // using the MayBlock taskrunner for actual file operations.
+  PostCrossThreadTask(
+      *task_runner, FROM_HERE,
+      CrossThreadBindOnce(
+          [](std::unique_ptr<BlobBytesProvider> provider,
+             mojo::PendingReceiver<mojom::blink::BytesProvider> receiver) {
+            DCHECK_CALLED_ON_VALID_SEQUENCE(provider->sequence_checker_);
+            mojo::MakeSelfOwnedReceiver(std::move(provider),
+                                        std::move(receiver));
+          },
+          std::move(provider), std::move(receiver)));
+}
+
+// static
+void BlobBytesProvider::Bind(
+    std::unique_ptr<BlobBytesProvider> provider,
+    mojo::PendingReceiver<mojom::blink::BytesProvider> receiver) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(provider->sequence_checker_);
+  DETACH_FROM_SEQUENCE(provider->sequence_checker_);
+
+  auto task_runner = base::ThreadPool::CreateSequencedTaskRunner(
+      {base::MayBlock(), base::TaskPriority::USER_VISIBLE});
+  // TODO(mek): Consider binding BytesProvider on the IPC thread instead, only
   // using the MayBlock taskrunner for actual file operations.
   PostCrossThreadTask(
       *task_runner, FROM_HERE,
@@ -194,10 +202,9 @@ void BlobBytesProvider::RequestAsFile(uint64_t source_offset,
     return;
   }
 
-  int64_t seek_distance =
-      file.Seek(base::File::FROM_BEGIN, SafeCast<int64_t>(file_offset));
+  int64_t seek_distance = file.Seek(base::File::FROM_BEGIN,
+                                    base::checked_cast<int64_t>(file_offset));
   bool seek_failed = seek_distance < 0;
-  base::UmaHistogramBoolean("Storage.Blob.RendererFileSeekFailed", seek_failed);
   if (seek_failed) {
     std::move(callback).Run(absl::nullopt);
     return;
@@ -231,8 +238,6 @@ void BlobBytesProvider::RequestAsFile(uint64_t source_offset,
       int actual_written = file.WriteAtCurrentPos(
           data->data() + data_offset + written, writing_size);
       bool write_failed = actual_written < 0;
-      base::UmaHistogramBoolean("Storage.Blob.RendererFileWriteFailed",
-                                write_failed);
       if (write_failed) {
         std::move(callback).Run(absl::nullopt);
         return;
@@ -255,6 +260,27 @@ void BlobBytesProvider::RequestAsFile(uint64_t source_offset,
   std::move(callback).Run(info.last_modified);
 }
 
+// This keeps the process alive while blobs are being transferred.
+void BlobBytesProvider::IncreaseChildProcessRefCount() {
+  if (!WTF::IsMainThread()) {
+    PostCrossThreadTask(
+        *Thread::MainThread()->GetTaskRunner(MainThreadTaskRunnerRestricted()),
+        FROM_HERE,
+        CrossThreadBindOnce(&BlobBytesProvider::IncreaseChildProcessRefCount));
+    return;
+  }
+  Platform::Current()->SuddenTerminationChanged(false);
+}
 
+void BlobBytesProvider::DecreaseChildProcessRefCount() {
+  if (!WTF::IsMainThread()) {
+    PostCrossThreadTask(
+        *Thread::MainThread()->GetTaskRunner(MainThreadTaskRunnerRestricted()),
+        FROM_HERE,
+        CrossThreadBindOnce(&BlobBytesProvider::DecreaseChildProcessRefCount));
+    return;
+  }
+  Platform::Current()->SuddenTerminationChanged(true);
+}
 
 }  // namespace blink

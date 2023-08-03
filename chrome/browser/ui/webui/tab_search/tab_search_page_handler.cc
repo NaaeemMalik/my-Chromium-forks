@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/tab_search/tab_search_page_handler.h"
 
+#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -12,6 +13,7 @@
 
 #include "base/base64.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -27,10 +29,12 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_live_tab_context.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_renderer_data.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/webui/metrics_reporter/metrics_reporter.h"
 #include "chrome/browser/ui/webui/tab_search/tab_search_prefs.h"
 #include "chrome/browser/ui/webui/util/image_util.h"
 #include "chrome/common/webui_url_constants.h"
@@ -51,6 +55,21 @@ std::string GetLastActiveElapsedText(const base::Time& last_active_time) {
   const base::TimeDelta elapsed = base::Time::Now() - last_active_time;
   return base::UTF16ToUTF8(ui::TimeFormat::Simple(
       ui::TimeFormat::FORMAT_ELAPSED, ui::TimeFormat::LENGTH_SHORT, elapsed));
+}
+
+// If Tab Group has no timestamp, we find the tab in the tab group with
+// the most recent navigation last active time.
+base::Time GetTabGroupTimeStamp(
+    const std::vector<std::unique_ptr<sessions::TabRestoreService::Tab>>&
+        tabs) {
+  base::Time last_active_time;
+  for (const auto& tab : tabs) {
+    const sessions::SerializedNavigationEntry& entry =
+        tab->navigations[tab->current_navigation_index];
+    if (entry.timestamp() > last_active_time)
+      last_active_time = entry.timestamp();
+  }
+  return last_active_time;
 }
 
 // If a recently closed tab is associated to a group that is no longer
@@ -81,11 +100,13 @@ TabSearchPageHandler::TabSearchPageHandler(
     mojo::PendingReceiver<tab_search::mojom::PageHandler> receiver,
     mojo::PendingRemote<tab_search::mojom::Page> page,
     content::WebUI* web_ui,
-    ui::MojoBubbleWebUIController* webui_controller)
+    ui::MojoBubbleWebUIController* webui_controller,
+    MetricsReporter* metrics_reporter)
     : receiver_(this, std::move(receiver)),
       page_(std::move(page)),
       web_ui_(web_ui),
       webui_controller_(webui_controller),
+      metrics_reporter_(metrics_reporter),
       debounce_timer_(std::make_unique<base::RetainingOneShotTimer>(
           FROM_HERE,
           kTabsChangeDelay,
@@ -119,7 +140,7 @@ void TabSearchPageHandler::CloseTab(int32_t tab_id) {
   auto* tab_strip_model = optional_details->tab_strip_model;
   const int tab_index = optional_details->index;
   tab_strip_model->CloseWebContentsAt(
-      tab_index, TabStripModel::CLOSE_CREATE_HISTORICAL_TAB);
+      tab_index, TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
   // Do not add code past this point.
 }
 
@@ -180,6 +201,17 @@ void TabSearchPageHandler::SwitchToTab(
   const TabDetails& details = optional_details.value();
   details.tab_strip_model->ActivateTabAt(details.index);
   details.browser->window()->Activate();
+  if (base::FeatureList::IsEnabled(features::kTabSearchUseMetricsReporter)) {
+    metrics_reporter_->Measure(
+        "SwitchToTab",
+        base::BindOnce(
+            [](MetricsReporter* metrics_reporter, base::TimeDelta duration) {
+              base::UmaHistogramTimes("Tabs.TabSearch.Mojo.SwitchToTab",
+                                      duration);
+              metrics_reporter->ClearMark("SwitchToTab");
+            },
+            metrics_reporter_));
+  }
 }
 
 void TabSearchPageHandler::OpenRecentlyClosedEntry(int32_t session_id) {
@@ -311,8 +343,8 @@ void TabSearchPageHandler::AddRecentlyClosedEntries(
       for (auto& window_tab : window->tabs) {
         sessions::TabRestoreService::Tab* tab =
             static_cast<sessions::TabRestoreService::Tab*>(window_tab.get());
-        if (AddRecentlyClosedTab(tab, recently_closed_tabs, tab_dedup_keys,
-                                 tab_group_ids, tab_groups)) {
+        if (AddRecentlyClosedTab(tab, entry->timestamp, recently_closed_tabs,
+                                 tab_dedup_keys, tab_group_ids, tab_groups)) {
           recently_closed_tab_count += 1;
           recently_closed_item_count += 1;
         }
@@ -326,8 +358,8 @@ void TabSearchPageHandler::AddRecentlyClosedEntries(
       sessions::TabRestoreService::Tab* tab =
           static_cast<sessions::TabRestoreService::Tab*>(entry.get());
 
-      if (AddRecentlyClosedTab(tab, recently_closed_tabs, tab_dedup_keys,
-                               tab_group_ids, tab_groups)) {
+      if (AddRecentlyClosedTab(tab, entry->timestamp, recently_closed_tabs,
+                               tab_dedup_keys, tab_group_ids, tab_groups)) {
         recently_closed_tab_count += 1;
         recently_closed_item_count += 1;
       }
@@ -345,13 +377,17 @@ void TabSearchPageHandler::AddRecentlyClosedEntries(
       recently_closed_tab_group->title =
           base::UTF16ToUTF8(tab_group_visual_data->title());
       recently_closed_tab_group->tab_count = group->tabs.size();
-      recently_closed_tab_group->last_active_time = entry->timestamp;
+      const base::Time last_active_time =
+          (entry->timestamp).is_null() ? GetTabGroupTimeStamp(group->tabs)
+                                       : entry->timestamp;
+      recently_closed_tab_group->last_active_time = last_active_time;
       recently_closed_tab_group->last_active_elapsed_text =
-          GetLastActiveElapsedText(entry->timestamp);
+          GetLastActiveElapsedText(last_active_time);
 
       for (auto& tab : group->tabs) {
-        if (AddRecentlyClosedTab(tab.get(), recently_closed_tabs,
-                                 tab_dedup_keys, tab_group_ids, tab_groups)) {
+        if (AddRecentlyClosedTab(tab.get(), last_active_time,
+                                 recently_closed_tabs, tab_dedup_keys,
+                                 tab_group_ids, tab_groups)) {
           recently_closed_tab_count += 1;
         }
       }
@@ -366,6 +402,7 @@ void TabSearchPageHandler::AddRecentlyClosedEntries(
 
 bool TabSearchPageHandler::AddRecentlyClosedTab(
     sessions::TabRestoreService::Tab* tab,
+    const base::Time& close_time,
     std::vector<tab_search::mojom::RecentlyClosedTabPtr>& recently_closed_tabs,
     std::set<DedupKey>& tab_dedup_keys,
     std::set<tab_groups::TabGroupId>& tab_group_ids,
@@ -374,7 +411,7 @@ bool TabSearchPageHandler::AddRecentlyClosedTab(
     return false;
 
   tab_search::mojom::RecentlyClosedTabPtr recently_closed_tab =
-      GetRecentlyClosedTab(tab);
+      GetRecentlyClosedTab(tab, close_time);
 
   DedupKey dedup_id(recently_closed_tab->url, recently_closed_tab->group_id);
   // Ignore NTP entries, duplicate entries and tabs with invalid URLs such as
@@ -413,9 +450,11 @@ tab_search::mojom::TabPtr TabSearchPageHandler::GetTab(
       TabRendererData::FromTabInModel(tab_strip_model, index);
   tab_data->pinned = tab_renderer_data.pinned;
   tab_data->title = base::UTF16ToUTF8(tab_renderer_data.title);
-  tab_data->url = tab_renderer_data.last_committed_url.is_empty()
-                      ? tab_renderer_data.visible_url
-                      : tab_renderer_data.last_committed_url;
+  const auto& last_committed_url = tab_renderer_data.last_committed_url;
+  tab_data->url =
+      !last_committed_url.is_valid() || last_committed_url.is_empty()
+          ? tab_renderer_data.visible_url
+          : last_committed_url;
 
   if (tab_renderer_data.favicon.isNull()) {
     tab_data->is_default_favicon = true;
@@ -434,15 +473,24 @@ tab_search::mojom::TabPtr TabSearchPageHandler::GetTab(
   tab_data->last_active_elapsed_text =
       GetLastActiveElapsedText(last_active_time_ticks);
 
-  if (base::FeatureList::IsEnabled(features::kTabSearchMediaTabs))
-    tab_data->alert_states = chrome::GetTabAlertStatesForContents(contents);
+    std::vector<TabAlertState> alert_states =
+        chrome::GetTabAlertStatesForContents(contents);
+    // Currently, we only report media alert states.
+    base::ranges::copy_if(alert_states.begin(), alert_states.end(),
+                          std::back_inserter(tab_data->alert_states),
+                          [](TabAlertState alert) {
+                            return alert == TabAlertState::MEDIA_RECORDING ||
+                                   alert == TabAlertState::AUDIO_PLAYING ||
+                                   alert == TabAlertState::AUDIO_MUTING;
+                          });
 
-  return tab_data;
+    return tab_data;
 }
 
 tab_search::mojom::RecentlyClosedTabPtr
 TabSearchPageHandler::GetRecentlyClosedTab(
-    sessions::TabRestoreService::Tab* tab) {
+    sessions::TabRestoreService::Tab* tab,
+    const base::Time& close_time) {
   auto recently_closed_tab = tab_search::mojom::RecentlyClosedTab::New();
   DCHECK(tab->navigations.size() > 0);
   sessions::SerializedNavigationEntry& entry =
@@ -452,7 +500,10 @@ TabSearchPageHandler::GetRecentlyClosedTab(
   recently_closed_tab->title = entry.title().empty()
                                    ? recently_closed_tab->url.spec()
                                    : base::UTF16ToUTF8(entry.title());
-  const base::Time last_active_time = entry.timestamp();
+  // Fall back to the navigation last active time if the restore entry has no
+  // associated timestamp.
+  const base::Time last_active_time =
+      close_time.is_null() ? entry.timestamp() : close_time;
   recently_closed_tab->last_active_time = last_active_time;
   recently_closed_tab->last_active_elapsed_text =
       GetLastActiveElapsedText(last_active_time);
@@ -502,7 +553,7 @@ void TabSearchPageHandler::OnTabStripModelChanged(
           sessions::TabRestoreService::Tab* tab =
               static_cast<sessions::TabRestoreService::Tab*>(entry.get());
           tab_search::mojom::RecentlyClosedTabPtr recently_closed_tab =
-              GetRecentlyClosedTab(tab);
+              GetRecentlyClosedTab(tab, entry->timestamp);
           tabs_removed_info->recently_closed_tabs.push_back(
               std::move(recently_closed_tab));
         }
@@ -529,6 +580,14 @@ void TabSearchPageHandler::TabChangedAt(content::WebContents* contents,
     return;
   Browser* active_browser = chrome::FindLastActive();
   TRACE_EVENT0("browser", "TabSearchPageHandler:TabChangedAt");
+
+  if (base::FeatureList::IsEnabled(features::kTabSearchUseMetricsReporter)) {
+    bool is_mark_overlap = metrics_reporter_->HasLocalMark("TabUpdated");
+    base::UmaHistogramBoolean("Tabs.TabSearch.Mojo.TabUpdated.IsOverlap",
+                              is_mark_overlap);
+    if (!is_mark_overlap)
+      metrics_reporter_->Mark("TabUpdated");
+  }
 
   auto tab_update_info = tab_search::mojom::TabUpdateInfo::New();
   tab_update_info->in_active_window = (browser == active_browser);

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,17 +10,19 @@
 #include <list>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/compiler_specific.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/strings/stringprintf.h"
 #include "base/threading/thread_checker.h"
 #include "chrome/services/sharing/webrtc/p2p_async_address_resolver.h"
 #include "chrome/services/sharing/webrtc/p2p_socket_client.h"
 #include "chrome/services/sharing/webrtc/p2p_socket_client_delegate.h"
-#include "jingle/glue/utils.h"
+#include "components/webrtc/net_address_utils.h"
 #include "net/base/ip_address.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/webrtc/rtc_base/async_packet_socket.h"
 
 namespace sharing {
@@ -120,7 +122,7 @@ class IpcPacketSocket : public rtc::AsyncPacketSocket,
       const network::P2PSendPacketMetrics& send_metrics) override;
   void OnError() override;
   void OnDataReceived(const net::IPEndPoint& address,
-                      const std::vector<int8_t>& data,
+                      base::span<const uint8_t> data,
                       const base::TimeTicks& timestamp) override;
 
  private:
@@ -206,6 +208,7 @@ class AsyncAddressResolverImpl : public rtc::AsyncResolverInterface {
 
   // rtc::AsyncResolverInterface interface.
   void Start(const rtc::SocketAddress& addr) override;
+  void Start(const rtc::SocketAddress& addr, int address_family) override;
   bool GetResolvedAddress(int family, rtc::SocketAddress* addr) const override;
   int GetError() const override;
   void Destroy(bool wait) override;
@@ -219,6 +222,8 @@ class AsyncAddressResolverImpl : public rtc::AsyncResolverInterface {
 
   rtc::SocketAddress addr_;                // Address to resolve.
   std::vector<rtc::IPAddress> addresses_;  // Resolved addresses.
+
+  base::WeakPtrFactory<AsyncAddressResolverImpl> weak_factory_{this};
 };
 
 IpcPacketSocket::IpcPacketSocket()
@@ -268,7 +273,7 @@ bool IpcPacketSocket::Init(network::P2PSocketType type,
   state_ = IS_OPENING;
 
   net::IPEndPoint local_endpoint;
-  if (!jingle_glue::SocketAddressToIPEndPoint(local_address, &local_endpoint)) {
+  if (!webrtc::SocketAddressToIPEndPoint(local_address, &local_endpoint)) {
     return false;
   }
 
@@ -280,8 +285,8 @@ bool IpcPacketSocket::Init(network::P2PSocketType type,
       remote_endpoint =
           net::IPEndPoint(net::IPAddress(), remote_address.port());
     } else {
-      if (!jingle_glue::SocketAddressToIPEndPoint(remote_address,
-                                                  &remote_endpoint)) {
+      if (!webrtc::SocketAddressToIPEndPoint(remote_address,
+                                             &remote_endpoint)) {
         return false;
       }
     }
@@ -376,7 +381,7 @@ int IpcPacketSocket::SendTo(const void* data,
   if (address.IsUnresolvedIP()) {
     address_chrome = net::IPEndPoint(net::IPAddress(), address.port());
   } else {
-    if (!jingle_glue::SocketAddressToIPEndPoint(address, &address_chrome)) {
+    if (!webrtc::SocketAddressToIPEndPoint(address, &address_chrome)) {
       LOG(WARNING) << "Failed to convert remote address to IPEndPoint: address="
                    << address.ipaddr().ToSensitiveString()
                    << ", remote_address_="
@@ -389,10 +394,10 @@ int IpcPacketSocket::SendTo(const void* data,
 
   send_bytes_available_ -= data_size;
 
-  std::vector<int8_t> data_vector;
-  data_vector.insert(data_vector.end(), reinterpret_cast<const int8_t*>(data),
-                     reinterpret_cast<const int8_t*>(data) + data_size);
-  uint64_t packet_id = client_->Send(address_chrome, data_vector, options);
+  uint64_t packet_id = client_->Send(
+      address_chrome,
+      base::make_span(reinterpret_cast<const uint8_t*>(data), data_size),
+      options);
 
   // Ensure packet_id is not 0. It can't be the case according to
   // P2PSocketClient::Send().
@@ -492,7 +497,7 @@ void IpcPacketSocket::OnOpen(const net::IPEndPoint& local_address,
                              const net::IPEndPoint& remote_address) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  if (!jingle_glue::IPEndPointToSocketAddress(local_address, &local_address_)) {
+  if (!webrtc::IPEndPointToSocketAddress(local_address, &local_address_)) {
     // Always expect correct IPv4 address to be allocated.
     NOTREACHED();
     OnError();
@@ -517,8 +522,8 @@ void IpcPacketSocket::OnOpen(const net::IPEndPoint& local_address,
       // |remote_address| could be unresolved if the connection is behind a
       // proxy.
       if (!remote_address.address().empty() &&
-          jingle_glue::IPEndPointToSocketAddress(remote_address,
-                                                 &jingle_socket_address)) {
+          webrtc::IPEndPointToSocketAddress(remote_address,
+                                            &jingle_socket_address)) {
         // Set only the IP address.
         remote_address_.SetResolvedIP(jingle_socket_address.ipaddr());
       }
@@ -573,7 +578,7 @@ void IpcPacketSocket::OnError() {
 }
 
 void IpcPacketSocket::OnDataReceived(const net::IPEndPoint& address,
-                                     const std::vector<int8_t>& data,
+                                     base::span<const uint8_t> data,
                                      const base::TimeTicks& timestamp) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
@@ -584,7 +589,7 @@ void IpcPacketSocket::OnDataReceived(const net::IPEndPoint& address,
     // |address| could be empty for TCP connections behind a proxy.
     address_lj = remote_address_;
   } else {
-    if (!jingle_glue::IPEndPointToSocketAddress(address, &address_lj)) {
+    if (!webrtc::IPEndPointToSocketAddress(address, &address_lj)) {
       // We should always be able to convert address here because we
       // don't expect IPv6 address on IPv4 connections.
       NOTREACHED();
@@ -592,8 +597,9 @@ void IpcPacketSocket::OnDataReceived(const net::IPEndPoint& address,
     }
   }
 
-  SignalReadPacket(this, reinterpret_cast<const char*>(&data[0]), data.size(),
-                   address_lj, timestamp.since_origin().InMicroseconds());
+  SignalReadPacket(this, reinterpret_cast<const char*>(data.data()),
+                   data.size(), address_lj,
+                   timestamp.since_origin().InMicroseconds());
 }
 
 AsyncAddressResolverImpl::AsyncAddressResolverImpl(
@@ -610,9 +616,21 @@ void AsyncAddressResolverImpl::Start(const rtc::SocketAddress& addr) {
   // GetResolvedAddress.
   addr_ = addr;
 
-  resolver_.Start(addr,
+  resolver_.Start(addr, /*address_family=*/absl::nullopt,
                   base::BindOnce(&AsyncAddressResolverImpl::OnAddressResolved,
-                                 base::Unretained(this)));
+                                 weak_factory_.GetWeakPtr()));
+}
+
+void AsyncAddressResolverImpl::Start(const rtc::SocketAddress& addr,
+                                     int address_family) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  // Port and hostname must be copied to the resolved address returned from
+  // GetResolvedAddress.
+  addr_ = addr;
+
+  resolver_.Start(addr, absl::make_optional(address_family),
+                  base::BindOnce(&AsyncAddressResolverImpl::OnAddressResolved,
+                                 weak_factory_.GetWeakPtr()));
 }
 
 bool AsyncAddressResolverImpl::GetResolvedAddress(
@@ -651,8 +669,8 @@ void AsyncAddressResolverImpl::OnAddressResolved(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   for (const auto& address : addresses) {
     rtc::SocketAddress socket_address;
-    if (!jingle_glue::IPEndPointToSocketAddress(net::IPEndPoint(address, 0),
-                                                &socket_address)) {
+    if (!webrtc::IPEndPointToSocketAddress(net::IPEndPoint(address, 0),
+                                           &socket_address)) {
       NOTREACHED();
     }
     addresses_.push_back(socket_address.ipaddr());

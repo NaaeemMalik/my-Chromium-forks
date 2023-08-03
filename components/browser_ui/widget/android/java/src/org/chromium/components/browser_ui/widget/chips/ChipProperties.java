@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@ import org.chromium.ui.modelutil.PropertyModel.ReadableObjectPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
-import org.chromium.ui.widget.ChipView;
 
 /** Properties that describe a single chip in a list/group of chips. */
 public class ChipProperties {
@@ -42,6 +41,10 @@ public class ChipProperties {
     /** An icon ID to show beside the chip's text. If no icon, use {@link #INVALID_ICON_ID}. */
     public static final WritableIntPropertyKey ICON = new WritableIntPropertyKey();
 
+    /** Whether the icon should be tinted with text color. */
+    public static final WritableBooleanPropertyKey APPLY_ICON_TINT =
+            new WritableBooleanPropertyKey();
+
     /** An arbitrary ID for the chip to help identify it. */
     public static final ReadableIntPropertyKey ID = new ReadableIntPropertyKey();
 
@@ -54,6 +57,6 @@ public class ChipProperties {
     /** The max width a chip's text should have in PX. Use {@link #SHOW_WHOLE_TEXT} for no limit. */
     public static final WritableIntPropertyKey TEXT_MAX_WIDTH_PX = new WritableIntPropertyKey();
 
-    static final PropertyKey[] ALL_KEYS = new PropertyKey[] {CLICK_HANDLER, CONTENT_DESCRIPTION,
-            ENABLED, ICON, ID, SELECTED, TEXT, TEXT_MAX_WIDTH_PX};
+    public static final PropertyKey[] ALL_KEYS = new PropertyKey[] {APPLY_ICON_TINT, CLICK_HANDLER,
+            CONTENT_DESCRIPTION, ENABLED, ICON, ID, SELECTED, TEXT, TEXT_MAX_WIDTH_PX};
 }

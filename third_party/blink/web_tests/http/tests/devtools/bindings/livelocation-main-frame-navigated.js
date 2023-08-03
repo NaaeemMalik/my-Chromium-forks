@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,14 @@
     BindingsTestRunner.waitForSourceMap('sourcemap-style.css.map'),
   ]);
 
-  const jsLiveLocation = await BindingsTestRunner.createDebuggerLiveLocation('js', 'sourcemap-script.js');
-  const cssLiveLocation = await BindingsTestRunner.createCSSLiveLocation('css', 'sourcemap-style.css');
+  const jsLiveLocation = await BindingsTestRunner.createDebuggerLiveLocation(
+      'js', 'sourcemap-script.js', undefined, undefined,
+      /* dumpOnUpdate= */ false);
+  await BindingsTestRunner.dumpLocation(jsLiveLocation, '[ CREATE ]');
+  const cssLiveLocation = await BindingsTestRunner.createCSSLiveLocation(
+      'css', 'sourcemap-style.css', undefined, undefined,
+      /* dumpOnUpdate= */ false);
+  await BindingsTestRunner.dumpLocation(cssLiveLocation, '[ CREATE ]');
 
   TestRunner.markStep('navigateMainFrame');
   const url = TestRunner.url('resources/empty-page.html');

@@ -1,35 +1,36 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/settings/content_settings/block_popups_table_view_controller.h"
 
-#include "base/logging.h"
+#import "base/logging.h"
 #import "base/mac/foundation_util.h"
-#include "base/strings/sys_string_conversions.h"
-#include "base/values.h"
-#include "components/content_settings/core/browser/host_content_settings_map.h"
-#include "components/content_settings/core/common/content_settings.h"
-#include "components/content_settings/core/common/content_settings_pattern.h"
-#include "components/content_settings/core/common/pref_names.h"
-#include "components/prefs/pref_service.h"
-#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#include "ios/chrome/browser/content_settings/host_content_settings_map_factory.h"
-#import "ios/chrome/browser/ui/settings/cells/settings_switch_cell.h"
-#import "ios/chrome/browser/ui/settings/cells/settings_switch_item.h"
+#import "base/strings/sys_string_conversions.h"
+#import "base/values.h"
+#import "components/content_settings/core/browser/host_content_settings_map.h"
+#import "components/content_settings/core/common/content_settings.h"
+#import "components/content_settings/core/common/content_settings_pattern.h"
+#import "components/content_settings/core/common/pref_names.h"
+#import "components/prefs/pref_service.h"
+#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/content_settings/host_content_settings_map_factory.h"
+#import "ios/chrome/browser/net/crurl.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_cell.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/ui/settings/elements/enterprise_info_popover_view_controller.h"
 #import "ios/chrome/browser/ui/settings/settings_navigation_controller.h"
 #import "ios/chrome/browser/ui/settings/utils/content_setting_backed_boolean.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_detail_text_item.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_info_button_cell.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_info_button_item.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_text_header_footer_item.h"
-#import "ios/chrome/browser/ui/table_view/table_view_utils.h"
-#include "ios/chrome/browser/ui/ui_feature_flags.h"
-#include "ios/chrome/grit/ios_strings.h"
+#import "ios/chrome/grit/ios_strings.h"
 #import "net/base/mac/url_conversions.h"
-#include "ui/base/l10n/l10n_util.h"
-#include "ui/base/l10n/l10n_util_mac.h"
+#import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -58,16 +59,16 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ChromeBrowserState* _browserState;  // weak
 
   // List of url patterns that are allowed to display popups.
-  base::ListValue _exceptions;
+  base::Value::List _exceptions;
 
   // List of url patterns set by policy that are allowed to display popups.
-  base::ListValue _allowPopupsByPolicy;
+  base::Value::List _allowPopupsByPolicy;
 
   // The observable boolean that binds to the "Disable Popups" setting state.
   ContentSettingBackedBoolean* _disablePopupsSetting;
 
   // The item related to the switch for the "Disable Popups" setting.
-  SettingsSwitchItem* _blockPopupsItem;
+  TableViewSwitchItem* _blockPopupsItem;
 
   // The managed item for the "Disable Popups" setting.
   TableViewInfoButtonItem* _blockPopupsManagedItem;
@@ -124,7 +125,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
         toSectionWithIdentifier:SectionIdentifierMainSwitch];
   } else {
     _blockPopupsItem =
-        [[SettingsSwitchItem alloc] initWithType:ItemTypeMainSwitch];
+        [[TableViewSwitchItem alloc] initWithType:ItemTypeMainSwitch];
     _blockPopupsItem.text = l10n_util::GetNSString(IDS_IOS_BLOCK_POPUPS);
     _blockPopupsItem.on = [_disablePopupsSetting value];
     _blockPopupsItem.accessibilityIdentifier = @"blockPopupsContentView_switch";
@@ -133,7 +134,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   }
 
   if ([self popupsCurrentlyBlocked] &&
-      (_exceptions.GetList().size() || _allowPopupsByPolicy.GetList().size())) {
+      (_exceptions.size() || _allowPopupsByPolicy.size())) {
     [self populateExceptionsItems];
   }
 }
@@ -143,7 +144,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 }
 
 - (BOOL)editButtonEnabled {
-  return _exceptions.GetList().size() > 0;
+  return _exceptions.size() > 0;
 }
 
 // Override.
@@ -180,8 +181,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
     case ItemTypeException:
       break;
     case ItemTypeMainSwitch: {
-      SettingsSwitchCell* switchCell =
-          base::mac::ObjCCastStrict<SettingsSwitchCell>(cell);
+      TableViewSwitchCell* switchCell =
+          base::mac::ObjCCastStrict<TableViewSwitchCell>(cell);
       [switchCell.switchView addTarget:self
                                 action:@selector(blockPopupsSwitchChanged:)
                       forControlEvents:UIControlEventValueChanged];
@@ -205,7 +206,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
   // Only when items are in SectionIdentifierExceptions and are not set by the
   // policy are editable.
   return
-      [self.tableViewModel sectionIdentifierForSection:indexPath.section] ==
+      [self.tableViewModel
+          sectionIdentifierForSectionIndex:indexPath.section] ==
           SectionIdentifierExceptions &&
       [self.tableViewModel itemAtIndexPath:indexPath].type == ItemTypeException;
 }
@@ -218,7 +220,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [self deleteItemAtIndexPaths:@[ indexPath ]];
   if (![self.tableViewModel
           hasSectionForSectionIdentifier:SectionIdentifierExceptions] ||
-      !_exceptions.GetList().size()) {
+      !_exceptions.size()) {
     self.navigationItem.rightBarButtonItem.enabled = NO;
   }
 }
@@ -284,7 +286,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 #pragma mark - Private
 
-// Deletes the item at the |indexPaths|. Removes the SectionIdentifierExceptions
+// Deletes the item at the `indexPaths`. Removes the SectionIdentifierExceptions
 // if it is now empty.
 - (void)deleteItemAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths {
   NSSortDescriptor* sortDescriptor =
@@ -294,10 +296,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
   for (NSIndexPath* indexPath in indexPaths) {
     size_t urlIndex = indexPath.item;
     std::string urlToRemove;
-    base::Value::ListView exceptions_view = _exceptions.GetList();
-    if (urlIndex < exceptions_view.size() &&
-        exceptions_view[urlIndex].is_string()) {
-      urlToRemove = exceptions_view[urlIndex].GetString();
+    if (urlIndex < _exceptions.size() && _exceptions[urlIndex].is_string()) {
+      urlToRemove = _exceptions[urlIndex].GetString();
     }
 
     // Remove the exception for the site by resetting its popup setting to the
@@ -308,8 +308,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
             ContentSettingsPattern::Wildcard(), ContentSettingsType::POPUPS,
             CONTENT_SETTING_DEFAULT);
 
-    // Remove the site from |_exceptions|.
-    _exceptions.EraseListIter(exceptions_view.begin() + urlIndex);
+    // Remove the site from `_exceptions`.
+    _exceptions.erase(_exceptions.begin() + urlIndex);
   }
   [self.tableView
       performBatchUpdates:^{
@@ -339,8 +339,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
 }
 
 // Fetch the urls that can display popups and
-// add items set by the user to |_exceptions|,
-// add items set by the policy to |_allowPopupsByPolicy|.
+// add items set by the user to `_exceptions`,
+// add items set by the policy to `_allowPopupsByPolicy`.
 - (void)populateExceptionsList {
   // The body of this method was mostly copied from
   // chrome/browser/ui/webui/options/content_settings_handler.cc and simplified
@@ -364,7 +364,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
     if (entries[i].secondary_pattern == ContentSettingsPattern::Wildcard() &&
         entries[i].GetContentSetting() == CONTENT_SETTING_ALLOW) {
       if (entries[i].source == "policy") {
-        // Add the urls to |_allowPopupsByPolicy| if the allowed urls are set by
+        // Add the urls to `_allowPopupsByPolicy` if the allowed urls are set by
         // the policy.
         _allowPopupsByPolicy.Append(entries[i].primary_pattern.ToString());
       } else {
@@ -387,7 +387,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [model setHeader:header forSectionWithIdentifier:SectionIdentifierExceptions];
 
   // Populate the exception items set by the user.
-  for (const base::Value& exception : _exceptions.GetList()) {
+  for (const base::Value& exception : _exceptions) {
     std::string allowed_url;
     if (exception.is_string())
       allowed_url = exception.GetString();
@@ -398,7 +398,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   }
 
   // Populate the allowed popup items set by the policy.
-  for (const base::Value& l : _allowPopupsByPolicy.GetList()) {
+  for (const base::Value& l : _allowPopupsByPolicy) {
     std::string allowed_url_by_policy;
     if (l.is_string())
       allowed_url_by_policy = l.GetString();
@@ -410,8 +410,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 }
 
 - (void)layoutSections:(BOOL)blockPopupsIsOn {
-  BOOL hasExceptions =
-      _exceptions.GetList().size() || _allowPopupsByPolicy.GetList().size();
+  BOOL hasExceptions = _exceptions.size() || _allowPopupsByPolicy.size();
   BOOL exceptionsListShown = [self.tableViewModel
       hasSectionForSectionIdentifier:SectionIdentifierExceptions];
 
@@ -455,8 +454,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 #pragma mark - PopoverLabelViewControllerDelegate
 
 - (void)didTapLinkURL:(NSURL*)URL {
-  GURL convertedURL = net::GURLWithNSURL(URL);
-  [self view:nil didTapLinkURL:convertedURL];
+  [self view:nil didTapLinkURL:[[CrURL alloc] initWithNSURL:URL]];
 }
 
 @end

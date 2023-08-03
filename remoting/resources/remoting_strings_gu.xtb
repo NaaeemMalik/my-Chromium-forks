@@ -4,6 +4,7 @@
 <translation id="1002108253973310084">અસંગત પ્રોટોકોલ વર્ઝન મળ્યું હતું. કૃપા કરીને ખાતરી કરો કે તમારી પાસે બંને કમ્પ્યુટર પર સૉફ્ટવેરનું નવીનતમ વર્ઝન ઇન્સ્ટૉલ કરેલ છે અને ફરી પ્રયાસ કરો.</translation>
 <translation id="1008557486741366299">હમણાં નહીં</translation>
 <translation id="1201402288615127009">આગલું</translation>
+<translation id="1296511125400541222">કૉપિરાઇટ 2023 The Chromium Authors. સર્વાધિકાર સુરક્ષિત.</translation>
 <translation id="1297009705180977556"><ph name="HOSTNAME" /> સાથે કનેક્ટ કરવામાં ભૂલ</translation>
 <translation id="1450760146488584666">વિનંતિ કરેલો ઑબ્જેક્ટ અસ્તિત્વમાં નથી.</translation>
 <translation id="1480046233931937785">ક્રેડિટ્સ</translation>
@@ -26,7 +27,6 @@
 <translation id="225614027745146050">સ્વાગત છે</translation>
 <translation id="2320166752086256636">કીબોર્ડ છુપાવો</translation>
 <translation id="2329392777730037872">ગ્રાહકના ડિવાઇસ પર <ph name="URL" /> ખોલવામાં નિષ્ફળ રહ્યાં.</translation>
-<translation id="2333212046079545895">કૉપિરાઇટ 2021 Google LLC. સર્વાધિકાર સુરક્ષિત.</translation>
 <translation id="2359808026110333948">આગળ વધો</translation>
 <translation id="2366718077645204424">હોસ્ટ સુધી પહોંચવામાં અક્ષમ. આ કદાચ તમે ઉપયોગ કરી રહ્યાં છો એ નેટવર્કની ગોઠવણીનાં કારણે છે.</translation>
 <translation id="2370754117186920852"><ph name="OPTIONAL_OFFLINE_REASON" />  છેલ્લે <ph name="RELATIVE_TIMESTAMP" /> ઓનલાઇન જોવામાં આવ્યા.</translation>
@@ -76,7 +76,6 @@
 <translation id="4405930547258349619">મુખ્ય લાઇબ્રેરી</translation>
 <translation id="443560535555262820">ઍક્સેસિબિલિટીની પસંદગીઓ ખોલો</translation>
 <translation id="4450893287417543264">ફરી બતાવશો નહીં</translation>
-<translation id="4512952200932940229">કોપિરાઇટ 2021 The Chromium Authors. સર્વાધિકાર સુરક્ષિત.</translation>
 <translation id="4513946894732546136">પ્રતિસાદ</translation>
 <translation id="4563926062592110512">ક્લાઇન્ટ ડિસ્કનેક્ટ થયાં: <ph name="CLIENT_USERNAME" />.</translation>
 <translation id="4618411825115957973"><ph name="URL_FORWARDER_NAME" />નું યોગ્ય રીતે કન્ફિગ્યુરેશન થયું નથી. કૃપા કરીને કોઈ અલગ ડિફૉલ્ટ વેબ બ્રાઉઝર પસંદ કરો અને પછી ફરીથી URL ફૉરવર્ડિંગ ચાલુ કરો.</translation>
@@ -90,6 +89,7 @@
 <translation id="4808503597364150972">કૃપા કરીને <ph name="HOSTNAME" /> માટે તમારો PIN દાખલ કરો.</translation>
 <translation id="4812684235631257312">હોસ્ટ:</translation>
 <translation id="4867841927763172006">PrtScn મોકલો</translation>
+<translation id="4960795469833295568">કૉપિરાઇટ 2023 Google LLC. સર્વાધિકાર સુરક્ષિત.</translation>
 <translation id="4974476491460646149"><ph name="HOSTNAME" /> માટે કનેક્શન બંધ થયું</translation>
 <translation id="4985296110227979402">તમારે પહેલા તમારા કમ્પ્યુટરને રીમોટ ઍક્સેસ માટે સેટ કરવાની જરૂર છે</translation>
 <translation id="4987330545941822761">Chrome રીમોટ ડેસ્કટૉપ, કમ્પ્યુટર પર URLsને ખોલવા માટે બ્રાઉઝરને નિર્ધારિત કરી શકતું નથી. કૃપા કરીને નીચે આપેલી સૂચિમાંથી તેને પસંદ કરો.</translation>

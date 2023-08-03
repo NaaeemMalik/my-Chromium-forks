@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <link rel="import" href="../../html/polymer.html">
 
 <link rel="import" href="gtx://resources/polymer/v1_0/paper-styles/color.html">
@@ -8,6 +9,8 @@
 
 <dom-module id="cr-radio-button">
   <template>
+=======
+>>>>>>> gtx-new
     <style include="cr-radio-button-style cr-hidden-style"></style>
 
     <div aria-checked$="[[getAriaChecked_(checked)]]"
@@ -21,6 +24,7 @@
         on-keydown="onInputKeydown_">
       <div class="disc-border"></div>
       <div class="disc"></div>
+      <div id="overlay"></div>
     </div>
 
     <div id="labelWrapper">
@@ -29,6 +33,3 @@
         <slot></slot>
       </span>
     </div>
-  </template>
-  <script src="cr_radio_button.js"></script>
-</dom-module>

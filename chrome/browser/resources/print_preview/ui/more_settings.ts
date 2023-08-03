@@ -1,17 +1,19 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/hidden_style_css.m.js';
-import 'gtx://resources/cr_elements/shared_vars_css.m.js';
-import 'gtx://resources/cr_elements/cr_expand_button/cr_expand_button.m.js';
+import 'gtx://resources/cr_elements/cr_hidden_style.css.js';
+import 'gtx://resources/cr_elements/cr_shared_vars.css.js';
+import 'gtx://resources/cr_elements/cr_expand_button/cr_expand_button.js';
 import '../strings.m.js';
 
-import {CrExpandButtonElement} from 'gtx://resources/cr_elements/cr_expand_button/cr_expand_button.m.js';
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrExpandButtonElement} from 'gtx://resources/cr_elements/cr_expand_button/cr_expand_button.js';
+import {assert} from 'gtx://resources/js/assert_ts.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {MetricsContext, PrintSettingsUiBucket} from '../metrics.js';
+
+import {getTemplate} from './more_settings.html.js';
 
 interface PrintPreviewMoreSettingsElement {
   $: {
@@ -26,7 +28,7 @@ class PrintPreviewMoreSettingsElement extends PolymerElement {
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {

@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/password_manager/core/browser/password_store_signin_notifier_impl.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "components/password_manager/core/browser/mock_password_reuse_manager.h"
@@ -61,7 +61,7 @@ TEST_F(PasswordStoreSigninNotifierImplTest, Unsubscribed) {
   identity_test_env()->ClearPrimaryAccount();
 }
 
-#if !defined(OS_IOS)
+#if !BUILDFLAG(IS_IOS)
 // This test is excluded from iOS since iOS does not support multiple Google
 // accounts. Checks that ClearGaiaPasswordHash() is called when a secondary
 // account is removed.
@@ -83,7 +83,7 @@ TEST_F(PasswordStoreSigninNotifierImplTest, SignOutContentArea) {
   // processed in this testing context.
   identity_test_env()->EnableRemovalOfExtendedAccountInfo();
   identity_manager->GetAccountsMutator()->RemoveAccount(
-      CoreAccountId("secondary_account_id"),
+      CoreAccountId::FromGaiaId("secondary_account_id"),
       signin_metrics::SourceForRefreshTokenOperation::kUserMenu_RemoveAccount);
   testing::Mock::VerifyAndClearExpectations(&reuse_manager_);
 
@@ -92,7 +92,7 @@ TEST_F(PasswordStoreSigninNotifierImplTest, SignOutContentArea) {
   identity_test_env()->ClearPrimaryAccount();
   notifier.UnsubscribeFromSigninEvents();
 }
-#endif  // !defined(OS_IOS)
+#endif  // !BUILDFLAG(IS_IOS)
 
 }  // namespace
 }  // namespace password_manager

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "url/gurl.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "chrome/test/base/android/android_browser_test.h"
 #else
 #include "chrome/test/base/in_process_browser_test.h"
@@ -133,9 +133,6 @@ class SubresourceFilterBrowserTest : public PlatformBrowserTest {
       "SubresourceFilter.Actions2";
 
   bool AdsBlockedInContentSettings(content::RenderFrameHost* frame_host);
-#if defined(OS_ANDROID)
-  bool PresentingAdsBlockedInfobar(content::WebContents* web_contents);
-#endif
 
  protected:
   // InProcessBrowserTest:
@@ -214,7 +211,7 @@ class SubresourceFilterBrowserTest : public PlatformBrowserTest {
   std::unique_ptr<TestSafeBrowsingDatabaseHelper> database_helper_;
 
   // Owned by the profile.
-  raw_ptr<SubresourceFilterProfileContext> profile_context_;
+  raw_ptr<SubresourceFilterProfileContext, DanglingUntriaged> profile_context_;
 };
 
 // This class automatically syncs the SubresourceFilter SafeBrowsing list

@@ -1,21 +1,19 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/gcm/gcm_profile_service_factory.h"
 #include <memory>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/no_destructor.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
-#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_key.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "components/gcm_driver/gcm_profile_service.h"
-#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/offline_pages/buildflags/buildflags.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -23,7 +21,7 @@
 #include "content/public/browser/storage_partition.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/gcm/gcm_product_util.h"
 #include "chrome/common/channel_info.h"
 #include "components/gcm_driver/gcm_client_factory.h"
@@ -36,7 +34,6 @@
 #include "chrome/browser/offline_pages/prefetch/prefetch_service_factory.h"
 #include "components/gcm_driver/gcm_driver.h"
 #include "components/offline_pages/core/offline_page_feature.h"
-#include "components/offline_pages/core/prefetch/prefetch_gcm_app_handler.h"
 #include "components/offline_pages/core/prefetch/prefetch_service.h"
 #endif
 
@@ -44,16 +41,16 @@ namespace gcm {
 
 namespace {
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 // Requests a ProxyResolvingSocketFactory on the UI thread. Note that a WeakPtr
 // of GCMProfileService is needed to detect when the KeyedService shuts down,
 // and avoid calling into |profile| which might have also been destroyed.
 void RequestProxyResolvingSocketFactoryOnUIThread(
-    Profile* profile,
+    base::WeakPtr<Profile> profile,
     base::WeakPtr<GCMProfileService> service,
     mojo::PendingReceiver<network::mojom::ProxyResolvingSocketFactory>
         receiver) {
-  if (!service)
+  if (!service || !profile)
     return;
   network::mojom::NetworkContext* network_context =
       profile->GetDefaultStoragePartition()->GetNetworkContext();
@@ -62,14 +59,14 @@ void RequestProxyResolvingSocketFactoryOnUIThread(
 
 // A thread-safe wrapper to request a ProxyResolvingSocketFactory.
 void RequestProxyResolvingSocketFactory(
-    Profile* profile,
+    base::WeakPtr<Profile> profile,
     base::WeakPtr<GCMProfileService> service,
     mojo::PendingReceiver<network::mojom::ProxyResolvingSocketFactory>
         receiver) {
   content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(&RequestProxyResolvingSocketFactoryOnUIThread, profile,
-                     std::move(service), std::move(receiver)));
+      FROM_HERE, base::BindOnce(&RequestProxyResolvingSocketFactoryOnUIThread,
+                                std::move(profile), std::move(service),
+                                std::move(receiver)));
 }
 #endif
 
@@ -97,7 +94,7 @@ GCMProfileService* GCMProfileServiceFactory::GetForProfile(
     content::BrowserContext* profile) {
   // GCM is not supported in incognito mode.
   if (profile->IsOffTheRecord())
-    return NULL;
+    return nullptr;
 
   return static_cast<GCMProfileService*>(
       GetInstance()->GetServiceForBrowserContext(profile, true));
@@ -110,9 +107,9 @@ GCMProfileServiceFactory* GCMProfileServiceFactory::GetInstance() {
 }
 
 GCMProfileServiceFactory::GCMProfileServiceFactory()
-    : BrowserContextKeyedServiceFactory(
-        "GCMProfileService",
-        BrowserContextDependencyManager::GetInstance()) {
+    : ProfileKeyedServiceFactory(
+          "GCMProfileService",
+          ProfileSelections::BuildForRegularAndIncognito()) {
   DependsOn(IdentityManagerFactory::GetInstance());
 #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
   DependsOn(offline_pages::PrefetchServiceFactory::GetInstance());
@@ -136,13 +133,14 @@ KeyedService* GCMProfileServiceFactory::BuildServiceInstanceFor(
           {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
            base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN}));
   std::unique_ptr<GCMProfileService> service;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   service = std::make_unique<GCMProfileService>(profile->GetPath(),
                                                 blocking_task_runner);
 #else
   service = std::make_unique<GCMProfileService>(
       profile->GetPrefs(), profile->GetPath(),
-      base::BindRepeating(&RequestProxyResolvingSocketFactory, profile),
+      base::BindRepeating(&RequestProxyResolvingSocketFactory,
+                          profile->GetWeakPtr()),
       profile->GetDefaultStoragePartition()
           ->GetURLLoaderFactoryForBrowserProcess(),
       content::GetNetworkConnectionTracker(), chrome::GetChannel(),
@@ -152,23 +150,12 @@ KeyedService* GCMProfileServiceFactory::BuildServiceInstanceFor(
       content::GetIOThreadTaskRunner({}), blocking_task_runner);
 #endif
 #if BUILDFLAG(ENABLE_OFFLINE_PAGES)
-  offline_pages::PrefetchService* prefetch_service =
-      offline_pages::PrefetchServiceFactory::GetForKey(
-          profile->GetProfileKey());
-  if (prefetch_service != nullptr) {
-    offline_pages::PrefetchGCMHandler* prefetch_gcm_handler =
-        prefetch_service->GetPrefetchGCMHandler();
-    service->driver()->AddAppHandler(prefetch_gcm_handler->GetAppId(),
-                                     prefetch_gcm_handler->AsGCMAppHandler());
-  }
+  // TODO(crbug/1424920): PrefetchService is being removed. Leave this for at
+  // least one milestone.
+  offline_pages::PrefetchServiceFactory::GetForKey(profile->GetProfileKey());
 #endif  // BUILDFLAG(ENABLE_OFFLINE_PAGES)
 
   return service.release();
-}
-
-content::BrowserContext* GCMProfileServiceFactory::GetBrowserContextToUse(
-    content::BrowserContext* context) const {
-  return chrome::GetBrowserContextOwnInstanceInIncognito(context);
 }
 
 }  // namespace gcm

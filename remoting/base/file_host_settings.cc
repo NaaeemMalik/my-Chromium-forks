@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 #include "base/json/json_file_value_serializer.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/logging.h"
-#include "base/no_destructor.h"
-#include "base/threading/sequenced_task_runner_handle.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
 #include "remoting/base/logging.h"
 
@@ -57,7 +56,7 @@ std::string FileHostSettings::GetString(
                "doesn't exist.";
     return default_value;
   }
-  std::string* string_value = settings_->FindStringKey(key);
+  std::string* string_value = settings_->GetDict().FindString(key);
   if (!string_value) {
     return default_value;
   }
@@ -70,13 +69,14 @@ void FileHostSettings::SetString(const HostSettingKey key,
   if (task_runner_for_checking_sequence_) {
     DCHECK(task_runner_for_checking_sequence_->RunsTasksInCurrentSequence());
   } else {
-    task_runner_for_checking_sequence_ = base::SequencedTaskRunnerHandle::Get();
+    task_runner_for_checking_sequence_ =
+        base::SequencedTaskRunner::GetCurrentDefault();
   }
 #endif
 
   if (!settings_) {
     VLOG(1) << "Settings file didn't exist. New file will be created.";
-    settings_ = std::make_unique<base::Value>(base::Value::Type::DICTIONARY);
+    settings_ = std::make_unique<base::Value>(base::Value::Type::DICT);
   }
   settings_->SetStringKey(key, value);
 

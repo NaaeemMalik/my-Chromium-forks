@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,16 @@ namespace media_router {
 class MediaRouter;
 class RouteRequestResult;
 
+// Tests Chromecast-specific functionality of Media Router using the Cast Media
+// Route Provider.  Requires an actual Chromecast device.
+//
+// Use the following command to run e2e browser tests:
+// ./out/Default/browser_tests --user-data-dir=<empty user data dir>
+//   --receiver=<chromecast device name>
+//   --enable-pixel-output-in-tests --run-manual
+//   --gtest_filter=MediaRouterE2EBrowserTest.<test case name>
+//   --enable-logging=stderr
+//   --ui-test-action-timeout=200000
 class MediaRouterE2EBrowserTest : public MediaRouterIntegrationBrowserTest {
  public:
   MediaRouterE2EBrowserTest();
@@ -27,6 +37,9 @@ class MediaRouterE2EBrowserTest : public MediaRouterIntegrationBrowserTest {
   // InProcessBrowserTest Overrides
   void SetUpOnMainThread() override;
   void TearDownOnMainThread() override;
+
+  // MediaRouterIntegrationBrowserTest Overrides
+  bool RequiresMediaRouteProviders() const override;
 
   // Callback from MediaRouter when a response to a media route request is
   // received.

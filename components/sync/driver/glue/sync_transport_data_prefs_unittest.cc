@@ -1,10 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/driver/glue/sync_transport_data_prefs.h"
 
 #include <memory>
+#include <utility>
 
 #include "base/time/time.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -25,24 +26,6 @@ class SyncTransportDataPrefsTest : public testing::Test {
   TestingPrefServiceSimple pref_service_;
   std::unique_ptr<SyncTransportDataPrefs> sync_prefs_;
 };
-
-// Verify that invalidation versions are persisted and loaded correctly.
-TEST_F(SyncTransportDataPrefsTest, InvalidationVersions) {
-  std::map<ModelType, int64_t> versions;
-  versions[BOOKMARKS] = 10;
-  versions[SESSIONS] = 20;
-  versions[PREFERENCES] = 30;
-
-  sync_prefs_->UpdateInvalidationVersions(versions);
-
-  std::map<ModelType, int64_t> versions2 =
-      sync_prefs_->GetInvalidationVersions();
-
-  EXPECT_EQ(versions.size(), versions2.size());
-  for (auto map_iter : versions2) {
-    EXPECT_EQ(versions[map_iter.first], map_iter.second);
-  }
-}
 
 TEST_F(SyncTransportDataPrefsTest, PollInterval) {
   EXPECT_TRUE(sync_prefs_->GetPollInterval().is_zero());

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
  * @fileoverview This is a table column representation
  */
 
-import {dispatchPropertyChange, getPropertyDescriptor} from 'gtx://resources/js/cr.m.js';
-import {NativeEventTarget as EventTarget} from 'gtx://resources/js/cr/event_target.m.js';
+import {dispatchPropertyChange, getPropertyDescriptor} from 'gtx://resources/ash/common/cr_deprecated.js';
+import {NativeEventTarget as EventTarget} from 'gtx://resources/ash/common/event_target.js';
 
 /**
  * A table column that wraps column ids and settings.

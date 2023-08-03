@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,6 @@
 #include "chrome/common/url_constants.h"
 #include "components/dom_distiller/core/url_constants.h"
 #include "components/history/core/browser/history_service.h"
-#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/sync/model/model_type_store_service.h"
 #include "components/sync_device_info/device_info_sync_service.h"
 #include "components/sync_device_info/device_info_tracker.h"
@@ -29,18 +28,13 @@
 #include "components/sync_sessions/sync_sessions_client.h"
 #include "content/public/common/url_utils.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/sync/glue/synced_window_delegates_getter_android.h"
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 namespace {
 
 bool ShouldSyncURLImpl(const GURL& url) {
-  if (url == chrome::kChromeUIHistoryURL) {
-    // Allow the chrome history page, home for "Tabs from other devices", so
-    // it can trigger starting up the sync engine.
-    return true;
-  }
   return url.is_valid() && !content::HasWebUIScheme(url) &&
          !url.SchemeIs(chrome::kChromeNativeScheme) && !url.SchemeIsFile() &&
          !url.SchemeIs(dom_distiller::kDomDistillerScheme);
@@ -52,20 +46,20 @@ class SyncSessionsClientImpl : public sync_sessions::SyncSessionsClient {
   explicit SyncSessionsClientImpl(Profile* profile)
       : profile_(profile), session_sync_prefs_(profile->GetPrefs()) {
     window_delegates_getter_ =
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
         // Android doesn't have multi-profile support, so no need to pass the
         // profile in.
         std::make_unique<browser_sync::SyncedWindowDelegatesGetterAndroid>();
-#else   // defined(OS_ANDROID)
+#else   // BUILDFLAG(IS_ANDROID)
         std::make_unique<browser_sync::BrowserSyncedWindowDelegatesGetter>(
             profile);
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
   }
 
   SyncSessionsClientImpl(const SyncSessionsClientImpl&) = delete;
   SyncSessionsClientImpl& operator=(const SyncSessionsClientImpl&) = delete;
 
-  ~SyncSessionsClientImpl() override {}
+  ~SyncSessionsClientImpl() override = default;
 
   // SyncSessionsClient implementation.
   sync_sessions::SessionSyncPrefs* GetSessionSyncPrefs() override {
@@ -143,16 +137,22 @@ bool SessionSyncServiceFactory::ShouldSyncURLForTesting(const GURL& url) {
 }
 
 SessionSyncServiceFactory::SessionSyncServiceFactory()
-    : BrowserContextKeyedServiceFactory(
+    : ProfileKeyedServiceFactory(
           "SessionSyncService",
-          BrowserContextDependencyManager::GetInstance()) {
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/1418376): Check if this service is needed in
+              // Guest mode.
+              .WithGuest(ProfileSelection::kOriginalOnly)
+              .Build()) {
+  DependsOn(DeviceInfoSyncServiceFactory::GetInstance());
   DependsOn(FaviconServiceFactory::GetInstance());
   DependsOn(HistoryServiceFactory::GetInstance());
   DependsOn(ModelTypeStoreServiceFactory::GetInstance());
   DependsOn(sync_sessions::SyncSessionsWebContentsRouterFactory::GetInstance());
 }
 
-SessionSyncServiceFactory::~SessionSyncServiceFactory() {}
+SessionSyncServiceFactory::~SessionSyncServiceFactory() = default;
 
 KeyedService* SessionSyncServiceFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {

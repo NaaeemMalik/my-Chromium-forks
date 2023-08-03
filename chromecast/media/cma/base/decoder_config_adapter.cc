@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,6 +41,12 @@ AudioCodec ToAudioCodec(const ::media::AudioCodec audio_codec) {
       return kCodecAC3;
     case ::media::AudioCodec::kMpegHAudio:
       return kCodecMpegHAudio;
+    case ::media::AudioCodec::kDTS:
+      return kCodecDTS;
+    case ::media::AudioCodec::kDTSXP2:
+      return kCodecDTSXP2;
+    case ::media::AudioCodec::kDTSE:
+      return kCodecDTSE;
     default:
       LOG(ERROR) << "Unsupported audio codec " << audio_codec;
   }
@@ -55,6 +61,8 @@ SampleFormat ToSampleFormat(const ::media::SampleFormat sample_format) {
     case ::media::kSampleFormatDts:
     case ::media::kSampleFormatDtsxP2:
     case ::media::kSampleFormatMpegHAudio:
+    case ::media::kSampleFormatIECDts:
+    case ::media::kSampleFormatDtse:
       return kUnknownSampleFormat;
     case ::media::kSampleFormatU8:
       return kSampleFormatU8;
@@ -132,6 +140,12 @@ SampleFormat ToSampleFormat(const ::media::SampleFormat sample_format) {
       return ::media::AudioCodec::kAC3;
     case kCodecMpegHAudio:
       return ::media::AudioCodec::kMpegHAudio;
+    case kCodecDTS:
+      return ::media::AudioCodec::kDTS;
+    case kCodecDTSXP2:
+      return ::media::AudioCodec::kDTSXP2;
+    case kCodecDTSE:
+      return ::media::AudioCodec::kDTSE;
     default:
       return ::media::AudioCodec::kUnknown;
   }
@@ -233,12 +247,12 @@ AudioConfig DecoderConfigAdapter::ToCastAudioConfig(
   audio_config.encryption_scheme =
       ToEncryptionScheme(config.encryption_scheme());
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // On Android, Chromium's mp4 parser adds extra data for AAC, but we don't
   // need this with CMA.
   if (audio_config.codec == kCodecAAC)
     audio_config.extra_data.clear();
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
   return audio_config;
 }
@@ -348,17 +362,22 @@ VideoConfig DecoderConfigAdapter::ToCastVideoConfig(
 
     const auto& mm1 = hdr_metadata->color_volume_metadata;
     auto& mm2 = video_config.hdr_metadata.color_volume_metadata;
-    mm2.primary_r_chromaticity_x = mm1.primary_r.x();
-    mm2.primary_r_chromaticity_y = mm1.primary_r.y();
-    mm2.primary_g_chromaticity_x = mm1.primary_g.x();
-    mm2.primary_g_chromaticity_y = mm1.primary_g.y();
-    mm2.primary_b_chromaticity_x = mm1.primary_b.x();
-    mm2.primary_b_chromaticity_y = mm1.primary_b.y();
-    mm2.white_point_chromaticity_x = mm1.white_point.x();
-    mm2.white_point_chromaticity_y = mm1.white_point.y();
+    mm2.primary_r_chromaticity_x = mm1.primaries.fRX;
+    mm2.primary_r_chromaticity_y = mm1.primaries.fRY;
+    mm2.primary_g_chromaticity_x = mm1.primaries.fGX;
+    mm2.primary_g_chromaticity_y = mm1.primaries.fGY;
+    mm2.primary_b_chromaticity_x = mm1.primaries.fBX;
+    mm2.primary_b_chromaticity_y = mm1.primaries.fBY;
+    mm2.white_point_chromaticity_x = mm1.primaries.fWX;
+    mm2.white_point_chromaticity_y = mm1.primaries.fWY;
     mm2.luminance_max = mm1.luminance_max;
     mm2.luminance_min = mm1.luminance_min;
   }
+
+  const gfx::Size aspect_ratio =
+      config.aspect_ratio().GetNaturalSize(config.visible_rect());
+  video_config.width = aspect_ratio.width();
+  video_config.height = aspect_ratio.height();
 
   return video_config;
 }

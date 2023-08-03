@@ -14,28 +14,23 @@ var t_fail = t.step_func(function(reason) {
 });
 t.step(function() {
 
-var offscreenCanvas = new OffscreenCanvas(100, 50);
-var ctx = offscreenCanvas.getContext('2d');
+var canvas = new OffscreenCanvas(100, 50);
+var ctx = canvas.getContext('2d');
 
 ctx.fillStyle = '#0f0';
 ctx.fillRect(0, 0, 100, 50);
-var promise = new Promise(function(resolve, reject) {
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", '/images/red-zerowidth.svg');
-    xhr.responseType = 'blob';
-    xhr.send();
-    xhr.onload = function() {
-        resolve(xhr.response);
-    };
+fetch('/images/red-zerowidth.svg')
+  .then(response => response.blob())
+    .then(blob => {
+      createImageBitmap(blob)
+        .then(bitmap => {
+          ctx.drawImage(bitmap, 0, 0, 100, 50);
+          ctx.drawImage(bitmap, 0, 0, 100, 50);
+          ctx.drawImage(bitmap, 0, 0, 100, 50);
+          _assertPixel(canvas, 50,25, 0,255,0,255);
+      });
 });
-promise.then(function(response) {
-    createImageBitmap(response).then(bitmap => {
-        ctx.drawImage(bitmap, 0, 0, 100, 50);
-        ctx.drawImage(bitmap, 0, 0, 100, 50);
-        ctx.drawImage(bitmap, 0, 0, 100, 50);
-        _assertPixel(offscreenCanvas, 50,25, 0,255,0,255, "50,25", "0,255,0,255");
-    }, t_fail);
-}).then(t_pass, t_fail);
+t.done();
 
 });
 done();

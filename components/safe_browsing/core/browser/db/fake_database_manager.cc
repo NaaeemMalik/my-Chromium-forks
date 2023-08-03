@@ -1,8 +1,9 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/safe_browsing/core/browser/db/fake_database_manager.h"
+#include "base/task/sequenced_task_runner.h"
 #include "components/safe_browsing/core/browser/db/util.h"
 
 namespace safe_browsing {
@@ -44,7 +45,8 @@ bool FakeSafeBrowsingDatabaseManager::ChecksAreAlwaysAsync() const {
 bool FakeSafeBrowsingDatabaseManager::CheckBrowseUrl(
     const GURL& url,
     const SBThreatTypeSet& threat_types,
-    Client* client) {
+    Client* client,
+    MechanismExperimentHashDatabaseCache experiment_cache_selection) {
   const auto it = dangerous_urls_.find(url);
   if (it == dangerous_urls_.end())
     return true;
@@ -59,7 +61,11 @@ bool FakeSafeBrowsingDatabaseManager::CheckBrowseUrl(
     pattern_type = it1->second;
   }
 
+<<<<<<< HEAD
   io_task_runner()->PostTask(
+=======
+  sb_task_runner()->PostTask(
+>>>>>>> gtx-new
       FROM_HERE,
       base::BindOnce(&FakeSafeBrowsingDatabaseManager::CheckBrowseURLAsync, url,
                      result_threat_type, pattern_type, client));
@@ -80,7 +86,7 @@ bool FakeSafeBrowsingDatabaseManager::CheckDownloadUrl(
     if (result_threat_type == SB_THREAT_TYPE_SAFE)
       continue;
 
-    io_task_runner()->PostTask(
+    sb_task_runner()->PostTask(
         FROM_HERE,
         base::BindOnce(&FakeSafeBrowsingDatabaseManager::CheckDownloadURLAsync,
                        url_chain, result_threat_type, client));
@@ -105,10 +111,6 @@ bool FakeSafeBrowsingDatabaseManager::CheckUrlForSubresourceFilter(
 safe_browsing::ThreatSource FakeSafeBrowsingDatabaseManager::GetThreatSource()
     const {
   return safe_browsing::ThreatSource::LOCAL_PVER4;
-}
-
-bool FakeSafeBrowsingDatabaseManager::IsSupported() const {
-  return true;
 }
 
 // static

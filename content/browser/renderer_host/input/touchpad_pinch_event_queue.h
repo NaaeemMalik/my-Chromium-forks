@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/compiler_specific.h"
 #include "base/containers/circular_deque.h"
 #include "base/memory/raw_ptr.h"
 #include "content/common/content_export.h"
@@ -60,7 +59,7 @@ class CONTENT_EXPORT TouchpadPinchEventQueue {
   // coalesced with previously queued events.
   void QueueEvent(const GestureEventWithLatencyInfo& event);
 
-  bool has_pending() const WARN_UNUSED_RESULT;
+  [[nodiscard]] bool has_pending() const;
 
  private:
   // Notifies the queue that a synthetic mouse wheel event has been processed

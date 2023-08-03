@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ namespace signin {
 // interface.
 class HeaderModificationDelegateImpl : public HeaderModificationDelegate {
  public:
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   explicit HeaderModificationDelegateImpl(Profile* profile,
                                           bool incognito_enabled);
 #else
@@ -58,7 +58,7 @@ class HeaderModificationDelegateImpl : public HeaderModificationDelegate {
   raw_ptr<Profile> profile_;
   scoped_refptr<content_settings::CookieSettings> cookie_settings_;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   bool incognito_enabled_;
 #endif
 };

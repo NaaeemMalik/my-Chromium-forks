@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,13 @@
 #include <memory>
 #include <utility>
 
-#include "base/callback.h"
 #include "base/containers/span.h"
+#include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ash/net/network_diagnostics/host_resolver.h"
-#include "chrome/browser/ash/net/network_diagnostics/udp_prober.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -34,7 +32,7 @@
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 // Implements the UdpProber class.
@@ -267,4 +265,4 @@ std::unique_ptr<UdpProber> UdpProber::Start(
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

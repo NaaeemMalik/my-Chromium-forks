@@ -1,4 +1,4 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,7 +63,7 @@ class HistoryCounter : public browsing_data::BrowsingDataCounter {
 
   bool IsHistorySyncEnabled(const syncer::SyncService* sync_service);
 
-  raw_ptr<history::HistoryService> history_service_;
+  raw_ptr<history::HistoryService, DanglingUntriaged> history_service_;
 
   GetUpdatedWebHistoryServiceCallback web_history_service_callback_;
 

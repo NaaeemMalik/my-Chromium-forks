@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 
 #include <string>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
@@ -36,6 +36,11 @@ namespace {
 class TestDiceWebSigninInterceptorDelegate
     : public DiceWebSigninInterceptor::Delegate {
  public:
+  bool IsSigninInterceptionSupported(
+      const content::WebContents& web_contents) override {
+    return true;
+  }
+
   std::unique_ptr<ScopedDiceWebSigninInterceptionBubbleHandle>
   ShowSigninInterceptionBubble(
       content::WebContents* web_contents,
@@ -43,7 +48,11 @@ class TestDiceWebSigninInterceptorDelegate
       base::OnceCallback<void(SigninInterceptionResult)> callback) override {
     return nullptr;
   }
-  void ShowProfileCustomizationBubble(Browser* browser) override {}
+  void ShowFirstRunExperienceInNewProfile(
+      Browser* browser,
+      const CoreAccountId& account_id,
+      DiceWebSigninInterceptor::SigninInterceptionType interception_type)
+      override {}
 };
 
 class TestPasswordManagerClient
@@ -93,6 +102,13 @@ class MultiProfileCredentialsFilterTest : public BrowserWithTestWindowTest {
   AccountInfo SetupInterception() {
     std::string email = "bob@example.com";
     AccountInfo account_info = identity_test_env()->MakeAccountAvailable(email);
+    account_info.full_name = "fullname";
+    account_info.given_name = "givenname";
+    account_info.hosted_domain = kNoHostedDomainFound;
+    account_info.locale = "en";
+    account_info.picture_url = "https://example.com";
+    DCHECK(account_info.IsValid());
+    identity_test_env()->UpdateAccountInfoForAccount(account_info);
     Profile* profile_2 = profile_manager()->CreateTestingProfile("Profile 2");
     ProfileAttributesEntry* entry =
         profile_manager()
@@ -194,6 +210,40 @@ TEST_F(MultiProfileCredentialsFilterTest, NonGaia) {
   EXPECT_TRUE(multi_profile_filter.ShouldSave(form));
 }
 
+// Returns false for an invalid email address.
+// Regression test for https://crbug.com/1401924
+TEST_F(MultiProfileCredentialsFilterTest, InvalidEmail) {
+  // Disallow profile creation to prevent the intercept.
+  g_browser_process->local_state()->SetBoolean(prefs::kBrowserAddPersonEnabled,
+                                               false);
+
+  password_manager::PasswordForm form =
+      password_manager::SyncUsernameTestBase::SimpleGaiaForm("user@");
+  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+
+  MultiProfileCredentialsFilter multi_profile_filter(
+      password_manager_client(), GetSyncServiceCallback(),
+      dice_web_signin_interceptor());
+  EXPECT_FALSE(multi_profile_filter.ShouldSave(form));
+}
+
+// Returns true for email addresses with no domain part when sign-in is not
+// intercepted.
+TEST_F(MultiProfileCredentialsFilterTest, UsernameWithNoDomain) {
+  // Disallow profile creation to prevent the intercept.
+  g_browser_process->local_state()->SetBoolean(prefs::kBrowserAddPersonEnabled,
+                                               false);
+
+  password_manager::PasswordForm form =
+      password_manager::SyncUsernameTestBase::SimpleGaiaForm("user");
+  ASSERT_TRUE(sync_filter_.ShouldSave(form));
+
+  MultiProfileCredentialsFilter multi_profile_filter(
+      password_manager_client(), GetSyncServiceCallback(),
+      dice_web_signin_interceptor());
+  EXPECT_TRUE(multi_profile_filter.ShouldSave(form));
+}
+
 // Returns false when interception is already in progress.
 TEST_F(MultiProfileCredentialsFilterTest, InterceptInProgress) {
   password_manager::PasswordForm form =
@@ -263,9 +313,18 @@ TEST_F(MultiProfileCredentialsFilterTest, SigninNotIntercepted) {
   g_browser_process->local_state()->SetBoolean(prefs::kBrowserAddPersonEnabled,
                                                false);
 
+  std::string email = "user@example.org";
+  AccountInfo account_info = identity_test_env()->MakeAccountAvailable(email);
+  account_info.full_name = "fullname";
+  account_info.given_name = "givenname";
+  account_info.hosted_domain = kNoHostedDomainFound;
+  account_info.locale = "en";
+  account_info.picture_url = "https://example.com";
+  DCHECK(account_info.IsValid());
+  identity_test_env()->UpdateAccountInfoForAccount(account_info);
+
   password_manager::PasswordForm form =
-      password_manager::SyncUsernameTestBase::SimpleGaiaForm(
-          "user@example.org");
+      password_manager::SyncUsernameTestBase::SimpleGaiaForm(email.c_str());
   ASSERT_TRUE(sync_filter_.ShouldSave(form));
   // Not interception, credentials should be saved.
   ASSERT_FALSE(dice_web_signin_interceptor_->is_interception_in_progress());

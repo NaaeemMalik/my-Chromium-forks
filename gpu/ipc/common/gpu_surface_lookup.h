@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 
 #include "gpu/gpu_export.h"
 #include "gpu/ipc/common/surface_handle.h"
+#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "ui/gfx/native_widget_types.h"
-
-#if defined(OS_ANDROID)
 #include "ui/gl/android/scoped_java_surface.h"
-#endif
+#include "ui/gl/android/scoped_java_surface_control.h"
 
 namespace gpu {
 
@@ -29,15 +28,11 @@ class GPU_EXPORT GpuSurfaceLookup {
   static GpuSurfaceLookup* GetInstance();
   static void InitInstance(GpuSurfaceLookup* lookup);
 
-  virtual gfx::AcceleratedWidget AcquireNativeWidget(
-      gpu::SurfaceHandle surface_handle,
-      bool* can_be_used_with_surface_control) = 0;
-
-#if defined(OS_ANDROID)
-  virtual gl::ScopedJavaSurface AcquireJavaSurface(
+  using JavaSurfaceVariant =
+      absl::variant<gl::ScopedJavaSurface, gl::ScopedJavaSurfaceControl>;
+  virtual JavaSurfaceVariant AcquireJavaSurface(
       int surface_id,
       bool* can_be_used_with_surface_control) = 0;
-#endif
 };
 
 }  // namespace gpu

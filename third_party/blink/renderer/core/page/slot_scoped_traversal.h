@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,18 +13,14 @@ namespace blink {
 class Element;
 class HTMLSlotElement;
 
+// TODO(http://crbug.com/1439837): Rename this class as it no longer provides
+// traversal functionality.
 class CORE_EXPORT SlotScopedTraversal {
   STATIC_ONLY(SlotScopedTraversal);
 
  public:
   static HTMLSlotElement* FindScopeOwnerSlot(const Element&);
   static Element* NearestInclusiveAncestorAssignedToSlot(const Element&);
-  static Element* Next(const Element&);
-  static Element* Previous(const Element&);
-  static Element* FirstAssignedToSlot(HTMLSlotElement&);
-  static Element* LastAssignedToSlot(HTMLSlotElement&);
-
-  static bool IsSlotScoped(const Element&);
 };
 
 }  // namespace blink

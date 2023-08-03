@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,14 +7,16 @@
 
 #include <memory>
 
+#include "base/time/time.h"
+#include "cc/input/browser_controls_state.h"
 #include "cc/input/input_handler.h"
 #include "cc/input/snap_fling_controller.h"
 #include "cc/paint/element_id.h"
 #include "third_party/blink/public/common/input/web_coalesced_input_event.h"
 #include "third_party/blink/public/common/input/web_gesture_event.h"
+#include "third_party/blink/public/mojom/input/input_handler.mojom-blink.h"
 #include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
-#include "third_party/blink/renderer/platform/widget/input/synchronous_input_handler_proxy.h"
 
 namespace base {
 class TickClock;
@@ -50,10 +52,22 @@ class CompositorThreadEventQueue;
 class EventWithCallback;
 class InputHandlerProxyClient;
 class ScrollPredictor;
-class SynchronousInputHandler;
-class SynchronousInputHandlerProxy;
 class MomentumScrollJankTracker;
 class CursorControlHandler;
+
+class SynchronousInputHandler {
+ public:
+  virtual ~SynchronousInputHandler() {}
+
+  // Informs the Android WebView embedder of the current root scroll and page
+  // scale state.
+  virtual void UpdateRootLayerState(const gfx::PointF& total_scroll_offset,
+                                    const gfx::PointF& max_scroll_offset,
+                                    const gfx::SizeF& scrollable_size,
+                                    float page_scale_factor,
+                                    float min_page_scale_factor,
+                                    float max_page_scale_factor) = 0;
+};
 
 // This class is a proxy between the blink web input events for a WebWidget and
 // the compositor's input handling logic. InputHandlerProxy instances live
@@ -61,8 +75,12 @@ class CursorControlHandler;
 // the main thread in web tests where only a single thread is used.
 // Each InputHandler instance handles input events intended for a specific
 // WebWidget.
+//
+// Android WebView requires synchronous scrolling from the WebView application.
+// This class provides support for that behaviour. The WebView embedder will
+// act as the InputHandler for controlling the timing of input (fling)
+// animations.
 class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
-                                          public SynchronousInputHandlerProxy,
                                           public cc::SnapFlingClient {
  public:
   InputHandlerProxy(cc::InputHandler& input_handler,
@@ -134,7 +152,8 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
       std::unique_ptr<blink::WebCoalescedInputEvent> event,
       std::unique_ptr<DidOverscrollParams>,
       const blink::WebInputEventAttribution&,
-      std::unique_ptr<cc::EventMetrics> metrics)>;
+      std::unique_ptr<cc::EventMetrics> metrics,
+      mojom::blink::ScrollResultDataPtr)>;
   void HandleInputEventWithLatencyInfo(
       std::unique_ptr<blink::WebCoalescedInputEvent> event,
       std::unique_ptr<cc::EventMetrics> metrics,
@@ -149,7 +168,7 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
       std::unique_ptr<blink::WebCoalescedInputEvent> event,
       std::unique_ptr<cc::EventMetrics> metrics,
       EventDispositionCallback callback,
-      cc::ElementIdType hit_tests_result);
+      cc::ElementId hit_tests_result);
 
   // Handles creating synthetic gesture events. It is currently used for
   // creating gesture event equivalents for mouse events on a composited
@@ -168,6 +187,29 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
   blink::WebInputEventAttribution PerformEventAttribution(
       const blink::WebInputEvent& event);
 
+  // SynchronousInputHandler needs to be informed of root layer updates.
+  void SetSynchronousInputHandler(
+      SynchronousInputHandler* synchronous_input_handler);
+
+  // Called when the synchronous input handler wants to change the root scroll
+  // offset. Since it has the final say, this overrides values from compositor-
+  // controlled behaviour. After the offset is applied, the
+  // SynchronousInputHandler should be given back the result in case it differs
+  // from what was sent.
+  void SynchronouslySetRootScrollOffset(
+      const gfx::PointF& root_offset);
+
+  // Similar to SetRootScrollOffset above, to control the zoom level, ie scale
+  // factor. Note |magnify_delta| is an incremental rather than absolute value.
+  // SynchronousInputHandler should be given back the resulting absolute value.
+  void SynchronouslyZoomBy(float magnify_delta,
+                           const gfx::Point& anchor);
+
+  // Defers posting BeginMainFrame tasks. This is used during the main thread
+  // hit test for a GestureScrollBegin, to avoid posting a frame before the
+  // compositor thread has had a chance to update the scroll offset.
+  void SetDeferBeginMainFrame(bool defer_begin_main_frame) const;
+
   // cc::InputHandlerClient implementation.
   void WillShutdown() override;
   void Animate(base::TimeTicks time) override;
@@ -183,14 +225,6 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
   void DeliverInputForBeginFrame(const viz::BeginFrameArgs& args) override;
   void DeliverInputForHighLatencyMode() override;
 
-  // SynchronousInputHandlerProxy implementation.
-  void SetSynchronousInputHandler(
-      SynchronousInputHandler* synchronous_input_handler) override;
-  void SynchronouslySetRootScrollOffset(
-      const gfx::PointF& root_offset) override;
-  void SynchronouslyZoomBy(float magnify_delta,
-                           const gfx::Point& anchor) override;
-
   // SnapFlingClient implementation.
   bool GetSnapFlingInfoAndSetAnimatingSnapTarget(
       const gfx::Vector2dF& natural_displacement,
@@ -199,6 +233,10 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
   gfx::PointF ScrollByForSnapFling(const gfx::Vector2dF& delta) override;
   void ScrollEndForSnapFling(bool did_finish) override;
   void RequestAnimationForSnapFling() override;
+
+  void UpdateBrowserControlsState(cc::BrowserControlsState constraints,
+                                  cc::BrowserControlsState current,
+                                  bool animate);
 
   bool gesture_scroll_on_impl_thread_for_testing() const {
     return handling_gesture_on_impl_thread_;
@@ -218,7 +256,7 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
 
   void DispatchSingleInputEvent(std::unique_ptr<EventWithCallback>,
                                 const base::TimeTicks);
-  void DispatchQueuedInputEvents();
+  void DispatchQueuedInputEvents(bool frame_aligned);
   void UpdateElasticOverscroll();
 
   // Helper functions for handling more complicated input events.
@@ -228,7 +266,8 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
   EventDisposition HandleGestureScrollUpdate(
       const blink::WebGestureEvent& event,
       const blink::WebInputEventAttribution& original_attribution,
-      const cc::EventMetrics* original_metrics);
+      cc::EventMetrics* metrics,
+      int64_t trace_id);
   EventDisposition HandleGestureScrollEnd(const blink::WebGestureEvent& event);
   EventDisposition HandleTouchStart(EventWithCallback* event_with_callback);
   EventDisposition HandleTouchMove(EventWithCallback* event_with_callback);
@@ -281,10 +320,12 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
     event_attribution_enabled_ = enabled;
   }
 
-  void RecordMainThreadScrollingReasons(blink::WebGestureDevice device,
-                                        uint32_t reasons_from_scroll_begin,
-                                        bool was_main_thread_hit_tested,
-                                        bool needs_main_thread_repaint);
+  void RecordScrollBegin(blink::WebGestureDevice device,
+                         uint32_t reasons_from_scroll_begin,
+                         uint32_t main_thread_hit_tested_reasons,
+                         uint32_t main_thread_repaint_reasons);
+
+  bool HasQueuedEventsReadyForDispatch(bool frame_aligned);
 
   InputHandlerProxyClient* client_;
 
@@ -302,6 +343,8 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
   bool gesture_pinch_in_progress_ = false;
   bool in_inertial_scrolling_ = false;
   bool scroll_sequence_ignored_;
+  absl::optional<EventDisposition>
+      main_thread_touch_sequence_start_disposition_;
 
   // Used to animate rubber-band/bounce over-scroll effect.
   std::unique_ptr<ElasticOverscrollController> elastic_overscroll_controller_;
@@ -321,6 +364,11 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
   // dispatched.  If the event causes overscroll, the overscroll metadata is
   // bundled in the event ack, saving an IPC.
   std::unique_ptr<DidOverscrollParams> current_overscroll_params_;
+
+  // Used to cache the scroll result data - e.g. root scroll offset - when a
+  // scroll gesture is handled. This data is then passed back using
+  // |EventDispositionCallback|.
+  mojom::blink::ScrollResultDataPtr current_scroll_result_data_;
 
   std::unique_ptr<CompositorThreadEventQueue> compositor_event_queue_;
 
@@ -353,13 +401,14 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
   bool skip_touch_filter_discrete_ = false;
   bool skip_touch_filter_all_ = false;
 
-  // This bit is set when the input handler proxy has requested that the client
+  // This is set when the input handler proxy has requested that the client
   // perform a hit test for a scroll begin on the main thread. During that
   // time, scroll updates need to be queued. The reply from the main thread
   // will come by calling ContinueScrollBeginAfterMainThreadHitTest where the
   // queue will be flushed and this bit cleared. Used only in scroll
   // unification.
-  bool hit_testing_scroll_begin_on_main_thread_ = false;
+  uint32_t scroll_begin_main_thread_hit_test_reasons_ =
+      cc::MainThreadScrollingReason::kNotScrollingOnMain;
 
   // This bit can be used to disable event attribution in cases where the
   // hit test information is unnecessary (e.g. tests).

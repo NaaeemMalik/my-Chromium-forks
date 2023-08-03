@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,11 @@
 #include <vector>
 
 #include "base/containers/contains.h"
+#include "base/containers/fixed_flat_set.h"
 #include "base/logging.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
+#include "build/build_config.h"
 #include "printing/backend/cups_connection.h"
 #include "printing/backend/cups_ipp_constants.h"
 #include "printing/backend/cups_printer.h"
@@ -24,20 +26,20 @@
 #include "printing/units.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if defined(OS_CHROMEOS)
-#include "base/callback.h"
+#if BUILDFLAG(IS_CHROMEOS)
+#include "base/functional/callback.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "printing/backend/ipp_handler_map.h"
 #include "printing/backend/ipp_handlers.h"
 #include "printing/printing_features.h"
-#endif  // defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace printing {
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
 constexpr int kPinMinimumLength = 4;
-#endif  // defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace {
 
@@ -206,9 +208,20 @@ absl::optional<gfx::Size> GetResolution(ipp_attribute_t* attr, int i) {
 // `printer_info.default_dpi` with default resolution provided by `printer`.
 void ExtractResolutions(const CupsOptionProvider& printer,
                         PrinterSemanticCapsAndDefaults* printer_info) {
+  // Provide a default DPI if no valid DPI is found.
+#if BUILDFLAG(IS_MAC)
+  constexpr gfx::Size kDefaultMissingDpi(kDefaultMacDpi, kDefaultMacDpi);
+#elif BUILDFLAG(IS_LINUX)
+  constexpr gfx::Size kDefaultMissingDpi(kPixelsPerInch, kPixelsPerInch);
+#else
+  constexpr gfx::Size kDefaultMissingDpi(kDefaultPdfDpi, kDefaultPdfDpi);
+#endif
+
   ipp_attribute_t* attr = printer.GetSupportedOptionValues(kIppResolution);
-  if (!attr)
+  if (!attr) {
+    printer_info->dpis.push_back(kDefaultMissingDpi);
     return;
+  }
 
   int num_options = ippGetCount(attr);
   for (int i = 0; i < num_options; i++) {
@@ -218,18 +231,28 @@ void ExtractResolutions(const CupsOptionProvider& printer,
   }
   ipp_attribute_t* def_attr = printer.GetDefaultOptionValue(kIppResolution);
   absl::optional<gfx::Size> size = GetResolution(def_attr, 0);
-  if (size)
+  if (size) {
     printer_info->default_dpi = size.value();
+  } else if (!printer_info->dpis.empty()) {
+    printer_info->default_dpi = printer_info->dpis[0];
+  } else {
+    printer_info->default_dpi = kDefaultMissingDpi;
+  }
+
+  if (printer_info->dpis.empty()) {
+    printer_info->dpis.push_back(printer_info->default_dpi);
+  }
 }
 
 PrinterSemanticCapsAndDefaults::Papers SupportedPapers(
-    const CupsOptionProvider& printer) {
+    const CupsPrinter& printer) {
   std::vector<base::StringPiece> papers =
       printer.GetSupportedOptionValueStrings(kIppMedia);
   PrinterSemanticCapsAndDefaults::Papers parsed_papers;
   parsed_papers.reserve(papers.size());
   for (base::StringPiece paper : papers) {
-    PrinterSemanticCapsAndDefaults::Paper parsed = ParsePaper(paper);
+    PrinterSemanticCapsAndDefaults::Paper parsed =
+        ParsePaper(paper, printer.GetMediaMarginsByName(std::string(paper)));
     // If a paper fails to parse reasonably, we should avoid propagating
     // it - e.g. CUPS is known to give out empty vendor IDs at times:
     // https://crbug.com/920295#c23
@@ -257,7 +280,7 @@ bool CollateDefault(const CupsOptionProvider& printer) {
   return name && !base::StringPiece(name).compare(kCollated);
 }
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
 bool PinSupported(const CupsOptionProvider& printer) {
   ipp_attribute_t* attr = printer.GetSupportedOptionValues(kIppPin);
   if (!attr)
@@ -282,10 +305,18 @@ size_t AddAttributes(const CupsOptionProvider& printer,
 
   int num_options = ippGetCount(attr);
   static const base::NoDestructor<HandlerMap> handlers(GenerateHandlers());
+  // The names of attributes that we know are not supported (b/266573545).
+  static constexpr auto kOptionsToIgnore =
+      base::MakeFixedFlatSet<base::StringPiece>(
+          {"finishings-col", "ipp-attribute-fidelity", "job-name",
+           "number-up-layout"});
   std::vector<std::string> unknown_options;
   size_t attr_count = 0;
   for (int i = 0; i < num_options; i++) {
     const char* option_name = ippGetString(attr, i, nullptr);
+    if (base::Contains(kOptionsToIgnore, option_name)) {
+      continue;
+    }
     auto it = handlers->find(option_name);
     if (it == handlers->end()) {
       unknown_options.emplace_back(option_name);
@@ -325,20 +356,23 @@ void ExtractAdvancedCapabilities(const CupsOptionProvider& printer,
   attr_count += AddAttributes(printer, kIppDocumentAttributes, options);
   base::UmaHistogramCounts1000("Printing.CUPS.IppAttributesCount", attr_count);
 }
-#endif  // defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace
 
-PrinterSemanticCapsAndDefaults::Paper DefaultPaper(
-    const CupsOptionProvider& printer) {
+PrinterSemanticCapsAndDefaults::Paper DefaultPaper(const CupsPrinter& printer) {
   ipp_attribute_t* attr = printer.GetDefaultOptionValue(kIppMedia);
   if (!attr)
     return PrinterSemanticCapsAndDefaults::Paper();
+  const char* const media_name = ippGetString(attr, 0, nullptr);
+  if (!media_name) {
+    return PrinterSemanticCapsAndDefaults::Paper();
+  }
 
-  return ParsePaper(ippGetString(attr, 0, nullptr));
+  return ParsePaper(media_name, printer.GetMediaMarginsByName(media_name));
 }
 
-void CapsAndDefaultsFromPrinter(const CupsOptionProvider& printer,
+void CapsAndDefaultsFromPrinter(const CupsPrinter& printer,
                                 PrinterSemanticCapsAndDefaults* printer_info) {
   // collate
   printer_info->collate_default = CollateDefault(printer);
@@ -348,10 +382,10 @@ void CapsAndDefaultsFromPrinter(const CupsOptionProvider& printer,
   printer_info->default_paper = DefaultPaper(printer);
   printer_info->papers = SupportedPapers(printer);
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
   printer_info->pin_supported = PinSupported(printer);
   ExtractAdvancedCapabilities(printer, printer_info);
-#endif  // defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   ExtractCopies(printer, printer_info);
   ExtractColor(printer, printer_info);

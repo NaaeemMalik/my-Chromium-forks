@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,8 +49,7 @@ class AutofillWalletModelTypeController : public syncer::ModelTypeController,
   ~AutofillWalletModelTypeController() override;
 
   // DataTypeController overrides.
-  void Stop(syncer::ShutdownReason shutdown_reason,
-            StopCallback callback) override;
+  void Stop(syncer::SyncStopMetadataFate fate, StopCallback callback) override;
   PreconditionState GetPreconditionState() const override;
   bool ShouldRunInTransportOnlyMode() const override;
 

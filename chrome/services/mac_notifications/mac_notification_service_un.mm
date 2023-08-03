@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,13 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/bind_post_task.h"
-#include "base/threading/sequenced_task_runner_handle.h"
+#import "base/task/sequenced_task_runner.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/common/notifications/notification_constants.h"
 #include "chrome/common/notifications/notification_operation.h"
 #import "chrome/services/mac_notifications/mac_notification_service_utils.h"
@@ -188,7 +189,6 @@ void MacNotificationServiceUN::DisplayNotification(
   }
 
   auto completion_handler = ^(NSError* _Nullable error) {
-    LogMacNotificationDelivered(IsAppBundleAlertStyle(), !error);
   };
 
   // If the renotify is not set try to replace the notification silently.
@@ -231,7 +231,7 @@ void MacNotificationServiceUN::GetDisplayedNotifications(
 
   // We need to call |callback| on the same sequence as this method is called.
   scoped_refptr<base::SequencedTaskRunner> task_runner =
-      base::SequencedTaskRunnerHandle::Get();
+      base::SequencedTaskRunner::GetCurrentDefault();
 
   [notification_center_ getDeliveredNotificationsWithCompletionHandler:^(
                             NSArray<UNNotification*>* _Nonnull toasts) {
@@ -275,8 +275,7 @@ void MacNotificationServiceUN::CloseNotificationsForProfile(
   NSString* profile_id = base::SysUTF8ToNSString(profile->id);
   bool incognito = profile->incognito;
 
-  __block auto closed_callback = base::BindPostTask(
-      base::SequencedTaskRunnerHandle::Get(),
+  __block auto closed_callback = base::BindPostTaskToCurrentDefault(
       base::BindOnce(&MacNotificationServiceUN::OnNotificationsClosed,
                      weak_factory_.GetWeakPtr()));
 
@@ -337,9 +336,8 @@ void MacNotificationServiceUN::RequestPermission() {
 void MacNotificationServiceUN::InitializeDeliveredNotifications(
     base::OnceClosure callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  __block auto do_initialize = base::BindPostTask(
-      base::SequencedTaskRunnerHandle::Get(),
-      base::BindOnce(
+  __block auto do_initialize =
+      base::BindPostTaskToCurrentDefault(base::BindOnce(
           &MacNotificationServiceUN::DoInitializeDeliveredNotifications,
           weak_factory_.GetWeakPtr(), std::move(callback)));
 
@@ -457,8 +455,7 @@ void MacNotificationServiceUN::OnNotificationsClosed(
   if ((self = [super init])) {
     // We're binding to the current sequence here as we need to reply on the
     // same sequence and the methods below get called by macOS.
-    _handler = base::BindPostTask(base::SequencedTaskRunnerHandle::Get(),
-                                  std::move(handler));
+    _handler = base::BindPostTaskToCurrentDefault(std::move(handler));
   }
   return self;
 }

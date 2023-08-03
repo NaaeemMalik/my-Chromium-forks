@@ -1,5 +1,5 @@
 <!--
-Copyright 2020 The Chromium Authors. All rights reserved.
+Copyright 2020 The Chromium Authors
 Use of this source code is governed by a BSD-style license that can be
 found in the LICENSE file.
 -->
@@ -28,126 +28,144 @@ chromium-metrics-reviews@google.com.
   <variant name="HttpsServer" summary="Download Source: HTTPS Server"/>
 </variants>
 
-<histogram name="Installer.AttemptsCount.Total" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    The number of update attempts until the update has been applied. This is
-    reported every time the device has completed an update.
-  </summary>
-</histogram>
-
 <histogram name="Installer.DevModeErrorCodes" enum="UpdateEngineErrorCode"
     expires_after="M85">
   <owner>zeuthen@chromium.org</owner>
   <summary>Errors from update_engine process when running in dev mode.</summary>
 </histogram>
 
-<histogram name="Installer.DownloadOverheadPercentage" units="%"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Postinstall.BiosType" enum="ChromeOSBiosType"
+    expires_after="2023-10-01">
+  <owner>tbrandston@google.com</owner>
+  <owner>chromeos-flex-eng@google.com</owner>
   <summary>
-    The overhead in downloading extra bytes due to errors/interruptions.
-    Expressed as a percentage of the bytes that are actually needed to be
-    downloaded for the update to be successful.
+    The firmware+bootloader type targeted when installing/updating.
+
+    The main intent is to see distribution of EFI/Legacy on boards where those
+    types are both supported.
+
+    This is reported early in postinstall, only on ChromeOS, and only when
+    USE=postinst_metrics. There's also an increased risk of losing metrics
+    recorded in postinstall, see:
+    https://source.chromium.org/chromiumos/chromiumos/codesearch/+/main:src/platform2/installer/docs/postinst_metrics.md
   </summary>
 </histogram>
 
-<histogram name="Installer.DownloadSourcesUsed"
-    enum="UpdateEngineDownloadSources" expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Postinstall.EfiBootEntryCount" units="entries"
+    expires_after="2023-10-01">
+  <owner>tbrandston@google.com</owner>
+  <owner>chromeos-flex-eng@google.com</owner>
   <summary>
-    The combinations of protocol and source server that were used to complete a
-    successful update.
+    Total number of EFI Boot* entries seen during postinstall, before making any
+    modifications.
+
+    Growth in higher buckets across releases warrants additional investigation:
+    are we accidentally creating excess entries?
+
+    This is reported during postinstall, only on ChromeOS, and only when
+    USE=postinst_metrics. There's also an increased risk of losing metrics
+    recorded in postinstall, see:
+    https://source.chromium.org/chromiumos/chromiumos/codesearch/+/main:src/platform2/installer/docs/postinst_metrics.md
   </summary>
 </histogram>
 
-<histogram name="Installer.FullPayloadAttemptNumber" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Postinstall.EfiBootFailedLoad" units="entries"
+    expires_after="2023-10-01">
+  <owner>tbrandston@google.com</owner>
+  <owner>chromeos-flex-eng@google.com</owner>
   <summary>
-    The number of update attempts with a full update payload until the update
-    has been applied. This is reported on every update attempt.
+    The number of EFI Boot* entries that we couldn't load.
+
+    We have seen bugs result in failure to read entries.
+
+    This is reported during postinstall, only on ChromeOS, and only when
+    USE=postinst_metrics. There's also an increased risk of losing metrics
+    recorded in postinstall, see:
+    https://source.chromium.org/chromiumos/chromiumos/codesearch/+/main:src/platform2/installer/docs/postinst_metrics.md
   </summary>
 </histogram>
 
-<histogram name="Installer.InstallDateProvisioningSource"
-    enum="UpdateEngineInstallDateProvisioningSource" expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Postinstall.EfiManagementEvent"
+    enum="ChromeOSEfiManagementEvent" expires_after="2023-10-01">
+  <owner>tbrandston@google.com</owner>
+  <owner>chromeos-flex-eng@google.com</owner>
   <summary>
-    The source used to provision the install-date-days value sent to Omaha with
-    every request. This is reported when OOBE completes (M34 or later) or when
-    upgrading to a version with install-date-days support.
+    Event of interest from EFI boot entry management. Intended mainly to asses
+    the frequency of various expected-to-be-rare errors or uncommon occurrances.
+
+    This is reported in multiple, potentially-overlapping places, so the total
+    number of events is not necessarily meaningful. Instead look at the count of
+    individual buckets over time.
+
+    This is reported during postinstall, only on ChromeOS, and only when
+    USE=postinst_metrics. There's also an increased risk of losing metrics
+    recorded in postinstall, see:
+    https://source.chromium.org/chromiumos/chromiumos/codesearch/+/main:src/platform2/installer/docs/postinst_metrics.md
   </summary>
 </histogram>
 
-<histogram name="Installer.NormalErrorCodes" enum="UpdateEngineErrorCode"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Postinstall.ManagedEfiBootEntryCount"
+    units="entries" expires_after="2023-10-01">
+  <owner>tbrandston@google.com</owner>
+  <owner>chromeos-flex-eng@google.com</owner>
   <summary>
-    Errors from update_engine process when running in normal mode.
+    Number of EFI Boot* entries seen during postinstall that match our
+    label/description.
+
+    Any values greater than 1 are potentially concerning, as we try to enforce
+    just one.
+
+    This is only reported if all entries load successfully, because otherwise
+    our count may be invalid.
+
+    This is reported during postinstall, only on ChromeOS, and only when
+    USE=postinst_metrics. There's also an increased risk of losing metrics
+    recorded in postinstall, see:
+    https://source.chromium.org/chromiumos/chromiumos/codesearch/+/main:src/platform2/installer/docs/postinst_metrics.md
   </summary>
 </histogram>
 
-<histogram name="Installer.OSAgeDays" units="days" expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Postinstall.NonChromebookBiosSuccess.{BiosType}"
+    enum="BooleanSuccess" expires_after="2023-10-01">
+  <owner>tbrandston@google.com</owner>
+  <owner>chromeos-flex-eng@google.com</owner>
   <summary>
-    The age of the OS, defined as the age of the /etc/lsb-release file. This is
-    reported on every update check but at most once a day.
+    Success or Failure of special handling for BiosType: {BiosType}.
+
+    This doesn't indicate overall success or failure of postinstall on these
+    systems.
+
+    This is reported after making changes to the EFI System Partition, only on
+    ChromeOS, and only when USE=postinst_metrics. There's also an increased risk
+    of losing metrics recorded in postinstall, see:
+    https://source.chromium.org/chromiumos/chromiumos/codesearch/+/main:src/platform2/installer/docs/postinst_metrics.md
   </summary>
+  <token key="BiosType">
+    <variant name="EFI" summary=""/>
+    <variant name="Legacy" summary=""/>
+    <variant name="Secure" summary=""/>
+    <variant name="UBoot" summary=""/>
+    <variant name="Unknown" summary=""/>
+  </token>
 </histogram>
 
-<histogram name="Installer.PayloadAttemptNumber" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Postinstall.RevenPartitionMigration"
+    enum="ChromeOSRevenPartitionMigration" expires_after="2023-08-28">
+  <owner>nicholasbishop@google.com</owner>
+  <owner>chromeos-flex-eng@google.com</owner>
   <summary>
-    The number of update attempts until the update has been applied. This is
-    reported on every update attempt.
-  </summary>
-</histogram>
+    Result of running the Reven (ChromeOS Flex) partition migration.
 
-<histogram name="Installer.PayloadFormat" enum="UpdateEnginePayloadFormat"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    The type of update payload used to update the device. The difference between
-    &quot;Full&quot; and &quot;Forced Full&quot; is that in the latter, the
-    request sent to Omaha included a directive saying that a delta payload
-    wasn't accepted. A &quot;Full&quot; payload is one where a delta payload was
-    accepted but Omaha provided a full payload. This is reported every time the
-    device has completed an update.
+    This is reported at the end of the partition migration, which is run during
+    postinstall. The migration is only run with USE=reven_partition_migration.
+
+    Note that some metrics may be lost during postinstall, see:
+    https://source.chromium.org/chromiumos/chromiumos/codesearch/+/main:src/platform2/installer/docs/postinst_metrics.md
   </summary>
 </histogram>
 
 <histogram name="Installer.PowerwashCount" units="powerwashes"
-    expires_after="2022-04-10">
+    expires_after="2023-10-15">
   <owner>kimjae@chromium.org</owner>
   <owner>chromeos-core-services@chromium.org</owner>
   <summary>
@@ -158,7 +176,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Installer.PowerwashDays" units="powerwashdays"
-    expires_after="2022-05-29">
+    expires_after="2023-10-22">
   <owner>qianwan@google.com</owner>
   <owner>chromeos-data@google.com</owner>
   <summary>
@@ -174,22 +192,21 @@ chromium-metrics-reviews@google.com.
   </summary>
 </histogram>
 
-<histogram name="Installer.RebootToNewPartitionAttempt" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
+<histogram name="Installer.Recovery.NbrDurationMinutes" units="minutes"
+    expires_after="2024-01-01">
+  <owner>yuanpengni@chromium.org</owner>
+  <owner>chromeos-core-services@google.com</owner>
   <summary>
-    The number of consecutive times a device has failed to boot an update that
-    successfully applied. This metric is reported every time the firmware fails
-    to boot the slot with the update and fell back to the slot it originally
-    updated from.
+    The duration in minutes for the network based recovery to complete.
+
+    This is reported on reboot after a successful recovery.
+
+    This metric is specific to Chrome OS.
   </summary>
 </histogram>
 
 <histogram name="Installer.Recovery.Reason" enum="ChromeOSRecoveryReason"
-    expires_after="2022-04-10">
+    expires_after="2023-10-15">
   <owner>kimjae@chromium.org</owner>
   <owner>chromeos-core-services@google.com</owner>
   <summary>
@@ -198,140 +215,6 @@ chromium-metrics-reviews@google.com.
     This is reported on reboot after a successful recovery.
 
     This metric is specific to Chrome OS.
-  </summary>
-</histogram>
-
-<histogram
-    name="Installer.SuccessfulMBsDownloadedFrom{InstallerDownloadSources}"
-    units="MB" expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    Number of MBs downloaded from during an update that completed successfully.
-    {InstallerDownloadSources}
-  </summary>
-  <token key="InstallerDownloadSources" variants="InstallerDownloadSources">
-    <variant name=""/>
-  </token>
-</histogram>
-
-<histogram name="Installer.TimeToRebootMinutes" units="Minutes"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    Wall-clock duration between when an update has successfully completed (and
-    the user is presented with the &quot;reboot arrow&quot;) and when the system
-    has booted into the new update. This is reported every time the device is
-    rebooted after an update has been applied.
-  </summary>
-</histogram>
-
-<histogram name="Installer.TotalMBsDownloadedFrom{InstallerDownloadSources}"
-    units="MB" expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    Total number of MBs downloaded since the last successful update. This also
-    includes all the bytes downloaded during any prior failed attempts.
-    {InstallerDownloadSources}
-  </summary>
-  <token key="InstallerDownloadSources" variants="InstallerDownloadSources">
-    <variant name=""/>
-  </token>
-</histogram>
-
-<histogram name="Installer.UpdateDurationMinutes" units="Minutes"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    Absolute wall-clock time duration it took for the update to complete from
-    the time an update first began. It includes not just the time the device was
-    up, but also includes the time the device spent sleeping.
-  </summary>
-</histogram>
-
-<histogram name="Installer.UpdateDurationUptimeMinutes" units="Minutes"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    Uptime duration it took for the update to complete from the time an update
-    first began. It does not include the time the device spent sleeping, but it
-    does include the uptime spent in waiting for the hourly update checks to
-    happen.
-  </summary>
-</histogram>
-
-<histogram name="Installer.UpdateNumReboots" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    Number of times the device was rebooted by the user since an update began
-    and until it completed successfully.
-  </summary>
-</histogram>
-
-<histogram name="Installer.UpdatesAbandonedCount" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    The number of update attempts that didn't complete because a newer update
-    was detected during the update operation. This is reported every time the
-    device has completed an update.
-  </summary>
-</histogram>
-
-<histogram name="Installer.UpdatesAbandonedEventCount" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    The number of consecutive different abandoned update payloads since the last
-    successful update. This is reported every time an update payload is
-    abandoned because a newer update payload is available.
-  </summary>
-</histogram>
-
-<histogram name="Installer.UpdateTime" units="seconds"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    The time in seconds it took to update a Chrome OS system -- from completing
-    an update check to reboot pending.
-  </summary>
-</histogram>
-
-<histogram name="Installer.UpdateURLSwitches" units="count"
-    expires_after="2019-01-30">
-  <obsolete>
-    Removed long time ago. Replaced by UpdateEngine metrics.
-  </obsolete>
-  <owner>zeuthen@chromium.org</owner>
-  <summary>
-    Number of times the download URLs were switched due to failures.
   </summary>
 </histogram>
 

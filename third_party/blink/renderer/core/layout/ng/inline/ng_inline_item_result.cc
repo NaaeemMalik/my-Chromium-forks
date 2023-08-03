@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,9 @@
 
 namespace blink {
 
-NGInlineItemResult::NGInlineItemResult() : item(nullptr), item_index(0) {}
-
 NGInlineItemResult::NGInlineItemResult(const NGInlineItem* item,
                                        unsigned index,
-                                       const NGTextOffset& text_offset,
+                                       const NGTextOffsetRange& text_offset,
                                        bool break_anywhere_if_overflow,
                                        bool should_create_line_box,
                                        bool has_unpositioned_floats)
@@ -51,5 +49,11 @@ void NGInlineItemResult::CheckConsistency(bool allow_null_shape_result) const {
   }
 }
 #endif
+
+void NGInlineItemResult::Trace(Visitor* visitor) const {
+  visitor->Trace(layout_result);
+  if (positioned_float)
+    visitor->Trace(positioned_float.value());
+}
 
 }  // namespace blink

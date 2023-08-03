@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ namespace {
 class MyXRMock : public MockXRDeviceHookBase {
  public:
   void OnFrameSubmitted(
-      device_test::mojom::SubmittedFrameDataPtr frame_data,
+      std::vector<device_test::mojom::ViewDataPtr> views,
       device_test::mojom::XRTestHook::OnFrameSubmittedCallback callback) final;
 
   // The test waits for a submitted frame before returning.
@@ -46,7 +46,7 @@ class MyXRMock : public MockXRDeviceHookBase {
 };
 
 void MyXRMock::OnFrameSubmitted(
-    device_test::mojom::SubmittedFrameDataPtr frame_data,
+    std::vector<device_test::mojom::ViewDataPtr> views,
     device_test::mojom::XRTestHook::OnFrameSubmittedCallback callback) {
   num_frames_submitted_++;
   if (num_frames_submitted_ >= wait_frame_count_ && wait_frame_count_ > 0 &&

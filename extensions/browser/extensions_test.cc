@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,8 @@
 #include "extensions/browser/extension_pref_value_map.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_prefs_factory.h"
+#include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/test_extensions_browser_client.h"
-#include "extensions/test/test_content_utility_client.h"
 
 namespace {
 
@@ -41,7 +41,6 @@ ExtensionsTest::ExtensionsTest(
 ExtensionsTest::~ExtensionsTest() {
   // Destroy the task runners before nulling the browser/utility clients, as
   // posted tasks may use them.
-  rvh_test_enabler_.reset();
   task_environment_.reset();
   content::SetUtilityClientForTesting(nullptr);
 }
@@ -55,7 +54,6 @@ void ExtensionsTest::SetExtensionsBrowserClient(
 
 void ExtensionsTest::SetUp() {
   content::ForceInProcessNetworkService(true);
-  content_utility_client_ = std::make_unique<TestContentUtilityClient>();
   browser_context_ = std::make_unique<content::TestBrowserContext>();
   incognito_context_ = CreateTestIncognitoContext();
 
@@ -65,7 +63,6 @@ void ExtensionsTest::SetUp() {
   }
   extensions_browser_client_->SetMainContext(browser_context_.get());
 
-  content::SetUtilityClientForTesting(content_utility_client_.get());
   ExtensionsBrowserClient::Set(extensions_browser_client_.get());
   extensions_browser_client_->set_extension_system_factory(
       &extension_system_factory_);
@@ -80,7 +77,9 @@ void ExtensionsTest::SetUp() {
       new user_prefs::PrefRegistrySyncable();
   // Prefs should be registered before the PrefService is created.
   ExtensionPrefs::RegisterProfilePrefs(pref_registry);
+  PermissionsManager::RegisterProfilePrefs(pref_registry);
   pref_service_ = factory.Create(pref_registry);
+  extensions_browser_client_->set_pref_service(pref_service_.get());
 
   std::unique_ptr<ExtensionPrefs> extension_prefs(ExtensionPrefs::Create(
       browser_context(), pref_service_.get(),
@@ -110,6 +109,7 @@ void ExtensionsTest::TearDown() {
   extensions_browser_client_.reset();
   ExtensionsBrowserClient::Set(nullptr);
 
+  rvh_test_enabler_.reset();
   incognito_context_.reset();
   browser_context_.reset();
   pref_service_.reset();

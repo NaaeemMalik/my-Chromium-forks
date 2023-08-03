@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 #define COMPONENTS_METRICS_METRICS_SERVICE_CLIENT_H_
 
 #include <stdint.h>
-
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/callback_list.h"
+#include "base/functional/callback.h"
 #include "base/time/time.h"
 #include "components/metrics/metrics_log_store.h"
 #include "components/metrics/metrics_log_uploader.h"
@@ -18,16 +18,16 @@
 #include "third_party/metrics_proto/system_profile.pb.h"
 #include "url/gurl.h"
 
-namespace base {
-class FilePath;
-}
-
 namespace ukm {
 class UkmService;
 }
 
 namespace network_time {
 class NetworkTimeTracker;
+}
+
+namespace variations {
+class SyntheticTrialRegistry;
 }
 
 namespace metrics {
@@ -45,6 +45,10 @@ class MetricsServiceClient {
   MetricsServiceClient& operator=(const MetricsServiceClient&) = delete;
 
   virtual ~MetricsServiceClient();
+
+  // Returns the synthetic trial registry shared by MetricsService and
+  // UkmService.
+  virtual variations::SyntheticTrialRegistry* GetSyntheticTrialRegistry() = 0;
 
   // Returns the MetricsService instance that this client is associated with.
   // With the exception of testing contexts, the returned instance must be valid
@@ -130,14 +134,6 @@ class MetricsServiceClient {
   // Called when loading state changed, e.g. start/stop loading.
   virtual void LoadingStateChanged(bool is_loading) {}
 
-  // Called on plugin loading errors.
-  virtual void OnPluginLoadingError(const base::FilePath& plugin_path) {}
-
-  // Called on renderer crashes in some embedders (e.g., those that do not use
-  // //content and thus do not have //content's notification system available
-  // as a mechanism for observing renderer crashes).
-  virtual void OnRendererProcessCrash() {}
-
   // Returns whether metrics reporting is managed by policy.
   virtual bool IsReportingPolicyManaged();
 
@@ -145,8 +141,8 @@ class MetricsServiceClient {
   // shown during first-run.
   virtual EnableMetricsDefault GetMetricsReportingDefaultState();
 
-  // Returns whether cellular logic is enabled for metrics reporting.
-  virtual bool IsUMACellularUploadLogicEnabled();
+  // Return true iff the system is currently on a cellular connection.
+  virtual bool IsOnCellularConnection();
 
   // Returns whether the allowlist for external experiment ids is enabled. Some
   // embedders like WebLayer disable it. For Chrome, it should be enabled.
@@ -155,10 +151,6 @@ class MetricsServiceClient {
   // Returns true iff UKM is allowed for all profiles.
   // See //components/ukm/observers/ukm_consent_state_observer.h for details.
   virtual bool IsUkmAllowedForAllProfiles();
-
-  // Returns true iff UKM is allowed to capture extensions for all profiles.
-  // See //components/ukm/observers/ukm_consent_state_observer.h for details.
-  virtual bool IsUkmAllowedWithExtensionsForAllProfiles();
 
   // Returns whether UKM notification listeners were attached to all profiles.
   virtual bool AreNotificationListenersEnabledOnAllProfiles();
@@ -176,6 +168,9 @@ class MetricsServiceClient {
 
   // Checks if the cloned install detector says that client ids should be reset.
   virtual bool ShouldResetClientIdsOnClonedInstall();
+
+  virtual base::CallbackListSubscription AddOnClonedInstallDetectedCallback(
+      base::OnceClosure callback);
 
   // Specifies local log storage requirements and restrictions.
   virtual MetricsLogStore::StorageLimits GetStorageLimits() const;
@@ -203,6 +198,27 @@ class MetricsServiceClient {
   // Since the concept of a user is only applicable on Ash Chrome, this function
   // should no-op for other platforms.
   virtual void UpdateCurrentUserMetricsConsent(bool user_metrics_consent) {}
+
+  // Returns the current user metrics consent if it should be applied to decide
+  // the current metrics reporting state. This allows embedders to determine
+  // when a user metric consent state should not be applied (ie no logged in
+  // user or managed policy).
+  //
+  // Will return absl::nullopt if there is no current user or current user
+  // metrics consent should not be applied to determine metrics reporting state.
+  //
+  // Not all platforms support per-user consent. If per-user consent is not
+  // supported, this function should return absl::nullopt.
+  virtual absl::optional<bool> GetCurrentUserMetricsConsent() const;
+
+  // Returns the current user id.
+  //
+  // Will return absl::nullopt if there is no current user, metrics reporting is
+  // disabled, or current user should not have a user id.
+  //
+  // Not all platforms support per-user consent. If per-user consent is not
+  // supported, this function should return absl::nullopt.
+  virtual absl::optional<std::string> GetCurrentUserId() const;
 
  private:
   base::RepeatingClosure update_running_services_;

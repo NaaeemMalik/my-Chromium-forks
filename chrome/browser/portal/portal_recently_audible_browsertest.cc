@@ -1,12 +1,13 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <tuple>
+
 #include "base/containers/contains.h"
-#include "base/ignore_result.h"
 #include "base/run_loop.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_timeouts.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/elapsed_timer.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -65,7 +66,7 @@ class PortalRecentlyAudibleBrowserTest : public InProcessBrowserTest {
       if (ActiveTabHasAlertState(alert_state) == expected_present)
         return ::testing::AssertionSuccess();
       base::RunLoop run_loop;
-      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
           FROM_HERE, run_loop.QuitClosure(), TestTimeouts::tiny_timeout());
       run_loop.Run();
     } while (timer.Elapsed() < TestTimeouts::action_timeout());
@@ -190,8 +191,15 @@ IN_PROC_BROWSER_TEST_F(PortalRecentlyAudibleBrowserTest,
   EXPECT_TRUE(ActiveTabChangesTo(TabAlertState::AUDIO_PLAYING, false));
 }
 
+// TODO(crbug.com/1155813): Test is flaky on Windows.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_ActivateWithTonePlayingInPortal \
+  DISABLED_ActivateWithTonePlayingInPortal
+#else
+#define MAYBE_ActivateWithTonePlayingInPortal ActivateWithTonePlayingInPortal
+#endif
 IN_PROC_BROWSER_TEST_F(PortalRecentlyAudibleBrowserTest,
-                       ActivateWithTonePlayingInPortal) {
+                       MAYBE_ActivateWithTonePlayingInPortal) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL("/title1.html"));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
@@ -238,7 +246,7 @@ IN_PROC_BROWSER_TEST_F(PortalRecentlyAudibleBrowserTest,
   // Ideally this would never briefly flicker to false, but it can because the
   // hystersis here applies at the WebContents level, not the tab level, and
   // portals swaps WebContents. So if it does change to false, ignore that...
-  ignore_result(ActiveTabChangesTo(TabAlertState::AUDIO_PLAYING, false));
+  std::ignore = ActiveTabChangesTo(TabAlertState::AUDIO_PLAYING, false);
 
   // ...for it will shortly become true again.
   EXPECT_TRUE(ActiveTabChangesTo(TabAlertState::AUDIO_PLAYING, true));

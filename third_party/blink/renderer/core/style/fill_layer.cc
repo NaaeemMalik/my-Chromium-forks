@@ -21,9 +21,10 @@
 
 #include "third_party/blink/renderer/core/style/fill_layer.h"
 
+#include "base/memory/values_equivalent.h"
 #include "third_party/blink/renderer/core/css/css_value.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
-#include "third_party/blink/renderer/core/style/data_equivalency.h"
+#include "third_party/blink/renderer/core/style/style_generated_image.h"
 #include "third_party/blink/renderer/platform/wtf/size_assertions.h"
 
 namespace blink {
@@ -170,8 +171,8 @@ FillLayer& FillLayer::operator=(const FillLayer& o) {
 }
 
 bool FillLayer::LayerPropertiesEqual(const FillLayer& o) const {
-  return DataEquivalent(image_, o.image_) && position_x_ == o.position_x_ &&
-         position_y_ == o.position_y_ &&
+  return base::ValuesEquivalent(image_, o.image_) &&
+         position_x_ == o.position_x_ && position_y_ == o.position_y_ &&
          background_x_origin_ == o.background_x_origin_ &&
          background_y_origin_ == o.background_y_origin_ &&
          attachment_ == o.attachment_ && clip_ == o.clip_ &&
@@ -188,13 +189,15 @@ bool FillLayer::operator==(const FillLayer& o) const {
 
 bool FillLayer::VisuallyEqual(const FillLayer& o) const {
   if (image_ || o.image_) {
-    if (!LayerPropertiesEqual(o))
+    if (!LayerPropertiesEqual(o)) {
       return false;
+    }
   } else if (clip_ != o.clip_) {
     return false;
   }
-  if (next_ && o.next_)
+  if (next_ && o.next_) {
     return next_->VisuallyEqual(*o.next_);
+  }
   return next_ == o.next_;
 }
 
@@ -206,13 +209,16 @@ void FillLayer::FillUnsetProperties() {
     // We need to fill in the remaining values with the pattern specified.
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->position_x_ = pattern->position_x_;
-      if (pattern->IsBackgroundXOriginSet())
+      if (pattern->IsBackgroundXOriginSet()) {
         curr->background_x_origin_ = pattern->background_x_origin_;
-      if (pattern->IsBackgroundYOriginSet())
+      }
+      if (pattern->IsBackgroundYOriginSet()) {
         curr->background_y_origin_ = pattern->background_y_origin_;
+      }
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -222,13 +228,16 @@ void FillLayer::FillUnsetProperties() {
     // We need to fill in the remaining values with the pattern specified.
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->position_y_ = pattern->position_y_;
-      if (pattern->IsBackgroundXOriginSet())
+      if (pattern->IsBackgroundXOriginSet()) {
         curr->background_x_origin_ = pattern->background_x_origin_;
-      if (pattern->IsBackgroundYOriginSet())
+      }
+      if (pattern->IsBackgroundYOriginSet()) {
         curr->background_y_origin_ = pattern->background_y_origin_;
+      }
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -239,8 +248,9 @@ void FillLayer::FillUnsetProperties() {
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->attachment_ = pattern->attachment_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -251,8 +261,9 @@ void FillLayer::FillUnsetProperties() {
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->clip_ = pattern->clip_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -263,8 +274,9 @@ void FillLayer::FillUnsetProperties() {
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->composite_ = pattern->composite_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -275,8 +287,9 @@ void FillLayer::FillUnsetProperties() {
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->blend_mode_ = pattern->blend_mode_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -287,8 +300,9 @@ void FillLayer::FillUnsetProperties() {
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->origin_ = pattern->origin_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -299,8 +313,9 @@ void FillLayer::FillUnsetProperties() {
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->repeat_x_ = pattern->repeat_x_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -311,8 +326,9 @@ void FillLayer::FillUnsetProperties() {
     for (FillLayer* pattern = this; curr; curr = curr->Next()) {
       curr->repeat_y_ = pattern->repeat_y_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 
@@ -324,8 +340,9 @@ void FillLayer::FillUnsetProperties() {
       curr->size_type_ = pattern->size_type_;
       curr->size_length_ = pattern->size_length_;
       pattern = pattern->Next();
-      if (pattern == curr || !pattern)
+      if (pattern == curr || !pattern) {
         pattern = this;
+      }
     }
   }
 }
@@ -356,6 +373,9 @@ void FillLayer::ComputeCachedProperties() const {
       any_layer_has_image_ && Attachment() == EFillAttachment::kFixed;
   any_layer_has_default_attachment_image_ =
       any_layer_has_image_ && Attachment() == EFillAttachment::kScroll;
+  any_layer_uses_current_color_ =
+      (image_ && image_->IsGeneratedImage() &&
+       To<StyleGeneratedImage>(image_.Get())->IsUsingCurrentColor());
   cached_properties_computed_ = true;
 
   if (next_) {
@@ -370,21 +390,12 @@ void FillLayer::ComputeCachedProperties() const {
         next_->any_layer_has_fixed_attachment_image_;
     any_layer_has_default_attachment_image_ |=
         next_->any_layer_has_default_attachment_image_;
+    any_layer_uses_current_color_ |= next_->any_layer_uses_current_color_;
   }
 }
 
 bool FillLayer::ClipOccludesNextLayers() const {
   return Clip() == LayersClipMax();
-}
-
-bool FillLayer::ImagesAreLoaded() const {
-  const FillLayer* curr;
-  for (curr = this; curr; curr = curr->Next()) {
-    if (curr->image_ && !curr->image_->IsLoaded())
-      return false;
-  }
-
-  return true;
 }
 
 bool FillLayer::ImageIsOpaque(const Document& document,
@@ -402,8 +413,7 @@ bool FillLayer::ImageIsOpaque(const Document& document,
 
 bool FillLayer::ImageTilesLayer() const {
   // Returns true if an image will be tiled such that it covers any sized
-  // rectangle.
-  // TODO(schenney) We could relax the repeat mode requirement if we also knew
+  // rectangle. We could relax the repeat mode requirement if we also knew
   // the rect we had to fill, and the portion of the image we need to use, and
   // know that the latter covers the former.
   return (RepeatX() == EFillRepeat::kRepeatFill ||
@@ -415,8 +425,9 @@ bool FillLayer::ImageTilesLayer() const {
 bool FillLayer::ImageOccludesNextLayers(const Document& document,
                                         const ComputedStyle& style) const {
   // We can't cover without an image, regardless of other parameters
-  if (!image_ || !image_->CanRender())
+  if (!image_ || !image_->CanRender()) {
     return false;
+  }
 
   switch (composite_) {
     case kCompositeClear:
@@ -425,7 +436,8 @@ bool FillLayer::ImageOccludesNextLayers(const Document& document,
     case kCompositeSourceOver:
       return GetBlendMode() == BlendMode::kNormal && ImageTilesLayer() &&
              ImageIsOpaque(document, style);
-    default: {}
+    default: {
+    }
   }
 
   return false;
@@ -440,8 +452,9 @@ static inline bool LayerImagesIdentical(const FillLayer& layer1,
 bool FillLayer::ImagesIdentical(const FillLayer* layer1,
                                 const FillLayer* layer2) {
   for (; layer1 && layer2; layer1 = layer1->Next(), layer2 = layer2->Next()) {
-    if (!LayerImagesIdentical(*layer1, *layer2))
+    if (!LayerImagesIdentical(*layer1, *layer2)) {
       return false;
+    }
   }
 
   return !layer1 && !layer2;

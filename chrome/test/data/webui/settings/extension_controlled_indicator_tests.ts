@@ -59,22 +59,11 @@ suite('extension controlled indicator', function() {
     assertEquals(url, `chrome://extensions/?id=${indicator.extensionId}`);
   });
 
-<<<<<<< HEAD
-  test('tapping disable button invokes browser proxy', function() {
-    const disableButton = indicator.shadowRoot!.querySelector('cr-button');
-    assertTrue(!!disableButton);
-    disableButton!.click();
-    return browserProxy.whenCalled('disableExtension')
-        .then(function(extensionId) {
-          assertEquals(extensionId, indicator.extensionId);
-        });
-=======
   test('tapping disable button invokes browser proxy', async function() {
     const button = indicator.shadowRoot!.querySelector<HTMLElement>('#disable');
     assertTrue(!!button);
     button!.click();
     const extensionId = await browserProxy.whenCalled('disableExtension');
     assertEquals(extensionId, indicator.extensionId);
->>>>>>> e7664fbc7d47f (Settings: Prevent rendering of extension name as HTML.)
   });
 });

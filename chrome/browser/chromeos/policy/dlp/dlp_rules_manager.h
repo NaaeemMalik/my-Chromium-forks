@@ -1,12 +1,15 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_CHROMEOS_POLICY_DLP_DLP_RULES_MANAGER_H_
 #define CHROME_BROWSER_CHROMEOS_POLICY_DLP_DLP_RULES_MANAGER_H_
 
+#include <map>
+#include <set>
 #include <string>
 
+#include "build/chromeos_buildflags.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "url/gurl.h"
 
@@ -15,6 +18,10 @@ class GURL;
 namespace policy {
 
 class DlpReportingManager;
+
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+class DlpFilesController;
+#endif
 
 // DlpRulesManager parses the rules set by DataLeakPreventionRulesList policy
 // and serves as an available service which can be queried anytime about the
@@ -44,13 +51,22 @@ class DlpRulesManager : public KeyedService {
 
   // A representation of destinations to which sharing confidential data is
   // restricted by DataLeakPreventionRulesList policy.
+  // When adding new values, make sure to update the `components` below as well.
   enum class Component {
     kUnknownComponent,
     kArc,       // ARC++ as a Guest OS.
     kCrostini,  // Crostini as a Guest OS.
     kPluginVm,  // Plugin VM (Parallels/Windows) as a Guest OS.
-    kMaxValue = kPluginVm
+    kUsb,       // Removable disk.
+    kDrive,     // Google drive for file storage.
+    kMaxValue = kDrive
   };
+
+  // List of all possible component values, used to simplify iterating over all
+  // the options.
+  constexpr static const std::array<Component, 5> components = {
+      Component::kArc, Component::kCrostini, Component::kPluginVm,
+      Component::kUsb, Component::kDrive};
 
   // The enforcement level of the restriction set by DataLeakPreventionRulesList
   // policy. Should be listed in the order of increased priority.
@@ -77,6 +93,26 @@ class DlpRulesManager : public KeyedService {
     GURL source;     // File source URL.
   };
 
+  // Represents rule metadata that is used for reporting.
+  struct RuleMetadata {
+    RuleMetadata(const std::string& name, const std::string& obfuscated_id)
+        : name(name), obfuscated_id(obfuscated_id) {}
+    RuleMetadata(const RuleMetadata&) = default;
+    RuleMetadata() = default;
+    RuleMetadata& operator=(const RuleMetadata&) = default;
+    ~RuleMetadata() = default;
+
+    std::string name;
+    std::string obfuscated_id;
+  };
+
+  // Mapping from a level to the set of destination URLs for which that level is
+  // enforced.
+  using AggregatedDestinations = std::map<Level, std::set<std::string>>;
+  // Mapping from a level to the set of components for which that level is
+  // enforced.
+  using AggregatedComponents = std::map<Level, std::set<Component>>;
+
   ~DlpRulesManager() override = default;
 
   // Returns the enforcement level for `restriction` given that data comes
@@ -89,8 +125,14 @@ class DlpRulesManager : public KeyedService {
   // Returns the highest possible restriction enforcement level for
   // 'restriction' given that data comes from 'source' and the destination might
   // be any. ALLOW level rules are ignored.
-  virtual Level IsRestrictedByAnyRule(const GURL& source,
-                                      Restriction restriction) const = 0;
+  // If there's a rule matching, `out_source_pattern` will be changed to any
+  // random matching rule URL pattern  and `out_rule_metadata` will be changed
+  // to the matched rule metadata.
+  virtual Level IsRestrictedByAnyRule(
+      const GURL& source,
+      Restriction restriction,
+      std::string* out_source_pattern,
+      RuleMetadata* out_rule_metadata) const = 0;
 
   // Returns the enforcement level for `restriction` given that data comes
   // from `source` and requested to be shared to `destination`. ALLOW is
@@ -98,25 +140,45 @@ class DlpRulesManager : public KeyedService {
   // clipboard or files.
   // If there's a rule matching, `out_source_pattern` and
   // `out_destination_pattern` will be changed to the original rule URL
-  // patterns.
+  // patterns  and `out_rule_metadata` will be changed to the matched rule
+  // metadata.
   virtual Level IsRestrictedDestination(
       const GURL& source,
       const GURL& destination,
       Restriction restriction,
       std::string* out_source_pattern,
-      std::string* out_destination_pattern) const = 0;
+      std::string* out_destination_pattern,
+      RuleMetadata* out_rule_metadata) const = 0;
 
   // Returns the enforcement level for `restriction` given that data comes
   // from `source` and requested to be shared to `destination`. ALLOW is
   // returned if there is no matching rule. Requires `restriction` to be
-  // clipboard.
+  // clipboard or files.
   // If there's a rule matching, `out_source_pattern` will be changed to the
-  // original rule URL patterns.
+  // original rule URL patterns and `out_rule_metadata` will be changed to the
+  // matched rule metadata.
   virtual Level IsRestrictedComponent(
       const GURL& source,
       const Component& destination,
       Restriction restriction,
-      std::string* out_source_pattern) const = 0;
+      std::string* out_source_pattern,
+      RuleMetadata* out_rule_metadata) const = 0;
+
+  // Returns a mapping from the level to a set of destination URLs for which
+  // that level is enforced for `source`. Each destination URL it is mapped to
+  // the highest level, if there are multiple applicable rules. Requires
+  // `restriction` to be clipboard or files.
+  virtual AggregatedDestinations GetAggregatedDestinations(
+      const GURL& source,
+      Restriction restriction) const = 0;
+
+  // Returns a mapping from the level to the set of components for which that
+  // level is enforced for `source`. Components that do not have a matching rule
+  // set are mapped to the ALLOW level. Requires `restriction` to be clipboard
+  // or files.
+  virtual AggregatedComponents GetAggregatedComponents(
+      const GURL& source,
+      Restriction restriction) const = 0;
 
   // Returns true if the general dlp reporting policy is enabled otherwise
   // false.
@@ -127,22 +189,29 @@ class DlpRulesManager : public KeyedService {
   // IsReportingEnabled).
   virtual DlpReportingManager* GetReportingManager() const = 0;
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  // Returns the files controller that is used to perform DLP checks on files.
+  // Should always return a nullptr if there are no file restrictions (and thus
+  // the DLP daemon is not active).
+  virtual DlpFilesController* GetDlpFilesController() const = 0;
+#endif
+
   // Returns the URL pattern that `source_url` is matched against. The returned
   // URL pattern should be configured in a policy rule with the same
   // `restriction` and `level`.
-  virtual std::string GetSourceUrlPattern(const GURL& source_url,
-                                          Restriction restriction,
-                                          Level level) const = 0;
+  virtual std::string GetSourceUrlPattern(
+      const GURL& source_url,
+      Restriction restriction,
+      Level level,
+      RuleMetadata* out_rule_metadata) const = 0;
 
   // Returns the admin-configured limit for the minimal size of data in the
   // clipboard to be checked against DLP rules.
   virtual size_t GetClipboardCheckSizeLimitInBytes() const = 0;
 
-  // Returns a list of files inodes disallowed to be transferred to
-  // |destination|.
-  virtual std::vector<uint64_t> GetDisallowedFileTransfers(
-      const std::vector<FileMetadata>& transferred_files,
-      const GURL& destination) const = 0;
+  // Returns true if there is any files policy set, and the daemon is
+  // successfully initiated.
+  virtual bool IsFilesPolicyEnabled() const = 0;
 };
 
 }  // namespace policy

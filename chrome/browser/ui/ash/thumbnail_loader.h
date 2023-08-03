@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
 #include "base/files/file.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/unguessable_token.h"
@@ -38,11 +38,11 @@ class ThumbnailLoader {
 
   // Thumbnail request data that will be forwarded to the image loader.
   struct ThumbnailRequest {
-    ThumbnailRequest(const base::FilePath& item_path, const gfx::Size& size);
+    ThumbnailRequest(const base::FilePath& file_path, const gfx::Size& size);
     ~ThumbnailRequest();
 
-    // The absolute item file path.
-    const base::FilePath item_path;
+    // The absolute file path.
+    const base::FilePath file_path;
 
     // The desired bitmap size.
     const gfx::Size size;
@@ -85,7 +85,7 @@ class ThumbnailLoader {
                         const SkBitmap* bitmap,
                         base::File::Error error);
 
-  const raw_ptr<Profile> profile_;
+  const raw_ptr<Profile, DanglingUntriaged> profile_;
 
   // Maps pending thumbnail requests to their registered callbacks.
   std::map<base::UnguessableToken, ImageCallback> requests_;

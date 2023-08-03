@@ -1,13 +1,13 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "chrome/browser/ui/cocoa/apps/app_shim_menu_controller_mac.h"
 
+#include "base/containers/adapters.h"
 #include "base/mac/scoped_nsautorelease_pool.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/apps/app_shim/app_shim_manager_mac.h"
 #include "chrome/browser/apps/platform_apps/app_window_registry_util.h"
@@ -427,8 +427,7 @@ extensions::AppWindowRegistry::AppWindowList GetAppWindowsForNSWindow(
     // Ignore is_browser: if a window becomes main that does not belong to an
     // extension or browser, treat it the same as switching to a browser.
     const Extension* extension = GetExtensionForNSWindow(window);
-    // Do not install the App menu for bookmark apps (which includes PWAs).
-    if (extension && !extension->from_bookmark())
+    if (extension)
       [self appBecameMain:extension];
     else
       [self chromeBecameMain];
@@ -535,20 +534,20 @@ extensions::AppWindowRegistry::AppWindowList GetAppWindowsForNSWindow(
 
 - (void)quitCurrentPlatformApp {
   auto windows = GetAppWindowsForNSWindow([NSApp keyWindow]);
-  for (auto it = windows.rbegin(); it != windows.rend(); ++it)
-    (*it)->GetBaseWindow()->Close();
+  for (extensions::AppWindow* window : base::Reversed(windows))
+    window->GetBaseWindow()->Close();
 }
 
 - (void)hideCurrentPlatformApp {
   auto windows = GetAppWindowsForNSWindow([NSApp keyWindow]);
-  for (auto it = windows.rbegin(); it != windows.rend(); ++it)
-    (*it)->GetBaseWindow()->Hide();
+  for (extensions::AppWindow* window : base::Reversed(windows))
+    window->GetBaseWindow()->Hide();
 }
 
 - (void)focusCurrentPlatformApp {
   auto windows = GetAppWindowsForNSWindow([NSApp keyWindow]);
-  for (auto it = windows.rbegin(); it != windows.rend(); ++it)
-    (*it)->GetBaseWindow()->Show();
+  for (extensions::AppWindow* window : base::Reversed(windows))
+    window->GetBaseWindow()->Show();
 }
 
 @end

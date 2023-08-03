@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "components/prefs/pref_notifier_impl.h"
 #include "components/prefs/testing_pref_store.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
@@ -32,6 +33,7 @@ class PolicyRecommendationRestorerTest : public NoSessionAshTestBase {
             /*managed_prefs=*/new TestingPrefStore,
             /*supervised_user_prefs=*/new TestingPrefStore,
             /*extension_prefs=*/new TestingPrefStore,
+            /*standalone_browser_prefs=*/new TestingPrefStore,
             /*user_prefs=*/new TestingPrefStore,
             recommended_prefs_,
             new user_prefs::PrefRegistrySyncable,
@@ -52,7 +54,7 @@ class PolicyRecommendationRestorerTest : public NoSessionAshTestBase {
 
   void ConnectToSigninPrefService() {
     GetSessionControllerClient()->SetSigninScreenPrefService(
-        base::WrapUnique(prefs_));
+        base::WrapUnique(prefs_.get()));
     ASSERT_EQ(Shell::Get()->session_controller()->GetSigninScreenPrefService(),
               prefs_);
     // Manually trigger a user activity, so that the delay is not skipped due to
@@ -90,7 +92,7 @@ class PolicyRecommendationRestorerTest : public NoSessionAshTestBase {
     EXPECT_TRUE(pref->HasUserSetting());
     const base::Value* value = pref->GetValue();
     ASSERT_TRUE(value);
-    EXPECT_TRUE(expected_value.Equals(value));
+    EXPECT_EQ(expected_value, *value);
   }
 
   void VerifyPrefsFollowUser() const {
@@ -116,7 +118,7 @@ class PolicyRecommendationRestorerTest : public NoSessionAshTestBase {
     EXPECT_FALSE(pref->HasUserSetting());
     const base::Value* value = pref->GetValue();
     ASSERT_TRUE(value);
-    EXPECT_TRUE(expected_value.Equals(value));
+    EXPECT_EQ(expected_value, *value);
   }
 
   void VerifyPrefsFollowRecommendation() const {
@@ -138,7 +140,7 @@ class PolicyRecommendationRestorerTest : public NoSessionAshTestBase {
 
   // If restore timer is running, stops it, runs its task and returns true.
   // Otherwise, returns false.
-  bool TriggerRestoreTimer() WARN_UNUSED_RESULT {
+  [[nodiscard]] bool TriggerRestoreTimer() {
     if (!restorer_->restore_timer_for_test()->IsRunning())
       return false;
 
@@ -146,11 +148,11 @@ class PolicyRecommendationRestorerTest : public NoSessionAshTestBase {
     return true;
   }
 
-  PolicyRecommendationRestorer* restorer_ = nullptr;
+  raw_ptr<PolicyRecommendationRestorer, ExperimentalAsh> restorer_ = nullptr;
 
   // Ownerships are passed to SessionController.
-  TestingPrefStore* recommended_prefs_;
-  sync_preferences::TestingPrefServiceSyncable* prefs_;
+  raw_ptr<TestingPrefStore, ExperimentalAsh> recommended_prefs_;
+  raw_ptr<sync_preferences::TestingPrefServiceSyncable, ExperimentalAsh> prefs_;
 };
 
 // Verifies that when no recommended values have been set, |restorer_| does not

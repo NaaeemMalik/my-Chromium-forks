@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/metrics/histogram_macros.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "cc/metrics/event_metrics.h"
 #include "cc/paint/element_id.h"
@@ -28,9 +29,10 @@
 #include "third_party/blink/renderer/platform/widget/input/ime_event_guard.h"
 #include "third_party/blink/renderer/platform/widget/widget_base.h"
 #include "third_party/blink/renderer/platform/widget/widget_base_client.h"
+#include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "ui/latency/latency_info.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include <android/keycodes.h>
 #endif
 
@@ -229,7 +231,7 @@ class WidgetBaseInputHandler::HandlingState {
 
   absl::optional<WebTouchAction>& touch_action() { return touch_action_; }
 
-  std::vector<WidgetBaseInputHandler::InjectScrollGestureParams>&
+  Vector<WidgetBaseInputHandler::InjectScrollGestureParams>&
   injected_scroll_params() {
     return injected_scroll_params_;
   }
@@ -248,7 +250,7 @@ class WidgetBaseInputHandler::HandlingState {
   // Used to hold a sequence of parameters corresponding to scroll gesture
   // events that should be injected once the current input event is done
   // being processed.
-  std::vector<WidgetBaseInputHandler::InjectScrollGestureParams>
+  Vector<WidgetBaseInputHandler::InjectScrollGestureParams>
       injected_scroll_params_;
 
   // Whether the event we are handling is a touch start or move.
@@ -307,7 +309,7 @@ void WidgetBaseInputHandler::HandleInputEvent(
       weak_ptr_factory_.GetWeakPtr();
   HandlingState handling_state(weak_self, IsTouchStartOrMove(input_event));
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   ImeEventGuard guard(widget_->GetWeakPtr());
 #endif
 
@@ -319,7 +321,7 @@ void WidgetBaseInputHandler::HandleInputEvent(
                "WidgetBaseInputHandler::OnHandleInputEvent", "event",
                WebInputEvent::GetName(input_event.GetType()));
   int64_t trace_id = coalesced_event.latency_info().trace_id();
-  TRACE_EVENT("input,benchmark", "LatencyInfo.Flow",
+  TRACE_EVENT("input,benchmark,latencyInfo", "LatencyInfo.Flow",
               [trace_id](perfetto::EventContext ctx) {
                 ChromeLatencyInfo* info =
                     ctx.event()->set_chrome_latency_info();
@@ -384,7 +386,7 @@ void WidgetBaseInputHandler::HandleInputEvent(
     }
   }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (WebInputEvent::IsKeyboardEventType(input_event.GetType())) {
     // The DPAD_CENTER key on Android has a dual semantic: (1) in the general
     // case it should behave like a select key (i.e. causing a click if a button
@@ -519,7 +521,7 @@ void WidgetBaseInputHandler::HandleInputEvent(
 
 // TODO(rouslan): Fix ChromeOS and Windows 8 behavior of autofill popup with
 // virtual keyboard.
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Virtual keyboard is not supported, so react to focus change immediately.
   if ((processed != WebInputEventResult::kNotHandled &&
        input_event.GetType() == WebInputEvent::Type::kMouseDown) ||
@@ -586,7 +588,7 @@ void WidgetBaseInputHandler::InjectGestureScrollEvent(
             injected_type, now, device, gfx::PointF(0, 0), delta, granularity);
     if (injected_type == WebInputEvent::Type::kGestureScrollBegin) {
       gesture_event->data.scroll_begin.scrollable_area_element_id =
-          scrollable_area_element_id.GetStableId();
+          scrollable_area_element_id.GetInternalValue();
     }
 
     std::unique_ptr<WebCoalescedInputEvent> web_scoped_gesture_event =
@@ -597,7 +599,7 @@ void WidgetBaseInputHandler::InjectGestureScrollEvent(
 }
 
 void WidgetBaseInputHandler::HandleInjectedScrollGestures(
-    std::vector<InjectScrollGestureParams> injected_scroll_params,
+    Vector<InjectScrollGestureParams> injected_scroll_params,
     const WebInputEvent& input_event,
     const ui::LatencyInfo& original_latency_info,
     const cc::EventMetrics* original_metrics) {
@@ -629,9 +631,12 @@ void WidgetBaseInputHandler::HandleInjectedScrollGestures(
     scrollbar_latency_info.AddLatencyNumber(
         ui::LatencyComponentType::INPUT_EVENT_LATENCY_RENDERER_MAIN_COMPONENT);
 
-    cc::EventMetrics::GestureParams gesture_params(
-        ui::ScrollInputType::kScrollbar,
-        /*scroll_is_inertial=*/false);
+    std::unique_ptr<WebGestureEvent> gesture_event =
+        WebGestureEvent::GenerateInjectedScrollGesture(
+            params.type, input_event.TimeStamp(), params.device, position,
+            params.scroll_delta, params.granularity);
+
+    std::unique_ptr<cc::EventMetrics> metrics;
     if (params.type == WebInputEvent::Type::kGestureScrollUpdate) {
       if (input_event.GetType() != WebInputEvent::Type::kGestureScrollUpdate) {
         scrollbar_latency_info.AddLatencyNumberWithTimestamp(
@@ -652,20 +657,26 @@ void WidgetBaseInputHandler::HandleInjectedScrollGestures(
                 ui::INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL_COMPONENT,
                 nullptr));
       }
-      DCHECK(gesture_params.scroll_params.has_value());
-      gesture_params.scroll_params->update_type =
+      metrics = cc::ScrollUpdateEventMetrics::CreateFromExisting(
+          gesture_event->GetTypeAsUiEventType(),
+          ui::ScrollInputType::kScrollbar, /*is_inertial=*/false,
           last_injected_gesture_was_begin_
-              ? cc::EventMetrics::ScrollUpdateType::kStarted
-              : cc::EventMetrics::ScrollUpdateType::kContinued;
+              ? cc::ScrollUpdateEventMetrics::ScrollUpdateType::kStarted
+              : cc::ScrollUpdateEventMetrics::ScrollUpdateType::kContinued,
+          params.scroll_delta.y(),
+          cc::EventMetrics::DispatchStage::kRendererCompositorFinished,
+          original_metrics);
+    } else {
+      metrics = cc::ScrollEventMetrics::CreateFromExisting(
+          gesture_event->GetTypeAsUiEventType(),
+          ui::ScrollInputType::kScrollbar, /*is_inertial=*/false,
+          cc::EventMetrics::DispatchStage::kRendererCompositorFinished,
+          original_metrics);
     }
 
-    std::unique_ptr<WebGestureEvent> gesture_event =
-        WebGestureEvent::GenerateInjectedScrollGesture(
-            params.type, input_event.TimeStamp(), params.device, position,
-            params.scroll_delta, params.granularity);
     if (params.type == WebInputEvent::Type::kGestureScrollBegin) {
       gesture_event->data.scroll_begin.scrollable_area_element_id =
-          params.scrollable_area_element_id.GetStableId();
+          params.scrollable_area_element_id.GetInternalValue();
       last_injected_gesture_was_begin_ = true;
     } else {
       last_injected_gesture_was_begin_ = false;
@@ -675,11 +686,6 @@ void WidgetBaseInputHandler::HandleInjectedScrollGestures(
       cc::LatencyInfoSwapPromiseMonitor latency_info_swap_promise_monitor(
           &scrollbar_latency_info,
           widget_->LayerTreeHost()->GetSwapPromiseManager());
-      std::unique_ptr<cc::EventMetrics> metrics =
-          cc::EventMetrics::CreateFromExisting(
-              gesture_event->GetTypeAsUiEventType(), gesture_params,
-              cc::EventMetrics::DispatchStage::kRendererCompositorFinished,
-              original_metrics);
       cc::EventsMetricsManager::ScopedMonitor::DoneCallback done_callback;
       if (metrics) {
         metrics->SetDispatchStageTimestamp(

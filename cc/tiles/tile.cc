@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ Tile::Tile(TileManager* tile_manager,
            int source_frame_number,
            int flags)
     : tile_manager_(tile_manager),
-      tiling_(info.tiling),
+      tiling_(info.tiling.get()),
       content_rect_(info.content_rect),
       enclosing_layer_rect_(info.enclosing_layer_rect),
       raster_transform_(info.raster_transform),
@@ -83,12 +83,16 @@ void Tile::AsValueInto(base::trace_event::TracedValue* value) const {
                     base::saturated_cast<int>(GPUMemoryUsageInBytes()));
 }
 
+bool Tile::HasMissingLCPCandidateImages() const {
+  return HasRasterTask() && raster_task_->TaskContainsLCPCandidateImages();
+}
+
 size_t Tile::GPUMemoryUsageInBytes() const {
   if (draw_info_.resource_) {
-    // We can use UncheckedSizeInBytes, since the tile size is determined by the
-    // compositor.
-    return viz::ResourceSizes::UncheckedSizeInBytes<size_t>(
-        draw_info_.resource_size(), draw_info_.resource_format());
+    // We don't need to validate the computed size, since the tile size is
+    // determined by the compositor.
+    return draw_info_.resource_shared_image_format().EstimatedSizeInBytes(
+        draw_info_.resource_size());
   }
   return 0;
 }

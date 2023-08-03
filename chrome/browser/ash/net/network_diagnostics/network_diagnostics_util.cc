@@ -1,20 +1,20 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_util.h"
 
-#include <algorithm>
 #include <string>
 #include <vector>
 
+#include "base/containers/contains.h"
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "content/public/browser/storage_partition.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace util {
@@ -30,8 +30,7 @@ std::vector<std::string> GetRandomPrefixes(size_t num_prefixes, int length) {
   while (random_prefixes.size() != num_prefixes) {
     std::string prefix = GetRandomString(length);
     // Check that the prefix doesn't already exist.
-    if (std::find(std::begin(random_prefixes), std::end(random_prefixes),
-                  prefix) == std::end(random_prefixes)) {
+    if (!base::Contains(random_prefixes, prefix)) {
       random_prefixes.push_back(prefix);
     }
   }
@@ -64,7 +63,7 @@ std::vector<std::string> GetRandomHosts(int num_hosts, int prefix_length) {
   std::vector<std::string> random_hosts;
   std::vector<std::string> random_prefixes =
       GetRandomPrefixes(num_hosts, prefix_length);
-  DCHECK(random_prefixes.size() == num_hosts);
+  DCHECK(random_prefixes.size() == 1U * num_hosts);
   for (int i = 0; i < num_hosts; i++) {
     random_hosts.push_back(random_prefixes[i] + GetGstaticHostSuffix());
   }
@@ -158,7 +157,7 @@ const std::array<uint8_t, kStunHeaderSize>& GetStunHeader() {
 }
 
 net::NetworkTrafficAnnotationTag GetStunNetworkAnnotationTag() {
-  return net::DefineNetworkTrafficAnnotation("network_diagnostics_routines",
+  return net::DefineNetworkTrafficAnnotation("network_diagnostics_stun",
                                              R"(
       semantics {
         sender: "NetworkDiagnosticsRoutines"
@@ -178,6 +177,8 @@ net::NetworkTrafficAnnotationTag GetStunNetworkAnnotationTag() {
       }
       policy {
         cookies_allowed: NO
+        policy_exception_justification:
+            "Not implemented. Does not contain user identifier."
       }
   )");
 }
@@ -214,4 +215,4 @@ std::vector<GURL> GetDefaultMediaUrls() {
 }  // namespace util
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

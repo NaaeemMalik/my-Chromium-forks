@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,13 +31,13 @@ struct OverflowMenuFooterRow: View {
         spacing: Dimensions.iconLineSpacing
       ) {
         Rectangle()
-          .foregroundColor(.cr_grey300)
+          .foregroundColor(.overflowMenuSeparator)
           .frame(height: Dimensions.iconLineDividerHeight)
         footer.image
           .fixedSize()
-          .foregroundColor(.cr_grey300)
+          .foregroundColor(.grey500)
         Rectangle()
-          .foregroundColor(.cr_grey300)
+          .foregroundColor(.overflowMenuSeparator)
           .frame(height: Dimensions.iconLineDividerHeight)
       }
       .padding([.top], Dimensions.iconLineExtraVerticalSpacing)
@@ -46,8 +46,9 @@ struct OverflowMenuFooterRow: View {
         .font(.footnote)
       Text(footer.link)
         .font(.caption2)
-        .foregroundColor(.cr_blue)
+        .foregroundColor(.chromeBlue)
         .onTapGesture(perform: footer.handler)
+        .accessibilityIdentifier(footer.accessibilityIdentifier)
     }
     // Group all children together so VoiceOver doesn't have to read the two
     // text labels individually.

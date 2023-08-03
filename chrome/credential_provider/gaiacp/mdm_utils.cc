@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -261,7 +261,7 @@ HRESULT RegisterWithGoogleDeviceManagement(const std::wstring& mdm_url,
   }
 
   // Build the json data needed by the server.
-  base::Value registration_data(base::Value::Type::DICTIONARY);
+  base::Value registration_data(base::Value::Type::DICT);
   registration_data.SetStringKey("id_token", base::WideToUTF8(id_token));
   registration_data.SetStringKey("access_token",
                                  base::WideToUTF8(access_token));

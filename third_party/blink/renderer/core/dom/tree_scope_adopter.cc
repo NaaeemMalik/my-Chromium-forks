@@ -26,6 +26,8 @@
  */
 #include "third_party/blink/renderer/core/dom/tree_scope_adopter.h"
 
+#include "base/feature_list.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/dom/attr.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/node.h"
@@ -38,6 +40,7 @@
 namespace blink {
 
 void TreeScopeAdopter::Execute() const {
+  WillMoveTreeToNewDocument(*to_adopt_);
   MoveTreeToNewScope(*to_adopt_);
   Document& old_document = OldScope().GetDocument();
   if (old_document == NewScope().GetDocument())
@@ -95,13 +98,15 @@ void TreeScopeAdopter::MoveShadowTreeToNewDocument(
       new_document.TemplateDocumentHost() != &old_document) {
     // If this is not a move from a document to a <template> within it or vice
     // versa, we need to clear |shadow_root|'s adoptedStyleSheets.
-    HeapVector<Member<CSSStyleSheet>> empty_vector;
-    shadow_root.SetAdoptedStyleSheets(empty_vector);
+    shadow_root.ClearAdoptedStyleSheets();
   }
 
   if (!shadow_root.IsUserAgent()) {
     new_document.SetContainsShadowRoot();
   }
+
+  shadow_root.SetDocument(new_document);
+
   MoveTreeToNewDocument(shadow_root, old_document, new_document);
 }
 
@@ -121,8 +126,33 @@ void TreeScopeAdopter::MoveTreeToNewDocument(Node& root,
         MoveTreeToNewDocument(*attr, old_document, new_document);
     }
 
-    if (ShadowRoot* shadow_root = element->GetShadowRoot())
+    if (ShadowRoot* shadow_root = element->GetShadowRoot()) {
       MoveShadowTreeToNewDocument(*shadow_root, old_document, new_document);
+    }
+  }
+}
+
+void TreeScopeAdopter::WillMoveTreeToNewDocument(Node& root) const {
+  Document& old_document = OldScope().GetDocument();
+  Document& new_document = NewScope().GetDocument();
+  if (old_document == new_document)
+    return;
+
+  for (Node& node : NodeTraversal::InclusiveDescendantsOf(root)) {
+    DCHECK_EQ(old_document, node.GetDocument());
+    // TODO(crbug.com/1371962): `node` is still in `old_document`, so only
+    // send in `new_document` here.
+    node.WillMoveToNewDocument(old_document, new_document);
+
+    if (auto* element = DynamicTo<Element>(node)) {
+      if (ShadowRoot* shadow_root = element->GetShadowRoot())
+        WillMoveTreeToNewDocument(*shadow_root);
+
+      if (HeapVector<Member<Attr>>* attrs = element->GetAttrNodeList()) {
+        for (const auto& attr : *attrs)
+          WillMoveTreeToNewDocument(*attr);
+      }
+    }
   }
 }
 
@@ -151,8 +181,8 @@ inline void TreeScopeAdopter::MoveNodeToNewDocument(
     Document& old_document,
     Document& new_document) const {
   DCHECK_NE(old_document, new_document);
-  // Note: at the start of this function, node.document() may already have
-  // changed to match |newDocument|, which is why |oldDocument| is passed in.
+  // TODO(crbug.com/1371962) `new_document` should no longer be needed.
+  DCHECK_EQ(node.GetDocument(), new_document);
 
   if (node.HasRareData()) {
     NodeRareData* rare_data = node.RareData();
@@ -160,16 +190,16 @@ inline void TreeScopeAdopter::MoveNodeToNewDocument(
       rare_data->NodeLists()->AdoptDocument(old_document, new_document);
   }
 
-  node.WillMoveToNewDocument(old_document, new_document);
   old_document.MoveNodeIteratorsToNewDocument(node, new_document);
+  if (auto* element = DynamicTo<Element>(node)) {
+    old_document.MoveElementExplicitlySetAttrElementsMapToNewDocument(
+        element, new_document);
+  }
 
   if (node.GetCustomElementState() == CustomElementState::kCustom) {
     CustomElement::EnqueueAdoptedCallback(To<Element>(node), old_document,
                                           new_document);
   }
-
-  if (auto* shadow_root = DynamicTo<ShadowRoot>(node))
-    shadow_root->SetDocument(new_document);
 
 #if DCHECK_IS_ON()
   g_did_move_to_new_document_was_called = false;

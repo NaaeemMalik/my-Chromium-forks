@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -37,6 +37,8 @@ import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.view.ViewCompat;
 
 import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.NumberRollView;
 import org.chromium.components.browser_ui.widget.R;
@@ -87,17 +89,19 @@ public class SelectableListToolbar<E>
         int SEARCH_VIEW = 2;
     }
 
-    /** No navigation button is displayed. **/
-    public static final int NAVIGATION_BUTTON_NONE = 0;
-    /** Button to navigate back. This calls {@link #onNavigationBack()}. **/
-    public static final int NAVIGATION_BUTTON_BACK = 1;
-    /** Button to clear the selection. **/
-    public static final int NAVIGATION_BUTTON_SELECTION_BACK = 2;
+    @IntDef({NavigationButton.NONE, NavigationButton.BACK, NavigationButton.SELECTION_BACK})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface NavigationButton {
+        int NONE = 0;
+        int BACK = 1;
+        int SELECTION_BACK = 2;
+    }
 
     protected boolean mIsSelectionEnabled;
     protected SelectionDelegate<E> mSelectionDelegate;
 
-    private boolean mIsSearching;
+    private final ObservableSupplierImpl<Boolean> mIsSearchingSupplier =
+            new ObservableSupplierImpl<>();
     private boolean mHasSearchView;
     private LinearLayout mSearchView;
     private EditText mSearchEditText;
@@ -110,7 +114,7 @@ public class SelectableListToolbar<E>
     private Drawable mMenuButton;
     private Drawable mNavigationIconDrawable;
 
-    private int mNavigationButton;
+    private @NavigationButton int mNavigationButton;
     private int mTitleResId;
     private int mSearchMenuItemId;
     private int mInfoMenuItemId;
@@ -143,6 +147,7 @@ public class SelectableListToolbar<E>
      */
     public SelectableListToolbar(Context context, AttributeSet attrs) {
         super(context, attrs);
+        mIsSearchingSupplier.set(false);
     }
 
     /**
@@ -235,7 +240,7 @@ public class SelectableListToolbar<E>
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 mClearTextButton.setVisibility(
                         TextUtils.isEmpty(s) ? View.INVISIBLE : View.VISIBLE);
-                if (mIsSearching) mSearchDelegate.onSearchTextChanged(s.toString());
+                if (isSearching()) mSearchDelegate.onSearchTextChanged(s.toString());
             }
 
             @Override
@@ -273,7 +278,7 @@ public class SelectableListToolbar<E>
 
         if (mIsSelectionEnabled) {
             showSelectionView(selectedItems, wasSelectionEnabled);
-        } else if (mIsSearching) {
+        } else if (isSearching()) {
             showSearchViewInternal();
         } else {
             showNormalView();
@@ -293,12 +298,12 @@ public class SelectableListToolbar<E>
         if (mIsDestroyed) return;
 
         switch (mNavigationButton) {
-            case NAVIGATION_BUTTON_NONE:
+            case NavigationButton.NONE:
                 break;
-            case NAVIGATION_BUTTON_BACK:
+            case NavigationButton.BACK:
                 onNavigationBack();
                 break;
-            case NAVIGATION_BUTTON_SELECTION_BACK:
+            case NavigationButton.SELECTION_BACK:
                 mSelectionDelegate.clearSelection();
                 break;
             default:
@@ -312,7 +317,7 @@ public class SelectableListToolbar<E>
      * valid toolbar action when not searching.
      */
     public void onNavigationBack() {
-        if (!mHasSearchView || !mIsSearching) return;
+        if (!mHasSearchView || !isSearching()) return;
 
         hideSearchView();
     }
@@ -321,20 +326,20 @@ public class SelectableListToolbar<E>
      * Update the current navigation button (the top-left icon on LTR)
      * @param navigationButton one of NAVIGATION_BUTTON_* constants.
      */
-    protected void setNavigationButton(int navigationButton) {
+    protected void setNavigationButton(@NavigationButton int navigationButton) {
         int contentDescriptionId = 0;
 
         mNavigationButton = navigationButton;
         setNavigationOnClickListener(this);
 
         switch (mNavigationButton) {
-            case NAVIGATION_BUTTON_NONE:
+            case NavigationButton.NONE:
                 break;
-            case NAVIGATION_BUTTON_BACK:
+            case NavigationButton.BACK:
                 DrawableCompat.setTintList(mNavigationIconDrawable, mIconColorList);
                 contentDescriptionId = R.string.accessibility_toolbar_btn_back;
                 break;
-            case NAVIGATION_BUTTON_SELECTION_BACK:
+            case NavigationButton.SELECTION_BACK:
                 DrawableCompat.setTintList(mNavigationIconDrawable, mIconColorList);
                 contentDescriptionId = R.string.accessibility_cancel_selection;
                 break;
@@ -351,33 +356,44 @@ public class SelectableListToolbar<E>
     /**
      * Shows the search edit text box and related views.
      */
-    public void showSearchView() {
+    public void showSearchView(boolean showKeyboard) {
         assert mHasSearchView;
 
-        mIsSearching = true;
+        mIsSearchingSupplier.set(true);
         mSelectionDelegate.clearSelection();
 
         showSearchViewInternal();
 
         mSearchEditText.requestFocus();
-        KeyboardVisibilityDelegate.getInstance().showKeyboard(mSearchEditText);
+        if (showKeyboard) {
+            KeyboardVisibilityDelegate.getInstance().showKeyboard(mSearchEditText);
+        }
+
         setTitle(null);
     }
 
     /**
-     * Hides the search edit text box and related views.
+     * Hides the search edit text box and related views. Notifies delegate of the change.
      */
     public void hideSearchView() {
+        hideSearchView(/*notifyDelegate=*/true);
+    }
+
+    /**
+     * Hides the search edit text box and related views.
+     * @param notifyDelegate Whether to notify the delegate of this change.
+     */
+    public void hideSearchView(boolean notifyDelegate) {
         assert mHasSearchView;
 
-        if (!mIsSearching) return;
+        if (!isSearching()) return;
 
-        mIsSearching = false;
+        mIsSearchingSupplier.set(false);
         mSearchEditText.setText("");
         hideKeyboard();
         showNormalView();
 
-        mSearchDelegate.onEndSearch();
+        if (notifyDelegate) mSearchDelegate.onEndSearch();
     }
 
     /**
@@ -405,8 +421,8 @@ public class SelectableListToolbar<E>
 
         if (mIsDestroyed) return;
 
-        mSelectionDelegate.clearSelection();
-        if (mIsSearching) hideSearchView();
+        if (mSelectionDelegate != null) mSelectionDelegate.clearSelection();
+        if (isSearching()) hideSearchView();
     }
 
     /**
@@ -430,12 +446,12 @@ public class SelectableListToolbar<E>
         int padding =
                 SelectableListLayout.getPaddingForDisplayStyle(newDisplayStyle, getResources());
         int paddingStartOffset = 0;
-        boolean isSearchViewShowing = mIsSearching && !mIsSelectionEnabled;
+        boolean isSearchViewShowing = isSearching() && !mIsSelectionEnabled;
         MarginLayoutParams params = (MarginLayoutParams) getLayoutParams();
 
         if (newDisplayStyle.horizontal == HorizontalDisplayStyle.WIDE
-                && !(mIsSearching || mIsSelectionEnabled
-                        || mNavigationButton != NAVIGATION_BUTTON_NONE)) {
+                && !(isSearching() || mIsSelectionEnabled
+                        || mNavigationButton != NavigationButton.NONE)) {
             // The title in the wide display should be aligned with the texts of the list elements.
             paddingStartOffset = mWideDisplayStartOffsetPx;
         }
@@ -453,7 +469,7 @@ public class SelectableListToolbar<E>
         // Navigation button should have more start padding in order to keep the navigation icon
         // and the list item icon aligned.
         int navigationButtonStartOffsetPx =
-                mNavigationButton != NAVIGATION_BUTTON_NONE ? mModernNavButtonStartOffsetPx : 0;
+                mNavigationButton != NavigationButton.NONE ? mModernNavButtonStartOffsetPx : 0;
 
         int actionMenuBarEndOffsetPx = mIsSelectionEnabled ? mModernToolbarActionMenuEndOffsetPx
                                                            : mModernToolbarSearchIconOffsetPx;
@@ -469,7 +485,12 @@ public class SelectableListToolbar<E>
      *         dues to a selection.
      */
     public boolean isSearching() {
-        return mIsSearching;
+        assert mIsSearchingSupplier.get() != null : "Supplier is not correctly initialized.";
+        return mIsSearchingSupplier.get();
+    }
+
+    public ObservableSupplier<Boolean> isSearchingSupplier() {
+        return mIsSearchingSupplier;
     }
 
     SelectionDelegate<E> getSelectionDelegate() {
@@ -488,7 +509,7 @@ public class SelectableListToolbar<E>
             updateSearchMenuItem();
         }
 
-        setNavigationButton(NAVIGATION_BUTTON_NONE);
+        setNavigationButton(NavigationButton.NONE);
         setBackgroundColor(mNormalBackgroundColor);
         if (mTitleResId != 0) setTitle(mTitleResId);
 
@@ -506,12 +527,12 @@ public class SelectableListToolbar<E>
         getMenu().setGroupEnabled(mSelectedGroupResId, !selectedItems.isEmpty());
         if (mHasSearchView) mSearchView.setVisibility(View.GONE);
 
-        setNavigationButton(NAVIGATION_BUTTON_SELECTION_BACK);
+        setNavigationButton(NavigationButton.SELECTION_BACK);
         setBackgroundColor(mNormalBackgroundColor);
 
         switchToNumberRollView(selectedItems, wasSelectionEnabled);
 
-        if (mIsSearching) hideKeyboard();
+        if (isSearching()) hideKeyboard();
 
         updateDisplayStyleIfNecessary();
     }
@@ -524,7 +545,7 @@ public class SelectableListToolbar<E>
         mNumberRollView.setVisibility(View.GONE);
         mSearchView.setVisibility(View.VISIBLE);
 
-        setNavigationButton(NAVIGATION_BUTTON_BACK);
+        setNavigationButton(NavigationButton.BACK);
         setBackgroundResource(R.drawable.search_toolbar_modern_bg);
         updateStatusBarColor(mSearchBackgroundColor);
 
@@ -535,7 +556,7 @@ public class SelectableListToolbar<E>
         if (!mHasSearchView) return;
         MenuItem searchMenuItem = getMenu().findItem(mSearchMenuItemId);
         if (searchMenuItem != null) {
-            searchMenuItem.setVisible(mSearchEnabled && !mIsSelectionEnabled && !mIsSearching);
+            searchMenuItem.setVisible(mSearchEnabled && !mIsSelectionEnabled && !isSearching());
         }
     }
 

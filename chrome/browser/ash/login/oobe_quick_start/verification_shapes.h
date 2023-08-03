@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 #include <cstdint>
 #include <string>
 
-namespace ash {
-namespace quick_start {
+namespace ash::quick_start {
 
 // See internal go/oobe-verification-shapes for details.
 enum class Shape {
@@ -41,7 +40,6 @@ using ShapeList = std::array<ShapeHolder, 4>;
 
 ShapeList GenerateShapes(const std::string& token);
 
-}  // namespace quick_start
-}  // namespace ash
+}  // namespace ash::quick_start
 
 #endif  // CHROME_BROWSER_ASH_LOGIN_OOBE_QUICK_START_VERIFICATION_SHAPES_H_

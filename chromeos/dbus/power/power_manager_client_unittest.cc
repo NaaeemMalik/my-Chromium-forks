@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,9 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
@@ -25,6 +26,7 @@
 #include "dbus/object_path.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/cros_system_api/dbus/power_manager/dbus-constants.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 
 using ::testing::_;
@@ -77,6 +79,15 @@ MATCHER_P3(IsSuspendReadiness, method_name, suspend_id, delay_id, "") {
   return true;
 }
 
+// Matcher that verifies that a dbus::MethodCall has member |method_name|.
+MATCHER_P(IsRequestRestart, method_name, "") {
+  if (arg->GetMember() != method_name) {
+    *result_listener << "has member " << arg->GetMember();
+    return false;
+  }
+  return true;
+}
+
 // Runs |callback| with |response|. Needed due to ResponseCallback expecting a
 // bare pointer rather than an std::unique_ptr.
 void RunResponseCallback(dbus::ObjectProxy::ResponseCallback callback,
@@ -99,6 +110,7 @@ class TestObserver : public PowerManagerClient::Observer {
   int num_suspend_imminent() const { return num_suspend_imminent_; }
   int num_suspend_done() const { return num_suspend_done_; }
   int num_dark_suspend_imminent() const { return num_dark_suspend_imminent_; }
+  int num_restart_requested() const { return num_restart_requested_; }
   const base::UnguessableToken& block_suspend_token() const {
     return block_suspend_token_;
   }
@@ -114,7 +126,7 @@ class TestObserver : public PowerManagerClient::Observer {
   }
 
   // Runs |block_suspend_token_|.
-  bool UnblockSuspend() WARN_UNUSED_RESULT {
+  [[nodiscard]] bool UnblockSuspend() {
     if (block_suspend_token_.is_empty())
       return false;
 
@@ -147,15 +159,19 @@ class TestObserver : public PowerManagerClient::Observer {
   void AmbientColorChanged(const int32_t color_temperature) override {
     ambient_color_temperature_ = color_temperature;
   }
+  void RestartRequested(power_manager::RequestRestartReason reason) override {
+    num_restart_requested_++;
+  }
 
  private:
-  PowerManagerClient* client_;  // Not owned.
+  raw_ptr<PowerManagerClient, ExperimentalAsh> client_;  // Not owned.
 
-  // Number of times SuspendImminent(), SuspendDone(), and DarkSuspendImminent()
-  // have been called.
+  // Number of times SuspendImminent(), SuspendDone(), DarkSuspendImminent() and
+  // RestartRequested() have been called.
   int num_suspend_imminent_ = 0;
   int num_suspend_done_ = 0;
   int num_dark_suspend_imminent_ = 0;
+  int num_restart_requested_ = 0;
 
   // Should SuspendImminent() and DarkSuspendImminent() call |client_|'s
   // BlockSuspend() method?
@@ -290,11 +306,6 @@ class PowerManagerClientTest : public testing::Test {
         *proxy_,
         DoCallMethod(HasMember(power_manager::kGetPowerSupplyPropertiesMethod),
                      _, _));
-    // Init will test for the presence of an ambient light sensor.
-    EXPECT_CALL(
-        *proxy_,
-        DoCallMethod(HasMember(power_manager::kHasAmbientColorDeviceMethod), _,
-                     _));
 
     PowerManagerClient::Initialize(bus_.get());
     client_ = PowerManagerClient::Get();
@@ -357,7 +368,7 @@ class PowerManagerClientTest : public testing::Test {
   scoped_refptr<dbus::MockBus> bus_;
   scoped_refptr<dbus::MockObjectProxy> proxy_;
 
-  PowerManagerClient* client_ = nullptr;
+  raw_ptr<PowerManagerClient, ExperimentalAsh> client_ = nullptr;
 
   // Maps from powerd signal name to the corresponding callback provided by
   // |client_|.
@@ -701,6 +712,19 @@ TEST_F(PowerManagerClientTest, ChangeThermalState) {
   }
 
   base::PowerMonitor::RemovePowerThermalObserver(&observer);
+}
+
+// Test that |RequestRestart| calls |RestartRequested| method for observers.
+TEST_F(PowerManagerClientTest, ObserverCalledAfterRequestRestart) {
+  TestObserver observer(client_);
+  EXPECT_CALL(*proxy_.get(),
+              DoCallMethod(IsRequestRestart("RequestRestart"), _, _));
+  EXPECT_EQ(0, observer.num_restart_requested());
+
+  client_->RequestRestart(
+      power_manager::RequestRestartReason::REQUEST_RESTART_OTHER,
+      "test restart");
+  EXPECT_EQ(1, observer.num_restart_requested());
 }
 
 }  // namespace chromeos

@@ -1,16 +1,17 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "components/background_sync/background_sync_controller_impl.h"
 
 #include <stdint.h>
 
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/metrics/field_trial_params.h"
+#include "build/build_config.h"
 #include "chrome/browser/background_sync/background_sync_delegate_impl.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/background_sync/background_sync_controller_impl.h"
 #include "components/history/core/browser/history_database_params.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/test/test_history_database.h"
@@ -25,7 +26,7 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/android/background_sync_launcher_android.h"
 #endif
 
@@ -60,7 +61,7 @@ class BackgroundSyncControllerImplTest : public testing::Test {
   BackgroundSyncControllerImplTest()
       : task_environment_(content::BrowserTaskEnvironment::IO_MAINLOOP) {
     ResetFieldTrialList();
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     BackgroundSyncLauncherAndroid::SetPlayServicesVersionCheckDisabledForTests(
         true);
 #endif
@@ -119,7 +120,7 @@ TEST_F(BackgroundSyncControllerImplTest, SomeParamsSet) {
       "TrUe";
   field_parameters[BackgroundSyncControllerImpl::kInitialRetryParameterName] =
       "100";
-  ASSERT_TRUE(variations::AssociateVariationParams(
+  ASSERT_TRUE(base::AssociateFieldTrialParams(
       BackgroundSyncControllerImpl::kFieldTrialName, kFieldTrialGroup,
       field_parameters));
 
@@ -158,7 +159,7 @@ TEST_F(BackgroundSyncControllerImplTest, AllParamsSet) {
       "500";
   field_parameters
       [BackgroundSyncControllerImpl::kMinPeriodicSyncEventsInterval] = "43200";
-  ASSERT_TRUE(variations::AssociateVariationParams(
+  ASSERT_TRUE(base::AssociateFieldTrialParams(
       BackgroundSyncControllerImpl::kFieldTrialName, kFieldTrialGroup,
       field_parameters));
 

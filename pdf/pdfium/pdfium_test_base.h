@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ class PDFiumPage;
 class TestClient;
 class TestDocumentLoader;
 
-class PDFiumTestBase : public testing::Test {
+class PDFiumTestBase : public testing::TestWithParam<bool> {
  public:
   PDFiumTestBase();
   PDFiumTestBase(const PDFiumTestBase&) = delete;
@@ -76,7 +76,7 @@ class PDFiumTestBase : public testing::Test {
  private:
   void InitializePDFium();
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   base::FilePath test_fonts_path_;
 #endif
 

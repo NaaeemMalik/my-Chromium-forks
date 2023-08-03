@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,8 @@
   `);
 
   var messageAddedListener = ConsoleTestRunner.wrapListener(messageAdded);
-  SDK.consoleModel.addEventListener(SDK.ConsoleModel.Events.MessageAdded, messageAddedListener);
+  const consoleModel = SDK.targetManager.primaryPageTarget().model(SDK.ConsoleModel);
+  consoleModel.addEventListener(SDK.ConsoleModel.Events.MessageAdded, messageAddedListener);
   Console.ConsoleView.instance().setImmediatelyFilterMessagesForTest();
   Common.settings.moduleSetting('consoleGroupSimilar').set(false);
   TestRunner.addResult('Creating promise');
@@ -36,11 +37,11 @@
       return;
     messageNumber = 0;
 
-    SDK.consoleModel.removeEventListener(SDK.ConsoleModel.Events.MessageAdded, messageAddedListener);
+    consoleModel.removeEventListener(SDK.ConsoleModel.Events.MessageAdded, messageAddedListener);
     TestRunner.addResult('');
 
     // Process array as a batch.
-    SDK.consoleModel.addEventListener(
+    consoleModel.addEventListener(
         SDK.ConsoleModel.Events.MessageUpdated, ConsoleTestRunner.wrapListener(messageUpdated));
     await ConsoleTestRunner.dumpConsoleCounters();
     TestRunner.addResult('');

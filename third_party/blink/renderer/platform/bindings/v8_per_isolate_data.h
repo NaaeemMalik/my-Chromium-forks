@@ -33,14 +33,16 @@
 #include "gin/public/isolate_holder.h"
 #include "third_party/blink/renderer/platform/bindings/active_script_wrappable_manager.h"
 #include "third_party/blink/renderer/platform/bindings/runtime_call_stats.h"
-#include "third_party/blink/renderer/platform/bindings/scoped_persistent.h"
-#include "third_party/blink/renderer/platform/bindings/v8_global_value_map.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
-#include "v8/include/v8.h"
+#include "v8/include/v8-callbacks.h"
+#include "v8/include/v8-forward.h"
+#include "v8/include/v8-isolate.h"
+#include "v8/include/v8-local-handle.h"
+#include "v8/include/v8-persistent-handle.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -51,6 +53,7 @@ namespace blink {
 class DOMWrapperWorld;
 class ScriptState;
 class StringCache;
+class ThreadDebugger;
 class V8PrivateProperty;
 struct WrapperTypeInfo;
 
@@ -89,14 +92,6 @@ class PLATFORM_EXPORT V8PerIsolateData final {
    private:
     V8PerIsolateData* per_isolate_data_;
     const bool original_use_counter_disabled_;
-  };
-
-  // Use this class to abstract away types of members that are pointers to core/
-  // objects, which are simply owned and released by V8PerIsolateData (see
-  // m_threadDebugger for an example).
-  class PLATFORM_EXPORT Data {
-   public:
-    virtual ~Data() = default;
   };
 
   // Pointers to core/ objects that are garbage collected. Receives callback
@@ -183,16 +178,8 @@ class PLATFORM_EXPORT V8PerIsolateData final {
   v8::Local<v8::Context> EnsureScriptRegexpContext();
   void ClearScriptRegexpContext();
 
-  // EndOfScopeTasks are run when control is returning
-  // to C++ from script, after executing a script task (e.g. callback,
-  // event) or microtasks (e.g. promise). This is explicitly needed for
-  // Indexed DB transactions per spec, but should in general be avoided.
-  void AddEndOfScopeTask(base::OnceClosure);
-  void RunEndOfScopeTasks();
-  void ClearEndOfScopeTasks();
-
-  void SetThreadDebugger(std::unique_ptr<Data>);
-  Data* ThreadDebugger();
+  ThreadDebugger* GetThreadDebugger() const { return thread_debugger_.get(); }
+  void SetThreadDebugger(std::unique_ptr<ThreadDebugger> thread_debugger);
 
   void SetProfilerGroup(V8PerIsolateData::GarbageCollectedData*);
   V8PerIsolateData::GarbageCollectedData* ProfilerGroup();
@@ -222,20 +209,19 @@ class PLATFORM_EXPORT V8PerIsolateData final {
                    V8ContextSnapshotMode,
                    v8::CreateHistogramCallback,
                    v8::AddHistogramSampleCallback);
-  explicit V8PerIsolateData(V8ContextSnapshotMode);
   ~V8PerIsolateData();
 
   // A really simple hash function, which makes lookups faster. The set of
   // possible keys for this is relatively small and fixed at compile time, so
   // collisions are less of a worry than they would otherwise be.
-  struct SimplePtrHash final : public WTF::PtrHash<const void> {
+  struct SimplePtrHashTraits : public GenericHashTraits<const void*> {
     static unsigned GetHash(const void* key) {
       uintptr_t k = reinterpret_cast<uintptr_t>(key);
       return static_cast<unsigned>(k ^ (k >> 8));
     }
   };
   using V8TemplateMap =
-      HashMap<const void*, v8::Eternal<v8::Template>, SimplePtrHash>;
+      HashMap<const void*, v8::Eternal<v8::Template>, SimplePtrHashTraits>;
   V8TemplateMap& SelectV8TemplateMap(const DOMWrapperWorld&);
   bool HasInstance(const WrapperTypeInfo* wrapper_type_info,
                    v8::Local<v8::Value> untrusted_value,
@@ -265,13 +251,13 @@ class PLATFORM_EXPORT V8PerIsolateData final {
   bool constructor_mode_;
   friend class ConstructorMode;
 
-  bool use_counter_disabled_;
+  bool use_counter_disabled_ = false;
   friend class UseCounterDisabledScope;
 
-  bool is_handling_recursion_level_error_;
+  bool is_handling_recursion_level_error_ = false;
 
   Vector<base::OnceClosure> end_of_scope_tasks_;
-  std::unique_ptr<Data> thread_debugger_;
+  std::unique_ptr<ThreadDebugger> thread_debugger_;
   Persistent<GarbageCollectedData> profiler_group_;
   Persistent<GarbageCollectedData> canvas_resource_tracker_;
 

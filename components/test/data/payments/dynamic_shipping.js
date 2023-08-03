@@ -1,16 +1,27 @@
 /*
- * Copyright 2016 The Chromium Authors. All rights reserved.
+ * Copyright 2016 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
-/* global PaymentRequest:false */
+/**
+ * Launches the PaymentRequest UI that offers free shipping in California and
+ * $5.00 shipping in US. Does not allow shipping outside of US.
+ *
+ * Legacy entry-point until basic-card is disabled
+ */
+function buy() {
+  buyWithMethods(
+      [{supportedMethods: 'basic-card', data: {supportedNetworks: ['visa']}}]);
+}
 
 /**
  * Launches the PaymentRequest UI that offers free shipping in California and
  * $5.00 shipping in US. Does not allow shipping outside of US.
+ *
+ * @param {String} methodData - An array of payment method objects.
  */
-function buy() { // eslint-disable-line no-unused-vars
+function buyWithMethods(methodData) {
   try {
     var details = {
       total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
@@ -25,8 +36,7 @@ function buy() { // eslint-disable-line no-unused-vars
     };
 
     var request = new PaymentRequest(
-        [{supportedMethods: 'basic-card', data: {supportedNetworks: ['visa']}}],
-        details, {requestShipping: true});
+        methodData, details, {requestShipping: true});
 
     request.addEventListener('shippingaddresschange', function(evt) {
       evt.updateWith(new Promise(function(resolve) {

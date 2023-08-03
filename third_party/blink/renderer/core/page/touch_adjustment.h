@@ -24,8 +24,6 @@
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/geometry/layout_size.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
-#include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect.h"
@@ -45,6 +43,11 @@ bool FindBestContextMenuCandidate(Node*& target_node,
                                   const gfx::Point& touch_hotspot,
                                   const gfx::Rect& touch_area,
                                   const HeapVector<Member<Node>>&);
+bool FindBestStylusWritableCandidate(Node*& target_node,
+                                     gfx::Point& target_point,
+                                     const gfx::Point& touch_hotspot,
+                                     const gfx::Rect& touch_area,
+                                     const HeapVector<Member<Node>>&);
 
 // Applies an upper bound to the touch area as the adjustment rect. The
 // touch_area is in root frame coordinates, which is in physical pixel when

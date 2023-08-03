@@ -1,6 +1,7 @@
 # The tools for generating wrapper classes for a TFLite model with metadata.
 
 package(
+    default_applicable_licenses = ["//tensorflow_lite_support:license"],
     default_visibility = [
         "//visibility:public",
     ],
@@ -14,6 +15,8 @@ cc_library(
     ],
     hdrs = [
         "utils.h",
+    ],
+    deps = [
     ],
 )
 

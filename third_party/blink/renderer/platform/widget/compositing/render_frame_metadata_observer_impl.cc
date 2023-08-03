@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,13 @@
 
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
+#include "cc/mojom/render_frame_metadata.mojom-shared.h"
 #include "components/viz/common/quads/compositor_frame_metadata.h"
 
 namespace blink {
 
 namespace {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 constexpr float kEdgeThreshold = 10.0f;
 #endif
 }  // namespace
@@ -28,7 +29,7 @@ RenderFrameMetadataObserverImpl::RenderFrameMetadataObserverImpl(
 
 RenderFrameMetadataObserverImpl::~RenderFrameMetadataObserverImpl() {}
 
-void RenderFrameMetadataObserverImpl::BindToCurrentThread() {
+void RenderFrameMetadataObserverImpl::BindToCurrentSequence() {
   DCHECK(receiver_.is_valid());
   render_frame_metadata_observer_receiver_.Bind(std::move(receiver_));
   render_frame_metadata_observer_client_.Bind(std::move(client_remote_));
@@ -60,9 +61,12 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
     send_metadata |= force_send;
   }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
+  bool is_frequency_all_updates =
+      root_scroll_offset_update_frequency_ ==
+      cc::mojom::blink::RootScrollOffsetUpdateFrequency::kAllUpdates;
   const bool send_root_scroll_offset_changed =
-      report_all_root_scrolls_enabled_ && !send_metadata &&
+      is_frequency_all_updates && !send_metadata &&
       render_frame_metadata_observer_client_ && last_render_frame_metadata_ &&
       last_render_frame_metadata_->root_scroll_offset !=
           render_frame_metadata.root_scroll_offset &&
@@ -80,7 +84,7 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
   // value to all the observers.
   if (send_metadata && render_frame_metadata_observer_client_) {
     auto metadata_copy = render_frame_metadata;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     // On non-Android, sending |root_scroll_offset| outside of tests would
     // leave the browser process with out of date information. It is an
     // optional parameter which we clear here.
@@ -93,6 +97,9 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
         needs_activation_notification;
     render_frame_metadata_observer_client_->OnRenderFrameMetadataChanged(
         needs_activation_notification ? last_frame_token_ : 0u, metadata_copy);
+#if BUILDFLAG(IS_ANDROID)
+    last_root_scroll_offset_android_ = metadata_copy.root_scroll_offset;
+#endif
     TRACE_EVENT_WITH_FLOW1(
         TRACE_DISABLED_BY_DEFAULT("viz.surface_id_flow"),
         "RenderFrameMetadataObserverImpl::OnRenderFrameSubmission",
@@ -107,10 +114,13 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
             : "null");
   }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (send_root_scroll_offset_changed) {
+    DCHECK(!send_metadata);
     render_frame_metadata_observer_client_->OnRootScrollOffsetChanged(
         *render_frame_metadata.root_scroll_offset);
+    last_root_scroll_offset_android_ =
+        *render_frame_metadata.root_scroll_offset;
   }
 #endif
 
@@ -123,12 +133,15 @@ void RenderFrameMetadataObserverImpl::OnRenderFrameSubmission(
   }
 }
 
-#if defined(OS_ANDROID)
-void RenderFrameMetadataObserverImpl::ReportAllRootScrolls(bool enabled) {
-  report_all_root_scrolls_enabled_ = enabled;
+#if BUILDFLAG(IS_ANDROID)
+void RenderFrameMetadataObserverImpl::UpdateRootScrollOffsetUpdateFrequency(
+    cc::mojom::blink::RootScrollOffsetUpdateFrequency frequency) {
+  root_scroll_offset_update_frequency_ = frequency;
 
-  if (enabled)
+  if (frequency ==
+      cc::mojom::blink::RootScrollOffsetUpdateFrequency::kAllUpdates) {
     SendLastRenderFrameMetadata();
+  }
 }
 #endif
 
@@ -173,7 +186,7 @@ bool RenderFrameMetadataObserverImpl::ShouldSendRenderFrameMetadata(
     return true;
   }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (rfm1.bottom_controls_height != rfm2.bottom_controls_height ||
       rfm1.bottom_controls_shown_ratio != rfm2.bottom_controls_shown_ratio ||
       rfm1.top_controls_min_height_offset !=
@@ -225,5 +238,28 @@ bool RenderFrameMetadataObserverImpl::ShouldSendRenderFrameMetadata(
   *needs_activation_notification = false;
   return false;
 }
+
+#if BUILDFLAG(IS_ANDROID)
+void RenderFrameMetadataObserverImpl::DidEndScroll() {
+  if (!last_render_frame_metadata_.has_value()) {
+    return;
+  }
+
+  auto root_scroll_offset = last_render_frame_metadata_->root_scroll_offset;
+  if (!root_scroll_offset.has_value() ||
+      root_scroll_offset == last_root_scroll_offset_android_) {
+    return;
+  }
+
+  if (root_scroll_offset_update_frequency_ !=
+      cc::mojom::blink::RootScrollOffsetUpdateFrequency::kOnScrollEnd) {
+    return;
+  }
+
+  render_frame_metadata_observer_client_->OnRootScrollOffsetChanged(
+      root_scroll_offset.value());
+  last_root_scroll_offset_android_ = root_scroll_offset;
+}
+#endif
 
 }  // namespace blink

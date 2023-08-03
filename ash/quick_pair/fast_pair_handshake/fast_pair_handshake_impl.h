@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "ash/quick_pair/fast_pair_handshake/fast_pair_handshake.h"
 
 #include "base/memory/scoped_refptr.h"
+#include "base/time/time.h"
 
 namespace ash {
 namespace quick_pair {
@@ -21,16 +22,23 @@ class FastPairHandshakeImpl : public FastPairHandshake {
                         OnCompleteCallback on_complete);
   FastPairHandshakeImpl(const FastPairHandshakeImpl&) = delete;
   FastPairHandshakeImpl& operator=(const FastPairHandshakeImpl&) = delete;
-  ~FastPairHandshakeImpl();
+  ~FastPairHandshakeImpl() override;
+  void SetUpHandshake(OnFailureCallback on_failure_callback,
+                      OnCompleteCallbackNew on_success_callback) override;
+  void Reset() override;
 
  private:
   void OnGattClientInitializedCallback(absl::optional<PairFailure> failure);
   void OnDataEncryptorCreateAsync(
+      base::TimeTicks encryptor_create_start_time,
       std::unique_ptr<FastPairDataEncryptor> fast_pair_data_encryptor);
   void OnWriteResponse(std::vector<uint8_t> response_bytes,
                        absl::optional<PairFailure> failure);
   void OnParseDecryptedResponse(
+      base::TimeTicks decrypt_start_time,
       const absl::optional<DecryptedResponse>& response);
+
+  base::TimeTicks encryptor_create_start_time_;
 
   base::WeakPtrFactory<FastPairHandshakeImpl> weak_ptr_factory_{this};
 };

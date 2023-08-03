@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,16 @@
 
 #include "build/build_config.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #error "Unsupported on Android."
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
-#include "base/compiler_specific.h"
 #include "base/time/time.h"
 #include "chrome/browser/bad_message.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/desktop_media_id.h"
 #include "content/public/browser/web_contents.h"
+#include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 
 // When tab/window-capture is initiated, a window of opportunity opens,
 // during which the render process can instruct the browser process as to
@@ -46,6 +46,11 @@ class MediaStreamFocusDelegate : public TabStripModelObserver {
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
 
+  void SetWindowCapturerForTesting(
+      std::unique_ptr<webrtc::DesktopCapturer> window_capturer) {
+    window_capturer_for_testing_ = std::move(window_capturer);
+  }
+
  private:
   bool IsWidgetFocused() const;
   void FocusTab(const content::DesktopMediaID& media_id);
@@ -55,13 +60,13 @@ class MediaStreamFocusDelegate : public TabStripModelObserver {
   // If |false|, the call was found to be invalid, the capturer's render
   // process was killed off, and execution of the focus-delegate logic
   // should not proceed.
-  bool UpdateUMA(bool focus,
-                 bool is_from_microtask,
-                 bool is_from_timer) WARN_UNUSED_RESULT;
+  [[nodiscard]] bool UpdateUMA(bool focus,
+                               bool is_from_microtask,
+                               bool is_from_timer);
 
   // Kills off capturer render-process.
   // Returns |false| to make UpdateUMA()'s code a bit nicer.
-  bool BadMessage(bad_message::BadMessageReason reason) WARN_UNUSED_RESULT;
+  [[nodiscard]] bool BadMessage(bad_message::BadMessageReason reason);
 
   // UMA-related.
   const base::TimeTicks capture_start_time_;
@@ -76,6 +81,8 @@ class MediaStreamFocusDelegate : public TabStripModelObserver {
   // want to avoid yanking the user's focus around.
   base::WeakPtr<content::WebContents> capturing_web_contents_ = nullptr;
   bool focus_window_of_opportunity_open_ = true;
+
+  std::unique_ptr<webrtc::DesktopCapturer> window_capturer_for_testing_;
 };
 
 #endif  // CHROME_BROWSER_MEDIA_WEBRTC_MEDIA_STREAM_FOCUS_DELEGATE_H_

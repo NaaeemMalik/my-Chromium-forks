@@ -1,11 +1,12 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "gpu/vulkan/vulkan_image.h"
 
+#include <tuple>
+
 #include "base/containers/cxx20_erase.h"
-#include "base/ignore_result.h"
 #include "base/logging.h"
 #include "gpu/vulkan/vulkan_device_queue.h"
 #include "gpu/vulkan/vulkan_function_pointers.h"
@@ -42,6 +43,7 @@ bool VulkanImage::InitializeFromGpuMemoryBufferHandle(
     return false;
   }
 
+  queue_family_index_ = queue_family_index;
   auto& native_pixmap_handle = gmb_handle.native_pixmap_handle;
 
   // 2 plane images are ok, they just need ycbcr set up.
@@ -79,10 +81,24 @@ bool VulkanImage::InitializeFromGpuMemoryBufferHandle(
       .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_KHR,
       .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
   };
-  VkImageDrmFormatModifierListCreateInfoEXT modifier_info = {
-      .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
-      .drmFormatModifierCount = 1,
-      .pDrmFormatModifiers = &native_pixmap_handle.modifier,
+
+  std::vector<VkSubresourceLayout> planeLayouts(
+      native_pixmap_handle.planes.size());
+  for (size_t i = 0; i < native_pixmap_handle.planes.size(); ++i) {
+    planeLayouts[i].offset = native_pixmap_handle.planes[i].offset;
+    planeLayouts[i].size = native_pixmap_handle.planes[i].size;
+    planeLayouts[i].rowPitch = native_pixmap_handle.planes[i].stride;
+    planeLayouts[i].arrayPitch = 0;
+    planeLayouts[i].depthPitch = 0;
+  }
+
+  VkImageDrmFormatModifierExplicitCreateInfoEXT modifier_info = {
+      .sType =
+          VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
+      .drmFormatModifier = native_pixmap_handle.modifier,
+      .drmFormatModifierPlaneCount =
+          static_cast<uint32_t>(native_pixmap_handle.planes.size()),
+      .pPlaneLayouts = planeLayouts.data(),
   };
 
   if (using_modifier) {
@@ -90,19 +106,23 @@ bool VulkanImage::InitializeFromGpuMemoryBufferHandle(
     external_image_create_info.pNext = &modifier_info;
   }
 
+  int memory_fd = scoped_fd.release();
   VkImportMemoryFdInfoKHR import_memory_fd_info = {
       .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
       .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
-      .fd = scoped_fd.get(),
+      .fd = memory_fd,
   };
 
   VkMemoryRequirements* requirements = nullptr;
-  bool result = Initialize(device_queue, size, format, usage, flags,
-                           image_tiling, &external_image_create_info,
-                           &import_memory_fd_info, requirements);
-  // If Initialize successfully, the fd in scoped_fd should be owned by vulkan.
-  if (result)
-    ignore_result(scoped_fd.release());
+  // TODO support multiple plane
+  bool result = InitializeSingleOrJointPlanes(
+      device_queue, size, format, usage, flags, image_tiling,
+      &external_image_create_info, &import_memory_fd_info, requirements);
+  // If Initialize successfully, the fd in scoped_fd should be owned by vulkan,
+  // otherwise take the ownership of the fd back.
+  if (!result) {
+    scoped_fd.reset(memory_fd);
+  }
 
   return result;
 }
@@ -182,7 +202,7 @@ bool VulkanImage::InitializeWithExternalMemoryAndModifiers(
   if (!InitializeWithExternalMemory(device_queue, size, format, usage, flags,
                                     VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
                                     &modifier_list,
-                                    /*memory_allocation_info_next=*/nullptr)) {
+                                    /*extra_memory_allocation_info=*/nullptr)) {
     return false;
   }
 

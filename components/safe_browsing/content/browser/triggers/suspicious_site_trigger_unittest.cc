@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -78,7 +78,7 @@ class SuspiciousSiteTriggerTest : public content::RenderViewHostTestHarness {
 
   // Returns the final RenderFrameHost after navigation commits.
   RenderFrameHost* NavigateMainFrame(const std::string& url) {
-    return NavigateFrame(url, web_contents()->GetMainFrame());
+    return NavigateFrame(url, web_contents()->GetPrimaryMainFrame());
   }
 
   // Returns the final RenderFrameHost after navigation commits.
@@ -193,7 +193,7 @@ TEST_F(SuspiciousSiteTriggerTest, RegularPageNonSuspicious) {
 }
 
 // crbug.com/1010037: fails on win.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #define MAYBE_SuspiciousHitDuringLoad DISABLED_SuspiciousHitDuringLoad
 #else
 #define MAYBE_SuspiciousHitDuringLoad SuspiciousHitDuringLoad
@@ -274,7 +274,7 @@ TEST_F(SuspiciousSiteTriggerTest, SuspiciousHitAfterLoad) {
   ExpectNoReportRejection();
 }
 
-TEST_F(SuspiciousSiteTriggerTest, DISABLED_ReportRejectedByTriggerManager) {
+TEST_F(SuspiciousSiteTriggerTest, ReportRejectedByTriggerManager) {
   // If the trigger manager rejects the report then no report is sent.
   CreateTrigger(/*monitor_mode=*/false);
 
@@ -344,8 +344,7 @@ TEST_F(SuspiciousSiteTriggerTest, NewNavigationMidLoad_NotSuspicious) {
   ExpectNoReportRejection();
 }
 
-// Flaky. http://crbug.com/1010686
-TEST_F(SuspiciousSiteTriggerTest, DISABLED_NewNavigationMidLoad_Suspicious) {
+TEST_F(SuspiciousSiteTriggerTest, NewNavigationMidLoad_Suspicious) {
   // Exercise what happens when a new navigation begins in the middle of a page
   // load when a suspicious site was detected. The report of the first site
   // must be cancelled because we were waiting for the first load to finish

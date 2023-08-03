@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/synchronization/waitable_event.h"
+#include "base/task/single_thread_task_runner.h"
 #include "third_party/blink/renderer/modules/mediastream/remote_media_stream_track_adapter.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/modules/peerconnection/media_stream_video_webrtc_sink.h"
@@ -65,7 +66,7 @@ class MODULES_EXPORT WebRtcMediaStreamTrackAdapter
   // TODO(hbos): Allow these methods to be called on any thread and make them
   // const. https://crbug.com/756436
   MediaStreamComponent* track();
-  webrtc::MediaStreamTrackInterface* webrtc_track();
+  rtc::scoped_refptr<webrtc::MediaStreamTrackInterface> webrtc_track();
   bool IsEqual(MediaStreamComponent* component);
 
   // For testing.

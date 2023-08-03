@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,13 @@
 
 #include <algorithm>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/time/clock.h"
+#include "chromeos/ash/components/geolocation/simple_geolocation_provider.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
+
+namespace ash {
 
 namespace {
 
@@ -26,8 +29,10 @@ constexpr base::TimeDelta kNextRequestDelayAfterSuccess = base::Days(1);
 }  // namespace
 
 NightLightClient::NightLightClient(
+    const SimpleGeolocationProvider::Delegate* delegate,
     scoped_refptr<network::SharedURLLoaderFactory> factory)
     : provider_(
+          delegate,
           std::move(factory),
           ash::SimpleGeolocationProvider::DefaultGeolocationProviderURL()),
       night_light_controller_(ash::NightLightController::GetInstance()),
@@ -162,3 +167,5 @@ void NightLightClient::RequestGeoposition() {
       false /* send_cell_towers */,
       base::BindOnce(&NightLightClient::OnGeoposition, base::Unretained(this)));
 }
+
+}  // namespace ash

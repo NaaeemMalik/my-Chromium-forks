@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,7 +46,8 @@ class BasicSeqLockTestThread : public base::PlatformThread::Delegate {
       base::subtle::Atomic32 version;
       do {
         version = seqlock_->ReadBegin();
-        OneWriterSeqLock::AtomicReaderMemcpy(&copy, data_, sizeof(TestData));
+        OneWriterSeqLock::AtomicReaderMemcpy(&copy, data_.get(),
+                                             sizeof(TestData));
       } while (seqlock_->ReadRetry(version));
 
       for (unsigned j = 1; j < 32; ++j)
@@ -94,7 +95,7 @@ class MaxRetriesSeqLockTestThread : public base::PlatformThread::Delegate {
   raw_ptr<std::atomic<int>> ready_;
 };
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_ManyThreads FLAKY_ManyThreads
 #else
 #define MAYBE_ManyThreads ManyThreads

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,34 +6,35 @@
 
 #include <unordered_map>
 
-#include "base/memory/raw_ptr.h"
-
-#if defined(OS_WIN)
-#include <windows.h>
-#include <shellapi.h>
-#include <shlobj.h>
-#endif
-
 #include "base/check_op.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/synchronization/lock.h"
 #include "build/build_config.h"
+
+#if BUILDFLAG(IS_WIN)
+#include <windows.h>
+
+#include <shellapi.h>
+#include <shlobj.h>
+#endif
 
 namespace base {
 
 bool PathProvider(int key, FilePath* result);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 bool PathProviderWin(int key, FilePath* result);
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
 bool PathProviderMac(int key, FilePath* result);
-#elif defined(OS_ANDROID)
+#elif BUILDFLAG(IS_ANDROID)
 bool PathProviderAndroid(int key, FilePath* result);
-#elif defined(OS_FUCHSIA)
+#elif BUILDFLAG(IS_FUCHSIA)
 bool PathProviderFuchsia(int key, FilePath* result);
-#elif defined(OS_POSIX)
+#elif BUILDFLAG(IS_POSIX)
 // PathProviderPosix is the default path provider on POSIX OSes other than
 // Mac and Android.
 bool PathProviderPosix(int key, FilePath* result);
@@ -47,7 +48,9 @@ typedef std::unordered_map<int, FilePath> PathMap;
 // providers claim overlapping keys.
 struct Provider {
   PathService::ProviderFunc func;
-  struct Provider* next;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #reinterpret-cast-trivial-type, #global-scope
+  RAW_PTR_EXCLUSION struct Provider* next;
 #ifndef NDEBUG
   int key_start;
   int key_end;
@@ -61,7 +64,7 @@ Provider base_provider = {PathProvider, nullptr,
 #endif
                           true};
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 Provider base_provider_win = {
   PathProviderWin,
   &base_provider,
@@ -73,7 +76,7 @@ Provider base_provider_win = {
 };
 #endif
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 Provider base_provider_mac = {
   PathProviderMac,
   &base_provider,
@@ -85,7 +88,7 @@ Provider base_provider_mac = {
 };
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 Provider base_provider_android = {
   PathProviderAndroid,
   &base_provider,
@@ -97,7 +100,7 @@ Provider base_provider_android = {
 };
 #endif
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
 Provider base_provider_fuchsia = {PathProviderFuchsia, &base_provider,
 #ifndef NDEBUG
                                   0, 0,
@@ -105,7 +108,7 @@ Provider base_provider_fuchsia = {PathProviderFuchsia, &base_provider,
                                   true};
 #endif
 
-#if defined(OS_POSIX) && !defined(OS_APPLE) && !defined(OS_ANDROID)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_ANDROID)
 Provider base_provider_posix = {
   PathProviderPosix,
   &base_provider,
@@ -126,15 +129,15 @@ struct PathData {
   bool cache_disabled;  // Don't use cache if true;
 
   PathData() : cache_disabled(false) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     providers = &base_provider_win;
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
     providers = &base_provider_mac;
-#elif defined(OS_ANDROID)
+#elif BUILDFLAG(IS_ANDROID)
     providers = &base_provider_android;
-#elif defined(OS_FUCHSIA)
+#elif BUILDFLAG(IS_FUCHSIA)
     providers = &base_provider_fuchsia;
-#elif defined(OS_POSIX)
+#elif BUILDFLAG(IS_POSIX)
     providers = &base_provider_posix;
 #endif
   }

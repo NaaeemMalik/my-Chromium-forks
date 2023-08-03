@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,9 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "ash/wm/work_area_insets.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
+#include "base/memory/raw_ptr.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/time/time.h"
@@ -67,8 +68,9 @@ class PinRequestViewTest : public LoginTestBase,
 
     // If the test did not explicitly dismissed the widget, destroy it now.
     PinRequestWidget* pin_request_widget = PinRequestWidget::Get();
-    if (pin_request_widget)
+    if (pin_request_widget) {
       pin_request_widget->Close(false /* validation success */);
+    }
   }
 
   PinRequestView::SubmissionResult OnPinSubmitted(
@@ -176,7 +178,8 @@ class PinRequestViewTest : public LoginTestBase,
   // Whether the next pin submission will trigger setting an error state.
   bool will_authenticate_ = true;
 
-  PinRequestView* view_ = nullptr;  // Owned by test widget view hierarchy.
+  raw_ptr<PinRequestView, ExperimentalAsh> view_ =
+      nullptr;  // Owned by test widget view hierarchy.
 };
 
 // Tests that back button works.
@@ -188,7 +191,7 @@ TEST_F(PinRequestViewTest, BackButton) {
   EXPECT_TRUE(test_api.back_button()->GetEnabled());
   EXPECT_EQ(0, back_action_);
 
-  SimulateMouseClickAt(GetEventGenerator(), test_api.back_button());
+  LeftClickOn(test_api.back_button());
 
   EXPECT_EQ(1, back_action_);
   EXPECT_EQ(nullptr, PinRequestWidget::Get());
@@ -228,7 +231,7 @@ TEST_F(PinRequestViewTest, SubmitButton) {
   EXPECT_EQ(PinRequestViewState::kNormal, test_api.state());
   EXPECT_TRUE(test_api.submit_button()->GetEnabled());
 
-  SimulateMouseClickAt(GetEventGenerator(), test_api.submit_button());
+  LeftClickOn(test_api.submit_button());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, pin_submitted_);
   EXPECT_EQ("012346", last_code_submitted_);
@@ -241,7 +244,7 @@ TEST_F(PinRequestViewTest, HelpButton) {
   PinRequestView::TestApi test_api(view_);
   EXPECT_TRUE(test_api.help_button()->GetEnabled());
 
-  SimulateMouseClickAt(GetEventGenerator(), test_api.help_button());
+  LeftClickOn(test_api.help_button());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, help_dialog_opened_);
 }
@@ -348,7 +351,7 @@ TEST_F(PinRequestViewTest, Backspace) {
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(test_api.submit_button()->GetEnabled());
 
-  SimulateMouseClickAt(GetEventGenerator(), test_api.submit_button());
+  LeftClickOn(test_api.submit_button());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, pin_submitted_);
   EXPECT_EQ("012323", last_code_submitted_);
@@ -368,13 +371,13 @@ TEST_F(PinRequestViewTest, FlexCodeInput) {
     base::RunLoop().RunUntilIdle();
   }
   EXPECT_TRUE(test_api.submit_button()->GetEnabled());
-  SimulateMouseClickAt(GetEventGenerator(), test_api.submit_button());
+  LeftClickOn(test_api.submit_button());
   EXPECT_EQ(1, pin_submitted_);
   EXPECT_EQ("01234567", last_code_submitted_);
 
   // Test Backspace.
   generator->PressKey(ui::KeyboardCode::VKEY_BACK, ui::EF_NONE);
-  SimulateMouseClickAt(GetEventGenerator(), test_api.submit_button());
+  LeftClickOn(test_api.submit_button());
   EXPECT_EQ(2, pin_submitted_);
   EXPECT_EQ("0123456", last_code_submitted_);
 }
@@ -404,7 +407,7 @@ TEST_F(PinRequestViewTest, FlexCodeInputCharacters) {
                       ui::EF_NONE);
 
   EXPECT_TRUE(test_api.submit_button()->GetEnabled());
-  SimulateMouseClickAt(GetEventGenerator(), test_api.submit_button());
+  LeftClickOn(test_api.submit_button());
   EXPECT_EQ(1, pin_submitted_);
   EXPECT_EQ("abcABC+-", last_code_submitted_);
 }
@@ -421,7 +424,7 @@ TEST_F(PinRequestViewTest, PinKeyboard) {
   EXPECT_FALSE(test_api.submit_button()->GetEnabled());
 
   for (int i = 0; i < 6; ++i) {
-    SimulateMouseClickAt(GetEventGenerator(), test_pin_keyboard.GetButton(i));
+    LeftClickOn(test_pin_keyboard.GetButton(i));
     base::RunLoop().RunUntilIdle();
   }
   EXPECT_EQ(1, pin_submitted_);
@@ -457,7 +460,7 @@ TEST_F(PinRequestViewTest, ErrorState) {
   generator->PressKey(ui::KeyboardCode::VKEY_6, ui::EF_NONE);
   EXPECT_EQ(PinRequestViewState::kNormal, test_api.state());
 
-  SimulateMouseClickAt(GetEventGenerator(), test_api.submit_button());
+  LeftClickOn(test_api.submit_button());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1, pin_submitted_);
   EXPECT_EQ("012346", last_code_submitted_);
@@ -520,7 +523,13 @@ TEST_F(PinRequestViewTest, BackwardTabKeyTraversal) {
   EXPECT_TRUE(HasFocusInAnyChildView(test_api.access_code_view()));
 }
 
-using PinRequestWidgetTest = PinRequestViewTest;
+class PinRequestWidgetTest : public PinRequestViewTest {
+ public:
+  PinRequestWidgetTest() { set_start_session(true); }
+  PinRequestWidgetTest(const PinRequestWidgetTest&) = delete;
+  PinRequestWidgetTest& operator=(const PinRequestWidgetTest&) = delete;
+  ~PinRequestWidgetTest() override = default;
+};
 
 // Tests that the widget is properly resized when tablet mode changes.
 TEST_F(PinRequestWidgetTest, WidgetResizingInTabletMode) {
@@ -582,7 +591,7 @@ TEST_F(PinRequestViewTest, VirtualKeyboardHidden) {
 
   ui::GestureEvent event(
       text_field->x(), text_field->y(), 0, base::TimeTicks::Now(),
-      ui::GestureEventDetails(ui::EventType::ET_GESTURE_TAP_DOWN));
+      ui::GestureEventDetails(ui::EventType::ET_GESTURE_TAP));
   text_field->OnGestureEvent(&event);
   base::RunLoop().RunUntilIdle();
 
@@ -670,7 +679,7 @@ TEST_F(PinRequestViewTest, VirtualTextFieldForA11y) {
 
   // Test Mouse event, mouse click on input field at index 0, then press
   // keyboard 1.
-  SimulateMouseClickAt(GetEventGenerator(), test_api.GetInputTextField(0));
+  LeftClickOn(test_api.GetInputTextField(0));
   PressKeyHelper(ui::KeyboardCode::VKEY_1);
   ExpectTextSelection(1 /*start=*/, 2 /*end=*/);
   ExpectTextValue("1133  ");

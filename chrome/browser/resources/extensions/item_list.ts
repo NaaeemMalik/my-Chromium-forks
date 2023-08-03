@@ -1,30 +1,31 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'gtx://resources/cr_components/managed_footnote/managed_footnote.js';
 import './item.js';
-import './shared_style.js';
+import './shared_style.css.js';
 
-import { CrContainerShadowMixin } from 'gtx://resources/cr_elements/cr_container_shadow_mixin.js';
-import { I18nMixin } from 'gtx://resources/js/i18n_mixin.js';
-import { IronA11yAnnouncer } from 'gtx://resources/polymer/v3_0/iron-a11y-announcer/iron-a11y-announcer.js';
-import { html, PolymerElement } from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrContainerShadowMixin} from 'gtx://resources/cr_elements/cr_container_shadow_mixin.js';
+import {I18nMixin} from 'gtx://resources/cr_elements/i18n_mixin.js';
+import {IronA11yAnnouncer} from 'gtx://resources/polymer/v3_0/iron-a11y-announcer/iron-a11y-announcer.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import { ExtensionsItemElement, ItemDelegate } from './item.js';
+import {ExtensionsItemElement, ItemDelegate} from './item.js';
+import {getTemplate} from './item_list.html.js';
 
 type Filter = (info: chrome.developerPrivate.ExtensionInfo) => boolean;
 
 const ExtensionsItemListElementBase =
-  I18nMixin(CrContainerShadowMixin(PolymerElement));
+    I18nMixin(CrContainerShadowMixin(PolymerElement));
 
-class ExtensionsItemListElement extends ExtensionsItemListElementBase {
+export class ExtensionsItemListElement extends ExtensionsItemListElementBase {
   static get is() {
     return 'extensions-item-list';
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -65,8 +66,8 @@ class ExtensionsItemListElement extends ExtensionsItemListElementBase {
     };
   }
 
-  apps: Array<chrome.developerPrivate.ExtensionInfo>;
-  extensions: Array<chrome.developerPrivate.ExtensionInfo>;
+  apps: chrome.developerPrivate.ExtensionInfo[];
+  extensions: chrome.developerPrivate.ExtensionInfo[];
   delegate: ItemDelegate;
   inDevMode: boolean;
   filter: string;
@@ -75,15 +76,15 @@ class ExtensionsItemListElement extends ExtensionsItemListElementBase {
   private shownAppsCount_: number;
   private shownExtensionsCount_: number;
 
-  getDetailsButton(id: string): HTMLElement | null {
+  getDetailsButton(id: string): HTMLElement|null {
     const item =
-      this.shadowRoot!.querySelector<ExtensionsItemElement>(`#${id}`);
+        this.shadowRoot!.querySelector<ExtensionsItemElement>(`#${id}`);
     return item && item.getDetailsButton();
   }
 
-  getErrorsButton(id: string): HTMLElement | null {
+  getErrorsButton(id: string): HTMLElement|null {
     const item =
-      this.shadowRoot!.querySelector<ExtensionsItemElement>(`#${id}`);
+        this.shadowRoot!.querySelector<ExtensionsItemElement>(`#${id}`);
     return item && item.getErrorsButton();
   }
 
@@ -93,14 +94,14 @@ class ExtensionsItemListElement extends ExtensionsItemListElementBase {
    * shown.
    * return {?Function}
    */
-  private computeFilter_(): Filter | null {
+  private computeFilter_(): Filter|null {
     const formattedFilter = this.filter.trim().toLowerCase();
     if (!formattedFilter) {
       return null;
     }
 
     return i => [i.name, i.id].some(
-      s => s.toLowerCase().includes(formattedFilter));
+               s => s.toLowerCase().includes(formattedFilter));
   }
 
   private shouldShowEmptyItemsMessage_() {
@@ -113,13 +114,10 @@ class ExtensionsItemListElement extends ExtensionsItemListElementBase {
 
   private shouldShowEmptySearchMessage_() {
     return !this.shouldShowEmptyItemsMessage_() && this.shownAppsCount_ === 0 &&
-      this.shownExtensionsCount_ === 0;
-  }
-  private dontShowItem_(id: string): boolean {
-    return (id == 'dmpbddmnggjnboanaijofechppkckooj' || id == 'mhjfbmdgcfjbbpaeojofohoefgiehjai' || id == 'kmendfapggjehodndflmmgagdbamhnfd')
+        this.shownExtensionsCount_ === 0;
   }
 
-  private onNoExtensionsTap_(e: Event) {
+  private onNoExtensionsClick_(e: Event) {
     if ((e.target as HTMLElement).tagName === 'A') {
       chrome.metricsPrivate.recordUserAction('Options_GetMoreExtensions');
     }
@@ -135,12 +133,12 @@ class ExtensionsItemListElement extends ExtensionsItemListElementBase {
           composed: true,
           detail: {
             text: this.shouldShowEmptySearchMessage_() ?
-              this.i18n('noSearchResults') :
-              (total === 1 ?
-                this.i18n('searchResultsSingular', this.filter) :
-                this.i18n(
-                  'searchResultsPlural', total.toString(), this.filter)),
-          }
+                this.i18n('noSearchResults') :
+                (total === 1 ?
+                     this.i18n('searchResultsSingular', this.filter) :
+                     this.i18n(
+                         'searchResultsPlural', total.toString(), this.filter)),
+          },
         }));
       }, 0);
     }

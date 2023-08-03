@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,9 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/containers/adapters.h"
-#include "base/task/post_task.h"
+#include "base/functional/bind.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -29,14 +28,15 @@
 #include "chrome/browser/task_manager/sampling/shared_sampler.h"
 #include "components/nacl/common/buildflags.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/child_process_host.h"
 #include "content/public/browser/gpu_data_manager.h"
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/common/child_process_host.h"
 #include "content/public/common/content_features.h"
 #include "services/network/public/cpp/features.h"
+#include "services/network/public/mojom/network_service.mojom.h"
 #include "services/resource_coordinator/public/cpp/memory_instrumentation/memory_instrumentation.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -52,8 +52,8 @@ namespace task_manager {
 
 namespace {
 
-base::LazyInstance<TaskManagerImpl>::DestructorAtExit
-    lazy_task_manager_instance = LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<TaskManagerImpl>::Leaky lazy_task_manager_instance =
+    LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
@@ -133,7 +133,7 @@ double TaskManagerImpl::GetPlatformIndependentCPUUsage(TaskId task_id) const {
 }
 
 base::Time TaskManagerImpl::GetStartTime(TaskId task_id) const {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   return GetTaskGroupByTaskId(task_id)->start_time();
 #else
   NOTIMPLEMENTED();
@@ -142,7 +142,7 @@ base::Time TaskManagerImpl::GetStartTime(TaskId task_id) const {
 }
 
 base::TimeDelta TaskManagerImpl::GetCpuTime(TaskId task_id) const {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   return GetTaskGroupByTaskId(task_id)->cpu_time();
 #else
   NOTIMPLEMENTED();
@@ -155,7 +155,7 @@ int64_t TaskManagerImpl::GetMemoryFootprintUsage(TaskId task_id) const {
 }
 
 int64_t TaskManagerImpl::GetSwappedMemoryUsage(TaskId task_id) const {
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
   return GetTaskGroupByTaskId(task_id)->swapped_bytes();
 #else
   return -1;
@@ -175,7 +175,7 @@ int TaskManagerImpl::GetIdleWakeupsPerSecond(TaskId task_id) const {
 }
 
 int TaskManagerImpl::GetHardFaultsPerSecond(TaskId task_id) const {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   return GetTaskGroupByTaskId(task_id)->hard_faults_per_second();
 #else
   return -1;
@@ -193,35 +193,35 @@ int TaskManagerImpl::GetNaClDebugStubPort(TaskId task_id) const {
 void TaskManagerImpl::GetGDIHandles(TaskId task_id,
                                     int64_t* current,
                                     int64_t* peak) const {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   const TaskGroup* task_group = GetTaskGroupByTaskId(task_id);
   *current = task_group->gdi_current_handles();
   *peak = task_group->gdi_peak_handles();
 #else
   *current = -1;
   *peak = -1;
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 void TaskManagerImpl::GetUSERHandles(TaskId task_id,
                                      int64_t* current,
                                      int64_t* peak) const {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   const TaskGroup* task_group = GetTaskGroupByTaskId(task_id);
   *current = task_group->user_current_handles();
   *peak = task_group->user_peak_handles();
 #else
   *current = -1;
   *peak = -1;
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 int TaskManagerImpl::GetOpenFdCount(TaskId task_id) const {
-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
   return GetTaskGroupByTaskId(task_id)->open_fd_count();
 #else
   return -1;
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_MAC)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
 }
 
 bool TaskManagerImpl::IsTaskOnBackgroundedProcess(TaskId task_id) const {
@@ -468,8 +468,8 @@ TaskId TaskManagerImpl::GetTaskIdForWebContents(
     content::WebContents* web_contents) const {
   if (!web_contents)
     return -1;
-  content::RenderFrameHost* rfh = web_contents->GetMainFrame();
-  Task* task = GetTaskByRoute(rfh->GetProcess()->GetID(), rfh->GetRoutingID());
+  content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
+  Task* task = GetTaskByRoute(rfh->GetGlobalId());
   if (!task)
     return -1;
   return task->task_id();
@@ -493,7 +493,7 @@ void TaskManagerImpl::TaskAdded(Task* task) {
         task->process_handle(), proc_id, is_running_in_vm,
         on_background_data_ready_callback_, shared_sampler_,
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-        is_running_in_lacros ? crosapi_task_provider_ : nullptr,
+        is_running_in_lacros ? crosapi_task_provider_.get() : nullptr,
 #endif
         blocking_pool_runner_);
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -553,18 +553,16 @@ void TaskManagerImpl::TaskIdsListToBeInvalidated() {
 #endif  //  BUILDFLAG(IS_CHROMEOS_ASH)
 
 void TaskManagerImpl::UpdateAccumulatedStatsNetworkForRoute(
-    int process_id,
-    int route_id,
+    content::GlobalRenderFrameHostId render_frame_host_id,
     int64_t recv_bytes,
     int64_t sent_bytes) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!is_running_)
     return;
-  Task* task = GetTaskByRoute(process_id, route_id);
+  Task* task = GetTaskByRoute(render_frame_host_id);
   if (!task) {
     // Orphaned/unaccounted activity is credited to the Browser process.
-    task = GetTaskByRoute(content::ChildProcessHost::kInvalidUniqueID,
-                          MSG_ROUTING_NONE);
+    task = GetTaskByRoute(content::GlobalRenderFrameHostId());
   }
   if (!task)
     return;
@@ -646,6 +644,8 @@ void TaskManagerImpl::StartUpdating() {
 
   is_running_ = true;
 
+  content::GetNetworkService()->EnableDataUseUpdates(true);
+
   for (const auto& provider : task_providers_)
     provider->SetObserver(this);
 
@@ -660,6 +660,8 @@ void TaskManagerImpl::StopUpdating() {
 
   is_running_ = false;
 
+  content::GetNetworkService()->EnableDataUseUpdates(false);
+
   for (const auto& provider : task_providers_)
     provider->ClearObserver();
 
@@ -670,9 +672,11 @@ void TaskManagerImpl::StopUpdating() {
   sorted_task_ids_.clear();
 }
 
-Task* TaskManagerImpl::GetTaskByRoute(int child_id, int route_id) const {
+Task* TaskManagerImpl::GetTaskByRoute(
+    content::GlobalRenderFrameHostId render_frame_host_id) const {
   for (const auto& task_provider : task_providers_) {
-    Task* task = task_provider->GetTaskOfUrlRequest(child_id, route_id);
+    Task* task = task_provider->GetTaskOfUrlRequest(
+        render_frame_host_id.child_id, render_frame_host_id.frame_routing_id);
     if (task)
       return task;
   }

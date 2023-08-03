@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
 #include "ui/compositor/compositor_export.h"
 
@@ -25,7 +24,7 @@ class COMPOSITOR_EXPORT LayerTreeOwner {
 
   ~LayerTreeOwner();
 
-  Layer* release() WARN_UNUSED_RESULT {
+  [[nodiscard]] Layer* release() {
     Layer* root = root_;
     root_ = nullptr;
     return root;
@@ -35,7 +34,7 @@ class COMPOSITOR_EXPORT LayerTreeOwner {
   const Layer* root() const { return root_; }
 
  private:
-  raw_ptr<Layer> root_;
+  raw_ptr<Layer, DanglingUntriaged> root_;
 };
 
 }  // namespace

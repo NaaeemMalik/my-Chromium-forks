@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,8 +31,10 @@ class MockEditAddressProfileDialogController
     : public EditAddressProfileDialogController {
  public:
   MOCK_METHOD(std::u16string, GetWindowTitle, (), (const, override));
+  MOCK_METHOD(const std::u16string&, GetFooterMessage, (), (const, override));
   MOCK_METHOD(std::u16string, GetOkButtonLabel, (), (const, override));
   MOCK_METHOD(const AutofillProfile&, GetProfileToEdit, (), (const, override));
+  MOCK_METHOD(bool, GetIsValidatable, (), (const, override));
   MOCK_METHOD(void,
               OnUserDecision,
               (AutofillClient::SaveAddressProfileOfferUserDecision decision,
@@ -49,13 +51,14 @@ class EditAddressProfileViewTest : public ChromeViewsTestBase {
   void CreateViewAndShow();
 
   void SetUp() override {
-    feature_list_.InitAndEnableFeature(
-        features::kAutofillAddressProfileSavePrompt);
     ChromeViewsTestBase::SetUp();
 
     address_profile_to_edit_ = test::GetFullProfile();
     test_web_contents_ =
         content::WebContentsTester::CreateTestWebContents(&profile_, nullptr);
+
+    ON_CALL(mock_controller_, GetFooterMessage)
+        .WillByDefault(::testing::ReturnRefOfCopy(std::u16string()));
   }
 
   void TearDown() override {
@@ -95,7 +98,7 @@ void EditAddressProfileViewTest::CreateViewAndShow() {
   dialog_->ShowForWebContents(test_web_contents_.get());
 
   gfx::NativeView parent = gfx::kNullNativeView;
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // We need a native view parent for the dialog to avoid a DCHECK
   // on Mac.
   parent_widget_ = CreateTestWidget();
@@ -105,7 +108,7 @@ void EditAddressProfileViewTest::CreateViewAndShow() {
       views::DialogDelegate::CreateDialogWidget(dialog_, GetContext(), parent);
   widget_->SetVisibilityChangedAnimationsEnabled(false);
   widget_->Show();
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // Necessary for Mac. On other platforms this happens in the focus
   // manager, but it's disabled for Mac due to crbug.com/650859.
   parent_widget_->Activate();

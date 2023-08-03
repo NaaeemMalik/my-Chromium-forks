@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,9 @@
 
 #include "ash/components/arc/arc_util.h"
 #include "ash/public/cpp/shelf_types.h"
+#include "base/memory/raw_ptr.h"
+#include "chrome/browser/ash/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ash/arc/session/arc_session_manager_observer.h"
-#include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
 
 namespace arc {
 class ArcAppShelfId;
@@ -26,10 +27,6 @@ class ShelfItemDelegate;
 
 namespace aura {
 class window;
-}
-
-namespace base {
-class Time;
 }
 
 namespace gfx {
@@ -64,6 +61,15 @@ class AppServiceAppWindowArcTracker : public ArcAppListPrefs::Observer,
 
   // Invoked by controller to notify |window| is destroying.
   void HandleWindowDestroying(aura::Window* window);
+
+  // Close all windows for 'app_id'.
+  void CloseWindows(const std::string& app_id);
+
+  // Invoked by controller to notify |window| may be replaced from ghost window
+  // to app window.
+  void OnWindowPropertyChanged(aura::Window* window,
+                               const void* key,
+                               intptr_t old);
 
   // ArcAppListPrefs::Observer:
   void OnAppStatesChanged(const std::string& app_id,
@@ -120,11 +126,7 @@ class AppServiceAppWindowArcTracker : public ArcAppListPrefs::Observer,
   void AttachControllerToSession(int session_id);
 
   // arc::ArcSessionManagerObserver:
-  void OnArcOptInManagementCheckStarted() override;
-  void OnArcSessionStopped(arc::ArcStopReason stop_reason) override;
   void OnArcPlayStoreEnabledChanged(bool enabled) override;
-
-  void HandlePlayStoreLaunch(ArcAppWindowInfo* app_window_info);
 
   // Returns a task ID different from |task_id| that is part of the same
   // logical window. Return arc::kNoTaskId if there is no such window.
@@ -147,12 +149,18 @@ class AppServiceAppWindowArcTracker : public ArcAppListPrefs::Observer,
   // `session_id`.
   void OnSessionDestroyed(int32_t session_id);
 
-  Profile* const observed_profile_;
-  AppServiceAppWindowShelfController* const app_service_controller_;
+  const raw_ptr<Profile, ExperimentalAsh> observed_profile_;
+  const raw_ptr<AppServiceAppWindowShelfController, ExperimentalAsh>
+      app_service_controller_;
 
   TaskIdToArcAppWindowInfo task_id_to_arc_app_window_info_;
   SessionIdToArcAppWindowInfo session_id_to_arc_app_window_info_;
   ShelfGroupToAppControllerMap app_shelf_group_to_controller_map_;
+
+  // Temporarily map session id to task id, starting from OnTaskCreated called
+  // to exo application id set (until that `arc::GetWindowTaskId` can return
+  // correct task id for window, or it will still be session id).
+  std::map<int, int> session_id_to_task_id_map_;
 
   // ARC app task id could be created after the window initialized.
   // |arc_window_candidates_| is used to record those initialized ARC app
@@ -165,11 +173,10 @@ class AppServiceAppWindowArcTracker : public ArcAppListPrefs::Observer,
   int active_task_id_ = arc::kNoTaskId;
   int active_session_id_ = arc::kNoTaskId;
 
-  // The time when the ARC OptIn management check was started. This happens
-  // right after user agrees the ToS or in some cases for managed user when ARC
-  // starts for the first time. OptIn management check is preceding step before
-  // ARC container is actually started.
-  base::Time opt_in_management_check_start_time_;
+  // TODO(crbug.com/1276603): A temp variable used to investigate whether
+  // OnTaskDestroyed is called in the middle of OnTaskCreated. This can be
+  // removed if we have the result.
+  int task_id_being_created_ = arc::kNoTaskId;
 
   base::WeakPtrFactory<AppServiceAppWindowArcTracker> weak_ptr_factory_{this};
 };

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -101,17 +101,15 @@ void ExtensionTestingProfile::AddExtension(std::string extension_id,
   extension_service_->AddExtension(extension.get());
 
   extension_prefs_->UpdateExtensionPref(
-      extension_id, "install_time",
-      std::make_unique<base::Value>(
-          base::NumberToString(install_time.ToInternalValue())));
-  extension_prefs_->UpdateExtensionPref(
-      extension_id, "state", std::make_unique<base::Value>(state_value));
+      extension_id, "last_update_time",
+      base::Value(base::NumberToString(install_time.ToInternalValue())));
+  extension_prefs_->UpdateExtensionPref(extension_id, "state",
+                                        base::Value(state_value));
 }
 
 void ExtensionTestingProfile::SetInstallSignature(
     extensions::InstallSignature signature) {
-  base::DictionaryValue signature_dict;
-  signature.ToValue(&signature_dict);
+  base::Value::Dict signature_dict = signature.ToDict();
   extension_prefs_->SetInstallSignature(&signature_dict);
 }
 
@@ -130,7 +128,7 @@ class ExtensionDataCollectionTest : public testing::Test {
     SAFE_BROWSING_AND_EXTENDED_REPORTING,
   };
 
-  ExtensionDataCollectionTest() : profile_number_() {}
+  ExtensionDataCollectionTest() = default;
 
   void SetUp() override {
     testing::Test::SetUp();
@@ -176,7 +174,6 @@ class ExtensionDataCollectionTest : public testing::Test {
         profile_name, std::move(prefs),
         base::UTF8ToUTF16(profile_name),  // user_name
         0,                                // avatar_id
-        std::string(),                    // supervised_user_id
         TestingProfile::TestingFactories());
 
     auto testing_profile = std::make_unique<ExtensionTestingProfile>(profile);
@@ -189,7 +186,7 @@ class ExtensionDataCollectionTest : public testing::Test {
   std::unique_ptr<TestingProfileManager> profile_manager_;
 
  private:
-  int profile_number_;
+  int profile_number_ = 0;
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;

@@ -43,7 +43,7 @@ WebSettingsImpl::WebSettingsImpl(Settings* settings,
     : settings_(settings),
       dev_tools_emulator_(dev_tools_emulator),
       render_v_sync_notification_enabled_(false),
-      auto_zoom_focused_node_to_legible_scale_(false),
+      auto_zoom_focused_editable_to_legible_scale_(false),
       support_deprecated_target_density_dpi_(false),
       viewport_meta_non_user_scalable_quirk_(false),
       clobber_user_agent_initial_scale_quirk_(false) {
@@ -107,6 +107,12 @@ void WebSettingsImpl::SetFantasyFontFamily(const WebString& font,
     settings_->NotifyGenericFontFamilyChange();
 }
 
+void WebSettingsImpl::SetMathFontFamily(const WebString& font,
+                                        UScriptCode script) {
+  if (settings_->GetGenericFontFamilySettings().UpdateMath(font, script))
+    settings_->NotifyGenericFontFamilyChange();
+}
+
 void WebSettingsImpl::SetDefaultFontSize(int size) {
   settings_->SetDefaultFontSize(size);
 }
@@ -132,10 +138,21 @@ void WebSettingsImpl::SetAutoplayPolicy(mojom::blink::AutoplayPolicy policy) {
       static_cast<blink::AutoplayPolicy::Type>(policy));
 }
 
-void WebSettingsImpl::SetAutoZoomFocusedNodeToLegibleScale(
-    bool auto_zoom_focused_node_to_legible_scale) {
-  auto_zoom_focused_node_to_legible_scale_ =
-      auto_zoom_focused_node_to_legible_scale;
+void WebSettingsImpl::SetRequireTransientActivationForGetDisplayMedia(
+    bool required) {
+  settings_->SetRequireTransientActivationForGetDisplayMedia(required);
+}
+
+void WebSettingsImpl::SetRequireTransientActivationForShowFileOrDirectoryPicker(
+    bool required) {
+  settings_->SetRequireTransientActivationForShowFileOrDirectoryPicker(
+      required);
+}
+
+void WebSettingsImpl::SetAutoZoomFocusedEditableToLegibleScale(
+    bool auto_zoom_focused_editable_to_legible_scale) {
+  auto_zoom_focused_editable_to_legible_scale_ =
+      auto_zoom_focused_editable_to_legible_scale;
 }
 
 void WebSettingsImpl::SetTextAutosizingEnabled(bool enabled) {
@@ -265,6 +282,11 @@ void WebSettingsImpl::SetPrimaryHoverType(mojom::blink::HoverType type) {
   dev_tools_emulator_->SetPrimaryHoverType(type);
 }
 
+void WebSettingsImpl::SetOutputDeviceUpdateAbilityType(
+    mojom::blink::OutputDeviceUpdateAbilityType type) {
+  dev_tools_emulator_->SetOutputDeviceUpdateAbilityType(type);
+}
+
 void WebSettingsImpl::SetPreferHiddenVolumeControls(bool enabled) {
   settings_->SetPreferHiddenVolumeControls(enabled);
 }
@@ -374,10 +396,6 @@ void WebSettingsImpl::SetTextTrackWindowColor(const WebString& color) {
   settings_->SetTextTrackWindowColor(color);
 }
 
-void WebSettingsImpl::SetTextTrackWindowPadding(const WebString& padding) {
-  settings_->SetTextTrackWindowPadding(padding);
-}
-
 void WebSettingsImpl::SetTextTrackWindowRadius(const WebString& radius) {
   settings_->SetTextTrackWindowRadius(radius);
 }
@@ -479,8 +497,8 @@ void WebSettingsImpl::SetAntialiasedClips2dCanvasEnabled(bool enabled) {
   settings_->SetAntialiasedClips2dCanvasEnabled(enabled);
 }
 
-void WebSettingsImpl::SetPreferCompositingToLCDTextEnabled(bool enabled) {
-  dev_tools_emulator_->SetPreferCompositingToLCDTextEnabled(enabled);
+void WebSettingsImpl::SetLCDTextPreference(LCDTextPreference preference) {
+  dev_tools_emulator_->SetLCDTextPreference(preference);
 }
 
 void WebSettingsImpl::SetHideDownloadUI(bool hide) {
@@ -574,10 +592,6 @@ bool WebSettingsImpl::ShrinksViewportContentToFit() const {
 
 void WebSettingsImpl::SetPictureInPictureEnabled(bool enabled) {
   settings_->SetPictureInPictureEnabled(enabled);
-}
-
-void WebSettingsImpl::SetDataSaverHoldbackWebApi(bool enabled) {
-  settings_->SetDataSaverHoldbackWebApi(enabled);
 }
 
 void WebSettingsImpl::SetWebAppScope(const WebString& scope) {
@@ -739,26 +753,6 @@ void WebSettingsImpl::SetLazyImageLoadingDistanceThresholdPx4G(
   settings_->SetLazyImageLoadingDistanceThresholdPx4G(distance_px);
 }
 
-void WebSettingsImpl::SetLazyImageFirstKFullyLoadUnknown(int num_images) {
-  settings_->SetLazyImageFirstKFullyLoadUnknown(num_images);
-}
-
-void WebSettingsImpl::SetLazyImageFirstKFullyLoadSlow2G(int num_images) {
-  settings_->SetLazyImageFirstKFullyLoadSlow2G(num_images);
-}
-
-void WebSettingsImpl::SetLazyImageFirstKFullyLoad2G(int num_images) {
-  settings_->SetLazyImageFirstKFullyLoad2G(num_images);
-}
-
-void WebSettingsImpl::SetLazyImageFirstKFullyLoad3G(int num_images) {
-  settings_->SetLazyImageFirstKFullyLoad3G(num_images);
-}
-
-void WebSettingsImpl::SetLazyImageFirstKFullyLoad4G(int num_images) {
-  settings_->SetLazyImageFirstKFullyLoad4G(num_images);
-}
-
 void WebSettingsImpl::SetForceDarkModeEnabled(bool enabled) {
   settings_->SetForceDarkModeEnabled(enabled);
 }
@@ -799,9 +793,7 @@ void WebSettingsImpl::SetWebXRImmersiveArAllowed(
   settings_->SetWebXRImmersiveArAllowed(webxr_immersive_ar_allowed);
 }
 
-void WebSettingsImpl::SetLitePageSubresourceRedirectOrigin(
-    const WebString& origin) {
-  settings_->SetLitePageSubresourceRedirectOrigin(origin);
+void WebSettingsImpl::SetModalContextMenu(bool is_available) {
+  settings_->SetModalContextMenu(is_available);
 }
-
 }  // namespace blink

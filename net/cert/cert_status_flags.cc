@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ CertStatus MapNetErrorToCertStatus(int error) {
     // We should not use ERR_CERT_CONTAINS_ERRORS in new code.
     case ERR_CERT_CONTAINS_ERRORS:
       NOTREACHED();
-      FALLTHROUGH;
+      [[fallthrough]];
     case ERR_CERT_INVALID:
       return CERT_STATUS_INVALID;
     case ERR_CERT_WEAK_SIGNATURE_ALGORITHM:

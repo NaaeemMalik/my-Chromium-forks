@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,21 @@
 
 #include <vector>
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
 #include "base/test/bind.h"
-#include "chrome/browser/ash/certificate_provider/test_certificate_provider_extension.h"
 #include "chrome/browser/ash/login/test/device_state_mixin.h"
 #include "chrome/browser/ash/login/test/oobe_base_test.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/certificate_provider/test_certificate_provider_extension.h"
+#include "chrome/browser/certificate_provider/test_certificate_provider_extension_mixin.h"
 #include "chrome/browser/policy/extension_force_install_mixin.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chromeos/login/auth/challenge_response/known_user_pref_utils.h"
-#include "chromeos/login/auth/challenge_response_key.h"
+#include "chromeos/ash/components/login/auth/challenge_response/known_user_pref_utils.h"
+#include "chromeos/ash/components/login/auth/public/challenge_response_key.h"
 #include "components/account_id/account_id.h"
 #include "components/user_manager/known_user.h"
 #include "content/public/test/browser_test.h"
@@ -61,17 +64,15 @@ class ChallengeResponseAuthKeysLoaderBrowserTest : public OobeBaseTest {
     challenge_response_auth_keys_loader_->SetMaxWaitTimeForTesting(
         base::TimeDelta::Max());
 
-    certificate_provider_extension_ =
-        std::make_unique<TestCertificateProviderExtension>(GetProfile());
     extension_force_install_mixin_.InitWithDeviceStateMixin(
         GetProfile(), &device_state_mixin_);
 
     // Register the ChallengeResponseKey for the user.
-    user_manager::known_user::SaveKnownUser(account_id_);
+    user_manager::KnownUser(g_browser_process->local_state())
+        .SaveKnownUser(account_id_);
   }
 
   void TearDownOnMainThread() override {
-    certificate_provider_extension_.reset();
     if (!should_delete_loader_after_shutdown_)
       challenge_response_auth_keys_loader_.reset();
     OobeBaseTest::TearDownOnMainThread();
@@ -85,10 +86,11 @@ class ChallengeResponseAuthKeysLoaderBrowserTest : public OobeBaseTest {
       challenge_response_key.set_extension_id(extension_id());
 
     challenge_response_keys.push_back(challenge_response_key);
-    base::Value challenge_response_keys_value =
+    base::Value::List challenge_response_keys_value =
         SerializeChallengeResponseKeysForKnownUser(challenge_response_keys);
-    user_manager::known_user::SetChallengeResponseKeys(
-        account_id_, std::move(challenge_response_keys_value));
+    user_manager::KnownUser(g_browser_process->local_state())
+        .SetChallengeResponseKeys(account_id_,
+                                  std::move(challenge_response_keys_value));
   }
 
   void OnAvailableKeysLoaded(
@@ -109,12 +111,9 @@ class ChallengeResponseAuthKeysLoaderBrowserTest : public OobeBaseTest {
   }
 
   void InstallExtension(bool wait_on_extension_loaded) {
-    EXPECT_TRUE(extension_force_install_mixin_.ForceInstallFromSourceDir(
-        TestCertificateProviderExtension::GetExtensionSourcePath(),
-        TestCertificateProviderExtension::GetExtensionPemPath(),
-        wait_on_extension_loaded
-            ? ExtensionForceInstallMixin::WaitMode::kBackgroundPageFirstLoad
-            : ExtensionForceInstallMixin::WaitMode::kPrefSet));
+    test_certificate_provider_extension_mixin_.ForceInstall(
+        GetProfile(), /*wait_on_extension_loaded=*/wait_on_extension_loaded,
+        /*immediately_provide_certificates=*/wait_on_extension_loaded);
   }
 
   std::vector<ChallengeResponseKey> LoadChallengeResponseKeys() {
@@ -158,9 +157,11 @@ class ChallengeResponseAuthKeysLoaderBrowserTest : public OobeBaseTest {
 
   DeviceStateMixin device_state_mixin_{
       &mixin_host_, DeviceStateMixin::State::OOBE_COMPLETED_CLOUD_ENROLLED};
-  std::unique_ptr<TestCertificateProviderExtension>
-      certificate_provider_extension_;
+
   ExtensionForceInstallMixin extension_force_install_mixin_{&mixin_host_};
+  TestCertificateProviderExtensionMixin
+      test_certificate_provider_extension_mixin_{
+          &mixin_host_, &extension_force_install_mixin_};
 
   std::unique_ptr<ChallengeResponseAuthKeysLoader>
       challenge_response_auth_keys_loader_;
@@ -375,8 +376,9 @@ class ChallengeResponseExtensionLoadObserverTest
   }
 
  private:
-  base::RunLoop* extension_host_created_loop_ = nullptr;
-  extensions::ExtensionHost* extension_host_ = nullptr;
+  raw_ptr<base::RunLoop, ExperimentalAsh> extension_host_created_loop_ =
+      nullptr;
+  raw_ptr<extensions::ExtensionHost, ExperimentalAsh> extension_host_ = nullptr;
   base::ScopedObservation<extensions::ProcessManager,
                           extensions::ProcessManagerObserver>
       process_manager_observation_{this};

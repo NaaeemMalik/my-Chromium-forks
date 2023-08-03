@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -30,9 +30,8 @@ class NaClExitControlImpl : public nacl::mojom::NaClExitControl {
     // element was removed (perhaps implicitly if the tab was closed) or because
     // the renderer crashed.  The NaCl loader process should therefore exit.
     //
-    // For SFI NaCl, trusted code does this exit voluntarily, but untrusted
-    // code cannot disable it.  However, for Non-SFI NaCl, the following exit
-    // call could be disabled by untrusted code.
+    // Trusted code does this exit voluntarily, but untrusted code cannot
+    // disable it.
     NaClExit(0);
   }
 };

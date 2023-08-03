@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,18 +28,10 @@ class LoadtimesExtensionBindingsTest : public InProcessBrowserTest {
         "window.after.firstPaintAfterLoadTime = 0;"
         "window.after.firstPaintTime = 0;"));
 
-    std::string before;
-    std::string after;
-    ASSERT_TRUE(content::ExecuteScriptAndExtractString(
-        contents,
-        "window.domAutomationController.send("
-        "    JSON.stringify(before))",
-        &before));
-    ASSERT_TRUE(content::ExecuteScriptAndExtractString(
-        contents,
-        "window.domAutomationController.send("
-        "    JSON.stringify(after))",
-        &after));
+    std::string before =
+        content::EvalJs(contents, "JSON.stringify(before)").ExtractString();
+    std::string after =
+        content::EvalJs(contents, "JSON.stringify(after)").ExtractString();
     EXPECT_EQ(before, after);
   }
 };

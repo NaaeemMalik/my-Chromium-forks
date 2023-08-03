@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,32 +11,29 @@
 
 #include "components/omnibox/browser/location_bar_model.h"
 #include "components/omnibox/browser/omnibox_view.h"
-#import "ios/chrome/browser/ui/omnibox/omnibox_left_image_consumer.h"
 #include "ios/chrome/browser/ui/omnibox/omnibox_text_change_delegate.h"
 #import "ios/chrome/browser/ui/omnibox/omnibox_text_field_ios.h"
 #include "ios/chrome/browser/ui/omnibox/popup/omnibox_popup_provider.h"
 #import "ios/chrome/browser/ui/omnibox/popup/omnibox_popup_view_suggestions_delegate.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-class AutocompleteResult;
 class ChromeBrowserState;
 class GURL;
-class WebOmniboxEditController;
+class WebOmniboxEditModelDelegate;
 struct AutocompleteMatch;
 @class OmniboxTextFieldIOS;
-@class OmniboxTextFieldPasteDelegate;
 @protocol OmniboxCommands;
 
 // iOS implementation of OmniBoxView.  Wraps a UITextField and
 // interfaces with the rest of the autocomplete system.
 class OmniboxViewIOS : public OmniboxView,
                        public OmniboxPopupViewSuggestionsDelegate,
-                       public OmniboxTextChangeDelegate {
+                       public OmniboxTextChangeDelegate,
+                       public OmniboxTextAcceptDelegate {
  public:
-  // Retains |field|.
+  // Retains `field`.
   OmniboxViewIOS(OmniboxTextFieldIOS* field,
-                 WebOmniboxEditController* controller,
-                 id<OmniboxLeftImageConsumer> left_image_consumer,
+                 WebOmniboxEditModelDelegate* edit_model_delegate,
                  ChromeBrowserState* browser_state,
                  id<OmniboxCommands> omnibox_focuser);
 
@@ -45,12 +42,6 @@ class OmniboxViewIOS : public OmniboxView,
   void SetPopupProvider(OmniboxPopupProvider* provider) {
     popup_provider_ = provider;
   }
-
-  // Returns a color representing |security_level|, adjusted based on whether
-  // the browser is in Incognito mode.
-  static UIColor* GetSecureTextColor(
-      security_state::SecurityLevel security_level,
-      bool in_dark_mode);
 
   void OnReceiveClipboardURLForOpenMatch(
       const AutocompleteMatch& match,
@@ -88,12 +79,6 @@ class OmniboxViewIOS : public OmniboxView,
       absl::optional<AutocompleteMatch> optional_match);
 
   // OmniboxView implementation.
-  void OpenMatch(const AutocompleteMatch& match,
-                 WindowOpenDisposition disposition,
-                 const GURL& alternate_nav_url,
-                 const std::u16string& pasted_text,
-                 size_t selected_line,
-                 base::TimeTicks match_selection_timestamp) override;
   std::u16string GetText() const override;
   void SetWindowTextAndCaretPos(const std::u16string& text,
                                 size_t caret_pos,
@@ -140,20 +125,15 @@ class OmniboxViewIOS : public OmniboxView,
   void OnDidChange(bool processing_user_input) override;
   void OnWillEndEditing() override;
   void EndEditing() override;
-  void OnAccept() override;
   void OnCopy() override;
   void ClearText() override;
   void WillPaste() override;
   void OnDeleteBackward() override;
 
-  // OmniboxPopupViewSuggestionsDelegate methods
+  // OmniboxTextAcceptDelegate methods
+  void OnAccept() override;
 
-  void OnSelectedMatchImageChanged(
-      bool has_match,
-      AutocompleteMatchType::Type match_type,
-      absl::optional<SuggestionAnswer::AnswerType> answer_type,
-      GURL favicon_url) override;
-  void OnResultsChanged(const AutocompleteResult& result) override;
+  // OmniboxPopupViewSuggestionsDelegate methods
   void OnPopupDidScroll() override;
   void OnSelectedMatchForAppending(const std::u16string& str) override;
   void OnSelectedMatchForOpening(AutocompleteMatch match,
@@ -161,8 +141,6 @@ class OmniboxViewIOS : public OmniboxView,
                                  const GURL& alternate_nav_url,
                                  const std::u16string& pasted_text,
                                  size_t index) override;
-
-  ChromeBrowserState* browser_state() { return browser_state_; }
 
   // Updates this edit view to show the proper text, highlight and images.
   void UpdateAppearance();
@@ -182,7 +160,7 @@ class OmniboxViewIOS : public OmniboxView,
   // already focused.
   void FocusOmnibox();
 
-  // Returns |true| if AutocompletePopupView is currently open.
+  // Returns `true` if AutocompletePopupView is currently open.
   BOOL IsPopupOpen();
 
  protected:
@@ -193,28 +171,12 @@ class OmniboxViewIOS : public OmniboxView,
   void SetEmphasis(bool emphasize, const gfx::Range& range) override {}
   void UpdateSchemeStyle(const gfx::Range& scheme_range) override {}
 
-  // Calculates text attributes according to |display_text| and
-  // returns them in an autoreleased object.
-  NSAttributedString* ApplyTextAttributes(const std::u16string& text);
-
   // Removes the query refinement chip from the omnibox.
   void RemoveQueryRefinementChip();
 
-  // Returns true if user input should currently be ignored.  On iOS7,
-  // modifying the contents of a text field while Siri is pending leads to a
-  // UIKit crash.  In order to sidestep that crash, OmniboxViewIOS checks that
-  // voice search is not pending before attempting to process user actions that
-  // may modify text field contents.
-  // TODO(crbug.com/303212): Remove this workaround once the crash is fixed.
-  bool ShouldIgnoreUserInputDueToPendingVoiceSearch();
-
-  ChromeBrowserState* browser_state_;
-
   OmniboxTextFieldIOS* field_;
 
-  OmniboxTextFieldPasteDelegate* paste_delegate_;
-  WebOmniboxEditController* controller_;  // weak, owns us
-  __weak id<OmniboxLeftImageConsumer> left_image_consumer_;
+  WebOmniboxEditModelDelegate* edit_model_delegate_;  // weak, owns us
   // Focuser, used to transition the location bar to focused/defocused state as
   // necessary.
   __weak id<OmniboxCommands> omnibox_focuser_;
@@ -230,9 +192,8 @@ class OmniboxViewIOS : public OmniboxView,
   // popup, and then remove this hack.  b/5877366.
   BOOL ignore_popup_updates_;
 
-  // Temporary pointer to the attributed display string, stored as color and
-  // other emphasis attributes are applied by the superclass.
-  NSMutableAttributedString* attributing_display_string_;
+  // Whether the popup was scrolled during this omnibox interaction.
+  bool suggestions_list_scrolled_ = false;
 
   OmniboxPopupProvider* popup_provider_;  // weak
 

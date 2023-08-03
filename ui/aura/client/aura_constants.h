@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,11 +17,9 @@ namespace gfx {
 class ImageSkia;
 }
 
-namespace ws {
-namespace mojom {
-enum class WindowType;
+namespace ui {
+struct OwnedWindowAnchor;
 }
-}  // namespace ws
 
 namespace aura {
 namespace client {
@@ -60,9 +58,11 @@ AURA_EXPORT extern const WindowProperty<bool>* const kAnimationsDisabledKey;
 // This is not transported to the window service.
 AURA_EXPORT extern const WindowProperty<gfx::ImageSkia*>* const kAppIconKey;
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
 // A property key to store the type of window that will be used to record
 // pointer metrics. See AppType in ash/public/cpp/app_types.h for more details.
 AURA_EXPORT extern const WindowProperty<int>* const kAppType;
+#endif
 
 // A property key to store the aspect ratio of the window.
 AURA_EXPORT extern const WindowProperty<gfx::SizeF*>* const kAspectRatio;
@@ -88,6 +88,11 @@ AURA_EXPORT extern const WindowProperty<bool>* const kDrawAttentionKey;
 
 // A property key to store the focus client on the window.
 AURA_EXPORT extern const WindowProperty<FocusClient*>* const kFocusClientKey;
+
+// A property key to store the headless window bounds. This lets
+// RenderWidgetHostViewAura find the requested headless window bounds which may
+// be different from platform window bounds.
+AURA_EXPORT extern const WindowProperty<gfx::Rect*>* const kHeadlessBoundsKey;
 
 // A property key to store the host window of a window. This lets
 // WebContentsViews find the windows that should constrain NPAPI plugins.
@@ -135,18 +140,6 @@ AURA_EXPORT extern const aura::WindowProperty<gfx::NativeViewAccessible>* const
 // A property key to store the preferred size of the window.
 AURA_EXPORT extern const WindowProperty<gfx::Size*>* const kPreferredSize;
 
-// A property key to store ui::WindowShowState for restoring a window from
-// minimized show state.
-// Used in Ash to remember the show state before the window was minimized.
-AURA_EXPORT extern const WindowProperty<ui::WindowShowState>* const
-    kPreMinimizedShowStateKey;
-
-// A property key to store ui::WindowShowState for restoring a window from
-// fullscreen show state.
-// Used in Ash to remember the show state before the window was fullscreen.
-AURA_EXPORT extern const WindowProperty<ui::WindowShowState>* const
-    kPreFullscreenShowStateKey;
-
 // A property key to store the resize behavior, which is a bitmask of the
 // ResizeBehavior values.
 AURA_EXPORT extern const WindowProperty<int>* const kResizeBehaviorKey;
@@ -159,6 +152,30 @@ AURA_EXPORT extern const WindowProperty<gfx::Rect*>* const kRestoreBoundsKey;
 // See ui/base/ui_base_types.h for its definition.
 AURA_EXPORT extern const WindowProperty<ui::WindowShowState>* const
     kShowStateKey;
+
+// A property key to store the display id on which to put the fullscreen window.
+// display::kInvalidDisplayId means use the display the window is currently on.
+AURA_EXPORT extern const WindowProperty<int64_t>* const
+    kFullscreenTargetDisplayIdKey;
+
+// A property key to store ui::WindowShowState for a window to restore back to
+// from the current window show state.
+AURA_EXPORT extern const WindowProperty<ui::WindowShowState>* const
+    kRestoreShowStateKey;
+
+// A property key to store the raster scale. This affects the scale that exo
+// windows are rasterized at. Currently, this only applies for lacros windows.
+AURA_EXPORT extern const WindowProperty<float>* const kRasterScale;
+
+// A property key to indicate if a window is currently being restored. Normally
+// restoring a window equals to changing window's state to normal window state.
+// This property will be used on Chrome OS to decide if we should use window
+// state restore stack to decide which window state the window should restore
+// back to, and it's not always the normal window state. As an example,
+// unminimizing a window will restore the window back to its pre-minimized
+// window state, which can have a non-normal window state. Note this property
+// does not have any effort on any other operation systems except Chrome OS.
+AURA_EXPORT extern const WindowProperty<bool>* const kIsRestoringKey;
 
 // A property key to store key event dispatch policy. The default value is
 // false, which means IME receives a key event in PREDISPATCH phace before a

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "build/chromeos_buildflags.h"
 #include "ui/base/clipboard/clipboard.h"
 
 namespace ui {
@@ -89,6 +90,10 @@ class ClipboardOzone : public Clipboard {
                  size_t markup_len,
                  const char* url_data,
                  size_t url_len) override;
+  void WriteUnsanitizedHTML(const char* markup_data,
+                            size_t markup_len,
+                            const char* url_data,
+                            size_t url_len) override;
   void WriteSvg(const char* markup_data, size_t markup_len) override;
   void WriteRTF(const char* rtf_data, size_t data_len) override;
   void WriteFilenames(std::vector<ui::FileInfo> filenames) override;
@@ -101,6 +106,17 @@ class ClipboardOzone : public Clipboard {
   void WriteData(const ClipboardFormatType& format,
                  const char* data_data,
                  size_t data_len) override;
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+  // Used for syncing clipboard sources between Lacros and Ash in ChromeOS.
+  void AddClipboardSourceToDataOffer(const ClipboardBuffer buffer);
+
+  // Updates the source for the given buffer. It is used by
+  // `async_clipboard_ozone_` whenever some text is copied from Ash and pasted
+  // to Lacros.
+  void SetSource(ClipboardBuffer buffer,
+                 std::unique_ptr<DataTransferEndpoint> data_src);
+#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
   base::span<uint8_t> ReadPngInternal(const ClipboardBuffer buffer) const;
 

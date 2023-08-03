@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,8 @@
 #include "chrome/browser/android/webapk/webapk_ukm_recorder.h"
 #include "chrome/browser/banners/android/jni_headers/AppBannerInProductHelpControllerProvider_jni.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/segmentation_platform/segmentation_platform_service_factory.h"
 #include "chrome/common/chrome_features.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/feature_engagement/public/tracker.h"
@@ -49,30 +51,23 @@ ChromeAppBannerManagerAndroid::ChromeAppBannerManagerAndroid(
     content::WebContents* web_contents)
     : AppBannerManagerAndroid(web_contents),
       content::WebContentsUserData<ChromeAppBannerManagerAndroid>(
-          *web_contents) {}
+          *web_contents) {
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+
+  segmentation_platform_service_ =
+      segmentation_platform::SegmentationPlatformServiceFactory::GetForProfile(
+          profile);
+}
 
 ChromeAppBannerManagerAndroid::~ChromeAppBannerManagerAndroid() = default;
-
-InstallableParams
-ChromeAppBannerManagerAndroid::ParamsToPerformInstallableWebAppCheck() {
-  InstallableParams params =
-      AppBannerManagerAndroid::ParamsToPerformInstallableWebAppCheck();
-  params.fetch_screenshots = true;
-  return params;
-}
 
 void ChromeAppBannerManagerAndroid::OnDidPerformInstallableWebAppCheck(
     const InstallableData& data) {
   if (data.NoBlockingErrors())
-    WebApkUkmRecorder::RecordWebApkableVisit(data.manifest_url);
-  screenshots_ = data.screenshots;
+    WebApkUkmRecorder::RecordWebApkableVisit(*data.manifest_url);
 
   AppBannerManagerAndroid::OnDidPerformInstallableWebAppCheck(data);
-}
-
-void ChromeAppBannerManagerAndroid::ResetCurrentPageData() {
-  AppBannerManagerAndroid::ResetCurrentPageData();
-  screenshots_.clear();
 }
 
 void ChromeAppBannerManagerAndroid::MaybeShowAmbientBadge() {
@@ -86,51 +81,14 @@ void ChromeAppBannerManagerAndroid::MaybeShowAmbientBadge() {
     }
   }
 
-  AppBannerManagerAndroid::MaybeShowAmbientBadge();
-}
-
-void ChromeAppBannerManagerAndroid::ShowAmbientBadge() {
-  WebappInstallSource install_source = InstallableMetrics::GetInstallSource(
-      web_contents(), InstallTrigger::AMBIENT_BADGE);
-  if (!MaybeShowPwaBottomSheetController(/* expand_sheet= */ false,
-                                         install_source)) {
-    AppBannerManagerAndroid::ShowAmbientBadge();
-  }
-}
-
-void ChromeAppBannerManagerAndroid::ShowBannerUi(
-    WebappInstallSource install_source) {
-  if (!native_app_data_.is_null()) {
-    AppBannerManagerAndroid::ShowBannerUi(install_source);
-    return;
-  }
-
-  if (!MaybeShowPwaBottomSheetController(/* expand_sheet= */ true,
-                                         install_source)) {
-    AppBannerManagerAndroid::ShowBannerUi(install_source);
-    return;
-  }
-
-  ReportStatus(SHOWING_WEB_APP_BANNER);
-}
-
-bool ChromeAppBannerManagerAndroid::MaybeShowPwaBottomSheetController(
-    bool expand_sheet,
-    WebappInstallSource install_source) {
-  // Do not show the peeked bottom sheet if it was recently dismissed.
-  if (!expand_sheet && AppBannerSettingsHelper::WasBannerRecentlyBlocked(
-                           web_contents(), validated_url_, GetAppIdentifier(),
-                           GetCurrentTime())) {
-    return false;
-  }
-
-  auto a2hs_params = CreateAddToHomescreenParams(install_source);
-  return PwaBottomSheetController::MaybeShow(
-      web_contents(), GetAppName(), primary_icon_, has_maskable_primary_icon_,
-      manifest().start_url, screenshots_, manifest().description.value_or(u""),
-      expand_sheet, std::move(a2hs_params),
-      base::BindRepeating(&ChromeAppBannerManagerAndroid::OnInstallEvent,
-                          ChromeAppBannerManagerAndroid::GetAndroidWeakPtr()));
+  ambient_badge_manager_ = std::make_unique<AmbientBadgeManager>(
+      web_contents(), GetAndroidWeakPtr(), segmentation_platform_service_);
+  ambient_badge_manager_->MaybeShow(
+      validated_url_, GetAppName(),
+      CreateAddToHomescreenParams(InstallableMetrics::GetInstallSource(
+          web_contents(), InstallTrigger::AMBIENT_BADGE)),
+      base::BindOnce(&ChromeAppBannerManagerAndroid::ShowBannerFromBadge,
+                     GetAndroidWeakPtr()));
 }
 
 void ChromeAppBannerManagerAndroid::RecordExtraMetricsForInstallEvent(

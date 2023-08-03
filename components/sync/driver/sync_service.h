@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,11 +9,11 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/containers/enum_set.h"
+#include "base/functional/callback.h"
 #include "base/location.h"
-#include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/sync/base/model_type.h"
 #include "components/sync/driver/sync_service_observer.h"
@@ -42,6 +42,10 @@ class SyncSetupInProgressHandle {
 
   ~SyncSetupInProgressHandle();
 
+  SyncSetupInProgressHandle(const SyncSetupInProgressHandle&) = delete;
+  SyncSetupInProgressHandle& operator=(const SyncSetupInProgressHandle&) =
+      delete;
+
  private:
   base::OnceClosure on_destroy_;
 };
@@ -68,7 +72,7 @@ class SyncSetupInProgressHandle {
 //      user, then AUTOFILL_PROFILE will also be considered preferred. See
 //      SyncPrefs::ResolvePrefGroups.
 //
-//      This state is controlled by SyncUserSettings::SetChosenDataTypes. They
+//      This state is controlled by SyncUserSettings::SetSelectedTypes. They
 //      are stored in the preferences system and persist; though if a datatype
 //      is not registered, it cannot be a preferred datatype.
 //
@@ -88,7 +92,7 @@ class SyncSetupInProgressHandle {
 // Sync Configuration:
 //
 //   Sync configuration is accomplished via SyncUserSettings, in particular:
-//    * SetChosenDataTypes(): Set the data types the user wants to sync.
+//    * SetSelectedTypes(): Set the data types the user wants to sync.
 //    * SetDecryptionPassphrase(): Attempt to decrypt the user's encrypted data
 //        using the passed passphrase.
 //    * SetEncryptionPassphrase(): Re-encrypt the user's data using the passed
@@ -112,24 +116,23 @@ class SyncSetupInProgressHandle {
 //   setup-in-progress handles, datatype configuration will begin.
 class SyncService : public KeyedService {
  public:
-  // The set of reasons due to which Sync-the-feature can be disabled. Note that
-  // Sync-the-transport might still start up even in the presence of (some)
-  // disable reasons. Meant to be used as a enum set.
+  // The set of reasons due to which Sync can be disabled.
+  // Except for DISABLE_REASON_USER_CHOICE, these apply to both
+  // sync-the-transport and sync-the-feature.
+  // Meant to be used as a enum set.
   enum DisableReason {
-    // Sync is disabled via platform-level override (e.g. Android's "MasterSync"
-    // toggle).
-    DISABLE_REASON_PLATFORM_OVERRIDE,
-    DISABLE_REASON_FIRST = DISABLE_REASON_PLATFORM_OVERRIDE,
     // Sync is disabled by enterprise policy, either browser policy (through
     // prefs) or account policy received from the Sync server.
     DISABLE_REASON_ENTERPRISE_POLICY,
+    DISABLE_REASON_FIRST = DISABLE_REASON_ENTERPRISE_POLICY,
     // Sync can't start because there is no authenticated user.
     DISABLE_REASON_NOT_SIGNED_IN,
-    // Sync is suppressed by user choice, either via the feature toggle in
-    // Chrome settings (which exists on Android and iOS), a platform-level
-    // toggle (e.g. Android's "ChromeSync" toggle), or a “Reset Sync” operation
-    // from the dashboard. This is also set if there's simply no signed-in user
-    // (in addition to DISABLE_REASON_NOT_SIGNED_IN).
+    // Sync-the-feature is suppressed by user choice. This mostly means there is
+    // no signed-in user (in which case DISABLE_REASON_NOT_SIGNED_IN will also
+    // be present), but can also happen after a "Reset Sync" operation from the
+    // dashboard.
+    // TODO(crbug.com/1429261): Remove this reason (and update the comment
+    // above), so that all the reasons affect Sync-the-transport.
     DISABLE_REASON_USER_CHOICE,
     // Sync has encountered an unrecoverable error. It won't attempt to start
     // again until either the browser is restarted, or the user fully signs out
@@ -148,8 +151,8 @@ class SyncService : public KeyedService {
     // Sync is inactive, e.g. due to enterprise policy, or simply because there
     // is no authenticated user.
     DISABLED,
-    // Sync is paused, e.g. because the user signed out on the web, and the
-    // engine is inactive.
+    // Sync is paused because there is a persistent auth error (e.g. user signed
+    // out on the web on desktop), and the engine is inactive.
     PAUSED,
     // Sync's startup was deferred, so that it doesn't slow down browser
     // startup. Once the deferral time (usually 10s) expires, or something
@@ -173,6 +176,41 @@ class SyncService : public KeyedService {
     ACTIVE
   };
 
+  // Error states that prevent Sync from working well or working at all, usually
+  // displayed to the user.
+  // TODO(crbug.com/1412320): Add new cases that are missing, ideally unify with
+  // other enums like AvatarSyncErrorType.
+  enum class UserActionableError {
+    // No errors.
+    kNone,
+    // There is a persistent auth error and the user needs to sign in for sync
+    // to resume (affects all datatypes).
+    kSignInNeedsUpdate,
+    // The user needs to enter a passphrase in order to decrypt the data. This
+    // can only happen to custom passphrase users and users in analogous legacy
+    // encryption states. It affects most datatypes (all datatypes except the
+    // ones that are never encrypted).
+    kNeedsPassphrase,
+    // The user needs to take action, usually go through a reauth challenge, in
+    // order to get access to encryption keys. It affects datatypes that can be
+    // branded to the user as 'passwords'.
+    kNeedsTrustedVaultKeyForPasswords,
+    // Same as above, but for the case where the encryption key is required to
+    // sync all encryptable datatypes.
+    kNeedsTrustedVaultKeyForEverything,
+    // Recoverability degraded means sync actually works normally, but there is
+    // a risk that the user may end up locked out and effectively lose access to
+    // passwords stored in the Sync server.
+    kTrustedVaultRecoverabilityDegradedForPasswords,
+    // Same as above, but for the case where data loss may affect all
+    // encryptable datatypes.
+    kTrustedVaultRecoverabilityDegradedForEverything,
+    // Same as DISABLE_REASON_UNRECOVERABLE_ERROR.
+    // TODO(crbug.com/1412320): Consider removing this value and use disable
+    // reasons instead.
+    kGenericUnrecoverableError,
+  };
+
   SyncService(const SyncService&) = delete;
   SyncService& operator=(const SyncService&) = delete;
 
@@ -181,6 +219,13 @@ class SyncService : public KeyedService {
   //////////////////////////////////////////////////////////////////////////////
   // USER SETTINGS
   //////////////////////////////////////////////////////////////////////////////
+
+  // Indicates the the user wants Sync-the-Feature to run. It should get invoked
+  // early in the Sync setup flow, after the user has pressed "turn on Sync" but
+  // before they have actually confirmed the settings.
+  // TODO(crbug.com/1291953): Remove this API, as SyncService can internally
+  // determine whether or not it is the case.
+  virtual void SetSyncFeatureRequested() = 0;
 
   // Returns the SyncUserSettings, which encapsulate all the user-configurable
   // bits for Sync.
@@ -211,6 +256,10 @@ class SyncService : public KeyedService {
   // syncer::GetUploadToGoogleState instead of this.
   virtual TransportState GetTransportState() const = 0;
 
+  // Returns errors that prevent SyncService from working at all or partially.
+  // Usually these errors are displayed to the user in the UI.
+  virtual UserActionableError GetUserActionableError() const = 0;
+
   // Returns true if the local sync backend server has been enabled through a
   // command line flag or policy. In this case sync is considered active but any
   // implied consent for further related services e.g. Suggestions, Web History
@@ -235,15 +284,15 @@ class SyncService : public KeyedService {
   // be necessary.
   bool HasCompletedSyncCycle() const;
 
-  // The last authentication error that was encountered by the SyncService. This
-  // error can be either from Chrome's identity system (e.g. while trying to get
-  // an access token), or from the Sync server. It gets cleared when the error
-  // is resolved.
+  // The last persistent authentication error that was encountered by the
+  // SyncService. It gets cleared when the error is resolved.
   virtual GoogleServiceAuthError GetAuthError() const = 0;
   virtual base::Time GetAuthErrorTime() const = 0;
 
   // Returns true if the Chrome client is too old and needs to be updated for
   // Sync to work.
+  // TODO(crbug.com/1412320): Remove this API and use GetUserActionableError()
+  // instead.
   virtual bool RequiresClientUpgrade() const = 0;
 
   //////////////////////////////////////////////////////////////////////////////
@@ -304,8 +353,9 @@ class SyncService : public KeyedService {
   //////////////////////////////////////////////////////////////////////////////
 
   // Returns the set of types which are preferred for enabling. This is a
-  // superset of the active types (see GetActiveDataTypes()). This also includes
-  // any forced types.
+  // superset of the active types (see GetActiveDataTypes()).
+  // TODO(crbug.com/1429249): Deprecated, DO NOT USE! You probably want
+  // `GetUserSettings()->GetSelectedTypes()` instead.
   virtual ModelTypeSet GetPreferredDataTypes() const = 0;
 
   // Returns the set of currently active data types (those chosen or configured
@@ -313,6 +363,11 @@ class SyncService : public KeyedService {
   // Note that if the Sync engine is in the middle of a configuration, this will
   // be the empty set. Once the configuration completes the set will be updated.
   virtual ModelTypeSet GetActiveDataTypes() const = 0;
+
+  // Returns the datatypes that are about to become active, but are currently
+  // in the process of downloading the initial data from the server (either
+  // actively ongoing or queued).
+  virtual ModelTypeSet GetTypesWithPendingDownloadForInitialSync() const = 0;
 
   //////////////////////////////////////////////////////////////////////////////
   // ACTIONS / STATE CHANGE REQUESTS
@@ -322,14 +377,11 @@ class SyncService : public KeyedService {
   // Sync-the-transport may remain active after calling this.
   virtual void StopAndClear() = 0;
 
-  // Controls whether sync is allowed at the platform level. If set to false
-  // sync will be disabled with DISABLE_REASON_PLATFORM_OVERRIDE.
-  virtual void SetSyncAllowedByPlatform(bool allowed) = 0;
-
   // Called when a datatype (SyncableService) has a need for sync to start
   // ASAP, presumably because a local change event has occurred but we're
   // still in deferred start mode, meaning the SyncableService hasn't been
   // told to MergeDataAndStartSyncing yet.
+  // TODO(crbug.com/1429293): Remove this API.
   virtual void OnDataTypeRequestsSyncStartup(ModelType type) = 0;
 
   // Triggers a GetUpdates call for the specified |types|, pulling any new data
@@ -400,7 +452,7 @@ class SyncService : public KeyedService {
   // Returns some statistics on the most-recently completed sync cycle.
   virtual SyncCycleSnapshot GetLastCycleSnapshotForDebugging() const = 0;
 
-  // Returns a ListValue indicating the status of all registered types.
+  // Returns a Value indicating the status of all registered types.
   //
   // The format is:
   // [ {"name": <name>, "value": <value>, "status": <status> }, ... ]
@@ -409,10 +461,10 @@ class SyncService : public KeyedService {
   // depending on the type's current status.
   //
   // This function is used by sync_internals_util.cc to help populate the
-  // gtx://sync-internals page.  It returns a ListValue rather than a
-  // DictionaryValue in part to make it easier to iterate over its elements when
+  // gtx://sync-internals page.  It returns a Value::List rather than a
+  // Value::Dict in part to make it easier to iterate over its elements when
   // constructing that page.
-  virtual std::unique_ptr<base::Value> GetTypeStatusMapForDebugging() = 0;
+  virtual base::Value::List GetTypeStatusMapForDebugging() const = 0;
 
   // Retrieves the TypeEntitiesCount for all registered data types.
   virtual void GetEntityCountsForDebugging(
@@ -434,10 +486,10 @@ class SyncService : public KeyedService {
   // For safety, the callback should be bound to some sort of WeakPtr<> or
   // scoped_refptr<>.
   virtual void GetAllNodesForDebugging(
-      base::OnceCallback<void(std::unique_ptr<base::ListValue>)> callback) = 0;
+      base::OnceCallback<void(base::Value::List)> callback) = 0;
 
  protected:
-  SyncService() {}
+  SyncService() = default;
 };
 
 }  // namespace syncer

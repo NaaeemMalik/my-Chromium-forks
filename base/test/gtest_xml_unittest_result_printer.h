@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,8 +33,13 @@ class XmlUnitTestResultPrinter : public testing::EmptyTestEventListener {
   // explanation and usage.
   void AddLink(const std::string& name, const std::string& url);
 
+  // Add tag in the gtest xml output.
+  // Please see AddTagToTestResult in gtest_tags.h for detailed
+  // explanation and usage.
+  void AddTag(const std::string& name, const std::string& value);
+
   // Must be called before adding as a listener. Returns true on success.
-  bool Initialize(const FilePath& output_file_path) WARN_UNUSED_RESULT;
+  [[nodiscard]] bool Initialize(const FilePath& output_file_path);
 
   // CHECK/DCHECK failed. Print file/line and message to the xml.
   void OnAssert(const char* file,

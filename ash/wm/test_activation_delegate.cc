@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,21 +11,10 @@
 
 namespace ash {
 
-TestActivationDelegate::TestActivationDelegate()
-    : window_(NULL),
-      window_was_active_(false),
-      activate_(true),
-      activated_count_(0),
-      lost_active_count_(0),
-      should_activate_count_(0) {}
+TestActivationDelegate::TestActivationDelegate() = default;
 
 TestActivationDelegate::TestActivationDelegate(bool activate)
-    : window_(NULL),
-      window_was_active_(false),
-      activate_(activate),
-      activated_count_(0),
-      lost_active_count_(0),
-      should_activate_count_(0) {}
+    : activate_(activate) {}
 
 void TestActivationDelegate::SetWindow(aura::Window* window) {
   window_ = window;

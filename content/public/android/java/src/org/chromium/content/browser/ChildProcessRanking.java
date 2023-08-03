@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -248,17 +248,6 @@ public class ChildProcessRanking implements Iterable<ChildProcessConnection> {
         return mRankings.get(mRankings.size() - 1).connection;
     }
 
-    /**
-     * @return reverse rank. Eg lowest ranked connection will have value 0.
-     */
-    public int getReverseRank(ChildProcessConnection connection) {
-        assert connection != null;
-        assert mRankings.size() > 0;
-        int i = indexOf(connection);
-        assert i != -1;
-        return mRankings.size() - 1 - i;
-    }
-
     private int indexOf(ChildProcessConnection connection) {
         for (int i = 0; i < mRankings.size(); ++i) {
             if (mRankings.get(i).connection == connection) return i;
@@ -300,6 +289,7 @@ public class ChildProcessRanking implements Iterable<ChildProcessConnection> {
             return;
         }
 
+        assert right >= left;
         final int gap = right - left;
 
         // If there is a large enough gap, place connection close to the end. This is a heuristic
@@ -368,7 +358,8 @@ public class ChildProcessRanking implements Iterable<ChildProcessConnection> {
                     throw new RuntimeException("Not in low rank group " + connection);
                 }
                 if (connection.connection.getImportanceInGroup() <= importance) {
-                    throw new RuntimeException("Wrong group importance order " + connection);
+                    throw new RuntimeException("Wrong group importance order " + connection + " "
+                            + connection.connection.getImportanceInGroup() + " " + importance);
                 }
                 importance = connection.connection.getImportanceInGroup();
             } else {

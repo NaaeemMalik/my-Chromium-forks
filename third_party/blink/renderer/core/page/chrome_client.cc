@@ -53,77 +53,6 @@ void ChromeClient::InstallSupplements(LocalFrame& frame) {
   CoreInitializer::GetInstance().InstallSupplements(frame);
 }
 
-gfx::Rect ChromeClient::CalculateWindowRectWithAdjustment(
-    const gfx::Rect& pending_rect,
-    LocalFrame& frame,
-    LocalFrame& requesting_frame) {
-  gfx::Rect screen = GetScreenInfo(frame).available_rect;
-  gfx::Rect window = pending_rect;
-
-  gfx::Size minimum_size = MinimumWindowSize();
-  gfx::Size size_for_constraining_move = minimum_size;
-  // Let size 0 pass through, since that indicates default size, not minimum
-  // size.
-  if (window.width()) {
-    int width = std::max(minimum_size.width(), window.width());
-    // If the Window Placement experiment is enabled, the window could be placed
-    // on another screen, and so it should not be limited by the current screen.
-    // This relies on the embedder clamping bounds to the target screen for now.
-    // TODO(http://crbug.com/897300): Implement multi-screen clamping in Blink.
-    if (!RuntimeEnabledFeatures::WindowPlacementEnabled(
-            requesting_frame.DomWindow())) {
-      width = std::min(width, screen.width());
-    }
-    window.set_width(width);
-    size_for_constraining_move.set_width(window.width());
-  }
-  if (window.height()) {
-    int height = std::max(minimum_size.height(), window.height());
-    // If the Window Placement experiment is enabled, the window could be placed
-    // on another screen, and so it should not be limited by the current screen.
-    // This relies on the embedder clamping bounds to the target screen for now.
-    // TODO(http://crbug.com/897300): Implement multi-screen clamping in Blink.
-    if (!RuntimeEnabledFeatures::WindowPlacementEnabled(
-            requesting_frame.DomWindow())) {
-      height = std::min(height, screen.height());
-    }
-    window.set_height(height);
-    size_for_constraining_move.set_height(window.height());
-  }
-
-  // If the Window Placement experiment is enabled, the window could be placed
-  // on another screen, and so it should not be limited by the current screen.
-  // This relies on the embedder clamping bounds to the target screen for now.
-  // TODO(http://crbug.com/897300): Implement multi-screen clamping in Blink.
-  if (!RuntimeEnabledFeatures::WindowPlacementEnabled(
-          requesting_frame.DomWindow())) {
-    // Constrain the window position within the valid screen area.
-    window.set_x(std::max(
-        screen.x(),
-        std::min(window.x(),
-                 screen.right() - size_for_constraining_move.width())));
-    window.set_y(std::max(
-        screen.y(),
-        std::min(window.y(),
-                 screen.bottom() - size_for_constraining_move.height())));
-  }
-
-  // Coarsely measure whether coordinates may be requesting another screen.
-  if (!screen.Contains(window)) {
-    UseCounter::Count(frame.DomWindow(),
-                      WebFeature::kDOMWindowSetWindowRectCrossScreen);
-  }
-
-  return window;
-}
-
-void ChromeClient::SetWindowRectWithAdjustment(const gfx::Rect& pending_rect,
-                                               LocalFrame& frame) {
-  gfx::Rect rect =
-      CalculateWindowRectWithAdjustment(pending_rect, frame, frame);
-  SetWindowRect(rect, frame);
-}
-
 bool ChromeClient::CanOpenUIElementIfDuringPageDismissal(
     Frame& main_frame,
     UIElementType ui_element_type,
@@ -232,7 +161,7 @@ void ChromeClient::MouseDidMoveOverElement(LocalFrame& frame,
     WebPrescientNetworking* web_prescient_networking =
         frame.PrescientNetworking();
     if (web_prescient_networking) {
-      web_prescient_networking->PrefetchDNS(result.AbsoluteLinkURL().Host());
+      web_prescient_networking->PrefetchDNS(result.AbsoluteLinkURL());
     }
   }
 
@@ -277,7 +206,7 @@ void ChromeClient::UpdateTooltipUnderCursor(LocalFrame& frame,
   // The ::UpdateTooltipUnderCursor overload, which is be called down the road,
   // ensures a new tooltip to be displayed with the new context.
   if (result.InnerNodeOrImageMapImage() != last_mouse_over_node_ &&
-      !last_tool_tip_text_.IsEmpty() && tool_tip == last_tool_tip_text_)
+      !last_tool_tip_text_.empty() && tool_tip == last_tool_tip_text_)
     ClearToolTip(frame);
 
   last_tool_tip_point_ = location.Point();
@@ -297,7 +226,7 @@ void ChromeClient::ElementFocusedFromKeypress(LocalFrame& frame,
   if (layout_object) {
     TextDirection tooltip_direction = layout_object->StyleRef().Direction();
     UpdateTooltipFromKeyboard(frame, tooltip_text, tooltip_direction,
-                              element->BoundsInViewport());
+                              element->BoundsInWidget());
   }
 }
 
@@ -322,8 +251,11 @@ bool ChromeClient::Print(LocalFrame* frame) {
     frame->Console().AddMessage(MakeGarbageCollected<ConsoleMessage>(
         mojom::blink::ConsoleMessageSource::kSecurity,
         mojom::blink::ConsoleMessageLevel::kError,
-        "Ignored call to 'print()'. The document is sandboxed, and the "
-        "'allow-modals' keyword is not set."));
+        frame->IsInFencedFrameTree()
+            ? "Ignored call to 'print()'. The document is in a fenced frame "
+              "tree."
+            : "Ignored call to 'print()'. The document is sandboxed, and the "
+              "'allow-modals' keyword is not set."));
     return false;
   }
 
@@ -334,14 +266,6 @@ bool ChromeClient::Print(LocalFrame* frame) {
         mojom::blink::ConsoleMessageSource::kJavaScript,
         mojom::blink::ConsoleMessageLevel::kError,
         "Ignored call to 'print()' during prerendering."));
-    return false;
-  }
-
-  if (frame->IsInFencedFrameTree()) {
-    frame->Console().AddMessage(MakeGarbageCollected<ConsoleMessage>(
-        mojom::blink::ConsoleMessageSource::kSecurity,
-        mojom::blink::ConsoleMessageLevel::kError,
-        "Ignored call to 'print()'. The document is in a fenced frame."));
     return false;
   }
 

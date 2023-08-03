@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/core/dom/abort_signal.h"
 #include "third_party/blink/renderer/core/streams/count_queuing_strategy.h"
 #include "third_party/blink/renderer/core/streams/miscellaneous_operations.h"
+#include "third_party/blink/renderer/core/streams/pipe_options.h"
 #include "third_party/blink/renderer/core/streams/promise_handler.h"
 #include "third_party/blink/renderer/core/streams/readable_stream.h"
 #include "third_party/blink/renderer/core/streams/readable_stream_transferring_optimizer.h"
@@ -215,7 +216,8 @@ WritableStream* WritableStream::CreateWithCountQueueingStrategy(
   ExceptionState exception_state(isolate, ExceptionState::kConstructionContext,
                                  "WritableStream");
   v8::MicrotasksScope microtasks_scope(
-      isolate, v8::MicrotasksScope::kDoNotRunMicrotasks);
+      isolate, ToMicrotaskQueue(script_state),
+      v8::MicrotasksScope::kDoNotRunMicrotasks);
   auto* stream = MakeGarbageCollected<WritableStream>();
   stream->InitWithCountQueueingStrategy(script_state, underlying_sink,
                                         high_water_mark, std::move(optimizer),
@@ -272,9 +274,8 @@ void WritableStream::Serialize(ScriptState* script_state,
 
   // 7. Let promise be ! ReadableStreamPipeTo(readable, value, false, false,
   //    false).
-  auto promise = ReadableStream::PipeTo(
-      script_state, readable, this,
-      MakeGarbageCollected<ReadableStream::PipeOptions>());
+  auto promise = ReadableStream::PipeTo(script_state, readable, this,
+                                        MakeGarbageCollected<PipeOptions>());
 
   // 8. Set promise.[[PromiseIsHandled]] to true.
   promise.MarkAsHandled();
@@ -588,19 +589,19 @@ void WritableStream::FinishErroring(ScriptState* script_state,
 
   class ResolvePromiseFunction final : public PromiseHandler {
    public:
-    ResolvePromiseFunction(ScriptState* script_state,
-                           WritableStream* stream,
+    ResolvePromiseFunction(WritableStream* stream,
                            StreamPromiseResolver* promise)
-        : PromiseHandler(script_state), stream_(stream), promise_(promise) {}
+        : stream_(stream), promise_(promise) {}
 
-    void CallWithLocal(v8::Local<v8::Value>) override {
+    void CallWithLocal(ScriptState* script_state,
+                       v8::Local<v8::Value>) override {
       // 13. Upon fulfillment of promise,
       //      a. Resolve abortRequest.[[promise]] with undefined.
-      promise_->ResolveWithUndefined(GetScriptState());
+      promise_->ResolveWithUndefined(script_state);
 
       //      b. Perform !
       //         WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream).
-      RejectCloseAndClosedPromiseIfNeeded(GetScriptState(), stream_);
+      RejectCloseAndClosedPromiseIfNeeded(script_state, stream_);
     }
 
     void Trace(Visitor* visitor) const override {
@@ -616,19 +617,19 @@ void WritableStream::FinishErroring(ScriptState* script_state,
 
   class RejectPromiseFunction final : public PromiseHandler {
    public:
-    RejectPromiseFunction(ScriptState* script_state,
-                          WritableStream* stream,
+    RejectPromiseFunction(WritableStream* stream,
                           StreamPromiseResolver* promise)
-        : PromiseHandler(script_state), stream_(stream), promise_(promise) {}
+        : stream_(stream), promise_(promise) {}
 
-    void CallWithLocal(v8::Local<v8::Value> reason) override {
+    void CallWithLocal(ScriptState* script_state,
+                       v8::Local<v8::Value> reason) override {
       // 14. Upon rejection of promise with reason reason,
       //      a. Reject abortRequest.[[promise]] with reason.
-      promise_->Reject(GetScriptState(), reason);
+      promise_->Reject(script_state, reason);
 
       //      b. Perform !
       //         WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream).
-      RejectCloseAndClosedPromiseIfNeeded(GetScriptState(), stream_);
+      RejectCloseAndClosedPromiseIfNeeded(script_state, stream_);
     }
 
     void Trace(Visitor* visitor) const override {
@@ -642,11 +643,14 @@ void WritableStream::FinishErroring(ScriptState* script_state,
     Member<StreamPromiseResolver> promise_;
   };
 
-  StreamThenPromise(script_state->GetContext(), promise,
-                    MakeGarbageCollected<ResolvePromiseFunction>(
-                        script_state, stream, abort_request->GetPromise()),
-                    MakeGarbageCollected<RejectPromiseFunction>(
-                        script_state, stream, abort_request->GetPromise()));
+  StreamThenPromise(
+      script_state->GetContext(), promise,
+      MakeGarbageCollected<ScriptFunction>(
+          script_state, MakeGarbageCollected<ResolvePromiseFunction>(
+                            stream, abort_request->GetPromise())),
+      MakeGarbageCollected<ScriptFunction>(
+          script_state, MakeGarbageCollected<RejectPromiseFunction>(
+                            stream, abort_request->GetPromise())));
 }
 
 void WritableStream::FinishInFlightWrite(ScriptState* script_state,

@@ -1,11 +1,13 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/trees/layer_tree_impl.h"
 
-#include "base/cxx17_backports.h"
+#include <algorithm>
+
 #include "base/memory/raw_ptr.h"
+#include "base/time/time.h"
 #include "cc/layers/heads_up_display_layer_impl.h"
 #include "cc/test/fake_layer_tree_host_impl.h"
 #include "cc/test/fake_raster_source.h"
@@ -25,8 +27,8 @@ std::pair<gfx::PointF, gfx::PointF> GetVisibleSelectionEndPoints(
     const gfx::RectF& rect,
     const gfx::PointF& top,
     const gfx::PointF& bottom) {
-  gfx::PointF start(base::clamp(top.x(), rect.x(), rect.right()),
-                    base::clamp(top.y(), rect.y(), rect.bottom()));
+  gfx::PointF start(std::clamp(top.x(), rect.x(), rect.right()),
+                    std::clamp(top.y(), rect.y(), rect.bottom()));
   gfx::PointF end = start + (bottom - top);
   return {start, end};
 }
@@ -170,7 +172,7 @@ TEST_F(LayerTreeImplTest, UpdateViewportAndHitTest) {
   UpdateDrawProperties(host_impl().active_tree());
   EXPECT_EQ(
       gfx::RectF(gfx::SizeF(bounds)),
-      host_impl().active_tree()->property_trees()->clip_tree.ViewportClip());
+      host_impl().active_tree()->property_trees()->clip_tree().ViewportClip());
   EXPECT_EQ(gfx::Rect(bounds), root->visible_layer_rect());
 
   gfx::Size new_bounds(50, 50);
@@ -179,7 +181,7 @@ TEST_F(LayerTreeImplTest, UpdateViewportAndHitTest) {
   host_impl().active_tree()->FindLayerThatIsHitByPoint(test_point);
   EXPECT_EQ(
       gfx::RectF(gfx::SizeF(new_bounds)),
-      host_impl().active_tree()->property_trees()->clip_tree.ViewportClip());
+      host_impl().active_tree()->property_trees()->clip_tree().ViewportClip());
   EXPECT_EQ(gfx::Rect(new_bounds), root->visible_layer_rect());
 }
 
@@ -232,10 +234,10 @@ TEST_F(LayerTreeImplTest, HitTestingForSingleLayerAndHud) {
 
 TEST_F(LayerTreeImplTest, HitTestingForUninvertibleTransform) {
   gfx::Transform uninvertible_transform;
-  uninvertible_transform.matrix().set(0, 0, 0.0);
-  uninvertible_transform.matrix().set(1, 1, 0.0);
-  uninvertible_transform.matrix().set(2, 2, 0.0);
-  uninvertible_transform.matrix().set(3, 3, 0.0);
+  uninvertible_transform.set_rc(0, 0, 0.0);
+  uninvertible_transform.set_rc(1, 1, 0.0);
+  uninvertible_transform.set_rc(2, 2, 0.0);
+  uninvertible_transform.set_rc(3, 3, 0.0);
   ASSERT_FALSE(uninvertible_transform.IsInvertible());
 
   LayerImpl* root = root_layer();
@@ -1186,10 +1188,10 @@ TEST_F(LayerTreeImplTest,
   LayerImpl* root = root_layer();
 
   gfx::Transform uninvertible_transform;
-  uninvertible_transform.matrix().set(0, 0, 0.0);
-  uninvertible_transform.matrix().set(1, 1, 0.0);
-  uninvertible_transform.matrix().set(2, 2, 0.0);
-  uninvertible_transform.matrix().set(3, 3, 0.0);
+  uninvertible_transform.set_rc(0, 0, 0.0);
+  uninvertible_transform.set_rc(1, 1, 0.0);
+  uninvertible_transform.set_rc(2, 2, 0.0);
+  uninvertible_transform.set_rc(3, 3, 0.0);
   ASSERT_FALSE(uninvertible_transform.IsInvertible());
 
   TouchActionRegion touch_action_region;
@@ -1715,7 +1717,7 @@ TEST_F(LayerTreeImplTest, HitTestingTouchHandlerRegionsForLayerThatIsNotDrawn) {
       expected_screen_space_transform,
       draw_property_utils::ScreenSpaceTransform(
           test_layer,
-          host_impl().active_tree()->property_trees()->transform_tree));
+          host_impl().active_tree()->property_trees()->transform_tree()));
 
   // We change the position of the test layer such that the test point is now
   // inside the test_layer.
@@ -1735,7 +1737,7 @@ TEST_F(LayerTreeImplTest, HitTestingTouchHandlerRegionsForLayerThatIsNotDrawn) {
       expected_screen_space_transform,
       draw_property_utils::ScreenSpaceTransform(
           test_layer,
-          host_impl().active_tree()->property_trees()->transform_tree));
+          host_impl().active_tree()->property_trees()->transform_tree()));
 }
 
 TEST_F(LayerTreeImplTest, SelectionBoundsForSingleLayer) {
@@ -2133,8 +2135,7 @@ TEST_F(LayerTreeImplTest, SelectionBoundsWithLargeTransforms) {
   LayerImpl* root = root_layer();
   root->SetBounds(gfx::Size(100, 100));
 
-  gfx::Transform large_transform;
-  large_transform.Scale(SkDoubleToScalar(1e37), SkDoubleToScalar(1e37));
+  gfx::Transform large_transform = gfx::Transform::MakeScale(1e37);
   large_transform.RotateAboutYAxis(30);
 
   LayerImpl* child = AddLayer<LayerImpl>();
@@ -2168,10 +2169,52 @@ TEST_F(LayerTreeImplTest, SelectionBoundsWithLargeTransforms) {
   viz::Selection<gfx::SelectionBound> output;
   host_impl().active_tree()->GetViewportSelection(&output);
 
-  // edge_end and edge_start aren't allowed to have NaNs, so the selection
-  // should be empty.
-  EXPECT_EQ(gfx::SelectionBound(), output.start);
-  EXPECT_EQ(gfx::SelectionBound(), output.end);
+  auto point_is_valid = [](const gfx::PointF& p) {
+    return std::isfinite(p.x()) && std::isfinite(p.y());
+  };
+  auto selection_bound_is_valid = [&](const gfx::SelectionBound& b) {
+    return point_is_valid(b.edge_start()) &&
+           point_is_valid(b.visible_edge_start()) &&
+           point_is_valid(b.edge_end()) && point_is_valid(b.visible_edge_end());
+  };
+  // No NaNs or infinities in SelectounBound.
+  EXPECT_TRUE(selection_bound_is_valid(output.start))
+      << output.start.ToString();
+  EXPECT_TRUE(selection_bound_is_valid(output.end)) << output.end.ToString();
+}
+
+TEST_F(LayerTreeImplTest, SelectionBoundsForCaretLayer) {
+  LayerImpl* root = root_layer();
+  root->SetDrawsContent(true);
+  root->SetBounds(gfx::Size(100, 100));
+  host_impl().active_tree()->SetDeviceViewportRect(gfx::Rect(root->bounds()));
+
+  gfx::Vector2dF caret_layer_offset(10, 20);
+  LayerImpl* caret_layer = AddLayer<LayerImpl>();
+  caret_layer->SetBounds(gfx::Size(1, 16));
+  caret_layer->SetDrawsContent(true);
+  CopyProperties(root, caret_layer);
+  caret_layer->SetOffsetToTransformParent(caret_layer_offset);
+
+  UpdateDrawProperties(host_impl().active_tree());
+
+  LayerSelection input;
+  input.start.type = gfx::SelectionBound::CENTER;
+  input.start.edge_start = gfx::Point(0, 0);
+  input.start.edge_end = gfx::Point(0, 16);
+  input.start.layer_id = caret_layer->id();
+  input.end = input.start;
+  host_impl().active_tree()->RegisterSelection(input);
+
+  viz::Selection<gfx::SelectionBound> output;
+  host_impl().active_tree()->GetViewportSelection(&output);
+  EXPECT_EQ(gfx::SelectionBound::CENTER, output.start.type());
+  EXPECT_EQ(gfx::PointF(10, 20), output.start.edge_start());
+  EXPECT_EQ(gfx::PointF(10, 36), output.start.edge_end());
+  EXPECT_EQ(gfx::PointF(10, 20), output.start.visible_edge_start());
+  EXPECT_EQ(gfx::PointF(10, 36), output.start.visible_edge_end());
+  EXPECT_TRUE(output.start.visible());
+  EXPECT_EQ(output.end, output.start);
 }
 
 TEST_F(LayerTreeImplTest, NumLayersTestOne) {
@@ -2280,7 +2323,8 @@ class PersistentSwapPromise
   MOCK_METHOD1(WillSwap, void(viz::CompositorFrameMetadata* metadata));
   MOCK_METHOD0(DidSwap, void());
 
-  DidNotSwapAction DidNotSwap(DidNotSwapReason reason) override {
+  DidNotSwapAction DidNotSwap(DidNotSwapReason reason,
+                              base::TimeTicks ts) override {
     return DidNotSwapAction::KEEP_ACTIVE;
   }
   int64_t GetTraceId() const override { return 0; }
@@ -2297,7 +2341,8 @@ class NotPersistentSwapPromise
   void WillSwap(viz::CompositorFrameMetadata* metadata) override {}
   void DidSwap() override {}
 
-  DidNotSwapAction DidNotSwap(DidNotSwapReason reason) override {
+  DidNotSwapAction DidNotSwap(DidNotSwapReason reason,
+                              base::TimeTicks ts) override {
     return DidNotSwapAction::BREAK_PROMISE;
   }
   int64_t GetTraceId() const override { return 0; }

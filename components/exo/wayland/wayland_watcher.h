@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_EXO_WAYLAND_WAYLAND_WATCHER_H_
 #define COMPONENTS_EXO_WAYLAND_WAYLAND_WATCHER_H_
 
+#include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump_for_ui.h"
 #include "base/message_loop/watchable_io_message_pump_posix.h"
 
@@ -22,14 +23,20 @@ class WaylandWatcher : public base::MessagePumpForUI::FdWatcher {
 
   ~WaylandWatcher() override;
 
+  // Start/Stop watching the fd for testing.
+  void StartForTesting();
+  void StopForTesting();
+
  private:
+  void Start();
+
   // base::MessagePumpForUI::FdWatcher:
   void OnFileCanReadWithoutBlocking(int fd) override;
 
   void OnFileCanWriteWithoutBlocking(int fd) override;
 
   base::MessagePumpForUI::FdWatchController controller_;
-  wayland::Server* const server_;
+  const raw_ptr<wayland::Server, ExperimentalAsh> server_;
 };
 
 }  // namespace wayland

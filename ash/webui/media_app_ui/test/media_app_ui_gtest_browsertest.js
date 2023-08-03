@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
  */
 GEN('#include "ash/webui/media_app_ui/test/media_app_ui_browsertest.h"');
 
-GEN('#include "ash/constants/ash_features.h"');
+GEN('#include "ash/public/cpp/style/dark_light_mode_controller.h"');
 GEN('#include "content/public/test/browser_test.h"');
 GEN('#include "third_party/blink/public/common/features.h"');
 
@@ -35,11 +35,6 @@ var MediaAppUIGtestBrowserTest = class extends testing.Test {
   }
 
   /** @override */
-  get runAccessibilityChecks() {
-    return false;
-  }
-
-  /** @override */
   get typedefCppFixture() {
     return 'MediaAppUiBrowserTest';
   }
@@ -47,15 +42,26 @@ var MediaAppUIGtestBrowserTest = class extends testing.Test {
 
 // js2gtest fixtures require var here (https://crbug.com/1033337).
 // eslint-disable-next-line no-var
-var MediaAppUIWithAudioGtestBrowserTest =
+var MediaAppUIWithLightModeGtestBrowserTest =
     class extends MediaAppUIGtestBrowserTest {
   /** @override */
-  get featureList() {
-    return {
-      enabled: [
-        ...super.featureList.enabled,
-        'ash::features::kMediaAppHandlesAudio',
-      ]
+  get testGenPreamble() {
+    return () => {
+      // Switch to light mode.
+      GEN('ash::DarkLightModeController::Get()->SetDarkModeEnabledForTest(false);');
+    };
+  }
+};
+
+// js2gtest fixtures require var here (https://crbug.com/1033337).
+// eslint-disable-next-line no-var
+var MediaAppUIWithDarkModeGtestBrowserTest =
+    class extends MediaAppUIGtestBrowserTest {
+  /** @override */
+  get testGenPreamble() {
+    return () => {
+      // Switch to dark mode.
+      GEN('ash::DarkLightModeController::Get()->SetDarkModeEnabledForTest(true);');
     };
   }
 };
@@ -111,7 +117,10 @@ TEST_F('MediaAppUIGtestBrowserTest', 'ConsistencyCheck', async () => {
     ...(/** @type {{testCaseBodies: Object}} */ (MediaAppUIGtestBrowserTest))
         .testCaseBodies,
     ...(/** @type {{testCaseBodies: Object}} */ (
-            MediaAppUIWithAudioGtestBrowserTest))
+            MediaAppUIWithLightModeGtestBrowserTest))
+        .testCaseBodies,
+    ...(/** @type {{testCaseBodies: Object}} */ (
+            MediaAppUIWithDarkModeGtestBrowserTest))
         .testCaseBodies,
   };
   for (const f in MediaAppUIBrowserTest) {
@@ -153,7 +162,7 @@ TEST_F('MediaAppUIGtestBrowserTest', 'MultipleFilesHaveTokens', () => {
   runMediaAppTest('MultipleFilesHaveTokens');
 });
 
-TEST_F('MediaAppUIWithAudioGtestBrowserTest', 'SingleAudioLaunch', () => {
+TEST_F('MediaAppUIGtestBrowserTest', 'SingleAudioLaunch', () => {
   runMediaAppTest('SingleAudioLaunch');
 });
 
@@ -161,9 +170,21 @@ TEST_F('MediaAppUIGtestBrowserTest', 'MultipleSelectionLaunch', () => {
   runMediaAppTest('MultipleSelectionLaunch');
 });
 
-TEST_F('MediaAppUIGtestBrowserTest', 'NotifyCurrentFile', () => {
-  runMediaAppTest('NotifyCurrentFile');
-});
+TEST_F(
+    'MediaAppUIWithLightModeGtestBrowserTest', 'NotifyCurrentFileLight', () => {
+      runMediaAppTest('NotifyCurrentFileLight');
+    });
+
+TEST_F(
+    'MediaAppUIWithDarkModeGtestBrowserTest', 'NotifyCurrentFileDark', () => {
+      runMediaAppTest('NotifyCurrentFileDark');
+    });
+
+TEST_F(
+    'MediaAppUIWithDarkModeGtestBrowserTest', 'NotifyCurrentFileAppIconDark',
+    () => {
+      runMediaAppTest('NotifyCurrentFileAppIconDark');
+    });
 
 TEST_F('MediaAppUIGtestBrowserTest', 'LaunchUnopenableFile', () => {
   runMediaAppTest('LaunchUnopenableFile');
@@ -261,10 +282,6 @@ TEST_F('MediaAppUIGtestBrowserTest', 'SaveAsErrorHandling', () => {
   runMediaAppTest('SaveAsErrorHandling');
 });
 
-TEST_F('MediaAppUIGtestBrowserTest', 'OpenFileIPC', () => {
-  runMediaAppTest('OpenFileIPC');
-});
-
 TEST_F('MediaAppUIGtestBrowserTest', 'OpenFilesWithFilePickerIPC', () => {
   runMediaAppTest('OpenFilesWithFilePickerIPC');
 });
@@ -289,6 +306,12 @@ TEST_F('MediaAppUIGtestBrowserTest', 'GuestHasFocus', () => {
   runMediaAppTest('GuestHasFocus');
 });
 
+TEST_F(
+    'MediaAppUIWithLightModeGtestBrowserTest',
+    'BodyHasCorrectBackgroundColorInLightMode', () => {
+      runMediaAppTest('BodyHasCorrectBackgroundColorInLightMode');
+    });
+
 // Test cases injected into the guest context.
 // See implementations in media_app_guest_ui_browsertest.js.
 
@@ -310,4 +333,12 @@ TEST_F('MediaAppUIGtestBrowserTest', 'GuestCanLoadWithCspRestrictions', () => {
 
 TEST_F('MediaAppUIGtestBrowserTest', 'GuestStartsWithDefaultFileList', () => {
   runTestInGuest('GuestStartsWithDefaultFileList');
+});
+
+TEST_F('MediaAppUIGtestBrowserTest', 'GuestFailsToFetchMissingFonts', () => {
+  runTestInGuest('GuestFailsToFetchMissingFonts');
+});
+
+TEST_F('MediaAppUIGtestBrowserTest', 'GuestCanFilterInPlace', () => {
+  runTestInGuest('GuestCanFilterInPlace');
 });

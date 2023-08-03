@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,14 @@ class COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE) AccountAdditionResult {
     kNetworkError = 3,
     // Unexpected response (couldn't parse mojo struct).
     kUnexpectedResponse = 4,
-    kMaxValue = kUnexpectedResponse,
+    // The sign-in was blocked by policy for this user.
+    kBlockedByPolicy = 5,
+    // Mojo remote to Account Manager is disconnected.
+    kMojoRemoteDisconnected = 6,
+    // Remote and receiver have incompatible Mojo versions.
+    kIncompatibleMojoVersions = 7,
+
+    kMaxValue = kIncompatibleMojoVersions,
   };
 
   // Creates result with `status` different from `kSuccess` and `kNetworkError`.
@@ -51,6 +58,7 @@ class COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE) AccountAdditionResult {
   const GoogleServiceAuthError& error() const { return error_; }
 
   AccountAdditionResult(const AccountAdditionResult&);
+  AccountAdditionResult& operator=(const AccountAdditionResult&);
   ~AccountAdditionResult();
 
  private:
@@ -58,9 +66,9 @@ class COMPONENT_EXPORT(ACCOUNT_MANAGER_CORE) AccountAdditionResult {
                         const absl::optional<Account>& account,
                         const GoogleServiceAuthError& error);
 
-  const Status status_;
-  const absl::optional<Account> account_;
-  const GoogleServiceAuthError error_;
+  Status status_;
+  absl::optional<Account> account_;
+  GoogleServiceAuthError error_;
 };
 
 }  // namespace account_manager

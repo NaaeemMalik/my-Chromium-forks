@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_preferences_util.h"
 #include "chrome/browser/ui/blocked_content/popunder_preventer.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/webui/chrome_web_contents_handler.h"
@@ -32,7 +31,7 @@
 namespace {
 
 gfx::Size RestrictToPlatformMinimumSize(const gfx::Size& min_size) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // http://crbug.com/78973 - MacOS does not handle zero-sized windows well.
   gfx::Size adjusted_min_size(1, 1);
   adjusted_min_size.SetToMax(min_size);
@@ -87,8 +86,7 @@ class ConstrainedDialogWebView : public views::WebView,
   gfx::Size CalculatePreferredSize() const override;
   gfx::Size GetMinimumSize() const override;
   gfx::Size GetMaximumSize() const override;
-  void DocumentOnLoadCompletedInMainFrame(
-      content::RenderFrameHost* render_frame_host) override;
+  void DocumentOnLoadCompletedInPrimaryMainFrame() override;
 
  private:
   base::WeakPtr<content::WebContents> initiator_web_contents_;
@@ -268,7 +266,6 @@ ConstrainedWebDialogDelegateViews::ConstrainedWebDialogDelegateViews(
               browser_context,
               initiator_web_contents,
               view)) {
-  chrome::RecordDialogCreation(chrome::DialogIdentifier::CONSTRAINED_WEB);
   DCHECK(web_dialog_delegate_);
   web_contents_holder_ =
       WebContents::Create(WebContents::CreateParams(browser_context));
@@ -327,26 +324,23 @@ WebContents* ConstrainedWebDialogDelegateViews::GetWebContents() {
 
 gfx::Size
 ConstrainedWebDialogDelegateViews::GetConstrainedWebDialogMinimumSize() const {
-  NOTREACHED();
-  return gfx::Size();
+  NOTREACHED_NORETURN();
 }
 
 gfx::Size
 ConstrainedWebDialogDelegateViews::GetConstrainedWebDialogMaximumSize() const {
-  NOTREACHED();
-  return gfx::Size();
+  NOTREACHED_NORETURN();
 }
 
 gfx::Size
 ConstrainedWebDialogDelegateViews::GetConstrainedWebDialogPreferredSize()
     const {
-  NOTREACHED();
-  return gfx::Size();
+  NOTREACHED_NORETURN();
 }
 
 void ConstrainedWebDialogDelegateViews::ResizeToGivenSize(
     const gfx::Size size) {
-  NOTREACHED();
+  NOTREACHED_NORETURN();
 }
 
 ConstrainedDialogWebView::ConstrainedDialogWebView(
@@ -483,8 +477,7 @@ gfx::Size ConstrainedDialogWebView::GetMaximumSize() const {
   return !max_size().IsEmpty() ? max_size() : WebView::GetMaximumSize();
 }
 
-void ConstrainedDialogWebView::DocumentOnLoadCompletedInMainFrame(
-    content::RenderFrameHost* render_frame_host) {
+void ConstrainedDialogWebView::DocumentOnLoadCompletedInPrimaryMainFrame() {
   if (!max_size().IsEmpty() && initiator_web_contents_) {
     content::WebContents* top_level_web_contents =
         constrained_window::GetTopLevelWebContents(

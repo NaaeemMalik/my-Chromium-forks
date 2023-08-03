@@ -1,13 +1,19 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_STYLE_CLOSE_BUTTON_H_
 #define ASH_STYLE_CLOSE_BUTTON_H_
 
+#include "ash/style/ash_color_id.h"
 #include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/color/color_id.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/view_targeter_delegate.h"
+
+namespace gfx {
+struct VectorIcon;
+}  // namespace gfx
 
 namespace ash {
 
@@ -23,11 +29,21 @@ class CloseButton : public views::ImageButton,
     kSmall,
     kMedium,
     kLarge,
+    kSmallFloating,
+    kMediumFloating,
+    kLargeFloating,
   };
 
+  // Uses the default close icon according to the given `type` if `icon` is not
+  // set by the client explicitly. Also default background and icon color ids
+  // are used if they're not explicitly provided.
+  // If you want to keep the button in light mode, you can provide the color ids
+  // on light version.
   CloseButton(PressedCallback callback,
               Type type,
-              bool use_light_colors = false);
+              const gfx::VectorIcon* icon = nullptr,
+              ui::ColorId background_color_id = kColorAshShieldAndBase80,
+              ui::ColorId icon_color_id = kColorAshButtonIconColor);
   CloseButton(const CloseButton&) = delete;
   CloseButton& operator=(const CloseButton&) = delete;
   ~CloseButton() override;
@@ -36,6 +52,9 @@ class CloseButton : public views::ImageButton,
   // button's bounds. Used to help enlarge the hit area of the close button.
   // Note, only necessary for `kSmall` type of CloseButton.
   bool DoesIntersectScreenRect(const gfx::Rect& screen_rect) const;
+
+  // Resets the listener so that the listener can go out of scope.
+  void ResetListener();
 
  private:
   // views::ImageButton:
@@ -47,10 +66,6 @@ class CloseButton : public views::ImageButton,
                          const gfx::Rect& rect) const override;
 
   const Type type_;
-
-  // True if the button wants to use light colors when the D/L mode feature is
-  // not enabled. Note, can be removed when D/L mode feature is fully launched.
-  const bool use_light_colors_;
 };
 
 }  // namespace ash

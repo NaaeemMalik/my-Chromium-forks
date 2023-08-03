@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
@@ -188,6 +188,7 @@ void DetachedResourceRequest::Start(
 }
 
 void DetachedResourceRequest::OnRedirectCallback(
+    const GURL& url_before_redirect,
     const net::RedirectInfo& redirect_info,
     const network::mojom::URLResponseHead& response_head,
     std::vector<std::string>* to_be_removed_headers) {
@@ -199,29 +200,13 @@ void DetachedResourceRequest::OnResponseCallback(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   int net_error = url_loader_->NetError();
   net_error = std::abs(net_error);
-  auto duration = base::TimeTicks::Now() - start_time_;
 
-  switch (motivation_) {
-    case Motivation::kParallelRequest: {
-      RecordParallelRequestHistograms("", redirects_, duration, net_error);
-      if (is_from_aga_) {
-        RecordParallelRequestHistograms(".FromAga", redirects_, duration,
-                                        net_error);
-      }
-      break;
-    }
-    case Motivation::kResourcePrefetch: {
-      if (net_error == net::OK) {
-        UMA_HISTOGRAM_MEDIUM_TIMES(
-            "CustomTabs.ResourcePrefetch.Duration.Success", duration);
-      } else {
-        UMA_HISTOGRAM_MEDIUM_TIMES(
-            "CustomTabs.ResourcePrefetch.Duration.Failure", duration);
-      }
-
-      base::UmaHistogramSparse("CustomTabs.ResourcePrefetch.FinalStatus",
-                               net_error);
-      break;
+  if (motivation_ == Motivation::kParallelRequest) {
+    auto duration = base::TimeTicks::Now() - start_time_;
+    RecordParallelRequestHistograms("", redirects_, duration, net_error);
+    if (is_from_aga_) {
+      RecordParallelRequestHistograms(".FromAga", redirects_, duration,
+                                      net_error);
     }
   }
 

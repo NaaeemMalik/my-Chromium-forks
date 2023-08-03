@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/containers/cxx20_erase.h"
+#include "build/build_config.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/hit_test.h"
@@ -20,7 +21,7 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/client_view.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "ui/display/win/screen_win.h"
 #endif
 
@@ -51,25 +52,26 @@ int NonClientFrameView::GetHTComponentForFrame(const gfx::Point& point,
 
   int component;
   if (point_in_top) {
-    if (point_in_left)
+    if (point_in_left) {
       component = HTTOPLEFT;
-    else if (point_in_right)
+    } else if (point_in_right) {
       component = HTTOPRIGHT;
-    else
+    } else {
       component = HTTOP;
+    }
   } else if (point_in_bottom) {
-    if (point_in_left)
+    if (point_in_left) {
       component = HTBOTTOMLEFT;
-    else if (point_in_right)
+    } else if (point_in_right) {
       component = HTBOTTOMRIGHT;
-    else
+    } else {
       component = HTBOTTOM;
+    }
   } else if (point_in_left) {
     component = HTLEFT;
-  } else if (point_in_right) {
-    component = HTRIGHT;
   } else {
-    NOTREACHED();
+    CHECK(point_in_right);
+    component = HTRIGHT;
   }
 
   // If the window can't be resized, there are no resize boundaries, just
@@ -91,7 +93,7 @@ bool NonClientFrameView::GetClientMask(const gfx::Size& size,
   return false;
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 gfx::Point NonClientFrameView::GetSystemMenuScreenPixelLocation() const {
   gfx::Point point(GetMirroredXInView(GetBoundsForClientView().x()),
                    GetSystemMenuY());
@@ -147,7 +149,7 @@ NonClientFrameView::NonClientFrameView() {
   SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 int NonClientFrameView::GetSystemMenuY() const {
   return GetBoundsForClientView().y();
 }
@@ -241,10 +243,6 @@ void NonClientView::SizeConstraintsChanged() {
   frame_view_->SizeConstraintsChanged();
 }
 
-void NonClientView::SetAccessibleName(const std::u16string& name) {
-  accessible_name_ = name;
-}
-
 gfx::Size NonClientView::CalculatePreferredSize() const {
   // TODO(pkasting): This should probably be made to look similar to
   // GetMinimumSize() below.  This will require implementing GetPreferredSize()
@@ -277,8 +275,8 @@ void NonClientView::Layout() {
 }
 
 void NonClientView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
+  // TODO(crbug.com/1366294): Should this be pruned from the accessibility tree?
   node_data->role = ax::mojom::Role::kClient;
-  node_data->SetName(accessible_name_);
 }
 
 View* NonClientView::GetTooltipHandlerForPoint(const gfx::Point& point) {

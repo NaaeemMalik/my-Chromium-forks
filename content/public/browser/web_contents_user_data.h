@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,17 @@
 namespace content {
 
 // A base class for classes attached to, and scoped to, the lifetime of a
-// WebContents. For example:
+// WebContents.
+//
+// When considering using this class, please carefully consider the intended
+// lifetime of the data. There are other UserData classes which may more
+// precisely match the intended lifetime. For example, DocumentUserData scopes
+// the data to a document, NavigationHandleUserData to a navigation, etc. It is
+// preferable to use a more specific UserData class, rather than storing
+// non-WebContents state as a WebContentsUserData combined with using a
+// WebContentsObserver to manually reset the state.
+//
+// For example:
 //
 // --- in foo_tab_helper.h ---
 // class FooTabHelper : public content::WebContentsUserData<FooTabHelper> {
@@ -39,9 +49,6 @@ class WebContentsUserData : public base::SupportsUserData::Data {
  public:
   explicit WebContentsUserData(WebContents& web_contents)
       : web_contents_(&web_contents) {}
-
-  // TODO(crbug.com/1268914) : Remove this constructor.
-  WebContentsUserData() = default;
 
   // Creates an object of type T, and attaches it to the specified WebContents.
   // If an instance is already attached, does nothing.
@@ -75,18 +82,8 @@ class WebContentsUserData : public base::SupportsUserData::Data {
   // The returned `WebContents` is guaranteed to live as long as `this`
   // WebContentsUserData (due to how UserData works - WebContents
   // owns `this` UserData).
-  content::WebContents& GetWebContents() {
-    // TODO(crbug.com/1268914) : Remove when we can't call the default
-    // constructor.
-    CHECK(web_contents_);
-    return *web_contents_;
-  }
-  const content::WebContents& GetWebContents() const {
-    // TODO(crbug.com/1268914) : Remove when we can't call the default
-    // constructor.
-    CHECK(web_contents_);
-    return *web_contents_;
-  }
+  content::WebContents& GetWebContents() { return *web_contents_; }
+  const content::WebContents& GetWebContents() const { return *web_contents_; }
 
  private:
   // This is a pointer (rather than a reference) to ensure that go/miracleptr

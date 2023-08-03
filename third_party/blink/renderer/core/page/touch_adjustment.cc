@@ -30,17 +30,19 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/html/html_frame_owner_element.h"
+#include "third_party/blink/renderer/core/input/touch_action_util.h"
 #include "third_party/blink/renderer/core/layout/layout_box.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
-#include "third_party/blink/renderer/platform/geometry/float_quad.h"
 #include "third_party/blink/renderer/platform/text/text_break_iterator.h"
 #include "ui/display/screen_info.h"
 #include "ui/gfx/geometry/point_conversions.h"
 #include "ui/gfx/geometry/point_f.h"
+#include "ui/gfx/geometry/quad_f.h"
+#include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace blink {
@@ -50,8 +52,8 @@ namespace touch_adjustment {
 const float kZeroTolerance = 1e-6f;
 // The touch adjustment range (diameters) in dip, using same as the value in
 // gesture_configuration_android.cc
-constexpr float kMaxAdjustmentSizeDip = 32.f;
-constexpr float kMinAdjustmentSizeDip = 20.f;
+constexpr LayoutUnit kMaxAdjustmentSizeDip(32);
+constexpr LayoutUnit kMinAdjustmentSizeDip(20);
 
 // Class for remembering absolute quads of a target node and what node they
 // represent.
@@ -59,17 +61,19 @@ class SubtargetGeometry {
   DISALLOW_NEW();
 
  public:
-  SubtargetGeometry(Node* node, const FloatQuad& quad)
+  SubtargetGeometry(Node* node, const gfx::QuadF& quad)
       : node_(node), quad_(quad) {}
   void Trace(Visitor* visitor) const { visitor->Trace(node_); }
 
   Node* GetNode() const { return node_; }
-  FloatQuad Quad() const { return quad_; }
-  gfx::Rect BoundingBox() const { return quad_.EnclosingBoundingBox(); }
+  gfx::QuadF Quad() const { return quad_; }
+  gfx::Rect BoundingBox() const {
+    return gfx::ToEnclosingRect(quad_.BoundingBox());
+  }
 
  private:
   Member<Node> node_;
-  FloatQuad quad_;
+  gfx::QuadF quad_;
 };
 
 }  // namespace touch_adjustment
@@ -130,7 +134,7 @@ bool ProvidesContextMenuItems(Node* node) {
   if (!node->GetLayoutObject())
     return false;
   node->GetDocument().UpdateStyleAndLayoutTree();
-  if (HasEditableStyle(*node))
+  if (IsEditable(*node))
     return true;
   if (node->IsLink())
     return true;
@@ -155,12 +159,35 @@ bool ProvidesContextMenuItems(Node* node) {
   return false;
 }
 
+bool NodeRespondsToTapOrMove(Node* node) {
+  // This method considers nodes from NodeRespondsToTapGesture, those where pan
+  // touch action is disabled, and ones that are stylus writable. We do this to
+  // avoid adjusting the pointer position on drawable area or slidable control
+  // to the nearby writable input node.
+  node->GetDocument().UpdateStyleAndLayoutTree();
+
+  if (NodeRespondsToTapGesture(node))
+    return true;
+
+  TouchAction effective_touch_action =
+      touch_action_util::ComputeEffectiveTouchAction(*node);
+
+  if ((effective_touch_action & TouchAction::kPan) != TouchAction::kPan)
+    return true;
+
+  if ((effective_touch_action & TouchAction::kInternalNotWritable) !=
+      TouchAction::kInternalNotWritable) {
+    return true;
+  }
+  return false;
+}
+
 static inline void AppendQuadsToSubtargetList(
-    Vector<FloatQuad>& quads,
+    Vector<gfx::QuadF>& quads,
     Node* node,
     SubtargetGeometryList& subtargets) {
-  Vector<FloatQuad>::const_iterator it = quads.begin();
-  const Vector<FloatQuad>::const_iterator end = quads.end();
+  Vector<gfx::QuadF>::const_iterator it = quads.begin();
+  const Vector<gfx::QuadF>::const_iterator end = quads.end();
   for (; it != end; ++it)
     subtargets.push_back(SubtargetGeometry(node, *it));
 }
@@ -171,7 +198,7 @@ static inline void AppendBasicSubtargetsForNode(
   // Node guaranteed to have layoutObject due to check in node filter.
   DCHECK(node->GetLayoutObject());
 
-  Vector<FloatQuad> quads;
+  Vector<gfx::QuadF> quads;
   node->GetLayoutObject()->AbsoluteQuads(quads);
 
   AppendQuadsToSubtargetList(quads, node, subtargets);
@@ -204,7 +231,7 @@ static inline void AppendContextSubtargetsForNode(
     int offset;
     while ((offset = word_iterator->next()) != -1) {
       if (IsWordTextBreak(word_iterator)) {
-        Vector<FloatQuad> quads;
+        Vector<gfx::QuadF> quads;
         text_layout_object->AbsoluteQuadsForRange(quads, last_offset, offset);
         AppendQuadsToSubtargetList(quads, text_node, subtargets);
       }
@@ -218,7 +245,7 @@ static inline void AppendContextSubtargetsForNode(
     const LayoutTextSelectionStatus& selection_status =
         frame_selection.ComputeLayoutSelectionStatus(*text_layout_object);
     // If selected, make subtargets out of only the selected part of the text.
-    Vector<FloatQuad> quads;
+    Vector<gfx::QuadF> quads;
     text_layout_object->AbsoluteQuadsForRange(quads, selection_status.start,
                                               selection_status.end);
     AppendQuadsToSubtargetList(quads, text_node, subtargets);
@@ -305,13 +332,13 @@ void CompileSubtargetList(const HeapVector<Member<Node>>& intersected_nodes,
     if (editable_ancestors.Contains(candidate))
       continue;
     candidate->GetDocument().UpdateStyleAndLayoutTree();
-    if (HasEditableStyle(*candidate)) {
+    if (IsEditable(*candidate)) {
       Node* replacement = candidate;
       Node* parent = candidate->ParentOrShadowHostNode();
 
       // Ignore parents without layout objects.  E.g. editable elements with
       // display:contents.  https://crbug.com/1196872
-      while (parent && HasEditableStyle(*parent) && parent->GetLayoutObject()) {
+      while (parent && IsEditable(*parent) && parent->GetLayoutObject()) {
         replacement = parent;
         if (editable_ancestors.Contains(replacement)) {
           replacement = nullptr;
@@ -409,7 +436,7 @@ bool SnapTo(const SubtargetGeometry& geom,
             const gfx::Rect& touch_area,
             gfx::Point& adjusted_point) {
   LocalFrameView* view = geom.GetNode()->GetDocument().View();
-  FloatQuad quad = geom.Quad();
+  gfx::QuadF quad = geom.Quad();
 
   if (quad.IsRectilinear()) {
     gfx::Rect bounds = view->ConvertToRootFrame(geom.BoundingBox());
@@ -436,20 +463,20 @@ bool SnapTo(const SubtargetGeometry& geom,
   gfx::PointF p2 = ConvertToRootFrame(view, quad.p2());
   gfx::PointF p3 = ConvertToRootFrame(view, quad.p3());
   gfx::PointF p4 = ConvertToRootFrame(view, quad.p4());
-  quad = FloatQuad(p1, p2, p3, p4);
+  quad = gfx::QuadF(p1, p2, p3, p4);
 
-  if (quad.ContainsPoint(gfx::PointF(touch_point))) {
+  if (quad.Contains(gfx::PointF(touch_point))) {
     adjusted_point = touch_point;
     return true;
   }
 
   // Pull point towards the center of the element.
-  gfx::PointF center = quad.Center();
+  gfx::PointF center = quad.CenterPoint();
 
   AdjustPointToRect(center, touch_area);
   adjusted_point = gfx::ToRoundedPoint(center);
 
-  return quad.ContainsPoint(gfx::PointF(adjusted_point));
+  return quad.Contains(gfx::PointF(adjusted_point));
 }
 
 // A generic function for finding the target node with the lowest distance
@@ -503,6 +530,22 @@ bool FindNodeWithLowestDistanceMetric(Node*& target_node,
   return (target_node);
 }
 
+bool FindBestCandidate(Node*& target_node,
+                       gfx::Point& target_point,
+                       const gfx::Point& touch_hotspot,
+                       const gfx::Rect& touch_area,
+                       const HeapVector<Member<Node>>& nodes,
+                       NodeFilter node_filter,
+                       AppendSubtargetsForNode append_subtargets_for_node) {
+  gfx::Rect target_area;
+  touch_adjustment::SubtargetGeometryList subtargets;
+  touch_adjustment::CompileSubtargetList(nodes, subtargets, node_filter,
+                                         append_subtargets_for_node);
+  return touch_adjustment::FindNodeWithLowestDistanceMetric(
+      target_node, target_point, target_area, touch_hotspot, touch_area,
+      subtargets, touch_adjustment::HybridDistanceFunction);
+}
+
 }  // namespace touch_adjustment
 
 bool FindBestClickableCandidate(Node*& target_node,
@@ -510,14 +553,9 @@ bool FindBestClickableCandidate(Node*& target_node,
                                 const gfx::Point& touch_hotspot,
                                 const gfx::Rect& touch_area,
                                 const HeapVector<Member<Node>>& nodes) {
-  gfx::Rect target_area;
-  touch_adjustment::SubtargetGeometryList subtargets;
-  touch_adjustment::CompileSubtargetList(
-      nodes, subtargets, touch_adjustment::NodeRespondsToTapGesture,
-      touch_adjustment::AppendBasicSubtargetsForNode);
-  return touch_adjustment::FindNodeWithLowestDistanceMetric(
-      target_node, target_point, target_area, touch_hotspot, touch_area,
-      subtargets, touch_adjustment::HybridDistanceFunction);
+  return FindBestCandidate(target_node, target_point, touch_hotspot, touch_area,
+                           nodes, touch_adjustment::NodeRespondsToTapGesture,
+                           touch_adjustment::AppendBasicSubtargetsForNode);
 }
 
 bool FindBestContextMenuCandidate(Node*& target_node,
@@ -525,14 +563,19 @@ bool FindBestContextMenuCandidate(Node*& target_node,
                                   const gfx::Point& touch_hotspot,
                                   const gfx::Rect& touch_area,
                                   const HeapVector<Member<Node>>& nodes) {
-  gfx::Rect target_area;
-  touch_adjustment::SubtargetGeometryList subtargets;
-  touch_adjustment::CompileSubtargetList(
-      nodes, subtargets, touch_adjustment::ProvidesContextMenuItems,
-      touch_adjustment::AppendContextSubtargetsForNode);
-  return touch_adjustment::FindNodeWithLowestDistanceMetric(
-      target_node, target_point, target_area, touch_hotspot, touch_area,
-      subtargets, touch_adjustment::HybridDistanceFunction);
+  return FindBestCandidate(target_node, target_point, touch_hotspot, touch_area,
+                           nodes, touch_adjustment::ProvidesContextMenuItems,
+                           touch_adjustment::AppendContextSubtargetsForNode);
+}
+
+bool FindBestStylusWritableCandidate(Node*& target_node,
+                                     gfx::Point& target_point,
+                                     const gfx::Point& touch_hotspot,
+                                     const gfx::Rect& touch_area,
+                                     const HeapVector<Member<Node>>& nodes) {
+  return FindBestCandidate(target_node, target_point, touch_hotspot, touch_area,
+                           nodes, touch_adjustment::NodeRespondsToTapOrMove,
+                           touch_adjustment::AppendBasicSubtargetsForNode);
 }
 
 LayoutSize GetHitTestRectForAdjustment(LocalFrame& frame,
@@ -540,10 +583,6 @@ LayoutSize GetHitTestRectForAdjustment(LocalFrame& frame,
   ChromeClient& chrome_client = frame.GetChromeClient();
   float device_scale_factor =
       chrome_client.GetScreenInfo(frame).device_scale_factor;
-  // Check if zoom-for-dsf is enabled. If not, touch_area is in dip, so we don't
-  // need to convert max_size_in_dip to physical pixel.
-  if (frame.GetPage()->DeviceScaleFactorDeprecated() != 1)
-    device_scale_factor = 1;
 
   float page_scale_factor = frame.GetPage()->PageScaleFactor();
   const LayoutSize max_size_in_dip(touch_adjustment::kMaxAdjustmentSizeDip,

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include "base/command_line.h"
 #include "base/debug/debugger.h"
 #include "base/debug/leak_annotations.h"
-#include "base/lazy_instance.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/no_destructor.h"
 #include "base/run_loop.h"
 #include "base/synchronization/atomic_flag.h"
 #include "base/time/time.h"
@@ -31,11 +31,12 @@
 #include "ui/base/ime/init/input_method_initializer.h"
 #include "ui/gfx/font_util.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "content/browser/android/tracing_controller_android.h"
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
+#include "base/win/win_util.h"
 #include "base/win/windows_version.h"
 #include "ui/base/win/scoped_ole_initializer.h"
 #endif
@@ -43,7 +44,10 @@
 namespace content {
 namespace {
 
-base::LazyInstance<base::AtomicFlag>::Leaky g_exited_main_message_loop;
+base::AtomicFlag& GetExitedMainMessageLoopFlag() {
+  static base::NoDestructor<base::AtomicFlag> flag;
+  return *flag;
+}
 
 }  // namespace
 
@@ -59,8 +63,9 @@ BrowserMainRunnerImpl::BrowserMainRunnerImpl()
           std::make_unique<base::ThreadPoolInstance::ScopedExecutionFence>()) {}
 
 BrowserMainRunnerImpl::~BrowserMainRunnerImpl() {
-  if (initialization_started_ && !is_shutdown_)
+  if (initialization_started_ && !is_shutdown_) {
     Shutdown();
+  }
 }
 
 int BrowserMainRunnerImpl::Initialize(MainFunctionParams parameters) {
@@ -75,24 +80,25 @@ int BrowserMainRunnerImpl::Initialize(MainFunctionParams parameters) {
   if (!initialization_started_) {
     initialization_started_ = true;
 
-    const base::TimeTicks start_time_step1 = base::TimeTicks::Now();
-
     SkGraphics::Init();
 
-    if (parameters.command_line->HasSwitch(switches::kWaitForDebugger))
+    if (parameters.command_line->HasSwitch(switches::kWaitForDebugger)) {
       base::debug::WaitForDebugger(60, true);
+    }
 
-    if (parameters.command_line->HasSwitch(switches::kBrowserStartupDialog))
+    if (parameters.command_line->HasSwitch(switches::kBrowserStartupDialog)) {
       WaitForDebugger("Browser");
+    }
 
     notification_service_ = std::make_unique<NotificationServiceImpl>();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
+    base::win::EnableHighDPISupport();
     // Ole must be initialized before starting message pump, so that TSF
     // (Text Services Framework) module can interact with the message pump
     // on Windows 8 Metro mode.
     ole_initializer_ = std::make_unique<ui::ScopedOleInitializer>();
-#endif  // OS_WIN
+#endif  // BUILDFLAG(IS_WIN)
 
     gfx::InitializeFonts();
 
@@ -109,12 +115,16 @@ int BrowserMainRunnerImpl::Initialize(MainFunctionParams parameters) {
     }
 
     const int early_init_error_code = main_loop_->EarlyInitialization();
-    if (early_init_error_code > 0)
+    if (early_init_error_code > 0) {
+      main_loop_->CreateMessageLoopForEarlyShutdown();
       return early_init_error_code;
+    }
 
     // Must happen before we try to use a message loop or display any UI.
-    if (!main_loop_->InitializeToolkit())
+    if (!main_loop_->InitializeToolkit()) {
+      main_loop_->CreateMessageLoopForEarlyShutdown();
       return 1;
+    }
 
     main_loop_->PreCreateMainMessageLoop();
     main_loop_->CreateMainMessageLoop();
@@ -125,23 +135,18 @@ int BrowserMainRunnerImpl::Initialize(MainFunctionParams parameters) {
     // to browser_shutdown::Shutdown or BrowserProcess::EndSession.
 
     ui::InitializeInputMethod();
-    UMA_HISTOGRAM_TIMES("Startup.BrowserMainRunnerImplInitializeStep1Time",
-                        base::TimeTicks::Now() - start_time_step1);
   }
-  const base::TimeTicks start_time_step2 = base::TimeTicks::Now();
   main_loop_->CreateStartupTasks();
   int result_code = main_loop_->GetResultCode();
-  if (result_code > 0)
+  if (result_code > 0) {
     return result_code;
-
-  UMA_HISTOGRAM_TIMES("Startup.BrowserMainRunnerImplInitializeStep2Time",
-                      base::TimeTicks::Now() - start_time_step2);
+  }
 
   // Return -1 to indicate no early termination.
   return -1;
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 void BrowserMainRunnerImpl::SynchronouslyFlushStartupTasks() {
   main_loop_->SynchronouslyFlushStartupTasks();
 }
@@ -158,15 +163,6 @@ void BrowserMainRunnerImpl::Shutdown() {
   DCHECK(initialization_started_);
   DCHECK(!is_shutdown_);
 
-#ifdef LEAK_SANITIZER
-  // Invoke leak detection now, to avoid dealing with shutdown-only leaks.
-  // Normally this will have already happened in
-  // BroserProcessImpl::ReleaseModule(), so this call has no effect. This is
-  // only for processes which do not instantiate a BrowserProcess.
-  // If leaks are found, the process will exit here.
-  __lsan_do_leak_check();
-#endif
-
   main_loop_->PreShutdown();
 
   // Finalize the startup tracing session if it is still active.
@@ -175,15 +171,15 @@ void BrowserMainRunnerImpl::Shutdown() {
   {
     // The trace event has to stay between profiler creation and destruction.
     TRACE_EVENT0("shutdown", "BrowserMainRunner");
-    g_exited_main_message_loop.Get().Set();
+    GetExitedMainMessageLoopFlag().Set();
 
     main_loop_->ShutdownThreadsAndCleanUp();
 
     ui::ShutdownInputMethod();
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     ole_initializer_.reset(NULL);
 #endif
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     // Forcefully terminates the RunLoop inside MessagePumpForUI, ensuring
     // proper shutdown for content_browsertests. Shutdown() is not used by
     // the actual browser.
@@ -205,8 +201,7 @@ std::unique_ptr<BrowserMainRunner> BrowserMainRunner::Create() {
 
 // static
 bool BrowserMainRunner::ExitedMainMessageLoop() {
-  return g_exited_main_message_loop.IsCreated() &&
-         g_exited_main_message_loop.Get().IsSet();
+  return GetExitedMainMessageLoopFlag().IsSet();
 }
 
 }  // namespace content

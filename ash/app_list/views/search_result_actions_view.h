@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include "ash/app_list/model/search/search_result.h"
 #include "ash/ash_export.h"
+#include "base/memory/raw_ptr.h"
 #include "ui/views/view.h"
 
 namespace ash {
@@ -32,6 +33,9 @@ class ASH_EXPORT SearchResultActionsView : public views::View {
   bool IsValidActionIndex(size_t action_index) const;
 
   bool IsSearchResultHoveredOrSelected() const;
+
+  // Hides search result actions until they are next updated.
+  void HideActions();
 
   // Updates the button UI upon the SearchResultView's UI state change.
   void UpdateButtonsOnStateChanged();
@@ -81,7 +85,8 @@ class ASH_EXPORT SearchResultActionsView : public views::View {
   // If an action is currently selected, the selected action index.
   absl::optional<int> selected_action_;
 
-  SearchResultActionsViewDelegate* const delegate_;  // Not owned.
+  const raw_ptr<SearchResultActionsViewDelegate, ExperimentalAsh>
+      delegate_;  // Not owned.
   std::list<base::CallbackListSubscription> subscriptions_;
 };
 

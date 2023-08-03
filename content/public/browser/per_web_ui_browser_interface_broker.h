@@ -1,11 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_PUBLIC_BROWSER_PER_WEB_UI_BROWSER_INTERFACE_BROKER_H_
 #define CONTENT_PUBLIC_BROWSER_PER_WEB_UI_BROWSER_INTERFACE_BROKER_H_
 
-#include "base/compiler_specific.h"
+#include "base/memory/raw_ref.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
 #include "mojo/public/cpp/bindings/generic_pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -30,11 +30,11 @@ class PerWebUIBrowserInterfaceBroker
 
   void GetInterface(mojo::GenericPendingReceiver receiver) override;
 
-  mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker>
-  BindNewPipeAndPassRemote() WARN_UNUSED_RESULT;
+  [[nodiscard]] mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker>
+  BindNewPipeAndPassRemote();
 
  private:
-  WebUIController& controller_;
+  const raw_ref<WebUIController> controller_;
   WebUIBinderMap binder_map_;
   mojo::Receiver<blink::mojom::BrowserInterfaceBroker> receiver_{this};
 };

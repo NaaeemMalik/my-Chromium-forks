@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,7 @@
   // Test that the explanations are cleared on navigation. Regression test for https://crbug.com/601944.
   TestRunner.mainTarget.model(SDK.ResourceTreeModel)
       .dispatchEventToListeners(
-          SDK.ResourceTreeModel.Events.MainFrameNavigated, TestRunner.resourceTreeModel.mainFrame);
+          SDK.ResourceTreeModel.Events.PrimaryPageChanged, {frame: TestRunner.resourceTreeModel.mainFrame, type: 'Navigation'});
   explanations =
       Security.SecurityPanel.instance().mainView.contentElement.getElementsByClassName('security-explanation');
   for (var i = 0; i < explanations.length; i++)

@@ -23,11 +23,11 @@
 
 #include <algorithm>
 #include "third_party/blink/renderer/platform/geometry/blend.h"
-#include "third_party/blink/renderer/platform/geometry/float_box.h"
 #include "third_party/blink/renderer/platform/transforms/interpolated_transform_operation.h"
 #include "third_party/blink/renderer/platform/transforms/matrix_3d_transform_operation.h"
 #include "third_party/blink/renderer/platform/transforms/rotate_transform_operation.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
+#include "ui/gfx/geometry/box_f.h"
 
 namespace blink {
 
@@ -87,7 +87,7 @@ bool TransformOperations::operator==(const TransformOperations& o) const {
 
 void TransformOperations::ApplyRemaining(const gfx::SizeF& border_box_size,
                                          wtf_size_t start,
-                                         TransformationMatrix& t) const {
+                                         gfx::Transform& t) const {
   for (wtf_size_t i = start; i < operations_.size(); i++) {
     operations_[i]->Apply(t, border_box_size);
   }
@@ -135,8 +135,8 @@ TransformOperations::BlendRemainingByUsingMatrixInterpolation(
 
   // Evaluate blended matrix here to avoid creating a nested data structure of
   // unbounded depth.
-  TransformationMatrix from_transform;
-  TransformationMatrix to_transform;
+  gfx::Transform from_transform;
+  gfx::Transform to_transform;
   from.ApplyRemaining(gfx::SizeF(), matching_prefix_length, from_transform);
   ApplyRemaining(gfx::SizeF(), matching_prefix_length, to_transform);
 
@@ -145,7 +145,9 @@ TransformOperations::BlendRemainingByUsingMatrixInterpolation(
     return nullptr;
   }
 
-  to_transform.Blend(from_transform, progress);
+  if (!to_transform.Blend(from_transform, progress) && progress < 0.5)
+    to_transform = from_transform;
+
   return Matrix3DTransformOperation::Create(to_transform);
 }
 
@@ -214,8 +216,8 @@ TransformOperations TransformOperations::Accumulate(
   // Then, if there are leftover non-matching functions, accumulate the
   // remaining matrices.
   if (success && matching_prefix_length < max_path_length) {
-    TransformationMatrix from_transform;
-    TransformationMatrix to_transform;
+    gfx::Transform from_transform;
+    gfx::Transform to_transform;
     ApplyRemaining(gfx::SizeF(), matching_prefix_length, from_transform);
     to.ApplyRemaining(gfx::SizeF(), matching_prefix_length, to_transform);
 
@@ -259,20 +261,20 @@ static void FindCandidatesInPlane(double px,
 // the ending point, and any of the extrema (in each dimension) found across
 // the circle described by the arc. These are then filtered to points that
 // actually reside on the arc.
-static void BoundingBoxForArc(const FloatPoint3D& point,
+static void BoundingBoxForArc(const gfx::Point3F& point,
                               const RotateTransformOperation& from_transform,
                               const RotateTransformOperation& to_transform,
                               double min_progress,
                               double max_progress,
-                              FloatBox& box) {
+                              gfx::BoxF& box) {
   double candidates[6];
   int num_candidates = 0;
 
-  FloatPoint3D axis(from_transform.Axis());
+  gfx::Vector3dF axis = from_transform.Axis();
   double from_degrees = from_transform.Angle();
   double to_degrees = to_transform.Angle();
 
-  if (axis.Dot(to_transform.Axis()) < 0)
+  if (gfx::DotProduct(axis, to_transform.Axis()) < 0)
     to_degrees *= -1;
 
   from_degrees = Blend(from_degrees, to_degrees, min_progress);
@@ -280,14 +282,12 @@ static void BoundingBoxForArc(const FloatPoint3D& point,
   if (from_degrees > to_degrees)
     std::swap(from_degrees, to_degrees);
 
-  TransformationMatrix from_matrix;
-  TransformationMatrix to_matrix;
-  from_matrix.Rotate3d(from_transform.X(), from_transform.Y(),
-                       from_transform.Z(), from_degrees);
-  to_matrix.Rotate3d(from_transform.X(), from_transform.Y(), from_transform.Z(),
-                     to_degrees);
+  gfx::Transform from_matrix;
+  gfx::Transform to_matrix;
+  from_matrix.RotateAbout(from_transform.Axis(), from_degrees);
+  to_matrix.RotateAbout(from_transform.Axis(), to_degrees);
 
-  FloatPoint3D from_point = from_matrix.MapPoint(point);
+  gfx::Point3F from_point = from_matrix.MapPoint(point);
 
   if (box.IsEmpty())
     box.set_origin(from_point);
@@ -311,19 +311,17 @@ static void BoundingBoxForArc(const FloatPoint3D& point,
                             candidates, &num_candidates);
       break;
     default: {
-      FloatPoint3D normal = axis;
-      if (normal.IsZero())
+      gfx::Vector3dF normal;
+      if (!axis.GetNormalized(&normal))
         return;
-      normal.Normalize();
-      FloatPoint3D origin;
-      FloatPoint3D to_point = point - origin;
-      FloatPoint3D center = origin + normal * to_point.Dot(normal);
-      FloatPoint3D v1 = point - center;
-      if (v1.IsZero())
+      gfx::Vector3dF to_point = point.OffsetFromOrigin();
+      gfx::Point3F center = gfx::PointAtOffsetFromOrigin(
+          gfx::ScaleVector3d(normal, gfx::DotProduct(to_point, normal)));
+      gfx::Vector3dF v1 = point - center;
+      if (!v1.GetNormalized(&v1))
         return;
 
-      v1.Normalize();
-      FloatPoint3D v2 = normal.Cross(v1);
+      gfx::Vector3dF v2 = gfx::CrossProduct(normal, v1);
       // v1 is the basis vector in the direction of the point.
       // i.e. with a rotation of 0, v1 is our +x vector.
       // v2 is a perpenticular basis vector of our plane (+y).
@@ -366,17 +364,17 @@ static void BoundingBoxForArc(const FloatPoint3D& point,
     if (radians < min_radians)
       continue;
 
-    TransformationMatrix rotation;
-    rotation.Rotate3d(axis.x(), axis.y(), axis.z(), Rad2deg(radians));
+    gfx::Transform rotation;
+    rotation.RotateAbout(axis, Rad2deg(radians));
     box.ExpandTo(rotation.MapPoint(point));
   }
 }
 
-bool TransformOperations::BlendedBoundsForBox(const FloatBox& box,
+bool TransformOperations::BlendedBoundsForBox(const gfx::BoxF& box,
                                               const TransformOperations& from,
                                               const double& min_progress,
                                               const double& max_progress,
-                                              FloatBox* bounds) const {
+                                              gfx::BoxF* bounds) const {
   int from_size = from.Operations().size();
   int to_size = Operations().size();
   int size = std::max(from_size, to_size);
@@ -425,14 +423,12 @@ bool TransformOperations::BlendedBoundsForBox(const FloatBox& box,
         }
         if (!from_transform || !to_transform)
           continue;
-        TransformationMatrix from_matrix;
-        TransformationMatrix to_matrix;
+        gfx::Transform from_matrix;
+        gfx::Transform to_matrix;
         from_transform->Apply(from_matrix, gfx::SizeF());
         to_transform->Apply(to_matrix, gfx::SizeF());
-        FloatBox from_box = *bounds;
-        FloatBox to_box = *bounds;
-        from_matrix.TransformBox(from_box);
-        to_matrix.TransformBox(to_box);
+        gfx::BoxF from_box = from_matrix.MapBox(*bounds);
+        gfx::BoxF to_box = to_matrix.MapBox(*bounds);
         *bounds = from_box;
         bounds->ExpandTo(to_box);
         continue;
@@ -461,7 +457,7 @@ bool TransformOperations::BlendedBoundsForBox(const FloatBox& box,
 
         double from_angle;
         double to_angle;
-        FloatPoint3D axis;
+        gfx::Vector3dF axis;
         if (!RotateTransformOperation::GetCommonAxis(
                 from_rotation, to_rotation, axis, from_angle, to_angle)) {
           return false;
@@ -484,16 +480,16 @@ bool TransformOperations::BlendedBoundsForBox(const FloatBox& box,
           to_rotation = identity_rotation.get();
         }
 
-        FloatBox from_box = *bounds;
+        gfx::BoxF from_box = *bounds;
         bool first = true;
         for (size_t j = 0; j < 2; ++j) {
           for (size_t k = 0; k < 2; ++k) {
             for (size_t m = 0; m < 2; ++m) {
-              FloatBox bounds_for_arc;
-              FloatPoint3D corner(from_box.x(), from_box.y(), from_box.z());
+              gfx::BoxF bounds_for_arc;
+              gfx::Point3F corner(from_box.x(), from_box.y(), from_box.z());
               corner +=
-                  FloatPoint3D(j * from_box.width(), k * from_box.height(),
-                               m * from_box.depth());
+                  gfx::Vector3dF(j * from_box.width(), k * from_box.height(),
+                                 m * from_box.depth());
               BoundingBoxForArc(corner, *from_rotation, *to_rotation,
                                 min_progress, max_progress, bounds_for_arc);
               if (first) {

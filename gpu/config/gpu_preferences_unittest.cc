@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,8 +29,6 @@ void CheckGpuPreferencesEqual(GpuPreferences left, GpuPreferences right) {
   EXPECT_EQ(left.enable_zero_copy_dxgi_video,
             right.enable_zero_copy_dxgi_video);
   EXPECT_EQ(left.enable_nv12_dxgi_video, right.enable_nv12_dxgi_video);
-  EXPECT_EQ(left.enable_media_foundation_vea_on_windows7,
-            right.enable_media_foundation_vea_on_windows7);
   EXPECT_EQ(left.disable_software_rasterizer,
             right.disable_software_rasterizer);
   EXPECT_EQ(left.log_gpu_control_list_decisions,
@@ -68,8 +66,6 @@ void CheckGpuPreferencesEqual(GpuPreferences left, GpuPreferences right) {
   EXPECT_EQ(left.texture_target_exception_list,
             right.texture_target_exception_list);
   EXPECT_EQ(left.ignore_gpu_blocklist, right.ignore_gpu_blocklist);
-  EXPECT_EQ(left.enable_oop_rasterization, right.enable_oop_rasterization);
-  EXPECT_EQ(left.disable_oop_rasterization, right.disable_oop_rasterization);
   EXPECT_EQ(left.watchdog_starts_backgrounded,
             right.watchdog_starts_backgrounded);
   EXPECT_EQ(left.gr_context_type, right.gr_context_type);
@@ -91,15 +87,17 @@ void CheckGpuPreferencesEqual(GpuPreferences left, GpuPreferences right) {
             right.enable_gpu_blocked_time_metric);
   EXPECT_EQ(left.enable_perf_data_collection,
             right.enable_perf_data_collection);
-#if defined(USE_OZONE)
+#if BUILDFLAG(IS_OZONE)
   EXPECT_EQ(left.message_pump_type, right.message_pump_type);
 #endif
   EXPECT_EQ(left.enable_native_gpu_memory_buffers,
             right.enable_native_gpu_memory_buffers);
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
   EXPECT_EQ(left.enable_chromeos_direct_video_decoder,
             right.enable_chromeos_direct_video_decoder);
 #endif
+  EXPECT_EQ(left.force_separate_egl_display_for_webgl_testing,
+            right.force_separate_egl_display_for_webgl_testing);
 }
 
 }  // namespace
@@ -142,7 +140,6 @@ TEST(GpuPreferencesTest, EncodeDecode) {
     GPU_PREFERENCES_FIELD(enable_low_latency_dxva, false)
     GPU_PREFERENCES_FIELD(enable_zero_copy_dxgi_video, true)
     GPU_PREFERENCES_FIELD(enable_nv12_dxgi_video, true)
-    GPU_PREFERENCES_FIELD(enable_media_foundation_vea_on_windows7, true)
     GPU_PREFERENCES_FIELD(disable_software_rasterizer, true)
     GPU_PREFERENCES_FIELD(log_gpu_control_list_decisions, true)
     GPU_PREFERENCES_FIELD(compile_shader_always_succeeds, true)
@@ -168,8 +165,6 @@ TEST(GpuPreferencesTest, EncodeDecode) {
     GPU_PREFERENCES_FIELD(disable_biplanar_gpu_memory_buffers_for_video_frames,
                           true)
     GPU_PREFERENCES_FIELD(ignore_gpu_blocklist, true)
-    GPU_PREFERENCES_FIELD(enable_oop_rasterization, true)
-    GPU_PREFERENCES_FIELD(disable_oop_rasterization, true)
     GPU_PREFERENCES_FIELD(watchdog_starts_backgrounded, true)
     GPU_PREFERENCES_FIELD_ENUM(gr_context_type, GrContextType::kVulkan,
                                mojom::GrContextType::kVulkan)
@@ -184,14 +179,15 @@ TEST(GpuPreferencesTest, EncodeDecode) {
                                mojom::DawnBackendValidationLevel::kPartial)
     GPU_PREFERENCES_FIELD(enable_gpu_blocked_time_metric, true)
     GPU_PREFERENCES_FIELD(enable_perf_data_collection, true)
-#if defined(USE_OZONE)
+#if BUILDFLAG(IS_OZONE)
     GPU_PREFERENCES_FIELD_ENUM(message_pump_type, base::MessagePumpType::UI,
                                base::MessagePumpType::UI)
 #endif
     GPU_PREFERENCES_FIELD(enable_native_gpu_memory_buffers, true);
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
     GPU_PREFERENCES_FIELD(enable_chromeos_direct_video_decoder, true);
 #endif
+    GPU_PREFERENCES_FIELD(force_separate_egl_display_for_webgl_testing, true);
 
     input_prefs.texture_target_exception_list.emplace_back(
         gfx::BufferUsage::SCANOUT, gfx::BufferFormat::RGBA_8888);
@@ -238,7 +234,6 @@ TEST(GpuPreferencesTest, DISABLED_DecodePreferences) {
   PRINT_BOOL(enable_low_latency_dxva);
   PRINT_BOOL(enable_zero_copy_dxgi_video);
   PRINT_BOOL(enable_nv12_dxgi_video);
-  PRINT_BOOL(enable_media_foundation_vea_on_windows7);
   PRINT_BOOL(disable_software_rasterizer);
   PRINT_BOOL(log_gpu_control_list_decisions);
   PRINT_BOOL(compile_shader_always_succeeds);
@@ -267,8 +262,6 @@ TEST(GpuPreferencesTest, DISABLED_DecodePreferences) {
     PRINT_INT(texture_target_exception_list[i].format);
   }
   PRINT_BOOL(ignore_gpu_blocklist);
-  PRINT_BOOL(enable_oop_rasterization);
-  PRINT_BOOL(disable_oop_rasterization);
   PRINT_BOOL(watchdog_starts_backgrounded);
   PRINT_INT(gr_context_type);
   PRINT_INT(use_vulkan);
@@ -279,13 +272,14 @@ TEST(GpuPreferencesTest, DISABLED_DecodePreferences) {
   PRINT_INT(enable_dawn_backend_validation);
   PRINT_BOOL(enable_gpu_blocked_time_metric);
   PRINT_BOOL(enable_perf_data_collection);
-#if defined(USE_OZONE)
+#if BUILDFLAG(IS_OZONE)
   PRINT_INT(message_pump_type);
 #endif
   PRINT_BOOL(enable_native_gpu_memory_buffers);
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
   PRINT_BOOL(enable_chromeos_direct_video_decoder);
 #endif
+  PRINT_BOOL(force_separate_egl_display_for_webgl_testing);
   printf("}\n");
 }
 

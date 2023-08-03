@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,17 @@
  * `home-url-input` is a single-line text field intending to be used with
  * prefs.homepage
  */
-import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
-import 'gtx://resources/cr_elements/policy/cr_policy_pref_indicator.m.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.js';
+import 'gtx://resources/cr_elements/policy/cr_policy_pref_indicator.js';
 
-import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-
-import {CrPolicyPrefMixin, CrPolicyPrefMixinInterface} from '../controls/cr_policy_pref_mixin.js';
-import {PrefControlMixin} from '../controls/pref_control_mixin.js';
+import {CrPolicyPrefMixin, CrPolicyPrefMixinInterface} from '/shared/settings/controls/cr_policy_pref_mixin.js';
+import {PrefControlMixin} from '/shared/settings/controls/pref_control_mixin.js';
+import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.js';
+import {assert} from 'gtx://resources/js/assert_ts.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {AppearanceBrowserProxy, AppearanceBrowserProxyImpl} from './appearance_browser_proxy.js';
+import {getTemplate} from './home_url_input.html.js';
 
 export interface HomeUrlInputElement {
   $: {
@@ -35,7 +35,7 @@ export class HomeUrlInputElement extends HomeUrlInputElementBase {
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -61,7 +61,7 @@ export class HomeUrlInputElement extends HomeUrlInputElementBase {
     };
   }
 
-  pref: chrome.settingsPrivate.PrefObject|undefined;
+  pref: chrome.settingsPrivate.PrefObject<string>|undefined;
   disabled: boolean;
   canTab: boolean;
   invalid: boolean;
@@ -78,7 +78,7 @@ export class HomeUrlInputElement extends HomeUrlInputElementBase {
   /**
    * Focuses the 'input' element.
    */
-  focus() {
+  override focus() {
     this.$.input.focus();
   }
 

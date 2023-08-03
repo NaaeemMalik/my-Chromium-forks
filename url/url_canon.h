@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <string>
-
 #include "base/component_export.h"
 #include "base/export_template.h"
+#include "base/memory/raw_ptr_exclusion.h"
+#include "base/numerics/clamped_math.h"
 #include "url/third_party/mozilla/url_parse.h"
 
 namespace url {
@@ -37,7 +37,7 @@ class CanonOutputT {
   // the buffer must be copied over.
   //
   // The new size |sz| must be larger than buffer_len_.
-  virtual void Resize(int sz) = 0;
+  virtual void Resize(size_t sz) = 0;
 
   // Accessor for returning a character at a given position. The input offset
   // must be in the valid range.
@@ -93,28 +93,27 @@ class CanonOutputT {
   }
 
   // Appends the given string to the output.
-  void Append(const T* str, int str_len) {
-    if (cur_len_ + str_len > buffer_len_) {
-      if (!Grow(cur_len_ + str_len - buffer_len_))
+  void Append(const T* str, size_t str_len) {
+    if (str_len > buffer_len_ - cur_len_) {
+      if (!Grow(str_len - (buffer_len_ - cur_len_)))
         return;
     }
-    for (int i = 0; i < str_len; i++)
-      buffer_[cur_len_ + i] = str[i];
+    memcpy(buffer_ + cur_len_, str, str_len * sizeof(T));
     cur_len_ += str_len;
   }
 
-  void ReserveSizeIfNeeded(int estimated_size) {
+  void ReserveSizeIfNeeded(size_t estimated_size) {
     // Reserve a bit extra to account for escaped chars.
     if (estimated_size > buffer_len_)
-      Resize(estimated_size + 8);
+      Resize((base::ClampedNumeric<size_t>(estimated_size) + 8).RawValue());
   }
 
  protected:
   // Grows the given buffer so that it can fit at least |min_additional|
   // characters. Returns true if the buffer could be resized, false on OOM.
-  bool Grow(int min_additional) {
-    static const int kMinBufferLen = 16;
-    int new_len = (buffer_len_ == 0) ? kMinBufferLen : buffer_len_;
+  bool Grow(size_t min_additional) {
+    static const size_t kMinBufferLen = 16;
+    size_t new_len = (buffer_len_ == 0) ? kMinBufferLen : buffer_len_;
     do {
       if (new_len >= (1 << 30))  // Prevent overflow below.
         return false;
@@ -130,7 +129,7 @@ class CanonOutputT {
   int buffer_len_;
 
   // Used characters in the buffer.
-  int cur_len_;
+  size_t cur_len_ = 0;
 };
 
 // Simple implementation of the CanonOutput using new[]. This class
@@ -148,7 +147,7 @@ class RawCanonOutputT : public CanonOutputT<T> {
       delete[] this->buffer_;
   }
 
-  void Resize(int sz) override {
+  void Resize(size_t sz) override {
     T* new_buf = new T[sz];
     memcpy(new_buf, this->buffer_,
            sizeof(T) * (this->cur_len_ < sz ? this->cur_len_ : sz));
@@ -284,7 +283,7 @@ bool IDNToASCII(const char16_t* src, int src_len, CanonOutputW* output);
 // Piece-by-piece canonicalizers ----------------------------------------------
 //
 // These individual canonicalizers append the canonicalized versions of the
-// corresponding URL component to the given std::string. The spec and the
+// corresponding URL component to the given CanonOutput. The spec and the
 // previously-identified range of that component are the input. The range of
 // the canonicalized component will be written to the output component.
 //
@@ -735,14 +734,30 @@ struct URLComponentSource {
         query(default_value),
         ref(default_value) {}
 
-  const CHAR* scheme;
-  const CHAR* username;
-  const CHAR* password;
-  const CHAR* host;
-  const CHAR* port;
-  const CHAR* path;
-  const CHAR* query;
-  const CHAR* ref;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* scheme;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* username;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* password;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* host;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* port;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* path;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* query;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION const CHAR* ref;
 };
 
 // This structure encapsulates information on modifying a URL. Each component

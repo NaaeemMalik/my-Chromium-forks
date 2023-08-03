@@ -1,18 +1,23 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/update_client/utils.h"
 
-#include <iterator>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
-#include "components/update_client/updater_state.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
-using std::string;
+#if BUILDFLAG(IS_WIN)
+#include <shlobj.h>
+#endif  // BUILDFLAG(IS_WIN)
 
 namespace {
 
@@ -204,6 +209,15 @@ TEST(UpdateClientUtils, ToInstallerResult) {
   const auto result4 = ToInstallerResult(EnumB::ENTRY1, 20000);
   EXPECT_EQ(101, result4.error);
   EXPECT_EQ(20000, result4.extended_error);
+}
+
+TEST(UpdateClientUtils, GetArchitecture) {
+  const std::string arch = GetArchitecture();
+
+#if BUILDFLAG(IS_WIN)
+  EXPECT_TRUE(arch == kArchIntel || arch == kArchAmd64 || arch == kArchArm64)
+      << arch;
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 }  // namespace update_client

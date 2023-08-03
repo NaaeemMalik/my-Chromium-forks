@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <shellapi.h>
 #include <wrl/client.h>
 
-#include "base/command_line.h"
 #include "base/debug/alias.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
@@ -21,11 +20,9 @@
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/scoped_thread_priority.h"
 #include "base/win/win_util.h"
-#include "base/win/windows_version.h"
 #include "ui/base/ui_base_switches.h"
 
-namespace ui {
-namespace win {
+namespace ui::win {
 
 namespace {
 
@@ -43,10 +40,17 @@ bool InvokeShellExecute(const std::wstring& path,
                         const std::wstring& working_directory,
                         const std::wstring& args,
                         const std::wstring& verb,
+                        const std::wstring& class_name,
                         DWORD mask) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::WILL_BLOCK);
+
   SHELLEXECUTEINFO sei = {sizeof(sei)};
+  if (!class_name.empty()) {
+    sei.lpClass = class_name.c_str();
+    mask = (mask | SEE_MASK_CLASSNAME);
+  }
+
   sei.fMask = mask;
   sei.nShow = SW_SHOWNORMAL;
   sei.lpVerb = (verb.empty() ? nullptr : verb.c_str());
@@ -67,7 +71,7 @@ bool InvokeShellExecute(const std::wstring& path,
 bool OpenFileViaShell(const base::FilePath& full_path) {
   // Invoke the default verb on the file with no arguments.
   return InvokeShellExecute(full_path.value(), full_path.DirName().value(),
-                            std::wstring(), std::wstring(),
+                            std::wstring(), std::wstring(), std::wstring(),
                             kDefaultShellExecuteFlags);
 }
 
@@ -75,7 +79,7 @@ bool OpenFolderViaShell(const base::FilePath& full_path) {
   // The "explore" verb causes the folder at |full_path| to be displayed in a
   // file browser. This will fail if |full_path| is not a directory.
   return InvokeShellExecute(full_path.value(), full_path.value(),
-                            std::wstring(), L"explore",
+                            std::wstring(), L"explore", L"folder",
                             kDefaultShellExecuteFlags);
 }
 
@@ -172,28 +176,4 @@ void ClearWindowPropertyStore(HWND hwnd) {
   DCHECK(FAILED(pps->GetCount(&property_count)) || property_count == 0);
 }
 
-bool IsAeroGlassEnabled() {
-  // For testing in Win8 (where it is not possible to disable composition) the
-  // user can specify this command line switch to mimic the behavior.  In this
-  // mode, cross-HWND transparency is not supported and various types of
-  // widgets fallback to more simplified rendering behavior.
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kDisableDwmComposition))
-    return false;
-
-  // If composition is not enabled, we behave like on XP.
-  return IsDwmCompositionEnabled();
-}
-
-bool IsDwmCompositionEnabled() {
-  // As of Windows 8, DWM composition is always enabled.
-  // In Windows 7 this can change at runtime.
-  if (base::win::GetVersion() >= base::win::Version::WIN8) {
-    return true;
-  }
-  BOOL is_enabled;
-  return SUCCEEDED(DwmIsCompositionEnabled(&is_enabled)) && is_enabled;
-}
-
-}  // namespace win
-}  // namespace ui
+}  // namespace ui::win

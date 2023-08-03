@@ -30,19 +30,22 @@ Most targets produce two separate `.jar` files:
 
 ### Step 1: Create interface .jar with turbine or ijar
 
-For prebuilt `.jar` files, use [//third_party/ijar] to create interface `.jar`
-from prebuilt `.jar`.
-
-For non-prebuilt targets, use [//third_party/turbine] to create interface `.jar`
-from `.java` source files. Turbine is much faster than javac, and so enables
-full compilation to happen more concurrently.
-
 What are interface jars?:
 
-* The contain `.class` files with all non-public symbols and function bodies
+* They contain `.class` files with all private symbols and all method bodies
   removed.
 * Dependant targets use interface `.jar` files to skip having to be rebuilt
   when only private implementation details change.
+
+For prebuilt `.jar` files: we use [//third_party/ijar] to create interface
+`.jar` files from the prebuilt ones.
+
+For non-prebuilt `.jar` files`: we use [//third_party/turbine] to create
+interface `.jar` files directly from `.java` source files. Turbine is faster
+than javac because it does not compile method bodies. Although Turbine causes
+us to compile files twice, it speeds up builds by allowing `javac` compilation
+of targets to happen concurrently with their dependencies. We also use Turbine
+to run our annotation processors.
 
 [//third_party/ijar]: /third_party/ijar/README.chromium
 [//third_party/turbine]: /third_party/turbine/README.chromium
@@ -253,6 +256,8 @@ We use several tools for static analysis.
   * In other words: Enforces that targets do not rely on indirect dependencies
     to populate their classpath.
 * Checks run on the entire codebase, not only on changed lines.
+* This is the only static analysis that runs on prebuilt .jar files.
+* The same tool is also used for [bytecode rewriting](/docs/ui/android/bytecode_rewriting.md).
 
 ### [PRESUBMIT.py](/PRESUBMIT.py):
 * Checks for banned patterns via `_BANNED_JAVA_FUNCTIONS`.

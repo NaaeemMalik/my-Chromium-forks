@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,10 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/task/task_runner.h"
-#include "base/threading/sequenced_task_runner_handle.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_util.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -23,13 +21,13 @@
 #include "services/network/public/cpp/resolve_host_client_base.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace {
 
 net::NetworkTrafficAnnotationTag GetTrafficAnnotationTag() {
-  return net::DefineNetworkTrafficAnnotation("network_diagnostics_routines",
+  return net::DefineNetworkTrafficAnnotation("network_diagnostics_tls",
                                              R"(
       semantics {
         sender: "NetworkDiagnosticsRoutines"
@@ -46,6 +44,8 @@ net::NetworkTrafficAnnotationTag GetTrafficAnnotationTag() {
       }
       policy {
         cookies_allowed: NO
+        policy_exception_justification:
+            "Not implemented. Does not contain user identifier."
       }
   )");
 }
@@ -185,4 +185,4 @@ void TlsProber::OnDone(int result, ProbeExitEnum probe_exit_enum) {
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

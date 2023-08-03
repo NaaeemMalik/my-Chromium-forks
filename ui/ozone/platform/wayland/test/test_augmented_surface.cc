@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,21 @@ void SetRoundedCornersDEPRECATED(struct wl_client* client,
                                  wl_fixed_t bottom_right,
                                  wl_fixed_t bottom_left) {
   LOG(ERROR) << "Deprecated.";
+}
+
+void SetDestinationSize(struct wl_client* client,
+                        struct wl_resource* resource,
+                        wl_fixed_t width,
+                        wl_fixed_t height) {
+  auto* res = GetUserDataAs<TestAugmentedSurface>(resource)->surface();
+  DCHECK(res);
+
+  auto* mock_surface = GetUserDataAs<MockSurface>(res);
+
+  auto* viewport = mock_surface->viewport();
+  DCHECK(viewport);
+  viewport->SetDestinationImpl(wl_fixed_to_double(width),
+                               wl_fixed_to_double(height));
 }
 
 void SetRoundedClipBounds(struct wl_client* client,
@@ -45,7 +60,7 @@ void SetRoundedClipBounds(struct wl_client* client,
 const struct augmented_surface_interface kTestAugmentedSurfaceImpl = {
     DestroyResource,
     SetRoundedCornersDEPRECATED,
-    nullptr,
+    SetDestinationSize,
     SetRoundedClipBounds,
 };
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,27 +13,29 @@
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+#include "chrome/browser/ash/app_list/arc/arc_app_list_prefs.h"
+#include "chrome/browser/ash/app_list/arc/arc_app_utils.h"
+#include "chrome/browser/ash/app_list/internal_app/internal_app_metadata.h"
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/arc/session/arc_session_manager.h"
 #include "chrome/browser/ash/crostini/crostini_features.h"
-#include "chrome/browser/ash/crostini/crostini_shelf_utils.h"
 #include "chrome/browser/ash/crostini/crostini_util.h"
+#include "chrome/browser/ash/guest_os/guest_os_shelf_utils.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/extensions/extension_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/app_list/arc/arc_app_list_prefs.h"
-#include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
-#include "chrome/browser/ui/app_list/internal_app/internal_app_metadata.h"
 #include "chrome/browser/ui/ash/shelf/arc_app_shelf_id.h"
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/extensions/app_launch_params.h"
+#include "chrome/browser/ui/extensions/application_launch.h"
 #include "chrome/browser/ui/extensions/extension_enable_flow.h"
 #include "chrome/common/extensions/manifest_handlers/app_launch_info.h"
+#include "components/services/app_service/public/cpp/app_launch_util.h"
+#include "components/services/app_service/public/cpp/app_types.h"
 #include "components/services/app_service/public/cpp/types_util.h"
 #include "content/public/browser/navigation_entry.h"
+#include "extensions/browser/extension_util.h"
 #include "net/base/url_util.h"
 
 namespace {
@@ -93,9 +95,6 @@ std::u16string ShelfControllerHelper::GetAppTitle(Profile* profile,
   if (extension && extension->is_extension())
     return base::UTF8ToUTF16(extension->name());
 
-  if (crostini::IsUnmatchedCrostiniShelfAppId(app_id))
-    return crostini::GetCrostiniShelfTitle(app_id);
-
   return std::u16string();
 }
 
@@ -110,13 +109,29 @@ ash::AppStatus ShelfControllerHelper::GetAppStatus(Profile* profile,
   apps::AppServiceProxyFactory::GetForProfile(profile)
       ->AppRegistryCache()
       .ForOneApp(app_id, [&status](const apps::AppUpdate& update) {
-        if (update.Readiness() == apps::mojom::Readiness::kDisabledByPolicy)
+        if (update.Readiness() == apps::Readiness::kDisabledByPolicy)
           status = ash::AppStatus::kBlocked;
-        else if (update.Paused() == apps::mojom::OptionalBool::kTrue)
+        else if (update.Paused().value_or(false))
           status = ash::AppStatus::kPaused;
       });
 
   return status;
+}
+
+// static
+bool ShelfControllerHelper::IsAppHiddenFromShelf(Profile* profile,
+                                                 const std::string& app_id) {
+  if (!apps::AppServiceProxyFactory::IsAppServiceAvailableForProfile(profile))
+    return false;
+
+  bool hidden = false;
+  apps::AppServiceProxyFactory::GetForProfile(profile)
+      ->AppRegistryCache()
+      .ForOneApp(app_id, [&hidden](const apps::AppUpdate& update) {
+        hidden = !update.ShowInShelf().value_or(true);
+      });
+
+  return hidden;
 }
 
 std::string ShelfControllerHelper::GetAppID(content::WebContents* tab) {
@@ -147,11 +162,10 @@ void ShelfControllerHelper::LaunchApp(const ash::ShelfID& id,
       apps::AppServiceProxyFactory::GetForProfile(profile_);
 
   // Launch apps with AppServiceProxy.Launch.
-  if (proxy->AppRegistryCache().GetAppType(app_id) !=
-      apps::mojom::AppType::kUnknown) {
+  if (proxy->AppRegistryCache().GetAppType(app_id) != apps::AppType::kUnknown) {
     proxy->Launch(app_id, event_flags,
                   ShelfLaunchSourceToAppsLaunchSource(source),
-                  apps::MakeWindowInfo(display_id));
+                  std::make_unique<apps::WindowInfo>(display_id));
     return;
   }
 
@@ -191,7 +205,7 @@ void ShelfControllerHelper::LaunchApp(const ash::ShelfID& id,
   }
   params.launch_id = id.launch_id;
 
-  proxy->BrowserAppLauncher()->LaunchAppWithParams(std::move(params));
+  ::OpenApplication(profile_, std::move(params));
 }
 
 ArcAppListPrefs* ShelfControllerHelper::GetArcAppListPrefs() const {
@@ -238,7 +252,7 @@ bool ShelfControllerHelper::IsValidIDForArcApp(
 
 bool ShelfControllerHelper::IsValidIDFromAppService(
     const std::string& app_id) const {
-  if (crostini::IsUnmatchedCrostiniShelfAppId(app_id)) {
+  if (guest_os::IsUnregisteredCrostiniShelfAppId(app_id)) {
     return true;
   }
 
@@ -246,9 +260,9 @@ bool ShelfControllerHelper::IsValidIDFromAppService(
   apps::AppServiceProxyFactory::GetForProfile(profile_)
       ->AppRegistryCache()
       .ForOneApp(app_id, [&is_valid](const apps::AppUpdate& update) {
-        if (update.AppType() != apps::mojom::AppType::kArc &&
-            update.AppType() != apps::mojom::AppType::kUnknown &&
-            update.Readiness() != apps::mojom::Readiness::kUnknown &&
+        if (update.AppType() != apps::AppType::kArc &&
+            update.AppType() != apps::AppType::kUnknown &&
+            update.Readiness() != apps::Readiness::kUnknown &&
             apps_util::IsInstalled(update.Readiness())) {
           is_valid = true;
         }

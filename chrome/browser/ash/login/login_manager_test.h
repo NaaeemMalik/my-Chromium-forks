@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,12 @@
 
 #include "chrome/browser/ash/login/test/embedded_test_server_setup_mixin.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
-// TODO(https://crbug.com/1164001): move to forward declaration.
-#include "chromeos/login/auth/user_context.h"
 
 class AccountId;
 
 namespace ash {
+
+class UserContext;
 
 // Base class for Chrome OS Login tests. Should be used if you need to start at
 // the Chrome OS Login screen (especially with existing users). For the tests
@@ -60,6 +60,15 @@ class LoginManagerTest : public MixinBasedInProcessBrowserTest {
   // Add user with `user_id` to session.
   void AddUser(const AccountId& user_id);
 
+  // TODO(b/260718534): Fully switch from StubAuthenticator to
+  // FakeUserDataAuthClient.
+  void LoginUserWithDbusClient(const AccountId& account_id,
+                               const std::string& password);
+  void AddUserWithDbusClient(const AccountId& account_id,
+                             const std::string& password);
+  void SetExpectedCredentialsWithDbusClient(const AccountId& account_id,
+                                            const std::string& password);
+
   void set_should_launch_browser(bool launch) {
     should_launch_browser_ = launch;
   }
@@ -71,10 +80,5 @@ class LoginManagerTest : public MixinBasedInProcessBrowserTest {
 };
 
 }  // namespace ash
-
-// TODO(https://crbug.com/1164001): remove once the migration is finished.
-namespace chromeos {
-using ::ash::LoginManagerTest;
-}
 
 #endif  // CHROME_BROWSER_ASH_LOGIN_LOGIN_MANAGER_TEST_H_

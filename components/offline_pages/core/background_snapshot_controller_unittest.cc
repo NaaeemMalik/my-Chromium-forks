@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/offline_pages/core/background_snapshot_controller.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/test_mock_time_task_runner.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -77,7 +76,7 @@ void BackgroundSnapshotControllerTest::FastForwardBy(base::TimeDelta delta) {
 
 TEST_F(BackgroundSnapshotControllerTest, OnLoad) {
   // Onload should make snapshot after its delay.
-  controller()->DocumentOnLoadCompletedInMainFrame();
+  controller()->DocumentOnLoadCompletedInPrimaryMainFrame();
   PumpLoop();
   EXPECT_EQ(0, snapshot_count());
   FastForwardBy(base::Milliseconds(
@@ -87,7 +86,7 @@ TEST_F(BackgroundSnapshotControllerTest, OnLoad) {
 
 TEST_F(BackgroundSnapshotControllerTest, Stop) {
   // OnDOM should make snapshot after a delay.
-  controller()->DocumentOnLoadCompletedInMainFrame();
+  controller()->DocumentOnLoadCompletedInPrimaryMainFrame();
   PumpLoop();
   EXPECT_EQ(0, snapshot_count());
   controller()->Stop();
@@ -96,21 +95,21 @@ TEST_F(BackgroundSnapshotControllerTest, Stop) {
   // Should not start snapshots
   EXPECT_EQ(0, snapshot_count());
   // Also should not start snapshot.
-  controller()->DocumentOnLoadCompletedInMainFrame();
+  controller()->DocumentOnLoadCompletedInPrimaryMainFrame();
   EXPECT_EQ(0, snapshot_count());
 }
 
 // This simulated a Reset while there is ongoing snapshot, which is reported
 // as done later. That reporting should have no effect nor crash.
 TEST_F(BackgroundSnapshotControllerTest, ClientReset) {
-  controller()->DocumentOnLoadCompletedInMainFrame();
+  controller()->DocumentOnLoadCompletedInPrimaryMainFrame();
   FastForwardBy(base::Milliseconds(
       controller()->GetDelayAfterDocumentOnLoadCompletedForTest()));
   EXPECT_EQ(1, snapshot_count());
   // This normally happens when navigation starts.
   controller()->Reset();
   // Next snapshot should be initiated when new document is loaded.
-  controller()->DocumentOnLoadCompletedInMainFrame();
+  controller()->DocumentOnLoadCompletedInPrimaryMainFrame();
   FastForwardBy(base::Milliseconds(
       controller()->GetDelayAfterDocumentOnLoadCompletedForTest()));
   // No snapshot since session was reset.

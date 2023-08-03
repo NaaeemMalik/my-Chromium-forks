@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,28 +10,25 @@
 #include "chrome/browser/ash/device_sync/device_sync_client_factory.h"
 #include "chrome/browser/ash/login/easy_unlock/easy_unlock_service.h"
 #include "chrome/browser/ash/login/easy_unlock/easy_unlock_service_regular.h"
-#include "chrome/browser/ash/login/easy_unlock/easy_unlock_service_signin.h"
-#include "chrome/browser/ash/login/easy_unlock/easy_unlock_tpm_key_manager_factory.h"
 #include "chrome/browser/ash/multidevice_setup/multidevice_setup_client_factory.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/secure_channel/secure_channel_client_provider.h"
-#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_switches.h"
-#include "chromeos/services/multidevice_setup/public/cpp/prefs.h"
-#include "chromeos/services/multidevice_setup/public/mojom/multidevice_setup.mojom.h"
-#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "chromeos/ash/services/multidevice_setup/public/cpp/prefs.h"
+#include "chromeos/ash/services/multidevice_setup/public/mojom/multidevice_setup.mojom.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/extension_system_provider.h"
 #include "extensions/browser/extensions_browser_client.h"
 
 namespace ash {
+
 namespace {
 
 bool IsFeatureAllowed(content::BrowserContext* context) {
   return multidevice_setup::IsFeatureAllowed(
-      chromeos::multidevice_setup::mojom::Feature::kSmartLock,
+      multidevice_setup::mojom::Feature::kSmartLock,
       Profile::FromBrowserContext(context)->GetPrefs());
 }
 
@@ -51,12 +48,16 @@ EasyUnlockService* EasyUnlockServiceFactory::GetForBrowserContext(
 }
 
 EasyUnlockServiceFactory::EasyUnlockServiceFactory()
-    : BrowserContextKeyedServiceFactory(
+    : ProfileKeyedServiceFactory(
           "EasyUnlockService",
-          BrowserContextDependencyManager::GetInstance()) {
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/1418376): Check if this service is needed in
+              // Guest mode.
+              .WithGuest(ProfileSelection::kOriginalOnly)
+              .Build()) {
   DependsOn(
       extensions::ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
-  DependsOn(EasyUnlockTpmKeyManagerFactory::GetInstance());
   DependsOn(device_sync::DeviceSyncClientFactory::GetInstance());
   DependsOn(multidevice_setup::MultiDeviceSetupClientFactory::GetInstance());
 }
@@ -65,36 +66,26 @@ EasyUnlockServiceFactory::~EasyUnlockServiceFactory() {}
 
 KeyedService* EasyUnlockServiceFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {
-  EasyUnlockService* service = nullptr;
-
   if (!context)
     return nullptr;
 
   if (!IsFeatureAllowed(context))
     return nullptr;
 
-  if (ProfileHelper::IsSigninProfile(Profile::FromBrowserContext(context))) {
-    if (!context->IsOffTheRecord())
-      return nullptr;
+  Profile* profile = Profile::FromBrowserContext(context);
 
-    service = new EasyUnlockServiceSignin(
-        Profile::FromBrowserContext(context),
-        secure_channel::SecureChannelClientProvider::GetInstance()
-            ->GetClient());
-  } else if (!ProfileHelper::IsRegularProfile(
-                 Profile::FromBrowserContext(context))) {
+  if (!ProfileHelper::IsUserProfile(profile) ||
+      !ProfileHelper::IsPrimaryProfile(profile)) {
     return nullptr;
   }
 
-  if (!service) {
-    service = new EasyUnlockServiceRegular(
-        Profile::FromBrowserContext(context),
-        secure_channel::SecureChannelClientProvider::GetInstance()->GetClient(),
-        device_sync::DeviceSyncClientFactory::GetForProfile(
-            Profile::FromBrowserContext(context)),
-        multidevice_setup::MultiDeviceSetupClientFactory::GetForProfile(
-            Profile::FromBrowserContext(context)));
-  }
+  // This is a user and primary profile, so this service serves the lock screen
+  // and manages the Smart Lock user flow for only one user.
+  EasyUnlockService* service = new EasyUnlockServiceRegular(
+      Profile::FromBrowserContext(context),
+      secure_channel::SecureChannelClientProvider::GetInstance()->GetClient(),
+      device_sync::DeviceSyncClientFactory::GetForProfile(profile),
+      multidevice_setup::MultiDeviceSetupClientFactory::GetForProfile(profile));
 
   service->Initialize();
   return service;
@@ -105,15 +96,6 @@ void EasyUnlockServiceFactory::RegisterProfilePrefs(
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   EasyUnlockService::RegisterProfilePrefs(registry);
 #endif
-}
-
-content::BrowserContext* EasyUnlockServiceFactory::GetBrowserContextToUse(
-    content::BrowserContext* context) const {
-  if (ProfileHelper::IsSigninProfile(Profile::FromBrowserContext(context))) {
-    return chrome::GetBrowserContextOwnInstanceInIncognito(context);
-  }
-
-  return context->IsOffTheRecord() ? nullptr : context;
 }
 
 bool EasyUnlockServiceFactory::ServiceIsCreatedWithBrowserContext() const {

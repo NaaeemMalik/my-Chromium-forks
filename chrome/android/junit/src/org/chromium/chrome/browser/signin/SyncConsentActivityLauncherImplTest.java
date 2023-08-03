@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -21,10 +22,11 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
-import org.robolectric.RuntimeEnvironment;
 import org.robolectric.shadows.ShadowToast;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
@@ -48,7 +50,7 @@ public class SyncConsentActivityLauncherImplTest {
     @Mock
     private Profile mProfile;
 
-    private final Context mContext = RuntimeEnvironment.application.getApplicationContext();
+    private final Context mContext = ContextUtils.getApplicationContext();
 
     @Before
     public void setUp() {
@@ -57,9 +59,16 @@ public class SyncConsentActivityLauncherImplTest {
         when(IdentityServicesProvider.get().getSigninManager(any())).thenReturn(mSigninManagerMock);
     }
 
+    @After
+    public void tearDown() {
+        SyncConsentActivityLauncherImpl.setLauncherForTest(null);
+        Profile.setLastUsedProfileForTesting(null);
+        IdentityServicesProvider.setInstanceForTests(null);
+    }
+
     @Test
     public void testLaunchActivityIfAllowedWhenSigninIsAllowed() {
-        when(mSigninManagerMock.isSignInAllowed()).thenReturn(true);
+        when(mSigninManagerMock.isSyncOptInAllowed()).thenReturn(true);
         Assert.assertTrue(SyncConsentActivityLauncherImpl.get().launchActivityIfAllowed(
                 mContextMock, SigninAccessPoint.SETTINGS));
         verify(mContextMock).startActivity(notNull());
@@ -67,7 +76,7 @@ public class SyncConsentActivityLauncherImplTest {
 
     @Test
     public void testLaunchActivityIfAllowedWhenSigninIsNotAllowed() {
-        when(mSigninManagerMock.isSignInAllowed()).thenReturn(false);
+        when(mSigninManagerMock.isSyncOptInAllowed()).thenReturn(false);
         when(mSigninManagerMock.isSigninDisabledByPolicy()).thenReturn(false);
         Object toastBeforeCall = ShadowToast.getLatestToast();
         Assert.assertFalse(SyncConsentActivityLauncherImpl.get().launchActivityIfAllowed(
@@ -79,12 +88,16 @@ public class SyncConsentActivityLauncherImplTest {
 
     @Test
     public void testLaunchActivityIfAllowedWhenSigninIsDisabledByPolicy() {
-        when(mSigninManagerMock.isSignInAllowed()).thenReturn(false);
+        HistogramWatcher watchSigninDisabledToastShownHistogram =
+                HistogramWatcher.newSingleRecordWatcher("Signin.SyncDisabledNotificationShown",
+                        SigninAccessPoint.NTP_FEED_CARD_MENU_PROMO);
+        when(mSigninManagerMock.isSyncOptInAllowed()).thenReturn(false);
         when(mSigninManagerMock.isSigninDisabledByPolicy()).thenReturn(true);
         Assert.assertFalse(SyncConsentActivityLauncherImpl.get().launchActivityIfAllowed(
-                mContext, SigninAccessPoint.SETTINGS));
+                mContext, SigninAccessPoint.NTP_FEED_CARD_MENU_PROMO));
         Assert.assertTrue(ShadowToast.showedCustomToast(
                 mContext.getResources().getString(R.string.managed_by_your_organization),
                 R.id.toast_text));
+        watchSigninDisabledToastShownHistogram.assertExpected();
     }
 }

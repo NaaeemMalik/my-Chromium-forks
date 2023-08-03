@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,17 @@
 #include <memory>
 #include <string>
 
-#include "base/callback_forward.h"
-#include "base/memory/raw_ptr.h"
-#include "chrome/browser/supervised_user/supervised_user_error_page/supervised_user_error_page.h"
+#include "base/allocator/partition_allocator/pointers/raw_ref.h"
+#include "base/functional/callback_forward.h"
+#include "components/supervised_user/core/browser/supervised_user_error_page.h"
 #include "url/gurl.h"
 
-namespace content {
-class WebContents;
-}  // namespace content
+namespace supervised_user {
+class WebContentHandler;
+}
 
-class Profile;
+class PrefService;
+class SupervisedUserService;
 
 // This class is used by SupervisedUserNavigationObserver to handle requests
 // from supervised user error page. The error page is shown when a page is
@@ -26,6 +27,42 @@ class Profile;
 // search.
 class SupervisedUserInterstitial {
  public:
+  // The names of histograms emitted by this class.
+  static constexpr char kInterstitialCommandHistogramName[] =
+      "ManagedMode.BlockingInterstitialCommand";
+  static constexpr char kInterstitialPermissionSourceHistogramName[] =
+      "ManagedUsers.RequestPermissionSource";
+
+  // For use in the kInterstitialCommandHistogramName histogram.
+  //
+  // The enum values should remain synchronized with the enum
+  // ManagedModeBlockingCommand in tools/metrics/histograms/enums.xml.
+  //
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  enum class Commands {
+    // PREVIEW = 0,
+    BACK = 1,
+    // NTP = 2,
+    REMOTE_ACCESS_REQUEST = 3,
+    LOCAL_ACCESS_REQUEST = 4,
+    HISTOGRAM_BOUNDING_VALUE = 5
+  };
+
+  // For use in the kInterstitialPermissionSourceHistogramName histogram.
+  //
+  // The enum values should remain synchronized with the
+  // enum ManagedUserURLRequestPermissionSource in
+  // tools/metrics/histograms/enums.xml.
+  //
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  enum class RequestPermissionSource {
+    MAIN_FRAME = 0,
+    SUB_FRAME,
+    HISTOGRAM_BOUNDING_VALUE
+  };
+
   SupervisedUserInterstitial(const SupervisedUserInterstitial&) = delete;
   SupervisedUserInterstitial& operator=(const SupervisedUserInterstitial&) =
       delete;
@@ -33,15 +70,15 @@ class SupervisedUserInterstitial {
   ~SupervisedUserInterstitial();
 
   static std::unique_ptr<SupervisedUserInterstitial> Create(
-      content::WebContents* web_contents,
+      std::unique_ptr<supervised_user::WebContentHandler> web_content_handler,
+      SupervisedUserService& supervised_user_service,
       const GURL& url,
-      supervised_user_error_page::FilteringBehaviorReason reason,
-      int frame_id,
-      int64_t interstitial_navigation_id);
+      supervised_user::FilteringBehaviorReason reason);
 
   static std::string GetHTMLContents(
-      Profile* profile,
-      supervised_user_error_page::FilteringBehaviorReason reason,
+      SupervisedUserService* supervised_user_service,
+      PrefService* pref_service,
+      supervised_user::FilteringBehaviorReason reason,
       bool already_sent_request,
       bool is_main_frame);
 
@@ -51,40 +88,26 @@ class SupervisedUserInterstitial {
   void ShowFeedback();
 
   // Getter methods.
-  content::WebContents* web_contents() { return web_contents_; }
-  int frame_id() const { return frame_id_; }
-  int64_t interstitial_navigation_id() const {
-    return interstitial_navigation_id_;
-  }
   const GURL& url() const { return url_; }
+  supervised_user::WebContentHandler* web_content_handler() {
+    return web_content_handler_.get();
+  }
 
  private:
   SupervisedUserInterstitial(
-      content::WebContents* web_contents,
+      std::unique_ptr<supervised_user::WebContentHandler> web_content_handler,
+      SupervisedUserService& supervised_user_service,
       const GURL& url,
-      supervised_user_error_page::FilteringBehaviorReason reason,
-      int frame_id,
-      int64_t interstitial_navigation_id);
+      supervised_user::FilteringBehaviorReason reason);
+  void OutputRequestPermissionSourceMetric();
 
-  // Tries to go back.
-  void AttemptMoveAwayFromCurrentFrameURL();
+  const raw_ref<SupervisedUserService> supervised_user_service_;
 
-  void OnInterstitialDone();
-
-  // Owns SupervisedUserNavigationObserver which owns us.
-  raw_ptr<content::WebContents> web_contents_;
-
-  raw_ptr<Profile> profile_;
+  std::unique_ptr<supervised_user::WebContentHandler> web_content_handler_;
 
   // The last committed url for this frame.
   GURL url_;
-  supervised_user_error_page::FilteringBehaviorReason reason_;
-
-  // The uniquely identifying global id for the frame.
-  int frame_id_;
-
-  // The Navigation ID of the navigation that last triggered the interstitial.
-  int64_t interstitial_navigation_id_;
+  supervised_user::FilteringBehaviorReason reason_;
 };
 
 #endif  // CHROME_BROWSER_SUPERVISED_USER_SUPERVISED_USER_INTERSTITIAL_H_

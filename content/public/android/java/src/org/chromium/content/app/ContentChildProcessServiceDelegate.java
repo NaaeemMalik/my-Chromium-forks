@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,17 +12,16 @@ import android.os.RemoteException;
 import android.util.SparseArray;
 import android.view.Surface;
 
-import org.chromium.base.JNIUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.UnguessableToken;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
-import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.memory.MemoryPressureUma;
 import org.chromium.base.process_launcher.ChildProcessServiceDelegate;
+import org.chromium.build.annotations.MainDex;
 import org.chromium.content.browser.ChildProcessCreationParamsImpl;
 import org.chromium.content.browser.ContentChildProcessConstants;
 import org.chromium.content.common.IGpuProcessCallback;
@@ -90,8 +89,6 @@ public class ContentChildProcessServiceDelegate implements ChildProcessServiceDe
             initializeLibrary();
             return;
         }
-
-        JNIUtils.enableSelectiveJniRegistration();
 
         LibraryLoader libraryLoader = LibraryLoader.getInstance();
         libraryLoader.getMediator().initInChildProcess();

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,11 @@
 #include <string>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
-#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/run_loop.h"
@@ -26,27 +25,27 @@
 #include "base/test/test_file_util.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/thread.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
+
 #include <aclapi.h>
-#elif defined(OS_POSIX)
+#elif BUILDFLAG(IS_POSIX)
 #include <sys/stat.h>
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/path_utils.h"
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 #include "base/files/file_descriptor_watcher_posix.h"
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
-#include "base/files/file_path_watcher_linux.h"
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#include "base/files/file_path_watcher_inotify.h"
 #include "base/format_macros.h"
 #endif
 
@@ -61,7 +60,8 @@ class TestDelegate;
 class NotificationCollector
     : public base::RefCountedThreadSafe<NotificationCollector> {
  public:
-  NotificationCollector() : task_runner_(ThreadTaskRunnerHandle::Get()) {}
+  NotificationCollector()
+      : task_runner_(SingleThreadTaskRunner::GetCurrentDefault()) {}
 
   // Called from the file thread by the delegates.
   void OnChange(TestDelegate* delegate) {
@@ -138,9 +138,13 @@ class TestDelegate : public TestDelegateBase {
 
   // Configure this delegate so that it expects an error.
   void set_expect_error() { expect_error_ = true; }
+  // Returns observed paths for each invocation of OnFileChanged.
+  std::vector<FilePath> get_observed_paths() const { return observed_paths_; }
 
   // TestDelegateBase:
   void OnFileChanged(const FilePath& path, bool error) override {
+    observed_paths_.push_back(path);
+
     if (error != expect_error_) {
       ADD_FAILURE() << "Unexpected change for \"" << path
                     << "\" with |error| = " << (error ? "true" : "false");
@@ -152,12 +156,13 @@ class TestDelegate : public TestDelegateBase {
  private:
   scoped_refptr<NotificationCollector> collector_;
   bool expect_error_ = false;
+  std::vector<FilePath> observed_paths_;
 };
 
 class FilePathWatcherTest : public testing::Test {
  public:
   FilePathWatcherTest()
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
       : task_environment_(test::TaskEnvironment::MainThreadType::IO)
 #endif
   {
@@ -169,7 +174,7 @@ class FilePathWatcherTest : public testing::Test {
 
  protected:
   void SetUp() override {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     // Watching files is only permitted when all parent directories are
     // accessible, which is not the case for the default temp directory
     // on Android which is under /data/data.  Use /sdcard instead.
@@ -177,9 +182,9 @@ class FilePathWatcherTest : public testing::Test {
     FilePath parent_dir;
     ASSERT_TRUE(android::GetExternalStorageDirectory(&parent_dir));
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDirUnderPath(parent_dir));
-#else   // defined(OS_ANDROID)
+#else   // BUILDFLAG(IS_ANDROID)
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
     collector_ = new NotificationCollector();
   }
 
@@ -193,21 +198,27 @@ class FilePathWatcherTest : public testing::Test {
     return temp_dir_.GetPath().AppendASCII("FilePathWatcherTest.lnk");
   }
 
-  bool SetupWatch(const FilePath& target,
-                  FilePathWatcher* watcher,
-                  TestDelegateBase* delegate,
-                  FilePathWatcher::Type watch_type) WARN_UNUSED_RESULT;
+  [[nodiscard]] bool SetupWatch(const FilePath& target,
+                                FilePathWatcher* watcher,
+                                TestDelegateBase* delegate,
+                                FilePathWatcher::Type watch_type);
 
-  bool WaitForEvents() WARN_UNUSED_RESULT {
-    return WaitForEventsWithTimeout(TestTimeouts::action_timeout());
+  [[nodiscard]] bool SetupWatchWithOptions(
+      const FilePath& target,
+      FilePathWatcher* watcher,
+      TestDelegateBase* delegate,
+      FilePathWatcher::WatchOptions watch_options);
+
+  [[nodiscard]] bool WaitForEvent() {
+    return WaitForEventWithTimeout(TestTimeouts::action_timeout());
   }
 
-  bool WaitForEventsWithTimeout(TimeDelta timeout) WARN_UNUSED_RESULT {
+  [[nodiscard]] bool WaitForEventWithTimeout(TimeDelta timeout) {
     RunLoop run_loop;
     collector_->Reset(run_loop.QuitClosure());
 
     // Make sure we timeout if we don't get notified.
-    ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+    SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE, run_loop.QuitClosure(), timeout);
     run_loop.Run();
     return collector_->Success();
@@ -230,6 +241,17 @@ bool FilePathWatcherTest::SetupWatch(const FilePath& target,
                                             delegate->AsWeakPtr()));
 }
 
+bool FilePathWatcherTest::SetupWatchWithOptions(
+    const FilePath& target,
+    FilePathWatcher* watcher,
+    TestDelegateBase* delegate,
+    FilePathWatcher::WatchOptions watch_options) {
+  return watcher->WatchWithOptions(
+      target, watch_options,
+      base::BindRepeating(&TestDelegateBase::OnFileChanged,
+                          delegate->AsWeakPtr()));
+}
+
 // Basic test: Create the file and verify that we notice.
 TEST_F(FilePathWatcherTest, NewFile) {
   FilePathWatcher watcher;
@@ -238,7 +260,7 @@ TEST_F(FilePathWatcherTest, NewFile) {
                          FilePathWatcher::Type::kNonRecursive));
 
   ASSERT_TRUE(WriteFile(test_file(), "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that modifying the file is caught.
@@ -252,7 +274,7 @@ TEST_F(FilePathWatcherTest, ModifiedFile) {
 
   // Now make sure we get notified if the file is modified.
   ASSERT_TRUE(WriteFile(test_file(), "new content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that moving the file into place is caught.
@@ -267,7 +289,7 @@ TEST_F(FilePathWatcherTest, MovedFile) {
 
   // Now make sure we get notified if the file is modified.
   ASSERT_TRUE(base::Move(source_file, test_file()));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 TEST_F(FilePathWatcherTest, DeletedFile) {
@@ -280,7 +302,7 @@ TEST_F(FilePathWatcherTest, DeletedFile) {
 
   // Now make sure we get notified if the file is deleted.
   base::DeleteFile(test_file());
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Used by the DeleteDuringNotify test below.
@@ -341,7 +363,7 @@ TEST_F(FilePathWatcherTest, MultipleWatchersSingleFile) {
                          FilePathWatcher::Type::kNonRecursive));
 
   ASSERT_TRUE(WriteFile(test_file(), "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that watching a file whose parent directory doesn't exist yet works if
@@ -359,15 +381,15 @@ TEST_F(FilePathWatcherTest, NonExistentDirectory) {
   ASSERT_TRUE(WriteFile(file, "content"));
 
   VLOG(1) << "Waiting for file creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(file, "content v2"));
   VLOG(1) << "Waiting for file change";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(base::DeleteFile(file));
   VLOG(1) << "Waiting for file deletion";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Exercises watch reconfiguration for the case that directories on the path
@@ -396,11 +418,11 @@ TEST_F(FilePathWatcherTest, DirectoryChain) {
   VLOG(1) << "Create File";
   ASSERT_TRUE(WriteFile(file, "content"));
   VLOG(1) << "Waiting for file creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(file, "content v2"));
   VLOG(1) << "Waiting for file modification";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 TEST_F(FilePathWatcherTest, DisappearingDirectory) {
@@ -414,7 +436,7 @@ TEST_F(FilePathWatcherTest, DisappearingDirectory) {
                          FilePathWatcher::Type::kNonRecursive));
 
   ASSERT_TRUE(base::DeletePathRecursively(dir));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Tests that a file that is deleted and reappears is tracked correctly.
@@ -427,11 +449,11 @@ TEST_F(FilePathWatcherTest, DeleteAndRecreate) {
 
   ASSERT_TRUE(base::DeleteFile(test_file()));
   VLOG(1) << "Waiting for file deletion";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(test_file(), "content"));
   VLOG(1) << "Waiting for file creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 TEST_F(FilePathWatcherTest, WatchDirectory) {
@@ -445,26 +467,26 @@ TEST_F(FilePathWatcherTest, WatchDirectory) {
 
   ASSERT_TRUE(base::CreateDirectory(dir));
   VLOG(1) << "Waiting for directory creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(file1, "content"));
   VLOG(1) << "Waiting for file1 creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
-#if !defined(OS_APPLE)
+#if !BUILDFLAG(IS_APPLE)
   // Mac implementation does not detect files modified in a directory.
   ASSERT_TRUE(WriteFile(file1, "content v2"));
   VLOG(1) << "Waiting for file1 modification";
-  ASSERT_TRUE(WaitForEvents());
-#endif  // !OS_APPLE
+  ASSERT_TRUE(WaitForEvent());
+#endif  // !BUILDFLAG(IS_APPLE)
 
   ASSERT_TRUE(base::DeleteFile(file1));
   VLOG(1) << "Waiting for file1 deletion";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(file2, "content"));
   VLOG(1) << "Waiting for file2 creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 TEST_F(FilePathWatcherTest, MoveParent) {
@@ -485,12 +507,12 @@ TEST_F(FilePathWatcherTest, MoveParent) {
   ASSERT_TRUE(base::CreateDirectory(subdir));
   ASSERT_TRUE(WriteFile(file, "content"));
   VLOG(1) << "Waiting for file creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Move the parent directory.
   base::Move(dir, dest);
   VLOG(1) << "Waiting for directory move";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 TEST_F(FilePathWatcherTest, RecursiveWatch) {
@@ -507,68 +529,78 @@ TEST_F(FilePathWatcherTest, RecursiveWatch) {
 
   // Main directory("dir") creation.
   ASSERT_TRUE(base::CreateDirectory(dir));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Create "$dir/file1".
   FilePath file1(dir.AppendASCII("file1"));
   ASSERT_TRUE(WriteFile(file1, "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Create "$dir/subdir".
   FilePath subdir(dir.AppendASCII("subdir"));
   ASSERT_TRUE(base::CreateDirectory(subdir));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
+
+  // Create "$dir/subdir/subdir2".
+  FilePath subdir2(subdir.AppendASCII("subdir2"));
+  ASSERT_TRUE(base::CreateDirectory(subdir2));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Rename "$dir/subdir/subdir2" to "$dir/subdir/subdir2b".
+  FilePath subdir2b(subdir.AppendASCII("subdir2b"));
+  base::Move(subdir2, subdir2b);
+  ASSERT_TRUE(WaitForEvent());
 
 // Mac and Win don't generate events for Touch.
 // Android TouchFile returns false.
-#if !(defined(OS_APPLE) || defined(OS_WIN) || defined(OS_ANDROID))
+#if !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID))
   // Touch "$dir".
   Time access_time;
   ASSERT_TRUE(Time::FromString("Wed, 16 Nov 1994, 00:00:00", &access_time));
   ASSERT_TRUE(base::TouchFile(dir, access_time, access_time));
-  ASSERT_TRUE(WaitForEvents());
-#endif  // !(defined(OS_APPLE) || defined(OS_WIN) || defined(OS_ANDROID))
+  ASSERT_TRUE(WaitForEvent());
+#endif  // !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID))
 
   // Create "$dir/subdir/subdir_file1".
   FilePath subdir_file1(subdir.AppendASCII("subdir_file1"));
   ASSERT_TRUE(WriteFile(subdir_file1, "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Create "$dir/subdir/subdir_child_dir".
   FilePath subdir_child_dir(subdir.AppendASCII("subdir_child_dir"));
   ASSERT_TRUE(base::CreateDirectory(subdir_child_dir));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Create "$dir/subdir/subdir_child_dir/child_dir_file1".
   FilePath child_dir_file1(subdir_child_dir.AppendASCII("child_dir_file1"));
   ASSERT_TRUE(WriteFile(child_dir_file1, "content v2"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Write into "$dir/subdir/subdir_child_dir/child_dir_file1".
   ASSERT_TRUE(WriteFile(child_dir_file1, "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
 // Apps cannot change file attributes on Android in /sdcard as /sdcard uses the
 // "fuse" file system, while /data uses "ext4".  Running these tests in /data
 // would be preferable and allow testing file attributes and symlinks.
 // TODO(pauljensen): Re-enable when crbug.com/475568 is fixed and SetUp() places
 // the |temp_dir_| in /data.
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Modify "$dir/subdir/subdir_child_dir/child_dir_file1" attributes.
   ASSERT_TRUE(base::MakeFileUnreadable(child_dir_file1));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 #endif
 
   // Delete "$dir/subdir/subdir_file1".
   ASSERT_TRUE(base::DeleteFile(subdir_file1));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Delete "$dir/subdir/subdir_child_dir/child_dir_file1".
   ASSERT_TRUE(base::DeleteFile(child_dir_file1));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
-#if defined(OS_POSIX) && !defined(OS_ANDROID)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
 // Apps cannot create symlinks on Android in /sdcard as /sdcard uses the
 // "fuse" file system, while /data uses "ext4".  Running these tests in /data
 // would be preferable and allow testing file attributes and symlinks.
@@ -591,30 +623,30 @@ TEST_F(FilePathWatcherTest, RecursiveWithSymLink) {
   // Link creation.
   FilePath target1(temp_dir_.GetPath().AppendASCII("target1"));
   ASSERT_TRUE(base::CreateSymbolicLink(target1, symlink));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Target1 creation.
   ASSERT_TRUE(base::CreateDirectory(target1));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Create a file in target1.
   FilePath target1_file(target1.AppendASCII("file"));
   ASSERT_TRUE(WriteFile(target1_file, "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Link change.
   FilePath target2(temp_dir_.GetPath().AppendASCII("target2"));
   ASSERT_TRUE(base::CreateDirectory(target2));
   ASSERT_TRUE(base::DeleteFile(symlink));
   ASSERT_TRUE(base::CreateSymbolicLink(target2, symlink));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   // Create a file in target2.
   FilePath target2_file(target2.AppendASCII("file"));
   ASSERT_TRUE(WriteFile(target2_file, "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
-#endif  // defined(OS_POSIX) && !defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
 
 TEST_F(FilePathWatcherTest, MoveChild) {
   FilePathWatcher file_watcher;
@@ -639,18 +671,18 @@ TEST_F(FilePathWatcherTest, MoveChild) {
 
   // Move the directory into place, s.t. the watched file appears.
   ASSERT_TRUE(base::Move(source_dir, dest_dir));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that changing attributes on a file is caught
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 // Apps cannot change file attributes on Android in /sdcard as /sdcard uses the
 // "fuse" file system, while /data uses "ext4".  Running these tests in /data
 // would be preferable and allow testing file attributes and symlinks.
 // TODO(pauljensen): Re-enable when crbug.com/475568 is fixed and SetUp() places
 // the |temp_dir_| in /data.
 #define FileAttributesChanged DISABLED_FileAttributesChanged
-#endif  // defined(OS_ANDROID
+#endif  // BUILDFLAG(IS_ANDROID)
 TEST_F(FilePathWatcherTest, FileAttributesChanged) {
   ASSERT_TRUE(WriteFile(test_file(), "content"));
   FilePathWatcher watcher;
@@ -660,10 +692,10 @@ TEST_F(FilePathWatcherTest, FileAttributesChanged) {
 
   // Now make sure we get notified if the file is modified.
   ASSERT_TRUE(base::MakeFileUnreadable(test_file()));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
 // Verify that creating a symlink is caught.
 TEST_F(FilePathWatcherTest, CreateLink) {
@@ -676,7 +708,7 @@ TEST_F(FilePathWatcherTest, CreateLink) {
   // Now make sure we get notified if the link is created.
   // Note that test_file() doesn't have to exist.
   ASSERT_TRUE(CreateSymbolicLink(test_file(), test_link()));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that deleting a symlink is caught.
@@ -692,7 +724,7 @@ TEST_F(FilePathWatcherTest, DeleteLink) {
 
   // Now make sure we get notified if the link is deleted.
   ASSERT_TRUE(base::DeleteFile(test_link()));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that modifying a target file that a link is pointing to
@@ -708,7 +740,7 @@ TEST_F(FilePathWatcherTest, ModifiedLinkedFile) {
 
   // Now make sure we get notified if the file is modified.
   ASSERT_TRUE(WriteFile(test_file(), "new content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that creating a target file that a link is pointing to
@@ -723,7 +755,7 @@ TEST_F(FilePathWatcherTest, CreateTargetLinkedFile) {
 
   // Now make sure we get notified if the target file is created.
   ASSERT_TRUE(WriteFile(test_file(), "content"));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that deleting a target file that a link is pointing to
@@ -739,7 +771,7 @@ TEST_F(FilePathWatcherTest, DeleteTargetLinkedFile) {
 
   // Now make sure we get notified if the target file is deleted.
   ASSERT_TRUE(base::DeleteFile(test_file()));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that watching a file whose parent directory is a link that
@@ -760,15 +792,15 @@ TEST_F(FilePathWatcherTest, LinkedDirectoryPart1) {
 
   ASSERT_TRUE(CreateSymbolicLink(dir, link_dir));
   VLOG(1) << "Waiting for link creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(file, "content v2"));
   VLOG(1) << "Waiting for file change";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(base::DeleteFile(file));
   VLOG(1) << "Waiting for file deletion";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that watching a file whose parent directory is a
@@ -790,15 +822,15 @@ TEST_F(FilePathWatcherTest, LinkedDirectoryPart2) {
   ASSERT_TRUE(base::CreateDirectory(dir));
   ASSERT_TRUE(WriteFile(file, "content"));
   VLOG(1) << "Waiting for dir/file creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(file, "content v2"));
   VLOG(1) << "Waiting for file change";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(base::DeleteFile(file));
   VLOG(1) << "Waiting for file deletion";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Verify that watching a file with a symlink on the path
@@ -818,15 +850,15 @@ TEST_F(FilePathWatcherTest, LinkedDirectoryPart3) {
 
   ASSERT_TRUE(WriteFile(file, "content"));
   VLOG(1) << "Waiting for file creation";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(WriteFile(file, "content v2"));
   VLOG(1) << "Waiting for file change";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 
   ASSERT_TRUE(base::DeleteFile(file));
   VLOG(1) << "Waiting for file deletion";
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Regression tests that FilePathWatcherImpl does not leave its reference in
@@ -1031,7 +1063,211 @@ TEST_F(FilePathWatcherTest, InotifyLimitInUpdateRecursive) {
   }
 }
 
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+// TODO(fxbug.dev/60109): enable BUILDFLAG(IS_FUCHSIA) when implemented.
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+
+TEST_F(FilePathWatcherTest, ReturnFullPath_RecursiveInRootFolder) {
+  FilePathWatcher directory_watcher;
+  FilePath watched_folder(temp_dir_.GetPath().AppendASCII("watched_folder"));
+  FilePath file(watched_folder.AppendASCII("file"));
+
+  ASSERT_TRUE(CreateDirectory(watched_folder));
+
+  auto delegate = std::make_unique<TestDelegate>(collector());
+  ASSERT_TRUE(
+      SetupWatchWithOptions(watched_folder, &directory_watcher, delegate.get(),
+                            {.type = base::FilePathWatcher::Type::kRecursive,
+                             .report_modified_path = true}));
+
+  // Triggers three events:
+  // create on /watched_folder/file
+  // modify on /watched_folder/file.
+  ASSERT_TRUE(WriteFile(file, "test"));
+  ASSERT_TRUE(WaitForEvent());
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects modify on /watched_folder/file.
+  ASSERT_TRUE(WriteFile(file, "test123"));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects delete on /watched_folder/file.
+  ASSERT_TRUE(DeleteFile(file));
+  ASSERT_TRUE(WaitForEvent());
+
+  std::vector<base::FilePath> expected_paths{file, file, file, file};
+  EXPECT_EQ(delegate->get_observed_paths(), expected_paths);
+}
+
+TEST_F(FilePathWatcherTest, ReturnFullPath_RecursiveInNestedFolder) {
+  FilePathWatcher directory_watcher;
+  FilePath watched_folder(temp_dir_.GetPath().AppendASCII("watched_folder"));
+  FilePath subfolder(watched_folder.AppendASCII("subfolder"));
+  FilePath file(subfolder.AppendASCII("file"));
+
+  ASSERT_TRUE(CreateDirectory(watched_folder));
+
+  auto delegate = std::make_unique<TestDelegate>(collector());
+  ASSERT_TRUE(
+      SetupWatchWithOptions(watched_folder, &directory_watcher, delegate.get(),
+                            {.type = base::FilePathWatcher::Type::kRecursive,
+                             .report_modified_path = true}));
+
+  // Expects create on /watched_folder/subfolder.
+  ASSERT_TRUE(CreateDirectory(subfolder));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Triggers two events:
+  // create on /watched_folder/subfolder/file.
+  // modify on /watched_folder/subfolder/file.
+  ASSERT_TRUE(WriteFile(file, "test"));
+  ASSERT_TRUE(WaitForEvent());
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects modify on /watched_folder/subfolder/file.
+  ASSERT_TRUE(WriteFile(file, "test123"));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects delete on /watched_folder/subfolder/file.
+  ASSERT_TRUE(DeleteFile(file));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects delete on /watched_folder/subfolder.
+  ASSERT_TRUE(DeleteFile(subfolder));
+  ASSERT_TRUE(WaitForEvent());
+
+  std::vector<base::FilePath> expected_paths{subfolder, file, file,
+                                             file,      file, subfolder};
+  EXPECT_EQ(delegate->get_observed_paths(), expected_paths);
+}
+
+TEST_F(FilePathWatcherTest, ReturnFullPath_NonRecursiveInRootFolder) {
+  FilePathWatcher directory_watcher;
+  FilePath watched_folder(temp_dir_.GetPath().AppendASCII("watched_folder"));
+  FilePath file(watched_folder.AppendASCII("file"));
+
+  ASSERT_TRUE(base::CreateDirectory(watched_folder));
+
+  auto delegate = std::make_unique<TestDelegate>(collector());
+  ASSERT_TRUE(
+      SetupWatchWithOptions(watched_folder, &directory_watcher, delegate.get(),
+                            {.type = base::FilePathWatcher::Type::kNonRecursive,
+                             .report_modified_path = true}));
+
+  // Triggers three events:
+  // create on /watched_folder/file.
+  // modify on /watched_folder/file.
+  ASSERT_TRUE(WriteFile(file, "test"));
+  ASSERT_TRUE(WaitForEvent());
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects modify on /watched_folder/file.
+  ASSERT_TRUE(WriteFile(file, "test123"));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects delete on /watched_folder/file.
+  ASSERT_TRUE(DeleteFile(file));
+  ASSERT_TRUE(WaitForEvent());
+
+  std::vector<base::FilePath> expected_paths{file, file, file, file};
+  EXPECT_EQ(delegate->get_observed_paths(), expected_paths);
+}
+
+TEST_F(FilePathWatcherTest, ReturnFullPath_NonRecursiveRemoveEnclosingFolder) {
+  FilePathWatcher directory_watcher;
+  FilePath root_folder(temp_dir_.GetPath().AppendASCII("root_folder"));
+  FilePath folder(root_folder.AppendASCII("folder"));
+  FilePath watched_folder(folder.AppendASCII("watched_folder"));
+  FilePath file(watched_folder.AppendASCII("file"));
+
+  ASSERT_TRUE(base::CreateDirectory(watched_folder));
+  ASSERT_TRUE(WriteFile(file, "test"));
+
+  auto delegate = std::make_unique<TestDelegate>(collector());
+  ASSERT_TRUE(
+      SetupWatchWithOptions(watched_folder, &directory_watcher, delegate.get(),
+                            {.type = base::FilePathWatcher::Type::kNonRecursive,
+                             .report_modified_path = true}));
+
+  // Triggers four events:
+  // delete on /watched_folder/file.
+  // delete on /watched_folder twice.
+  ASSERT_TRUE(DeletePathRecursively(folder));
+  ASSERT_TRUE(WaitForEvent());
+  ASSERT_TRUE(WaitForEvent());
+  ASSERT_TRUE(WaitForEvent());
+
+  std::vector<base::FilePath> expected_paths{file, watched_folder,
+                                             watched_folder};
+  EXPECT_EQ(delegate->get_observed_paths(), expected_paths);
+}
+
+TEST_F(FilePathWatcherTest, ReturnWatchedPath_RecursiveInRootFolder) {
+  FilePathWatcher directory_watcher;
+  FilePath watched_folder(temp_dir_.GetPath().AppendASCII("watched_folder"));
+  FilePath file(watched_folder.AppendASCII("file"));
+
+  ASSERT_TRUE(base::CreateDirectory(watched_folder));
+
+  auto delegate = std::make_unique<TestDelegate>(collector());
+  ASSERT_TRUE(
+      SetupWatchWithOptions(watched_folder, &directory_watcher, delegate.get(),
+                            {.type = base::FilePathWatcher::Type::kRecursive}));
+
+  // Triggers three events:
+  // create on /watched_folder.
+  // modify on /watched_folder.
+  ASSERT_TRUE(WriteFile(file, "test"));
+  ASSERT_TRUE(WaitForEvent());
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects modify on /watched_folder.
+  ASSERT_TRUE(WriteFile(file, "test123"));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects delete on /watched_folder.
+  ASSERT_TRUE(DeleteFile(file));
+  ASSERT_TRUE(WaitForEvent());
+
+  std::vector<base::FilePath> expected_paths{watched_folder, watched_folder,
+                                             watched_folder, watched_folder};
+  EXPECT_EQ(delegate->get_observed_paths(), expected_paths);
+}
+
+TEST_F(FilePathWatcherTest, ReturnWatchedPath_NonRecursiveInRootFolder) {
+  FilePathWatcher directory_watcher;
+  FilePath watched_folder(temp_dir_.GetPath().AppendASCII("watched_folder"));
+  FilePath file(watched_folder.AppendASCII("file"));
+
+  ASSERT_TRUE(base::CreateDirectory(watched_folder));
+
+  auto delegate = std::make_unique<TestDelegate>(collector());
+  ASSERT_TRUE(SetupWatchWithOptions(
+      watched_folder, &directory_watcher, delegate.get(),
+      {.type = base::FilePathWatcher::Type::kNonRecursive}));
+
+  // Triggers three events:
+  // Expects create /watched_folder.
+  // Expects modify /watched_folder.
+  ASSERT_TRUE(WriteFile(file, "test"));
+  ASSERT_TRUE(WaitForEvent());
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects modify on /watched_folder.
+  ASSERT_TRUE(WriteFile(file, "test123"));
+  ASSERT_TRUE(WaitForEvent());
+
+  // Expects delete on /watched_folder.
+  ASSERT_TRUE(DeleteFile(file));
+  ASSERT_TRUE(WaitForEvent());
+
+  std::vector<base::FilePath> expected_paths {watched_folder, watched_folder,
+                              watched_folder, watched_folder};
+  EXPECT_EQ(delegate->get_observed_paths(), expected_paths);
+}
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
+        // BUILDFLAG(IS_ANDROID)
 
 enum Permission {
   Read,
@@ -1039,7 +1275,7 @@ enum Permission {
   Execute
 };
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 bool ChangeFilePermissions(const FilePath& path, Permission perm, bool allow) {
   struct stat stat_buf;
 
@@ -1068,9 +1304,9 @@ bool ChangeFilePermissions(const FilePath& path, Permission perm, bool allow) {
   }
   return chmod(path.value().c_str(), stat_buf.st_mode) == 0;
 }
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 // Linux implementation of FilePathWatcher doesn't catch attribute changes.
 // http://crbug.com/78043
 // Windows implementation of FilePathWatcher catches attribute changes that
@@ -1096,19 +1332,19 @@ TEST_F(FilePathWatcherTest, DirAttributesChanged) {
   // We should not get notified in this case as it hasn't affected our ability
   // to access the file.
   ASSERT_TRUE(ChangeFilePermissions(test_dir1, Read, false));
-  ASSERT_FALSE(WaitForEventsWithTimeout(TestTimeouts::tiny_timeout()));
+  ASSERT_FALSE(WaitForEventWithTimeout(TestTimeouts::tiny_timeout()));
   ASSERT_TRUE(ChangeFilePermissions(test_dir1, Read, true));
 
   // We should get notified in this case because filepathwatcher can no
   // longer access the file
   ASSERT_TRUE(ChangeFilePermissions(test_dir1, Execute, false));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
   ASSERT_TRUE(ChangeFilePermissions(test_dir1, Execute, true));
 }
 
-#endif  // OS_APPLE
+#endif  // BUILDFLAG(IS_APPLE)
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_APPLE)
 
 // Fail fast if trying to trivially watch a non-existent item.
 TEST_F(FilePathWatcherTest, TrivialNoDir) {
@@ -1141,7 +1377,7 @@ TEST_F(FilePathWatcherTest, TrivialDirChange) {
                          FilePathWatcher::Type::kTrivial));
 
   ASSERT_TRUE(TouchFile(tmp_dir, base::Time::Now(), base::Time::Now()));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
 // Observe no change when a parent is modified.
@@ -1160,7 +1396,7 @@ TEST_F(FilePathWatcherTest, TrivialParentDirChange) {
 
   // There should be no notification for a change to |sub_dir2|'s parent.
   ASSERT_TRUE(Move(sub_dir1, tmp_dir.Append(FILE_PATH_LITERAL("over_here"))));
-  ASSERT_FALSE(WaitForEventsWithTimeout(TestTimeouts::tiny_timeout()));
+  ASSERT_FALSE(WaitForEventWithTimeout(TestTimeouts::tiny_timeout()));
 }
 
 // Do not crash when a directory is moved; https://crbug.com/1156603.
@@ -1177,10 +1413,10 @@ TEST_F(FilePathWatcherTest, TrivialDirMove) {
                          FilePathWatcher::Type::kTrivial));
 
   ASSERT_TRUE(Move(sub_dir, tmp_dir.Append(FILE_PATH_LITERAL("over_here"))));
-  ASSERT_TRUE(WaitForEvents());
+  ASSERT_TRUE(WaitForEvent());
 }
 
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_APPLE)
 
 }  // namespace
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,11 @@
 #include <vector>
 
 #include "base/base_paths.h"
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/cxx17_backports.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/strings/string_split.h"
@@ -24,14 +23,14 @@
 #include "build/build_config.h"
 #include "chrome/common/chrome_constants.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/base_paths_win.h"
 #include "base/win/windows_version.h"
 #endif
 
 namespace {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 void GetApplicationDirs(std::vector<base::FilePath>* locations) {
   std::vector<base::FilePath> installation_locations;
   base::FilePath local_app_data, program_files, program_files_x86,
@@ -50,11 +49,15 @@ void GetApplicationDirs(std::vector<base::FilePath>* locations) {
         installation_locations[i].Append(L"Google\\Chrome\\Application"));
   }
   for (size_t i = 0; i < installation_locations.size(); ++i) {
+    locations->push_back(installation_locations[i].Append(
+        L"Google\\Chrome for Testing\\Application"));
+  }
+  for (size_t i = 0; i < installation_locations.size(); ++i) {
     locations->push_back(
         installation_locations[i].Append(L"Chromium\\Application"));
   }
 }
-#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
+#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 void GetApplicationDirs(std::vector<base::FilePath>* locations) {
   // TODO: Respect users' PATH variables.
   // Until then, we use an approximation of the most common defaults.
@@ -68,7 +71,7 @@ void GetApplicationDirs(std::vector<base::FilePath>* locations) {
   //locations->push_back(base::FilePath("/opt/google/chrome"));
   locations->push_back(base::FilePath("/opt/gtxbrowser"));
 }
-#elif defined(OS_ANDROID)
+#elif BUILDFLAG(IS_ANDROID)
 void GetApplicationDirs(std::vector<base::FilePath>* locations) {
   // On Android we won't be able to find Chrome executable
 }
@@ -76,7 +79,7 @@ void GetApplicationDirs(std::vector<base::FilePath>* locations) {
 
 void GetPathsFromEnvironment(std::vector<base::FilePath>* paths) {
   base::FilePath::StringType delimiter;
-  base::FilePath::StringType commonPath;
+  base::FilePath::StringType common_path;
   std::string path;
   std::unique_ptr<base::Environment> env(base::Environment::Create());
 
@@ -84,19 +87,19 @@ void GetPathsFromEnvironment(std::vector<base::FilePath>* paths) {
     return;
   }
 
-#if defined(OS_WIN)
-  commonPath = base::UTF8ToWide(path);
+#if BUILDFLAG(IS_WIN)
+  common_path = base::UTF8ToWide(path);
   delimiter = L";";
 #else
-  commonPath = path;
+  common_path = path;
   delimiter = ":";
 #endif
 
   std::vector<base::FilePath::StringType> path_entries = base::SplitString(
-      commonPath, delimiter, base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
+      common_path, delimiter, base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
 
   for (auto& path_entry : path_entries) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     size_t size = path_entry.size();
     if (size >= 2 && path_entry[0] == '"' && path_entry[size - 1] == '"') {
       path_entry.erase(0, 1);
@@ -131,15 +134,15 @@ bool FindExe(
 
 }  // namespace internal
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 void GetApplicationDirs(std::vector<base::FilePath>* locations);
 #endif
 
 bool FindChrome(base::FilePath* browser_exe) {
   base::FilePath browser_exes_array[] = {
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
     base::FilePath(chrome::kBrowserProcessExecutablePath),
-#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
+#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     base::FilePath("google-chrome"),
     base::FilePath(chrome::kBrowserProcessExecutablePath),
     base::FilePath("gtxbrowser"),
@@ -153,9 +156,9 @@ bool FindChrome(base::FilePath* browser_exe) {
   LOG_IF(ERROR, browser_exes_array[0].empty()) << "Unsupported platform.";
 
   std::vector<base::FilePath> browser_exes(
-      browser_exes_array, browser_exes_array + base::size(browser_exes_array));
+      browser_exes_array, browser_exes_array + std::size(browser_exes_array));
   base::FilePath module_dir;
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
   // Use -1 to allow this to compile.
   // TODO(crbug.com/1262176): Determine whether Fuchsia should support this and
   // if so provide an appropriate implementation for this function.

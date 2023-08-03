@@ -30,19 +30,19 @@
 
 #include "third_party/blink/renderer/platform/wtf/allocator/partitions.h"
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_alloc_features.h"
 #include "base/allocator/partition_alloc_support.h"
 #include "base/allocator/partition_allocator/memory_reclaimer.h"
 #include "base/allocator/partition_allocator/oom.h"
 #include "base/allocator/partition_allocator/page_allocator.h"
 #include "base/allocator/partition_allocator/partition_alloc.h"
-#include "base/allocator/partition_allocator/partition_alloc_config.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/debug/alias.h"
 #include "base/feature_list.h"
 #include "base/no_destructor.h"
 #include "base/strings/safe_sprintf.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/thread_annotations.h"
 #include "build/build_config.h"
 #include "components/crash/core/common/crash_key.h"
@@ -54,19 +54,23 @@ namespace WTF {
 const char* const Partitions::kAllocatedObjectPoolName =
     "partition_alloc/allocated_objects";
 
-#if defined(PA_ALLOW_PCSCAN)
+#if BUILDFLAG(USE_STARSCAN)
 // Runs PCScan on WTF partitions.
-const base::Feature kPCScanBlinkPartitions{
-    "PartitionAllocPCScanBlinkPartitions", base::FEATURE_DISABLED_BY_DEFAULT};
+BASE_FEATURE(kPCScanBlinkPartitions,
+             "PartitionAllocPCScanBlinkPartitions",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 #endif
 
 bool Partitions::initialized_ = false;
+bool Partitions::scan_is_enabled_ = false;
 
 // These statics are inlined, so cannot be LazyInstances. We create the values,
 // and then set the pointers correctly in Initialize().
-base::ThreadSafePartitionRoot* Partitions::fast_malloc_root_ = nullptr;
-base::ThreadSafePartitionRoot* Partitions::array_buffer_root_ = nullptr;
-base::ThreadSafePartitionRoot* Partitions::buffer_root_ = nullptr;
+partition_alloc::ThreadSafePartitionRoot* Partitions::fast_malloc_root_ =
+    nullptr;
+partition_alloc::ThreadSafePartitionRoot* Partitions::array_buffer_root_ =
+    nullptr;
+partition_alloc::ThreadSafePartitionRoot* Partitions::buffer_root_ = nullptr;
 
 // static
 void Partitions::Initialize() {
@@ -76,32 +80,45 @@ void Partitions::Initialize() {
 
 // static
 bool Partitions::InitializeOnce() {
-  bool enable_brp =
-#if BUILDFLAG(USE_BACKUP_REF_PTR)
+  base::features::BackupRefPtrMode brp_mode =
+      base::features::kBackupRefPtrModeParam.Get();
+#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+  const bool process_affected_by_brp_flag =
+      base::features::kBackupRefPtrEnabledProcessesParam.Get() ==
+          base::features::BackupRefPtrEnabledProcesses::kAllProcesses ||
+      base::features::kBackupRefPtrEnabledProcessesParam.Get() ==
+          base::features::BackupRefPtrEnabledProcesses::kBrowserAndRenderer;
+  const bool enable_brp =
       base::FeatureList::IsEnabled(
           base::features::kPartitionAllocBackupRefPtr) &&
-      base::features::kBackupRefPtrModeParam.Get() ==
-          base::features::BackupRefPtrMode::kEnabled &&
-      (base::features::kBackupRefPtrEnabledProcessesParam.Get() ==
-           base::features::BackupRefPtrEnabledProcesses::kAllProcesses ||
-       base::features::kBackupRefPtrEnabledProcessesParam.Get() ==
-           base::features::BackupRefPtrEnabledProcesses::kBrowserAndRenderer);
-#else
-      false;
+      (brp_mode == base::features::BackupRefPtrMode::kEnabled ||
+       brp_mode == base::features::BackupRefPtrMode::kEnabledWithoutZapping) &&
+      process_affected_by_brp_flag;
+#else  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+  const bool process_affected_by_brp_flag = false;
+  const bool enable_brp = false;
 #endif
-  base::PartitionOptions::LazyCommit lazy_commit =
-      base::FeatureList::IsEnabled(base::features::kPartitionAllocLazyCommit)
-          ? base::PartitionOptions::LazyCommit::kEnabled
-          : base::PartitionOptions::LazyCommit::kDisabled;
-
-  const bool enable_scan_on_blink_partitions =
+  const auto brp_setting =
+      enable_brp ? partition_alloc::PartitionOptions::BackupRefPtr::kEnabled
+                 : partition_alloc::PartitionOptions::BackupRefPtr::kDisabled;
+  const auto brp_zapping_setting =
+      enable_brp && brp_mode == base::features::BackupRefPtrMode::kEnabled
+          ? partition_alloc::PartitionOptions::BackupRefPtrZapping::kEnabled
+          : partition_alloc::PartitionOptions::BackupRefPtrZapping::kDisabled;
+  const auto add_dummy_ref_count_setting =
+      process_affected_by_brp_flag &&
+              brp_mode ==
+                  base::features::BackupRefPtrMode::kDisabledButAddDummyRefCount
+          ? partition_alloc::PartitionOptions::AddDummyRefCount::kEnabled
+          : partition_alloc::PartitionOptions::AddDummyRefCount::kDisabled;
+  scan_is_enabled_ =
       !enable_brp &&
-#if defined(PA_ALLOW_PCSCAN)
+#if BUILDFLAG(USE_STARSCAN)
       (base::FeatureList::IsEnabled(base::features::kPartitionAllocPCScan) ||
        base::FeatureList::IsEnabled(kPCScanBlinkPartitions));
 #else
       false;
-#endif
+#endif  // BUILDFLAG(USE_STARSCAN)
 
   // FastMalloc doesn't provide isolation, only a (hopefully fast) malloc().
   // When PartitionAlloc is already the malloc() implementation, there is
@@ -113,53 +130,65 @@ bool Partitions::InitializeOnce() {
   //
   // In addition, enable the FastMalloc partition if
   // --enable-features=PartitionAllocPCScanBlinkPartitions is specified.
-  if (enable_scan_on_blink_partitions ||
-      !BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)) {
-    static base::NoDestructor<base::PartitionAllocator> fast_malloc_allocator{};
-    fast_malloc_allocator->init({
-      base::PartitionOptions::AlignedAlloc::kDisallowed,
+  if (scan_is_enabled_ || !BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)) {
+    constexpr partition_alloc::PartitionOptions::ThreadCache thread_cache =
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
-          base::PartitionOptions::ThreadCache::kDisabled,
+        partition_alloc::PartitionOptions::ThreadCache::kDisabled;
 #else
-          base::PartitionOptions::ThreadCache::kEnabled,
+        partition_alloc::PartitionOptions::ThreadCache::kEnabled;
 #endif
-          base::PartitionOptions::Quarantine::kAllowed,
-          base::PartitionOptions::Cookie::kAllowed,
-          (enable_brp ? base::PartitionOptions::BackupRefPtr::kEnabled
-                      : base::PartitionOptions::BackupRefPtr::kDisabled),
-          base::PartitionOptions::UseConfigurablePool::kNo, lazy_commit
+    static base::NoDestructor<partition_alloc::PartitionAllocator>
+        fast_malloc_allocator{};
+    fast_malloc_allocator->init({
+        partition_alloc::PartitionOptions::AlignedAlloc::kDisallowed,
+        thread_cache,
+        partition_alloc::PartitionOptions::Quarantine::kAllowed,
+        partition_alloc::PartitionOptions::Cookie::kAllowed,
+        brp_setting,
+        brp_zapping_setting,
+        partition_alloc::PartitionOptions::UseConfigurablePool::kNo,
+        add_dummy_ref_count_setting,
     });
-
     fast_malloc_root_ = fast_malloc_allocator->root();
   }
 
-  static base::NoDestructor<base::PartitionAllocator> buffer_allocator{};
+  partition_alloc::PartitionAllocGlobalInit(&Partitions::HandleOutOfMemory);
 
-  base::PartitionAllocGlobalInit(&Partitions::HandleOutOfMemory);
-
-  buffer_allocator->init(
-      {base::PartitionOptions::AlignedAlloc::kDisallowed,
-       base::PartitionOptions::ThreadCache::kDisabled,
-       base::PartitionOptions::Quarantine::kAllowed,
-       base::PartitionOptions::Cookie::kAllowed,
-       (enable_brp ? base::PartitionOptions::BackupRefPtr::kEnabled
-                   : base::PartitionOptions::BackupRefPtr::kDisabled),
-       base::PartitionOptions::UseConfigurablePool::kNo, lazy_commit});
-
+  static base::NoDestructor<partition_alloc::PartitionAllocator>
+      buffer_allocator{};
+  buffer_allocator->init({
+      partition_alloc::PartitionOptions::AlignedAlloc::kDisallowed,
+      partition_alloc::PartitionOptions::ThreadCache::kDisabled,
+      partition_alloc::PartitionOptions::Quarantine::kAllowed,
+      partition_alloc::PartitionOptions::Cookie::kAllowed,
+      brp_setting,
+      brp_zapping_setting,
+      partition_alloc::PartitionOptions::UseConfigurablePool::kNo,
+      add_dummy_ref_count_setting,
+  });
   buffer_root_ = buffer_allocator->root();
 
-#if defined(PA_ALLOW_PCSCAN)
-  if (enable_scan_on_blink_partitions) {
-    if (!base::internal::PCScan::IsInitialized()) {
-      base::internal::PCScan::Initialize(
-          {base::internal::PCScan::InitConfig::WantedWriteProtectionMode::
-               kDisabled,
-           base::internal::PCScan::InitConfig::SafepointMode::kDisabled});
+#if BUILDFLAG(USE_STARSCAN)
+  if (scan_is_enabled_) {
+    if (!partition_alloc::internal::PCScan::IsInitialized()) {
+      partition_alloc::internal::PCScan::Initialize(
+          {partition_alloc::internal::PCScan::InitConfig::
+               WantedWriteProtectionMode::kDisabled,
+           partition_alloc::internal::PCScan::InitConfig::SafepointMode::
+               kDisabled});
     }
-    base::internal::PCScan::RegisterScannableRoot(fast_malloc_root_);
+    partition_alloc::internal::PCScan::RegisterScannableRoot(fast_malloc_root_);
     // Ignore other partitions for now.
   }
-#endif  // defined(PA_ALLOW_PCSCAN)
+#endif  // BUILDFLAG(USE_STARSCAN)
+
+  if (!base::FeatureList::IsEnabled(
+          base::features::kPartitionAllocUseAlternateDistribution)) {
+#if !BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+    fast_malloc_root_->SwitchToDenserBucketDistribution();
+#endif
+    buffer_root_->SwitchToDenserBucketDistribution();
+  }
 
   initialized_ = true;
   return initialized_;
@@ -167,39 +196,44 @@ bool Partitions::InitializeOnce() {
 
 // static
 void Partitions::InitializeArrayBufferPartition() {
+  CHECK(initialized_);
   CHECK(!ArrayBufferPartitionInitialized());
 
-  static base::NoDestructor<base::PartitionAllocator> array_buffer_allocator{};
-
-  base::PartitionOptions::LazyCommit lazy_commit =
-      base::FeatureList::IsEnabled(base::features::kPartitionAllocLazyCommit)
-          ? base::PartitionOptions::LazyCommit::kEnabled
-          : base::PartitionOptions::LazyCommit::kDisabled;
+  static base::NoDestructor<partition_alloc::PartitionAllocator>
+      array_buffer_allocator{};
 
   // BackupRefPtr disallowed because it will prevent allocations from being 16B
   // aligned as required by ArrayBufferContents.
-  array_buffer_allocator->init(
-      {base::PartitionOptions::AlignedAlloc::kDisallowed,
-       base::PartitionOptions::ThreadCache::kDisabled,
-       base::PartitionOptions::Quarantine::kAllowed,
-       base::PartitionOptions::Cookie::kAllowed,
-       base::PartitionOptions::BackupRefPtr::kDisabled,
-       // When the V8 virtual memory cage is enabled, the ArrayBuffer partition
-       // must be placed inside of it. For that, PA's ConfigurablePool is
-       // created inside the V8 Cage during initialization. As such, here all we
-       // need to do is indicate that we'd like to use that Pool if it has been
-       // created by now (if it hasn't been created, the cage isn't enabled, and
-       // so we'll use the default Pool).
-       base::PartitionOptions::UseConfigurablePool::kIfAvailable, lazy_commit});
+  array_buffer_allocator->init({
+      partition_alloc::PartitionOptions::AlignedAlloc::kDisallowed,
+      partition_alloc::PartitionOptions::ThreadCache::kDisabled,
+      partition_alloc::PartitionOptions::Quarantine::kAllowed,
+      partition_alloc::PartitionOptions::Cookie::kAllowed,
+      partition_alloc::PartitionOptions::BackupRefPtr::kDisabled,
+      partition_alloc::PartitionOptions::BackupRefPtrZapping::kDisabled,
+      // When the V8 virtual memory cage is enabled, the ArrayBuffer partition
+      // must be placed inside of it. For that, PA's ConfigurablePool is
+      // created inside the V8 Cage during initialization. As such, here all we
+      // need to do is indicate that we'd like to use that Pool if it has been
+      // created by now (if it hasn't been created, the cage isn't enabled, and
+      // so we'll use the default Pool).
+      partition_alloc::PartitionOptions::UseConfigurablePool::kIfAvailable,
+  });
 
   array_buffer_root_ = array_buffer_allocator->root();
 
-#if defined(PA_ALLOW_PCSCAN)
-  if (base::FeatureList::IsEnabled(base::features::kPartitionAllocPCScan) ||
-      base::FeatureList::IsEnabled(kPCScanBlinkPartitions)) {
-    base::internal::PCScan::RegisterNonScannableRoot(array_buffer_root_);
+#if BUILDFLAG(USE_STARSCAN)
+  // PCScan relies on the fact that quarantinable allocations go to PA's
+  // regular pool. This is not the case if configurable pool is available.
+  if (scan_is_enabled_ && !array_buffer_root_->uses_configurable_pool()) {
+    partition_alloc::internal::PCScan::RegisterNonScannableRoot(
+        array_buffer_root_);
   }
-#endif  // defined(PA_ALLOW_PCSCAN)
+#endif  // BUILDFLAG(USE_STARSCAN)
+  if (!base::FeatureList::IsEnabled(
+          base::features::kPartitionAllocUseAlternateDistribution)) {
+    array_buffer_root_->SwitchToDenserBucketDistribution();
+  }
 }
 
 // static
@@ -214,7 +248,7 @@ void Partitions::StartPeriodicReclaim(
 // static
 void Partitions::DumpMemoryStats(
     bool is_light_dump,
-    base::PartitionStatsDumper* partition_stats_dumper) {
+    partition_alloc::PartitionStatsDumper* partition_stats_dumper) {
   // Object model and rendering partitions are not thread safe and can be
   // accessed only on the main thread.
   DCHECK(IsMainThread());
@@ -232,19 +266,20 @@ void Partitions::DumpMemoryStats(
 
 namespace {
 
-class LightPartitionStatsDumperImpl : public base::PartitionStatsDumper {
+class LightPartitionStatsDumperImpl
+    : public partition_alloc::PartitionStatsDumper {
  public:
   LightPartitionStatsDumperImpl() : total_active_bytes_(0) {}
 
   void PartitionDumpTotals(
       const char* partition_name,
-      const base::PartitionMemoryStats* memory_stats) override {
+      const partition_alloc::PartitionMemoryStats* memory_stats) override {
     total_active_bytes_ += memory_stats->total_active_bytes;
   }
 
   void PartitionsDumpBucketStats(
       const char* partition_name,
-      const base::PartitionBucketMemoryStats*) override {}
+      const partition_alloc::PartitionBucketMemoryStats*) override {}
 
   size_t TotalActiveBytes() const { return total_active_bytes_; }
 
@@ -279,63 +314,63 @@ size_t Partitions::TotalActiveBytes() {
   return dumper.TotalActiveBytes();
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing2G(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing2G(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 2UL * 1024 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing1G(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing1G(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 1UL * 1024 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing512M(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing512M(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 512 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing256M(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing256M(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 256 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing128M(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing128M(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 128 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing64M(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing64M(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 64 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing32M(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing32M(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 32 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsing16M(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsing16M(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 16 * 1024 * 1024;
   base::debug::Alias(&signature);
   OOM_CRASH(size);
 }
 
-static NOINLINE void PartitionsOutOfMemoryUsingLessThan16M(size_t size) {
+NOINLINE static void PartitionsOutOfMemoryUsingLessThan16M(size_t size) {
   NO_CODE_FOLDING();
   size_t signature = 16 * 1024 * 1024 - 1;
   base::debug::Alias(&signature);
@@ -379,8 +414,8 @@ void* Partitions::FastMalloc(size_t n, const char* type_name) {
 void* Partitions::FastZeroedMalloc(size_t n, const char* type_name) {
   auto* fast_malloc_partition = FastMallocPartition();
   if (UNLIKELY(fast_malloc_partition)) {
-    return fast_malloc_partition->AllocFlags(base::PartitionAllocZeroFill, n,
-                                             type_name);
+    return fast_malloc_partition->AllocWithFlags(
+        partition_alloc::AllocFlags::kZeroFill, n, type_name);
   } else {
     return calloc(n, 1);
   }
@@ -398,7 +433,7 @@ void Partitions::FastFree(void* p) {
 // static
 void Partitions::HandleOutOfMemory(size_t size) {
   volatile size_t total_usage = TotalSizeOfCommittedPages();
-  uint32_t alloc_page_error_code = base::GetAllocPageErrorCode();
+  uint32_t alloc_page_error_code = partition_alloc::GetAllocPageErrorCode();
   base::debug::Alias(&alloc_page_error_code);
 
   // Report the total mapped size from PageAllocator. This is intended to
@@ -411,7 +446,8 @@ void Partitions::HandleOutOfMemory(size_t size) {
   char value[24];
   // %d works for 64 bit types as well with SafeSPrintf(), see its unit tests
   // for an example.
-  base::strings::SafeSPrintf(value, "%d", base::GetTotalMappedSize());
+  base::strings::SafeSPrintf(value, "%d",
+                             partition_alloc::GetTotalMappedSize());
   static crash_reporter::CrashKeyString<24> g_page_allocator_mapped_size(
       "page-allocator-mapped-size");
   g_page_allocator_mapped_size.Set(value);

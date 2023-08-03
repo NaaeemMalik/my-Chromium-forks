@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -26,8 +26,8 @@ import stack
 
 # Use Python-based zipalign so that these tests can run on the Presubmit bot.
 sys.path.insert(
-    1, os.path.join(constants.DIR_SOURCE_ROOT, 'build', 'android', 'gyp'))
-from util import zipalign
+    1, os.path.join(constants.DIR_SOURCE_ROOT, 'build'))
+import zip_helpers
 
 
 # These tests exercise stack.py by generating fake APKs (zip-aligned archives),
@@ -56,7 +56,7 @@ class FakeSymbolizer:
   def __init__(self, directory):
     self._lib_directory = directory
 
-  def GetSymbolInformation(self, library, address_string):
+  def GetSymbolInformation(self, library, address):
     basename = os.path.basename(library)
     local_file = os.path.join(self._lib_directory, basename)
 
@@ -67,7 +67,6 @@ class FakeSymbolizer:
 
     # If the address isn't in the library, LLVM symbolizer yields ??.
     lib_size = os.stat(local_file).st_size
-    address = int(address_string, 16)
     if address >= lib_size:
       return [('??', '??:0:0')]
 
@@ -117,11 +116,10 @@ class StackDecodeTest(unittest.TestCase):
 
         # Add the library to the APK.
         name_in_apk = 'crazy.' + lib if crazy else lib
-        zipalign.AddToZipHermetic(
+        zip_helpers.add_to_zip_hermetic(
             archive,
             name_in_apk,
             src_path=library_file,
-            compress=False,
             alignment=0x1000)
 
   # Accept either a multi-line string or a list of strings, strip leading and

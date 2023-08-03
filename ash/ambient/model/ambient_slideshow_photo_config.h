@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,19 +12,11 @@ namespace ash {
 
 // For the UI that iterates through a slideshow of images and displays them at
 // full-screen resolution.
-class ASH_EXPORT AmbientSlideshowPhotoConfig : public AmbientPhotoConfig {
- public:
-  AmbientSlideshowPhotoConfig();
-  AmbientSlideshowPhotoConfig(const AmbientSlideshowPhotoConfig&) = delete;
-  AmbientSlideshowPhotoConfig& operator=(const AmbientSlideshowPhotoConfig&) =
-      delete;
-  ~AmbientSlideshowPhotoConfig() override;
+ASH_EXPORT AmbientPhotoConfig CreateAmbientSlideshowPhotoConfig();
 
-  // AmbientPhotoConfig implementation:
-  int GetNumAssets() const override;
-  int GetNumSetsOfAssetsToBuffer() const override;
-  int GetNumAssetsInTopic(const PhotoWithDetails& decoded_topic) const override;
-};
+// For the UI that iterates through an admin provided slideshow of images and
+// displays them at full-screen resolution.
+ASH_EXPORT AmbientPhotoConfig CreateAmbientManagedSlideshowPhotoConfig();
 
 }  // namespace ash
 

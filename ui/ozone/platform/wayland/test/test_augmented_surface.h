@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <surface-augmenter-server-protocol.h>
 
+#include "base/memory/raw_ptr.h"
 #include "ui/gfx/geometry/rrect_f.h"
 #include "ui/ozone/platform/wayland/test/server_object.h"
 
@@ -28,9 +29,11 @@ class TestAugmentedSurface : public ServerObject {
   }
   const gfx::RRectF& rounded_clip_bounds() { return rounded_clip_bounds_; }
 
+  wl_resource* surface() const { return surface_; }
+
  private:
   // Surface resource that is the ground for this augmented surface.
-  wl_resource* surface_ = nullptr;
+  raw_ptr<wl_resource> surface_ = nullptr;
 
   gfx::RRectF rounded_clip_bounds_;
 };

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "base/files/file_util.h"
-#include "base/ignore_result.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "extensions/common/api/extensions_manifest_types.h"
@@ -122,7 +121,7 @@ std::unique_ptr<OptionsPageInfo> OptionsPageInfo::Create(
     std::u16string options_ui_error;
 
     std::unique_ptr<OptionsUI> options_ui =
-        OptionsUI::FromValue(*options_ui_value, &options_ui_error);
+        OptionsUI::FromValueDeprecated(*options_ui_value, &options_ui_error);
     if (!options_ui) {
       install_warnings->push_back(
           InstallWarning(base::UTF16ToASCII(options_ui_error)));
@@ -136,7 +135,7 @@ std::unique_ptr<OptionsPageInfo> OptionsPageInfo::Create(
         install_warnings->push_back(
             InstallWarning(base::UTF16ToASCII(options_parse_error)));
       }
-      if (options_ui->chrome_style.get()) {
+      if (options_ui->chrome_style) {
         if (extension->manifest_version() < 3)
           chrome_style = *options_ui->chrome_style;
         else {
@@ -144,9 +143,7 @@ std::unique_ptr<OptionsPageInfo> OptionsPageInfo::Create(
           return nullptr;
         }
       }
-      open_in_tab = false;
-      if (options_ui->open_in_tab.get())
-        open_in_tab = *options_ui->open_in_tab;
+      open_in_tab = options_ui->open_in_tab.value_or(false);
     }
   }
 
@@ -178,11 +175,13 @@ bool OptionsPageManifestHandler::Parse(Extension* extension,
   const Manifest* manifest = extension->manifest();
 
   std::string options_page_string;
-  if (manifest->FindPath(keys::kOptionsPage) &&
-      !manifest->GetString(keys::kOptionsPage, &options_page_string)) {
-    *error = ErrorUtils::FormatErrorMessageUTF16(errors::kInvalidOptionsPage,
-                                                 keys::kOptionsPage);
-    return false;
+  if (const base::Value* temp = manifest->FindPath(keys::kOptionsPage)) {
+    if (!temp->is_string()) {
+      *error = ErrorUtils::FormatErrorMessageUTF16(errors::kInvalidOptionsPage,
+                                                   keys::kOptionsPage);
+      return false;
+    }
+    options_page_string = temp->GetString();
   }
 
   const base::Value* options_ui_value = manifest->FindPath(keys::kOptionsUI);

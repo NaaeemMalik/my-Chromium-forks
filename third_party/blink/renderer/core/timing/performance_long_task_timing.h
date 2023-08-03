@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "third_party/blink/renderer/core/timing/performance_entry.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
@@ -30,10 +30,11 @@ class PerformanceLongTaskTiming final : public PerformanceEntry {
                             const AtomicString& culprit_type,
                             const AtomicString& culprit_src,
                             const AtomicString& culprit_id,
-                            const AtomicString& culprit_name);
+                            const AtomicString& culprit_name,
+                            DOMWindow* source);
   ~PerformanceLongTaskTiming() override;
 
-  AtomicString entryType() const override;
+  const AtomicString& entryType() const override;
   PerformanceEntryType EntryTypeEnum() const override;
 
   TaskAttributionVector attribution() const;

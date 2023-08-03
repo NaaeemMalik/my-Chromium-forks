@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,26 +10,21 @@
 
 #include "ash/components/arc/mojom/net.mojom.h"
 #include "ash/components/arc/session/arc_bridge_service.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_routine.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom.h"
 #include "mojo/public/cpp/bindings/remote.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
-
-namespace {
-
-using chromeos::network_config::mojom::ManagedPropertiesPtr;
-
-}  // namespace
 
 // Performs ICMP echo requests from within ARC to a random set of addresses
 // and returns the result.
 class ArcPingRoutine : public NetworkDiagnosticsRoutine {
  public:
-  using RunArcHttpCallback =
-      mojom::NetworkDiagnosticsRoutines::RunArcPingCallback;
+  using RunArcHttpCallback = chromeos::network_diagnostics::mojom::
+      NetworkDiagnosticsRoutines::RunArcPingCallback;
 
   ArcPingRoutine();
   ArcPingRoutine(const ArcPingRoutine&) = delete;
@@ -37,7 +32,7 @@ class ArcPingRoutine : public NetworkDiagnosticsRoutine {
   ~ArcPingRoutine() override;
 
   // NetworkDiagnosticsRoutine:
-  mojom::RoutineType Type() override;
+  chromeos::network_diagnostics::mojom::RoutineType Type() override;
   void Run() override;
   void AnalyzeResultsAndExecuteCallback() override;
 
@@ -85,7 +80,7 @@ class ArcPingRoutine : public NetworkDiagnosticsRoutine {
 
   mojo::Remote<chromeos::network_config::mojom::CrosNetworkConfig>
       remote_cros_network_config_;
-  std::vector<mojom::ArcPingProblem> problems_;
+  std::vector<chromeos::network_diagnostics::mojom::ArcPingProblem> problems_;
   std::vector<std::string> gateways_;
   std::vector<std::string> gateways_transport_names_;
   bool get_managed_properties_timeout_failure_ = false;
@@ -100,11 +95,11 @@ class ArcPingRoutine : public NetworkDiagnosticsRoutine {
   std::string default_network_gateway_;
   int guids_remaining_ = 0;
   int gateways_remaining_ = 0;
-  arc::mojom::NetInstance* net_instance_ = nullptr;
+  raw_ptr<arc::mojom::NetInstance, ExperimentalAsh> net_instance_ = nullptr;
   base::WeakPtrFactory<ArcPingRoutine> weak_ptr_factory_{this};
 };
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  //  CHROME_BROWSER_ASH_NET_NETWORK_DIAGNOSTICS_ARC_PING_ROUTINE_H_

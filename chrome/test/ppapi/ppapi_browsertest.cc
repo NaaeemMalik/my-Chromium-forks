@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/path_service.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_timeouts.h"
@@ -72,11 +73,11 @@
 #include "third_party/blink/public/common/input/synthetic_web_input_event_builders.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "base/mac/mac_util.h"
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/windows_version.h"
 #endif
 
@@ -115,7 +116,7 @@ using content::RenderViewHost;
 // Flaky on Win7: https://crbug.com/1003252
 
 #if !BUILDFLAG(ENABLE_NACL) || \
-    (defined(OS_MAC) && defined(ADDRESS_SANITIZER)) || defined(OS_WIN)
+    (BUILDFLAG(IS_MAC) && defined(ADDRESS_SANITIZER)) || BUILDFLAG(IS_WIN)
 
 #define MAYBE_PPAPI_NACL(test_name) DISABLED_##test_name
 #define MAYBE_PPAPI_PNACL(test_name) DISABLED_##test_name
@@ -129,8 +130,8 @@ using content::RenderViewHost;
 #else
 
 #define MAYBE_PPAPI_NACL(test_name) test_name
-#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS) || \
-    defined(OS_MACOSX) || defined(ADDRESS_SANITIZER)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
+    BUILDFLAG(IS_MAC) || defined(ADDRESS_SANITIZER)
 // http://crbug.com/633067, http://crbug.com/727989, http://crbug.com/1076806
 #define MAYBE_PPAPI_PNACL(test_name) DISABLED_##test_name
 #else
@@ -179,7 +180,7 @@ using content::RenderViewHost;
 //
 
 // Flaky on Windows https://crbug.com/1059468
-#if !defined(OS_WIN) || !defined(ARCH_CPU_32_BITS)
+#if !BUILDFLAG(IS_WIN) || !defined(ARCH_CPU_32_BITS)
 TEST_PPAPI_NACL(Console)
 #endif
 
@@ -205,7 +206,7 @@ TEST_PPAPI_NACL(Graphics2D_Flush)
 // TEST_PPAPI_NACL(Graphics2D_FlushOffscreenUpdate)
 TEST_PPAPI_NACL(Graphics2D_BindNull)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #if defined(USE_AURA)
 // These tests fail with the test compositor which is what's used by default for
 // browser tests on Windows Aura. Renable when the software compositor is
@@ -217,7 +218,7 @@ TEST_PPAPI_NACL(Graphics2D_BindNull)
 #define MAYBE_OUT_Graphics3D Graphics3D
 #define MAYBE_NACL_Graphics3D DISABLED_Graphics3D
 #endif  // defined(USE_AURA)
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
 // These tests fail when using the legacy software mode. Reenable when the
 // software compositor is enabled crbug.com/286038
 #define MAYBE_OUT_Graphics3D DISABLED_Graphics3D
@@ -251,7 +252,7 @@ TEST_PPAPI_NACL(ImageData)
 PPAPI_SOCKET_TEST(TCPSocket_Connect)
 PPAPI_SOCKET_TEST(TCPSocket_ReadWrite)
 // Flaky on Windows https://crbug.com/1059468#c18
-#if !defined(OS_WIN) || !defined(ARCH_CPU_32_BITS)
+#if !BUILDFLAG(IS_WIN) || !defined(ARCH_CPU_32_BITS)
 PPAPI_SOCKET_TEST(TCPSocket_SetOption)
 PPAPI_SOCKET_TEST(TCPSocket_Backlog)
 #endif
@@ -259,7 +260,7 @@ PPAPI_SOCKET_TEST(TCPSocket_Listen)
 PPAPI_SOCKET_TEST(TCPSocket_Interface_1_0)
 
 // Flaky on Windows https://crbug.com/1143728
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 PPAPI_SOCKET_TEST(TCPSocket_UnexpectedCalls)
 #endif
 
@@ -289,8 +290,9 @@ IN_PROC_BROWSER_TEST_F(OutOfProcessPPAPITest, TCPSocketPrivateCrash_Resolve) {
     return;
 
   mojo::Remote<network::mojom::NetworkServiceTest> network_service_test;
-  content::GetNetworkService()->BindTestInterface(
+  content::GetNetworkService()->BindTestInterfaceForTesting(
       network_service_test.BindNewPipeAndPassReceiver());
+  IgnoreNetworkServiceCrashes();
   network_service_test->CrashOnResolveHost("crash.com");
 
   RunTestViaHTTP(STRIP_PREFIXES(TCPSocketPrivateCrash_Resolve));
@@ -723,7 +725,7 @@ class MockNetworkContext : public network::TestNetworkContext {
 
   void CreateTCPServerSocket(
       const net::IPEndPoint& local_addr,
-      uint32_t backlog,
+      network::mojom::TCPServerSocketOptionsPtr options,
       const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
       mojo::PendingReceiver<network::mojom::TCPServerSocket> receiver,
       CreateTCPServerSocketCallback callback) override {
@@ -763,20 +765,24 @@ class MockNetworkContext : public network::TestNetworkContext {
         tcp_failure_type_, std::move(receiver), std::move(callback)));
   }
 
-  void ResolveHost(const net::HostPortPair& host,
-                   const net::NetworkIsolationKey& network_isolation_key,
-                   network::mojom::ResolveHostParametersPtr optional_parameters,
-                   mojo::PendingRemote<network::mojom::ResolveHostClient>
-                       pending_response_client) override {
+  void ResolveHost(
+      network::mojom::HostResolverHostPtr host,
+      const net::NetworkAnonymizationKey& network_anonymization_key,
+      network::mojom::ResolveHostParametersPtr optional_parameters,
+      mojo::PendingRemote<network::mojom::ResolveHostClient>
+          pending_response_client) override {
     EXPECT_EQ(browser_->tab_strip_model()
                   ->GetActiveWebContents()
-                  ->GetMainFrame()
-                  ->GetNetworkIsolationKey(),
-              network_isolation_key);
+                  ->GetPrimaryMainFrame()
+                  ->GetIsolationInfoForSubresources()
+                  .network_anonymization_key(),
+              network_anonymization_key);
     mojo::Remote<network::mojom::ResolveHostClient> response_client(
         std::move(pending_response_client));
-    response_client->OnComplete(net::OK, net::ResolveErrorInfo(net::OK),
-                                net::AddressList(LocalAddress()));
+    response_client->OnComplete(
+        net::OK, net::ResolveErrorInfo(net::OK),
+        net::AddressList(LocalAddress()),
+        /*endpoint_results_with_metadata=*/absl::nullopt);
   }
 
  private:
@@ -967,7 +973,7 @@ PPAPI_SOCKET_TEST(UDPSocket_SetOption_1_0)
 PPAPI_SOCKET_TEST(UDPSocket_SetOption_1_1)
 
 // Fails on MacOS 11, crbug.com/1211138.
-#if !defined(OS_MAC)
+#if !BUILDFLAG(IS_MAC)
 PPAPI_SOCKET_TEST(UDPSocket_Broadcast)
 #endif
 
@@ -979,7 +985,7 @@ TEST_PPAPI_OUT_OF_PROCESS_VIA_HTTP(UDPSocketPrivate_Connect)
 TEST_PPAPI_OUT_OF_PROCESS_VIA_HTTP(UDPSocketPrivate_ConnectFailure)
 
 // Fails on MacOS 11, crbug.com/1211138.
-#if !defined(OS_MAC)
+#if !BUILDFLAG(IS_MAC)
 TEST_PPAPI_OUT_OF_PROCESS_VIA_HTTP(UDPSocketPrivate_Broadcast)
 #endif
 
@@ -988,7 +994,7 @@ TEST_PPAPI_NACL(UDPSocketPrivate_Connect)
 TEST_PPAPI_NACL(UDPSocketPrivate_ConnectFailure)
 
 // Fails on MacOS 11, crbug.com/1211138.
-#if !defined(OS_MAC)
+#if !BUILDFLAG(IS_MAC)
 TEST_PPAPI_NACL(UDPSocketPrivate_Broadcast)
 #endif
 
@@ -1187,7 +1193,7 @@ UDPSOCKET_FAILURE_TEST(UDPSocket_BindDropPipe,
                        UDPSocket_BindFails,
                        WrappedUDPSocket::FailureType::kBindDropPipe)
 // Flaky on Windows https://crbug.com/1059468#c18
-#if !defined(OS_WIN) || !defined(ARCH_CPU_32_BITS)
+#if !BUILDFLAG(IS_WIN) || !defined(ARCH_CPU_32_BITS)
 UDPSOCKET_FAILURE_TEST(UDPSocket_SetBroadcastError,
                        UDPSocket_SetBroadcastFails,
                        WrappedUDPSocket::FailureType::kBroadcastError)
@@ -1223,9 +1229,9 @@ TEST_PPAPI_NACL_DISALLOWED_SOCKETS(TCPSocketPrivateDisallowed)
 TEST_PPAPI_NACL_DISALLOWED_SOCKETS(UDPSocketPrivateDisallowed)
 
 // Checks that a hostname used by the HostResolver tests ("host_resolver.test")
-// is present in the DNS cache with the NetworkIsolationKey associated with the
-// foreground WebContents - this is needed so as not to leak what hostnames were
-// looked up across tabs with different first party origins.
+// is present in the DNS cache with the NetworkAnonymizationKey associated with
+// the foreground WebContents - this is needed so as not to leak what hostnames
+// were looked up across tabs with different first party origins.
 void CheckTestHostNameUsedWithCorrectNetworkIsolationKey(Browser* browser) {
   network::mojom::NetworkContext* network_context =
       browser->profile()->GetDefaultStoragePartition()->GetNetworkContext();
@@ -1238,29 +1244,34 @@ void CheckTestHostNameUsedWithCorrectNetworkIsolationKey(Browser* browser) {
   params->source = net::HostResolverSource::LOCAL_ONLY;
   // Match the parameters used by the test.
   params->include_canonical_name = true;
-  net::NetworkIsolationKey network_isolation_key =
+  net::NetworkAnonymizationKey network_anonymization_key =
       browser->tab_strip_model()
           ->GetActiveWebContents()
-          ->GetMainFrame()
-          ->GetNetworkIsolationKey();
-  network::DnsLookupResult result1 = network::BlockingDnsLookup(
-      network_context, kHostPortPair, std::move(params), network_isolation_key);
+          ->GetPrimaryMainFrame()
+          ->GetIsolationInfoForSubresources()
+          .network_anonymization_key();
+  network::DnsLookupResult result1 =
+      network::BlockingDnsLookup(network_context, kHostPortPair,
+                                 std::move(params), network_anonymization_key);
   EXPECT_EQ(net::OK, result1.error);
   ASSERT_TRUE(result1.resolved_addresses.has_value());
   ASSERT_EQ(1u, result1.resolved_addresses->size());
-  EXPECT_EQ(browser->tab_strip_model()->GetActiveWebContents()->GetURL().host(),
+  EXPECT_EQ(browser->tab_strip_model()
+                ->GetActiveWebContents()
+                ->GetLastCommittedURL()
+                .host(),
             result1.resolved_addresses.value()[0].ToStringWithoutPort());
 
   // Check that the entry isn't present in the cache with the empty
-  // NetworkIsolationKey().
+  // NetworkAnonymizationKey().
   params = network::mojom::ResolveHostParameters::New();
   // Cache only lookup.
   params->source = net::HostResolverSource::LOCAL_ONLY;
   // Match the parameters used by the test.
   params->include_canonical_name = true;
-  network::DnsLookupResult result2 =
-      network::BlockingDnsLookup(network_context, kHostPortPair,
-                                 std::move(params), net::NetworkIsolationKey());
+  network::DnsLookupResult result2 = network::BlockingDnsLookup(
+      network_context, kHostPortPair, std::move(params),
+      net::NetworkAnonymizationKey());
   EXPECT_EQ(net::ERR_NAME_NOT_RESOLVED, result2.error);
 }
 
@@ -1276,8 +1287,9 @@ IN_PROC_BROWSER_TEST_F(OutOfProcessPPAPITest, HostResolverCrash_Basic) {
     return;
 
   mojo::Remote<network::mojom::NetworkServiceTest> network_service_test;
-  content::GetNetworkService()->BindTestInterface(
+  content::GetNetworkService()->BindTestInterfaceForTesting(
       network_service_test.BindNewPipeAndPassReceiver());
+  IgnoreNetworkServiceCrashes();
   network_service_test->CrashOnResolveHost("crash.com");
 
   RunTestViaHTTP(STRIP_PREFIXES(HostResolverCrash_Basic));
@@ -1408,7 +1420,7 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, MAYBE_PPAPI_NACL(URLLoader1)) {
 }
 
 // Flaky on Windows https://crbug.com/1059468#c18
-#if !defined(OS_WIN) || !defined(ARCH_CPU_32_BITS)
+#if !BUILDFLAG(IS_WIN) || !defined(ARCH_CPU_32_BITS)
 IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, MAYBE_PPAPI_NACL(URLLoader2)) {
   RUN_URLLOADER_SUBTESTS_2;
 }
@@ -1434,7 +1446,7 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClPNaClTest, MAYBE_PPAPI_PNACL(URLLoader3)) {
 TEST_PPAPI_OUT_OF_PROCESS_VIA_HTTP(URLRequest_CreateAndIsURLRequestInfo)
 
 // Timing out on Windows. http://crbug.com/129571
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #define MAYBE_URLRequest_CreateAndIsURLRequestInfo \
   DISABLED_URLRequest_CreateAndIsURLRequestInfo
 #else
@@ -1466,7 +1478,7 @@ TEST_PPAPI_NACL(VarResource)
 #if defined(ARCH_CPU_X86)
 IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, NaClIRTStackAlignment) {
   bool is32 = true;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // On Windows, we don't know statically if NaCl will actually be 32-bit
   // NaCl or if it will be 64-bit NaCl.  Even chrome (and browser_tests) is
   // built for 32-bit Windows, when the system is actually using a 64-bit
@@ -1502,7 +1514,7 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, NaClIRTStackAlignment) {
 #undef PostMessage
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // http://crbug.com/95557
 #define MAYBE_PostMessage DISABLED_PostMessage
 #else
@@ -1573,20 +1585,18 @@ IN_PROC_BROWSER_TEST_F(PPAPIPrivateNaClPNaClTest,
   RUN_FILEIO_PRIVATE_SUBTESTS;
 }
 
-#define SETUP_FOR_FILEREF_TESTS                                              \
-  const char kContents[] = "Hello from browser";                             \
-  base::ScopedAllowBlockingForTesting allow_blocking;                        \
-  base::ScopedTempDir temp_dir;                                              \
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());                               \
-  base::FilePath existing_filename = temp_dir.GetPath().AppendASCII("foo");  \
-  ASSERT_EQ(                                                                 \
-      static_cast<int>(sizeof(kContents) - 1),                               \
-      base::WriteFile(existing_filename, kContents, sizeof(kContents) - 1)); \
-  PPAPITestSelectFileDialogFactory::SelectedFileInfoList file_info_list;     \
-  file_info_list.push_back(                                                  \
-      ui::SelectedFileInfo(existing_filename, existing_filename));           \
-  PPAPITestSelectFileDialogFactory test_dialog_factory(                      \
-      PPAPITestSelectFileDialogFactory::RESPOND_WITH_FILE_LIST,              \
+#define SETUP_FOR_FILEREF_TESTS                                             \
+  const char kContents[] = "Hello from browser";                            \
+  base::ScopedAllowBlockingForTesting allow_blocking;                       \
+  base::ScopedTempDir temp_dir;                                             \
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());                              \
+  base::FilePath existing_filename = temp_dir.GetPath().AppendASCII("foo"); \
+  ASSERT_TRUE(base::WriteFile(existing_filename, kContents));               \
+  PPAPITestSelectFileDialogFactory::SelectedFileInfoList file_info_list;    \
+  file_info_list.emplace_back(                                              \
+      ui::SelectedFileInfo(existing_filename, existing_filename));          \
+  PPAPITestSelectFileDialogFactory test_dialog_factory(                     \
+      PPAPITestSelectFileDialogFactory::RESPOND_WITH_FILE_LIST,             \
       file_info_list);
 
 // FileRef tests.
@@ -1625,7 +1635,7 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, MAYBE_PPAPI_NACL(FileRef1)) {
   RUN_FILEREF_SUBTESTS_1;
 }
 // Flaky on Windows https://crbug.com/1059468#c18
-#if !defined(OS_WIN) || !defined(ARCH_CPU_32_BITS)
+#if !BUILDFLAG(IS_WIN) || !defined(ARCH_CPU_32_BITS)
 IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, MAYBE_PPAPI_NACL(FileRef2)) {
   RUN_FILEREF_SUBTESTS_2;
 }
@@ -1641,7 +1651,7 @@ TEST_PPAPI_OUT_OF_PROCESS_VIA_HTTP(FileSystem)
 
 // PPAPINaClTest.FileSystem times out consistently on Windows and Mac.
 // http://crbug.com/130372
-#if defined(OS_MAC) || defined(OS_WIN)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 #define MAYBE_FileSystem DISABLED_FileSystem
 #else
 #define MAYBE_FileSystem FileSystem
@@ -1649,13 +1659,13 @@ TEST_PPAPI_OUT_OF_PROCESS_VIA_HTTP(FileSystem)
 
 TEST_PPAPI_NACL(MAYBE_FileSystem)
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 // http://crbug.com/103912
 #define MAYBE_Fullscreen DISABLED_Fullscreen
-#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
+#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 // http://crbug.com/146008
 #define MAYBE_Fullscreen DISABLED_Fullscreen
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
 // http://crbug.com/342269
 #define MAYBE_Fullscreen DISABLED_Fullscreen
 #else
@@ -1787,22 +1797,10 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClPNaClTest, MAYBE_PPAPI_PNACL(NetworkMonitor)) {
       LIST_TEST(WebSocket_UtilityBufferedAmount) \
   )
 
-// TODO(https://crbug.com/1277909): Flaky on Mac and Windows builders.
-#if defined(OS_MAC) || defined(OS_WIN)
-#define MAYBE_WebSocket1 DISABLED_WebSocket1
-#else
-#define MAYBE_WebSocket1 WebSocket1
-#endif
-IN_PROC_BROWSER_TEST_F(OutOfProcessPPAPITest, MAYBE_WebSocket1) {
+IN_PROC_BROWSER_TEST_F(OutOfProcessPPAPITest, WebSocket1) {
   RUN_WEBSOCKET_SUBTESTS_1;
 }
-// TODO(https://crbug.com/1277909): Flaky on Mac and Windows builders.
-#if defined(OS_MAC) || defined(OS_WIN)
-#define MAYBE_WebSocket2 DISABLED_WebSocket2
-#else
-#define MAYBE_WebSocket2 WebSocket2
-#endif
-IN_PROC_BROWSER_TEST_F(OutOfProcessPPAPITest, MAYBE_WebSocket2) {
+IN_PROC_BROWSER_TEST_F(OutOfProcessPPAPITest, WebSocket2) {
   RUN_WEBSOCKET_SUBTESTS_2;
 }
 IN_PROC_BROWSER_TEST_F(PPAPINaClNewlibTest, MAYBE_PPAPI_NACL(WebSocket1)) {
@@ -1851,7 +1849,7 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClPNaClTest, MAYBE_PPAPI_PNACL(AudioConfig)) {
       LIST_TEST(Audio_AudioCallback4) \
   )
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 // http://crbug.com/396464
 #define MAYBE_Audio DISABLED_Audio
 #else
@@ -1895,7 +1893,7 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClPNaClTest,
 }
 
 TEST_PPAPI_OUT_OF_PROCESS(View_CreatedVisible)
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 // http://crbug.com/474399
 #define MAYBE_View_CreatedVisible DISABLED_View_CreatedVisible
 #else
@@ -1943,7 +1941,8 @@ IN_PROC_BROWSER_TEST_F(OutOfProcessPPAPITest, DISABLED_View_PageHideShow) {
 
   // Switch back to the test tab.
   browser()->tab_strip_model()->ActivateTabAt(
-      0, {TabStripModel::GestureType::kOther});
+      0, TabStripUserGestureDetails(
+             TabStripUserGestureDetails::GestureType::kOther));
 
   ASSERT_TRUE(observer.Run()) << handler.error_message();
   EXPECT_STREQ("PASS", handler.message().c_str());
@@ -2009,12 +2008,12 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClPNaClTest, MAYBE_PPAPI_PNACL(View)) {
       LIST_TEST(Compositor_GeneralUnbound) \
   )
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // This test fails with the test compositor which is what's used by default for
 // browser tests on Windows. Renable when the software compositor is available.
 #define MAYBE_Compositor0 DISABLED_Compositor0
 #define MAYBE_Compositor1 DISABLED_Compositor1
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
 // This test fails when using the legacy software mode. Reenable when the
 // software compositor is enabled crbug.com/286038
 #define MAYBE_Compositor0 DISABLED_Compositor0
@@ -2028,8 +2027,8 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClPNaClTest, MAYBE_PPAPI_PNACL(View)) {
 TEST_PPAPI_NACL_SUBTESTS(MAYBE_Compositor0, RUN_COMPOSITOR_SUBTESTS_0)
 TEST_PPAPI_NACL_SUBTESTS(MAYBE_Compositor1, RUN_COMPOSITOR_SUBTESTS_1)
 
-#if defined(OS_LINUX) || defined(OS_WIN) || defined(OS_CHROMEOS) || \
-    defined(OS_MAC)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS) || \
+    BUILDFLAG(IS_MAC)
 // Flaky on ChromeOS, Linux, Windows, and Mac (crbug.com/438729)
 #define MAYBE_MediaStreamAudioTrack DISABLED_MediaStreamAudioTrack
 #else
@@ -2037,7 +2036,7 @@ TEST_PPAPI_NACL_SUBTESTS(MAYBE_Compositor1, RUN_COMPOSITOR_SUBTESTS_1)
 #endif
 TEST_PPAPI_NACL(MAYBE_MediaStreamAudioTrack)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Flaky on Windows (crbug.com/633519)
 #define MAYBE_MediaStreamVideoTrack DISABLED_MediaStreamVideoTrack
 #else
@@ -2050,7 +2049,7 @@ TEST_PPAPI_NACL(MouseCursor)
 TEST_PPAPI_NACL(NetworkProxy)
 
 // TODO(crbug.com/602875), TODO(crbug.com/602876) Flaky on Win and CrOS.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || defined(OS_WIN)
+#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_WIN)
 #define MAYBE_VideoDecoder DISABLED_VideoDecoder
 #else
 #define MAYBE_VideoDecoder VideoDecoder
@@ -2058,7 +2057,7 @@ TEST_PPAPI_NACL(NetworkProxy)
 TEST_PPAPI_NACL(MAYBE_VideoDecoder)
 
 // https://crbug.com/997840.
-#if defined(OS_LINUX) || defined(OS_WIN) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_VideoEncoder DISABLED_VideoEncoder
 #else
 #define MAYBE_VideoEncoder VideoEncoder
@@ -2069,7 +2068,7 @@ TEST_PPAPI_NACL(MAYBE_VideoEncoder)
 TEST_PPAPI_OUT_OF_PROCESS(Printing)
 
 // https://crbug.com/1038957.
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_MessageHandler DISABLED_MessageHandler
 #else
 #define MAYBE_MessageHandler MessageHandler
@@ -2078,8 +2077,6 @@ TEST_PPAPI_NACL(MAYBE_MessageHandler)
 
 TEST_PPAPI_NACL(MessageLoop_Basics)
 TEST_PPAPI_NACL(MessageLoop_Post)
-
-TEST_PPAPI_OUT_OF_PROCESS(PDF)
 
 #if BUILDFLAG(ENABLE_NACL)
 class PackagedAppTest : public extensions::ExtensionBrowserTest {
@@ -2103,17 +2100,16 @@ class PackagedAppTest : public extensions::ExtensionBrowserTest {
     ASSERT_TRUE(extension);
 
     apps::AppLaunchParams params(
-        extension->id(), apps::mojom::LaunchContainer::kLaunchContainerNone,
-        WindowOpenDisposition::NEW_WINDOW,
-        apps::mojom::LaunchSource::kFromTest);
+        extension->id(), apps::LaunchContainer::kLaunchContainerNone,
+        WindowOpenDisposition::NEW_WINDOW, apps::LaunchSource::kFromTest);
     params.command_line = *base::CommandLine::ForCurrentProcess();
     apps::AppServiceProxyFactory::GetForProfile(browser()->profile())
         ->BrowserAppLauncher()
-        ->LaunchAppWithParams(std::move(params));
+        ->LaunchAppWithParamsForTesting(std::move(params));
   }
 
   void RunTests(const std::string& extension_dirname) {
-    ExtensionTestMessageListener listener("PASS", false);
+    ExtensionTestMessageListener listener("PASS");
     LaunchTestingApp(extension_dirname);
     EXPECT_TRUE(listener.WaitUntilSatisfied());
   }
@@ -2129,7 +2125,7 @@ class NewlibPackagedAppTest : public PackagedAppTest {
 
 // Load a packaged app, and wait for it to successfully post a "hello" message
 // back.
-#if defined(OS_WIN) || !defined(NDEBUG) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || !defined(NDEBUG) || BUILDFLAG(IS_MAC)
 // flaky: crbug.com/707068
 // flaky on debug builds: crbug.com/709447
 IN_PROC_BROWSER_TEST_F(NewlibPackagedAppTest, DISABLED_SuccessfulLoad) {

@@ -1,34 +1,9 @@
-# Copyright 2017 The Chromium Authors. All rights reserved.
+# Copyright 2017 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Classes that comprise the data model for binary size analysis.
 
-The primary classes are Symbol, and SymbolGroup.
-
-Description of common properties:
-  * address: The start address of the symbol.
-        May be 0 (e.g. for .bss or for SymbolGroups).
-  * size: The number of bytes this symbol takes up, including padding that comes
-        before |address|.
-  * aliases: List of symbols that represent the same bytes. The |aliases| of
-        each symbol in this list points to the same list instance.
-  * num_aliases: The number of symbols with the same address (including self).
-  * pss: size / num_aliases.
-  * padding: The number of bytes of padding before |address| due to this symbol.
-  * padding_pss: padding / num_aliases.
-  * name: Names with templates and parameter list removed.
-        Never None, but will be '' for anonymous symbols.
-  * template_name: Name with parameter list removed (but templates left in).
-        Never None, but will be '' for anonymous symbols.
-  * full_name: Name with template and parameter list left in.
-        Never None, but will be '' for anonymous symbols.
-  * is_anonymous: True when the symbol exists in an anonymous namespace (which
-        are removed from both full_name and name during normalization).
-  * container: A (shared) Container instance.
-  * section_name: E.g. ".text", ".rodata", ".data.rel.local"
-  * section: The second character of |section_name|. E.g. "t", "r", "d".
-  * component: The team that owns this feature.
-        Never None, but will be '' when no component exists.
+See docs/data_model.md for an explanation of what fields do.
 """
 
 import collections
@@ -42,15 +17,9 @@ import match_util
 
 BUILD_CONFIG_GIT_REVISION = 'git_revision'
 BUILD_CONFIG_GN_ARGS = 'gn_args'
-BUILD_CONFIG_LINKER_NAME = 'linker_name'
-BUILD_CONFIG_TOOL_PREFIX = 'tool_prefix'  # Path relative to SRC_ROOT.
-
-BUILD_CONFIG_KEYS = (
-    BUILD_CONFIG_GIT_REVISION,
-    BUILD_CONFIG_GN_ARGS,
-    BUILD_CONFIG_LINKER_NAME,
-    BUILD_CONFIG_TOOL_PREFIX,
-)
+BUILD_CONFIG_TITLE = 'title'
+BUILD_CONFIG_URL = 'url'
+BUILD_CONFIG_OUT_DIRECTORY = 'out_directory'
 
 METADATA_APK_FILENAME = 'apk_file_name'  # Path relative to output_directory.
 METADATA_APK_SIZE = 'apk_size'  # File size of apk in bytes.
@@ -59,11 +28,13 @@ METADATA_ZIPALIGN_OVERHEAD = 'zipalign_padding'  # Overhead from zipalign.
 METADATA_SIGNING_BLOCK_SIZE = 'apk_signature_block_size'  # Size in bytes.
 METADATA_MAP_FILENAME = 'map_file_name'  # Path relative to output_directory.
 METADATA_ELF_ALGORITHM = 'elf_algorithm'  # linker_map / dwarf / sections.
-METADATA_ELF_ARCHITECTURE = 'elf_arch'  # "Machine" field from readelf -h
+METADATA_ELF_APK_PATH = 'elf_apk_path'  # Path of the .so within the .apk.
+METADATA_ELF_ARCHITECTURE = 'elf_arch'  # "arm", "arm64", "x86", or "x64".
 METADATA_ELF_FILENAME = 'elf_file_name'  # Path relative to output_directory.
 METADATA_ELF_MTIME = 'elf_mtime'  # int timestamp in utc.
 METADATA_ELF_BUILD_ID = 'elf_build_id'
 METADATA_ELF_RELOCATIONS_COUNT = 'elf_relocations_count'
+METADATA_PROGUARD_MAPPING_FILENAME = 'proguard_mapping_file_name'
 
 # New sections should also be added to the SuperSize UI.
 SECTION_BSS = '.bss'
@@ -83,6 +54,8 @@ SECTION_TEXT = '.text'
 SECTION_MULTIPLE = '.*'
 
 APK_PREFIX_PATH = '$APK'
+NATIVE_PREFIX_PATH = '$NATIVE'
+SYSTEM_PREFIX_PATH = '$SYSTEM'
 
 DEX_SECTIONS = (
     SECTION_DEX,
@@ -262,12 +235,14 @@ class Container(BaseContainer):
   __slots__ = (
       'metadata',
       'section_sizes',
+      'metrics_by_file',
   )
 
-  def __init__(self, name, metadata, section_sizes):
+  def __init__(self, name, metadata, section_sizes, metrics_by_file):
     super().__init__(name)
     self.metadata = metadata or {}
     self.section_sizes = section_sizes  # E.g. {SECTION_TEXT: 0}
+    self.metrics_by_file = metrics_by_file
 
   @staticmethod
   def Empty():
@@ -277,7 +252,10 @@ class Container(BaseContainer):
     exist, unfortunately). Creating a new instance instead of using a global
     singleton for robustness.
     """
-    return Container(name='(empty)', metadata={}, section_sizes={})
+    return Container(name='(empty)',
+                     metadata={},
+                     section_sizes={},
+                     metrics_by_file={})
 
 
 class DeltaContainer(BaseContainer):
@@ -297,6 +275,19 @@ class DeltaContainer(BaseContainer):
     ret = collections.Counter(self.after.section_sizes)
     ret.update({k: -v for k, v in self.before.section_sizes.items()})
     return dict(ret)
+
+  @property
+  def metrics_by_file(self):
+    keys = (set(self.before.metrics_by_file.keys())
+            | set(self.after.metrics_by_file.keys()))
+    ret = {}
+    for key in keys:
+      before_contents = self.before.metrics_by_file.get(key, {})
+      after_contents = self.after.metrics_by_file.get(key, {})
+      delta_contents = collections.Counter(after_contents)
+      delta_contents.update({k: -v for k, v in before_contents.items()})
+      ret[key] = dict(delta_contents)
+    return ret
 
 
 class BaseSizeInfo:
@@ -421,10 +412,7 @@ class DeltaSizeInfo(BaseSizeInfo):
 
 
 class BaseSymbol:
-  """Base class for Symbol and SymbolGroup.
-
-  Refer to module docs for field descriptions.
-  """
+  """Base class for Symbol and SymbolGroup."""
   __slots__ = ()
 
   @property
@@ -578,26 +566,11 @@ class BaseSymbol:
 
 
 class Symbol(BaseSymbol):
-  """Represents a single symbol within a binary.
+  """Represents a single symbol within a binary."""
 
-  Refer to module docs for field descriptions.
-  """
-
-  __slots__ = (
-      'address',
-      'full_name',
-      'template_name',
-      'name',
-      'flags',
-      'object_path',
-      'aliases',
-      'padding',
-      'container',
-      'section_name',
-      'source_path',
-      'size',
-      'component',
-  )
+  __slots__ = ('address', 'full_name', 'template_name', 'name', 'flags',
+               'object_path', 'aliases', 'padding', 'container', 'section_name',
+               'source_path', 'size', 'component', 'disassembly')
 
   def __init__(self,
                section_name,
@@ -609,7 +582,8 @@ class Symbol(BaseSymbol):
                source_path=None,
                object_path=None,
                flags=0,
-               aliases=None):
+               aliases=None,
+               disassembly=None):
     self.section_name = section_name
     self.address = address or 0
     self.full_name = full_name or ''
@@ -623,6 +597,7 @@ class Symbol(BaseSymbol):
     self.padding = 0
     self.container = None
     self.component = ''
+    self.disassembly = disassembly or ''
 
   def __repr__(self):
     if self.container_name:
@@ -664,10 +639,7 @@ class DeltaSymbol(BaseSymbol):
   to one symbol in the |before|, and then be an alias to another in |after|.
   """
 
-  __slots__ = (
-      'before_symbol',
-      'after_symbol',
-  )
+  __slots__ = ('before_symbol', 'after_symbol')
 
   def __init__(self, before_symbol, after_symbol):
     self.before_symbol = before_symbol
@@ -1082,6 +1054,7 @@ class SymbolGroup(BaseSymbol):
 
   def WhereInContainer(self, container):
     """|container| can be name, short_name, or container instance."""
+    container = str(container)  # Allow int to be used for short names.
     if isinstance(container, str):
       if container.isdigit():
         return self.Filter(lambda s: s.container_short_name == container)

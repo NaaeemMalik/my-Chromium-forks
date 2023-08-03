@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 #include <string>
 
 #include "ui/gfx/geometry/rect.h"
-
-namespace ash {
 
 namespace quick_answers {
 class QuickAnswersClient;
@@ -25,7 +23,11 @@ enum class QuickAnswersVisibility {
   // context is ready.
   kPending = 1,
   // Quick Answers UI is visible.
-  kVisible = 2,
+  kQuickAnswersVisible = 2,
+  // User Consent UI is visible.
+  kUserConsentVisible = 3,
+  // Rich Answers UI is visible.
+  kRichAnswersVisible = 4,
 };
 
 // A controller to manage quick answers UI.
@@ -52,9 +54,8 @@ class QuickAnswersController {
                                      const std::string& title,
                                      const quick_answers::Context& context) = 0;
 
-  // Dismiss the quick-answers view (and/or any associated views like
-  // user-consent view) currently shown. |exit_point| indicates the exit point
-  // of the quick-answers view.
+  // Dismiss the specific quick-answers, user-consent, or rich-answers view
+  // currently shown. |exit_point| indicates the exit point of the view.
   virtual void DismissQuickAnswers(
       quick_answers::QuickAnswersExitPoint exit_point) = 0;
 
@@ -69,8 +70,8 @@ class QuickAnswersController {
   virtual quick_answers::QuickAnswersDelegate* GetQuickAnswersDelegate() = 0;
 
   virtual QuickAnswersVisibility GetVisibilityForTesting() const = 0;
-};
 
-}  // namespace ash
+  virtual void SetVisibility(QuickAnswersVisibility visibility) = 0;
+};
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_PUBLIC_CPP_CONTROLLER_QUICK_ANSWERS_CONTROLLER_H_

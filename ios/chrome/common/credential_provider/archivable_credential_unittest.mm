@@ -1,12 +1,12 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/common/credential_provider/archivable_credential.h"
 
 #import "base/test/ios/wait_util.h"
-#include "testing/gtest_mac.h"
-#include "testing/platform_test.h"
+#import "testing/gtest_mac.h"
+#import "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -24,7 +24,8 @@ ArchivableCredential* TestCredential() {
                                      serviceIdentifier:@"serviceIdentifier"
                                            serviceName:@"serviceName"
                                                   user:@"user"
-                                  validationIdentifier:@"validationIdentifier"];
+                                  validationIdentifier:@"validationIdentifier"
+                                                  note:@"note"];
 }
 
 // Tests that an ArchivableCredential can be created.
@@ -37,7 +38,8 @@ TEST_F(ArchivableCredentialTest, create) {
                                   serviceIdentifier:@"serviceIdentifier"
                                         serviceName:@"serviceName"
                                                user:@"user"
-                               validationIdentifier:@"validationIdentifier"];
+                               validationIdentifier:@"validationIdentifier"
+                                               note:@"note"];
   EXPECT_TRUE(credential);
 }
 
@@ -100,7 +102,8 @@ TEST_F(ArchivableCredentialTest, equality) {
          serviceIdentifier:@"other_serviceIdentifier"
                serviceName:@"other_serviceName"
                       user:@"other_user"
-      validationIdentifier:@"other_validationIdentifier"];
+      validationIdentifier:@"other_validationIdentifier"
+                      note:@"other_note"];
   EXPECT_NSNE(credential, credentialSameIdentifier);
 
   ArchivableCredential* credentialDiferentIdentifier =
@@ -111,7 +114,8 @@ TEST_F(ArchivableCredentialTest, equality) {
                                   serviceIdentifier:@"serviceIdentifier"
                                         serviceName:@"serviceName"
                                                user:@"user"
-                               validationIdentifier:@"validationIdentifier"];
+                               validationIdentifier:@"validationIdentifier"
+                                               note:@"note"];
   EXPECT_NSNE(credential, credentialDiferentIdentifier);
 
   EXPECT_NSNE(credential, nil);

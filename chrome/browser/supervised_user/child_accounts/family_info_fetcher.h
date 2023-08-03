@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,12 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/time/time.h"
+#include "base/values.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-
-namespace base {
-class DictionaryValue;
-class ListValue;
-}
 
 namespace signin {
 struct AccessTokenInfo;
@@ -40,21 +37,12 @@ class FamilyInfoFetcher {
     kNetworkError,  // Network failure.
     kServiceError   // Service returned an error or malformed reply.
   };
-  // Note: If you add or update an entry, also update |kFamilyMemberRoleStrings|
-  // in the .cc file.
-  enum FamilyMemberRole {
-    HEAD_OF_HOUSEHOLD = 0,
-    PARENT,
-    MEMBER,
-    CHILD
-  };
-  struct FamilyProfile {
-    FamilyProfile();
-    FamilyProfile(const std::string& id, const std::string& name);
-    ~FamilyProfile();
-    std::string id;
-    std::string name;
-  };
+
+  // Must be reflected in kFamilyMemberRoleStrings.
+  // LINT.IfChange(family_member_roles)
+  enum FamilyMemberRole { HEAD_OF_HOUSEHOLD = 0, PARENT, MEMBER, CHILD };
+  // LINT.ThenChange(//chrome/browser/supervised_user/child_accounts/family_info_fetcher.cc:family_member_roles)
+
   struct FamilyMember {
     FamilyMember();
     FamilyMember(const std::string& obfuscated_gaia_id,
@@ -76,10 +64,10 @@ class FamilyInfoFetcher {
 
   class Consumer {
    public:
-    virtual void OnGetFamilyProfileSuccess(const FamilyProfile& family) {}
     virtual void OnGetFamilyMembersSuccess(
         const std::vector<FamilyMember>& members) {}
     virtual void OnFailure(ErrorCode error) {}
+    virtual ~Consumer() = default;
   };
 
   // Instantiates a fetcher, but doesn't start a fetch - use the StartGet*
@@ -98,9 +86,7 @@ class FamilyInfoFetcher {
   static std::string RoleToString(FamilyMemberRole role);
   static bool StringToRole(const std::string& str, FamilyMemberRole* role);
 
-  // Start a fetch for the family profile or members.
-  // Note: Only one fetch is supported at a time.
-  void StartGetFamilyProfile();
+  // Start a fetch for the family members.
   void StartGetFamilyMembers();
 
   // Public so tests can use it.
@@ -114,29 +100,25 @@ class FamilyInfoFetcher {
 
   void OnSimpleLoaderComplete(std::unique_ptr<std::string> response_body);
 
-  static bool ParseMembers(const base::ListValue* list,
+  static bool ParseMembers(const base::Value::List& list,
                            std::vector<FamilyMember>* members);
-  static bool ParseMember(const base::DictionaryValue* dict,
-                          FamilyMember* member);
-  static void ParseProfile(const base::DictionaryValue* dict,
-                           FamilyMember* member);
+  static bool ParseMember(const base::Value::Dict& dict, FamilyMember* member);
+  static void ParseProfile(const base::Value::Dict& dict, FamilyMember* member);
 
   void StartFetching();
   void StartFetchingAccessToken();
-  void FamilyProfileFetched(const std::string& response);
   void FamilyMembersFetched(const std::string& response);
 
   raw_ptr<Consumer> consumer_;
-  const CoreAccountId primary_account_id_;
   raw_ptr<signin::IdentityManager> identity_manager_;
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
 
-  std::string request_path_;
   std::unique_ptr<signin::PrimaryAccountAccessTokenFetcher>
       access_token_fetcher_;
   std::string access_token_;
   bool access_token_expired_;
   std::unique_ptr<network::SimpleURLLoader> simple_url_loader_;
+  base::TimeTicks simple_url_loader_start_time_;
 };
 
 #endif  // CHROME_BROWSER_SUPERVISED_USER_CHILD_ACCOUNTS_FAMILY_INFO_FETCHER_H_

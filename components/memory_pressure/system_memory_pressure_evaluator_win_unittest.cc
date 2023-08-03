@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/memory_pressure/system_memory_pressure_evaluator_win.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -13,7 +13,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
 #endif
 
@@ -210,7 +210,6 @@ TEST_F(WinSystemMemoryPressureEvaluatorTest,
 // for the correct behavior on event reposting as well as state updates.
 TEST_F(WinSystemMemoryPressureEvaluatorTest, CheckMemoryPressure) {
   MultiSourceMemoryPressureMonitor monitor;
-  monitor.ResetSystemEvaluatorForTesting();
 
   // Large-memory.
   testing::StrictMock<TestSystemMemoryPressureEvaluator> evaluator(
@@ -321,7 +320,6 @@ TEST_F(WinSystemMemoryPressureEvaluatorTest, CheckMemoryPressure) {
 
 TEST_F(WinSystemMemoryPressureEvaluatorTest, OSSignalsMemoryPressureEvaluator) {
   MultiSourceMemoryPressureMonitor monitor;
-  monitor.ResetSystemEvaluatorForTesting();
   testing::StrictMock<TestSystemMemoryPressureEvaluator> evaluator(
       true, monitor.CreateVoter());
   evaluator.CreateOSSignalPressureEvaluator(monitor.CreateVoter());

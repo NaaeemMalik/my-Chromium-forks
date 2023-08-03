@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,16 +34,16 @@ DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityCheckboxPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityComboboxPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityControlPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityFocusablePredicate);
+DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityFramePredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityGraphicPredicate);
-DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityHeadingPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityH1Predicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityH2Predicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityH3Predicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityH4Predicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityH5Predicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityH6Predicate);
+DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityHeadingPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityHeadingSameLevelPredicate);
-DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityFramePredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityLandmarkPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityLinkPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityListPredicate);
@@ -51,8 +51,10 @@ DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityListItemPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityLiveRegionPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityMainPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityMediaPredicate);
+DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityParagraphPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityRadioButtonPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityRadioGroupPredicate);
+DECLARE_ACCESSIBILITY_PREDICATE(AccessibilitySectionPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityTablePredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityTextfieldPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityTextStyleBoldPredicate);
@@ -61,7 +63,6 @@ DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityTextStyleUnderlinePredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityTreePredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityUnvisitedLinkPredicate);
 DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityVisitedLinkPredicate);
-DECLARE_ACCESSIBILITY_PREDICATE(AccessibilityTextStyleBoldPredicate);
 
 #undef DECLARE_ACCESSIBILITY_PREDICATE
 

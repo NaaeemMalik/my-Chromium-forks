@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "base/run_loop.h"
 #include "base/test/power_monitor_test.h"
 #include "base/test/task_environment.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/download/internal/background_service/scheduler/battery_status_listener_impl.h"
 #include "components/download/network/network_status_listener_impl.h"
@@ -287,7 +288,7 @@ TEST_F(DeviceStatusListenerTest, ConnectionUnknownTreatedCorrectly) {
   base::RunLoop().RunUntilIdle();
 
   // Initial states check.
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   EXPECT_EQ(NetworkStatus::DISCONNECTED,
             listener_->CurrentDeviceStatus().network_status);
 #else

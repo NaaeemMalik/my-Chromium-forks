@@ -1,9 +1,11 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/loader/lazy_image_helper.h"
 
+#include "base/metrics/histogram_macros.h"
+#include "base/numerics/safe_conversions.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
@@ -18,6 +20,16 @@
 namespace blink {
 
 namespace {
+
+// Records |bytes| to |histogram_name| in kilobytes (i.e., bytes / 1024).
+// https://almanac.httparchive.org/en/2022/page-weight#fig-12 reports the 90th
+// percentile of jpeg images is 213KB with a max of ~64MB. The max bucket size
+// has been set at 64MB to capture this range with as much granularity as
+// possible.
+#define IMAGE_BYTES_HISTOGRAM(histogram_name, bytes)                        \
+  UMA_HISTOGRAM_CUSTOM_COUNTS(histogram_name,                               \
+                              base::saturated_cast<int>((bytes) / 1024), 1, \
+                              64 * 1024, 50)
 
 // Returns true if absolute dimension is specified in the width and height
 // attributes or in the inline style.
@@ -53,15 +65,6 @@ void StartMonitoringVisibility(HTMLImageElement* html_image) {
   }
 }
 
-bool IsFullyLoadableFirstKImageAndDecrementCount(
-    HTMLImageElement* image_element) {
-  Document* document = GetRootDocumentOrNull(image_element);
-  if (!document)
-    return true;
-  return document->EnsureLazyLoadImageObserver()
-      .IsFullyLoadableFirstKImageAndDecrementCount();
-}
-
 }  // namespace
 
 // static
@@ -76,9 +79,8 @@ void LazyImageHelper::StartMonitoring(blink::Element* element) {
     LoadingAttributeValue effective_loading_attr = GetLoadingAttributeValue(
         html_image->FastGetAttribute(html_names::kLoadingAttr));
     DCHECK_NE(effective_loading_attr, LoadingAttributeValue::kEager);
-    if (effective_loading_attr == LoadingAttributeValue::kAuto) {
-      deferral_message = DeferralMessage::kLoadEventsDeferred;
-    } else if (!IsDimensionAbsoluteLarge(*html_image)) {
+    if (effective_loading_attr != LoadingAttributeValue::kAuto &&
+        !IsDimensionAbsoluteLarge(*html_image)) {
       DCHECK_EQ(effective_loading_attr, LoadingAttributeValue::kLazy);
       deferral_message = DeferralMessage::kMissingDimensionForLazy;
     }
@@ -110,8 +112,6 @@ LazyImageHelper::DetermineEligibilityAndTrackVisibilityMetrics(
   const auto lazy_load_image_setting = frame.GetLazyLoadImageSetting();
   LoadingAttributeValue loading_attr = GetLoadingAttributeValue(
       html_image->FastGetAttribute(html_names::kLoadingAttr));
-  bool is_fully_loadable =
-      IsFullyLoadableFirstKImageAndDecrementCount(html_image);
   if (loading_attr == LoadingAttributeValue::kLazy) {
     StartMonitoringVisibility(html_image);
     UseCounter::Count(frame.GetDocument(),
@@ -156,18 +156,24 @@ LazyImageHelper::DetermineEligibilityAndTrackVisibilityMetrics(
   }
 
   StartMonitoringVisibility(html_image);
-
-  if (!is_fully_loadable &&
-      lazy_load_image_setting ==
-          LocalFrame::LazyLoadImageSetting::kEnabledAutomatic) {
-    // Automatic lazyload
-    return LazyImageHelper::Eligibility::kEnabledFullyDeferred;
-  }
   return LazyImageHelper::Eligibility::kDisabled;
 }
 
 void LazyImageHelper::RecordMetricsOnLoadFinished(
     HTMLImageElement* image_element) {
+  if (image_element->is_lazy_loaded()) {
+    if (ImageResourceContent* content = image_element->CachedImage()) {
+      int64_t response_size = content->GetResponse().EncodedDataLength();
+      IMAGE_BYTES_HISTOGRAM("Blink.LazyLoadedImage.Size", response_size);
+      if (Document* document = GetRootDocumentOrNull(image_element)) {
+        if (!document->LoadEventFinished()) {
+          IMAGE_BYTES_HISTOGRAM(
+              "Blink.LazyLoadedImageBeforeDocumentOnLoad.Size", response_size);
+        }
+      }
+    }
+  }
+
   if (!RuntimeEnabledFeatures::LazyImageVisibleLoadTimeMetricsEnabled())
     return;
   if (Document* document = GetRootDocumentOrNull(image_element)) {

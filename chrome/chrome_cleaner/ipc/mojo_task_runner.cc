@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 
 #include <utility>
 
+#include "base/base_switches.h"
 #include "base/check.h"
 #include "base/command_line.h"
 #include "base/message_loop/message_pump_type.h"
+#include "chrome/chrome_cleaner/constants/chrome_cleaner_switches.h"
 #include "mojo/core/embedder/embedder.h"
 
 namespace chrome_cleaner {
@@ -16,11 +18,14 @@ namespace chrome_cleaner {
 // static
 scoped_refptr<MojoTaskRunner> MojoTaskRunner::Create() {
   // Ensures thread-safe and unique initialization of the mojo lib.
-  static bool mojo_initialization = []() {  // Leaked.
-    mojo::core::Init();
+  [[maybe_unused]] static bool mojo_initialization = []() {  // Leaked.
+    const auto& cmd = *base::CommandLine::ForCurrentProcess();
+    mojo::core::Init(mojo::core::Configuration{
+        .is_broker_process = !cmd.HasSwitch(switches::kTestChildProcess) &&
+                             !cmd.HasSwitch(kSandboxedProcessIdSwitch),
+    });
     return true;
   }();
-  ANALYZER_ALLOW_UNUSED(mojo_initialization);
 
   scoped_refptr<MojoTaskRunner> mojo_task_runner(new MojoTaskRunner());
   return mojo_task_runner->Initialize() ? mojo_task_runner : nullptr;

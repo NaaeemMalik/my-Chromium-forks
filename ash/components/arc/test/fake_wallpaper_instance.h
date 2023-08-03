@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,8 +26,6 @@ class FakeWallpaperInstance : public mojom::WallpaperInstance {
   const std::vector<int32_t>& changed_ids() const { return changed_ids_; }
 
   // Overridden from mojom::WallpaperInstance
-  void InitDeprecated(
-      mojo::PendingRemote<mojom::WallpaperHost> host_remote) override;
   void Init(mojo::PendingRemote<mojom::WallpaperHost> host_remote,
             InitCallback callback) override;
   void OnWallpaperChanged(int32_t walpaper_id) override;

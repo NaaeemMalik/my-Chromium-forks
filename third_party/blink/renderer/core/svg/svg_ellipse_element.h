@@ -22,7 +22,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_SVG_SVG_ELLIPSE_ELEMENT_H_
 
 #include "third_party/blink/renderer/core/svg/svg_geometry_element.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
@@ -53,7 +53,7 @@ class SVGEllipseElement final : public SVGGeometryElement {
 
   bool SelfHasRelativeLengths() const override;
 
-  LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
+  LayoutObject* CreateLayoutObject(const ComputedStyle&) override;
 
   Member<SVGAnimatedLength> cx_;
   Member<SVGAnimatedLength> cy_;

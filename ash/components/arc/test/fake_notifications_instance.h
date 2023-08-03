@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,8 +25,6 @@ class FakeNotificationsInstance : public mojom::NotificationsInstance {
   ~FakeNotificationsInstance() override;
 
   // mojom::NotificationsInstance overrides:
-  void InitDeprecated(
-      mojo::PendingRemote<mojom::NotificationsHost> host_remote) override;
   void Init(mojo::PendingRemote<mojom::NotificationsHost> host_remote,
             InitCallback callback) override;
 

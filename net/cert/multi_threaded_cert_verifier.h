@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,24 +12,31 @@
 #include <memory>
 
 #include "base/containers/linked_list.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/observer_list.h"
 #include "base/threading/thread_checker.h"
+#include "crypto/crypto_buildflags.h"
 #include "net/base/net_export.h"
 #include "net/cert/cert_verifier.h"
 
-#if defined(USE_NSS_CERTS)
+#if BUILDFLAG(USE_NSS_CERTS)
 #include "net/cert/scoped_nss_types.h"
 #endif
 
 namespace net {
 
 class CertVerifyProc;
+class CertNetFetcher;
+class CertVerifyProcFactory;
 
 // MultiThreadedCertVerifier is a CertVerifier implementation that runs
 // synchronous CertVerifier implementations on worker threads.
-class NET_EXPORT_PRIVATE MultiThreadedCertVerifier : public CertVerifier {
+class NET_EXPORT_PRIVATE MultiThreadedCertVerifier
+    : public CertVerifierWithUpdatableProc {
  public:
-  explicit MultiThreadedCertVerifier(scoped_refptr<CertVerifyProc> verify_proc);
+  explicit MultiThreadedCertVerifier(
+      scoped_refptr<CertVerifyProc> verify_proc,
+      scoped_refptr<CertVerifyProcFactory> verify_proc_factory);
 
   MultiThreadedCertVerifier(const MultiThreadedCertVerifier&) = delete;
   MultiThreadedCertVerifier& operator=(const MultiThreadedCertVerifier&) =
@@ -46,12 +53,22 @@ class NET_EXPORT_PRIVATE MultiThreadedCertVerifier : public CertVerifier {
              std::unique_ptr<Request>* out_req,
              const NetLogWithSource& net_log) override;
   void SetConfig(const CertVerifier::Config& config) override;
+  void AddObserver(Observer* observer) override;
+  void RemoveObserver(Observer* observer) override;
+  void UpdateVerifyProcData(
+      scoped_refptr<CertNetFetcher> cert_net_fetcher,
+      const net::CertVerifyProcFactory::ImplParams& impl_params) override;
 
  private:
   class InternalRequest;
 
+  // Notify the |observers_| of an OnCertVerifierChanged event.
+  void NotifyCertVerifierChanged();
+
+  base::ObserverList<Observer> observers_;
   Config config_;
   scoped_refptr<CertVerifyProc> verify_proc_;
+  scoped_refptr<CertVerifyProcFactory> verify_proc_factory_;
 
   // Holds a list of CertVerifier::Requests that have not yet completed or been
   // deleted. It is used to ensure that when the MultiThreadedCertVerifier is
@@ -59,7 +76,7 @@ class NET_EXPORT_PRIVATE MultiThreadedCertVerifier : public CertVerifier {
   // don't call them later, as required by the CertVerifier contract.
   base::LinkedList<InternalRequest> request_list_;
 
-#if defined(USE_NSS_CERTS)
+#if BUILDFLAG(USE_NSS_CERTS)
   // Holds NSS temporary certificates that will be exposed as untrusted
   // authorities by SystemCertStoreNSS.
   // TODO(https://crbug.com/978854): Pass these into the actual CertVerifyProc

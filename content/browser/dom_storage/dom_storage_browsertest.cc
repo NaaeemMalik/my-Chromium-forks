@@ -1,10 +1,10 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/threading/thread_restrictions.h"
@@ -98,7 +98,8 @@ IN_PROC_BROWSER_TEST_F(DOMStorageBrowserTest, SanityCheckIncognito) {
 }
 
 // http://crbug.com/654704 PRE_ tests aren't supported on Android.
-#if defined(OS_ANDROID)
+// TODO(crbug.com/1403366): Re-enable this test for fuchsia.
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
 #define MAYBE_DataPersists DISABLED_DataPersists
 #else
 #define MAYBE_DataPersists DataPersists
@@ -130,13 +131,13 @@ IN_PROC_BROWSER_TEST_F(DOMStorageBrowserTest, DeletePhysicalStorageKey) {
   SimpleTest(GetTestUrl("dom_storage", "store_data.html"), kNotIncognito);
   std::vector<StorageUsageInfo> usage = GetUsage();
   ASSERT_EQ(1U, usage.size());
-  DeletePhysicalStorageKey(blink::StorageKey(usage[0].origin));
+  DeletePhysicalStorageKey(usage[0].storage_key);
   EXPECT_EQ(0U, GetUsage().size());
 }
 
 // On Windows file://localhost/C:/src/chromium/src/content/test/data/title1.html
 // doesn't work.
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 // Regression test for https://crbug.com/776160.  The test verifies that there
 // is no disagreement between 1) site URL used for browser-side isolation
 // enforcement and 2) the origin requested by Blink.  Before this bug was fixed,

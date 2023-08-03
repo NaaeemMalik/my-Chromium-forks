@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 r'''Finds which build target(s) contain a particular Java class.
@@ -15,6 +15,8 @@ Find build target with class FooUtil:
    tools/android/modularization/convenience/lookup_dep.py FooUtil
 '''
 
+from __future__ import annotations
+
 import argparse
 import collections
 import dataclasses
@@ -25,9 +27,9 @@ import pathlib
 import subprocess
 import sys
 import zipfile
-from typing import Dict, List, Set
+from typing import Dict, Iterator, List, Set
 
-_SRC_DIR = pathlib.Path(__file__).parents[4].resolve()
+_SRC_DIR = pathlib.Path(__file__).resolve().parents[4]
 
 sys.path.append(str(_SRC_DIR / 'build' / 'android'))
 from pylib import constants
@@ -102,18 +104,51 @@ def main():
 
 
 @dataclasses.dataclass(frozen=True)
-class TargetInfo:
-  """Container for information about a build target."""
-  target_name: str
-  low_classpath_priority: bool
-
-
-@dataclasses.dataclass(frozen=True)
 class ClassEntry:
   """An assignment of a Java class to a build target."""
   full_class_name: str
   target: str
-  low_classpath_priority: bool
+  preferred_dep: bool
+
+  def __lt__(self, other: 'ClassEntry'):
+    # Prefer canonical targets first.
+    if self.preferred_dep and not other.preferred_dep:
+      return True
+    # Prefer targets without __ in the name. Usually double underscores are used
+    # for internal subtargets and not top level targets.
+    if '__' not in self.target and '__' in other.target:
+      return True
+    # Prefer shorter target names first since they are usually the correct ones.
+    if len(self.target) < len(other.target):
+      return True
+    elif len(self.target) > len(other.target):
+      return False
+    # Use string comparison to get a stable ordering of equal-length names.
+    return self.target < other.target
+
+
+@dataclasses.dataclass
+class BuildConfig:
+  """Container for information from a build config."""
+  target_name: str
+  relpath: str
+  is_group: bool
+  preferred_dep: bool
+  dependent_config_paths: List[str]
+  full_class_names: Set[str]
+
+  def all_dependent_configs(
+      self,
+      path_to_configs: Dict[str, 'BuildConfig'],
+  ) -> Iterator['BuildConfig']:
+    for path in self.dependent_config_paths:
+      dep_build_config = path_to_configs.get(path)
+      # This can happen when a java group depends on non-java targets.
+      if dep_build_config is None:
+        continue
+      yield dep_build_config
+      if dep_build_config.is_group:
+        yield from dep_build_config.all_dependent_configs(path_to_configs)
 
 
 class ClassLookupIndex:
@@ -155,17 +190,15 @@ class ClassLookupIndex:
     return matches
 
   def _entries_for(self, class_name) -> List[ClassEntry]:
-    return [
-        ClassEntry(class_name, target_info.target_name,
-                   target_info.low_classpath_priority)
-        for target_info in self._class_index.get(class_name)
-    ]
+    class_entries = self._class_index.get(class_name)
+    assert class_entries is not None
+    return sorted(class_entries)
 
-  def _index_root(self) -> Dict[str, List[TargetInfo]]:
+  def _index_root(self) -> Dict[str, List[ClassEntry]]:
     """Create the class to target index."""
     logging.debug('Running list_java_targets.py...')
     list_java_targets_command = [
-        'build/android/list_java_targets.py', '--gn-labels',
+        sys.executable, 'build/android/list_java_targets.py', '--gn-labels',
         '--print-build-config-paths',
         f'--output-directory={self._abs_build_output_dir}'
     ]
@@ -179,56 +212,66 @@ class ClassLookupIndex:
                                            check=True)
     logging.debug('... done.')
 
-    # Parse output of list_java_targets.py with mapping of build_target to
-    # build_config
-    root_build_targets = list_java_targets_run.stdout.split('\n')
-    class_index = collections.defaultdict(list)
-    for target_line in root_build_targets:
+    # Parse output of list_java_targets.py into BuildConfig objects.
+    path_to_build_config: Dict[str, BuildConfig] = {}
+    target_lines = list_java_targets_run.stdout.splitlines()
+    for target_line in target_lines:
       # Skip empty lines
       if not target_line:
         continue
 
       target_line_parts = target_line.split(': ')
       assert len(target_line_parts) == 2, target_line_parts
-      target, build_config_path = target_line_parts
+      target_name, build_config_path = target_line_parts
 
       if not os.path.exists(build_config_path):
         assert not self._should_build
         continue
 
       with open(build_config_path) as build_config_contents:
-        build_config: Dict = json.load(build_config_contents)
-      deps_info = build_config['deps_info']
+        build_config_json: Dict = json.load(build_config_contents)
+      deps_info = build_config_json['deps_info']
+
       # Checking the library type here instead of in list_java_targets.py avoids
       # reading each .build_config file twice.
-      if deps_info['type'] != 'java_library':
+      if deps_info['type'] not in ('java_library', 'group'):
         continue
 
-      target = self._compute_toplevel_target(target)
-      low_classpath_priority = bool(deps_info.get('low_classpath_priority'))
-      target_info = TargetInfo(target, low_classpath_priority)
+      relpath = os.path.relpath(build_config_path, self._abs_build_output_dir)
+      preferred_dep = bool(deps_info.get('preferred_dep'))
+      is_group = bool(deps_info.get('type') == 'group')
+      dependent_config_paths = deps_info.get('deps_configs', [])
       full_class_names = self._compute_full_class_names_for_build_config(
           deps_info)
-      for full_class_name in full_class_names:
-        class_index[full_class_name].append(target_info)
+      build_config = BuildConfig(relpath=relpath,
+                                 target_name=target_name,
+                                 is_group=is_group,
+                                 preferred_dep=preferred_dep,
+                                 dependent_config_paths=dependent_config_paths,
+                                 full_class_names=full_class_names)
+      path_to_build_config[relpath] = build_config
+
+    # From GN's perspective, depending on a java group is the same as depending
+    # on all of its deps directly, since groups are collapsed in
+    # write_build_config.py. Thus, collect all the java files in a java group's
+    # deps (recursing into other java groups) and set that as the java group's
+    # list of classes.
+    for build_config in path_to_build_config.values():
+      if build_config.is_group:
+        for dep_build_config in build_config.all_dependent_configs(
+            path_to_build_config):
+          build_config.full_class_names.update(
+              dep_build_config.full_class_names)
+
+    class_index = collections.defaultdict(list)
+    for build_config in path_to_build_config.values():
+      for full_class_name in build_config.full_class_names:
+        class_index[full_class_name].append(
+            ClassEntry(full_class_name=full_class_name,
+                       target=build_config.target_name,
+                       preferred_dep=build_config.preferred_dep))
 
     return class_index
-
-  @staticmethod
-  def _compute_toplevel_target(target: str) -> str:
-    """Computes top level target from the passed-in sub-target."""
-    if target.endswith('_java'):
-      return target
-
-    # Handle android_aar_prebuilt() sub targets.
-    index = target.find('_java__subjar')
-    if index >= 0:
-      return target[0:index + 5]
-    index = target.find('_java__classes')
-    if index >= 0:
-      return target[0:index + 5]
-
-    return target
 
   def _compute_full_class_names_for_build_config(self,
                                                  deps_info: Dict) -> Set[str]:
@@ -236,10 +279,10 @@ class ClassLookupIndex:
 
     full_class_names = set()
 
-    # Read the location of the java_sources_file from the build_config
-    sources_path = deps_info.get('java_sources_file')
+    # Read the location of the target_sources_file from the build_config
+    sources_path = deps_info.get('target_sources_file')
     if sources_path:
-      # Read the java_sources_file, indexing the classes found
+      # Read the target_sources_file, indexing the classes found
       with open(self._abs_build_output_dir / sources_path) as sources_contents:
         for source_line in sources_contents:
           source_path = pathlib.Path(source_line.strip())
@@ -296,10 +339,16 @@ class ClassLookupIndex:
     # Caching namelist speeds up lookup_dep.py runtime by 1.5s.
     cache_path = abs_jar_path.with_suffix(abs_jar_path.suffix +
                                           '.namelist_cache')
-    if (not ClassLookupIndex._is_path_relative_to(abs_jar_path,
-                                                  abs_build_output_dir)):
+    if ClassLookupIndex._is_path_relative_to(cache_path, abs_build_output_dir):
+      # already in the outdir, no need to adjust cache path
+      pass
+    elif ClassLookupIndex._is_path_relative_to(abs_jar_path, _SRC_DIR):
       cache_path = (abs_build_output_dir / 'gen' /
                     cache_path.relative_to(_SRC_DIR))
+    else:
+      cache_path = (abs_build_output_dir / 'gen' / 'abs' /
+                    cache_path.relative_to(cache_path.anchor))
+
     if (cache_path.exists()
         and os.path.getmtime(cache_path) > os.path.getmtime(abs_jar_path)):
       with open(cache_path) as f:
@@ -317,16 +366,18 @@ class ClassLookupIndex:
   @staticmethod
   def _is_path_relative_to(path: pathlib.Path, other: pathlib.Path) -> bool:
     # PurePath.is_relative_to() was introduced in Python 3.9
-    resolved_path = path.resolve()
-    resolved_other = other.resolve()
-    return str(resolved_path).startswith(str(resolved_other))
+    try:
+      path.relative_to(other)
+      return True
+    except ValueError:
+      return False
 
   @staticmethod
   def _parse_full_java_class(source_path: pathlib.Path) -> str:
     """Guess the fully qualified class name from the path to the source file."""
-    if source_path.suffix != '.java':
-      logging.warning(f'"{source_path}" does not have the .java suffix')
-      return None
+    if source_path.suffix not in ('.java', '.kt'):
+      logging.warning(f'"{source_path}" does not end in .java or .kt.')
+      return ''
 
     directory_path: pathlib.Path = source_path.parent
     package_list_reversed = []
@@ -339,7 +390,7 @@ class ClassLookupIndex:
     else:
       logging.debug(f'File {source_path} not in a subdir of "org" or "com", '
                     'cannot detect package heuristically.')
-      return None
+      return ''
 
     package = '.'.join(reversed(package_list_reversed))
     class_name = source_path.stem

@@ -1,12 +1,13 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/sessions/session_window_ios.h"
 
-#include "base/check.h"
-#include "base/format_macros.h"
+#import "base/check.h"
+#import "base/format_macros.h"
 #import "base/mac/foundation_util.h"
+#import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/sessions/NSCoder+Compatibility.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -16,9 +17,13 @@
 namespace {
 // Serialization keys.
 NSString* const kSessionsKey = @"sessions";
+NSString* const kSessionsSummaryKey = @"sessionsSummary";
 NSString* const kSelectedIndexKey = @"selectedIndex";
+NSString* const kSessionStableIdentifierKey = @"stableIdentifier";
+NSString* const kSessionCurrentURLKey = @"sessionCurrentURL";
+NSString* const kSessionCurrentTitleKey = @"sessionCurrentTitle";
 
-// Returns whether |index| is valid for a SessionWindowIOS with |session_count|
+// Returns whether `index` is valid for a SessionWindowIOS with `session_count`
 // entries.
 BOOL IsIndexValidForSessionCount(NSUInteger index, NSUInteger session_count) {
   return (session_count == 0) ? (index == static_cast<NSUInteger>(NSNotFound))

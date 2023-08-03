@@ -1,11 +1,9 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_SYNC_SYNC_ENCRYPTION_KEYS_TAB_HELPER_H_
 #define CHROME_BROWSER_SYNC_SYNC_ENCRYPTION_KEYS_TAB_HELPER_H_
-
-#include <memory>
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/common/sync_encryption_keys_extension.mojom.h"
@@ -13,7 +11,9 @@
 #include "content/public/browser/web_contents_user_data.h"
 
 namespace content {
+class RenderFrameHost;
 class WebContents;
+class NavigationHandle;
 }  // namespace content
 
 namespace syncer {
@@ -43,21 +43,21 @@ class SyncEncryptionKeysTabHelper
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
 
-  bool IsEncryptionKeysApiBoundForTesting();
+  // TODO(https://crbug.com/1281874): Update this to check if the Mojo interface
+  // is bound.
+  bool HasEncryptionKeysApiForTesting(
+      content::RenderFrameHost* render_frame_host);
 
  private:
   friend class content::WebContentsUserData<SyncEncryptionKeysTabHelper>;
 
+  // Null `sync_service` is interpreted as incognito (when it comes to metrics).
   SyncEncryptionKeysTabHelper(content::WebContents* web_contents,
                               syncer::SyncService* sync_service);
 
+  // Null `sync_service_` is interpreted as incognito (when it comes to
+  // metrics).
   const raw_ptr<syncer::SyncService> sync_service_;
-
-  // EncryptionKeyApi represent the actual exposure of the Mojo API (i.e.
-  // chrome::mojom::SyncEncryptionKeysExtension) to the renderer. Instantiated
-  // only for allowed origins.
-  class EncryptionKeyApi;
-  std::unique_ptr<EncryptionKeyApi> encryption_key_api_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

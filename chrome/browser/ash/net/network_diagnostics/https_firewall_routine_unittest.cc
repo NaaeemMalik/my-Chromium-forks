@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,21 @@
 #include <memory>
 #include <utility>
 
-#include "base/callback_helpers.h"
 #include "base/containers/circular_deque.h"
+#include "base/functional/callback_helpers.h"
 #include "chrome/browser/ash/net/network_diagnostics/fake_host_resolver.h"
 #include "chrome/browser/ash/net/network_diagnostics/fake_network_context.h"
-#include "content/public/browser/browser_task_traits.h"
+#include "content/public/browser/browser_thread.h"
 #include "content/public/test/browser_task_environment.h"
 #include "net/base/net_errors.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace {
+
+namespace mojom = ::chromeos::network_diagnostics::mojom;
 
 // The number of hosts the the routine tries to open socket connections to (if
 // DNS resolution is successful). Value equals the number of random hosts
@@ -229,4 +231,4 @@ TEST_F(HttpsFirewallRoutineTest, TestContinousRetries) {
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

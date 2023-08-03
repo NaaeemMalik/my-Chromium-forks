@@ -1,13 +1,18 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/cookies/cookie_partition_key_collection.h"
+#include "base/run_loop.h"
+#include "base/test/bind.h"
+#include "base/test/task_environment.h"
 #include "net/cookies/test_cookie_access_delegate.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace net {
+
+using testing::UnorderedElementsAre;
 
 TEST(CookiePartitionKeyCollectionTest, EmptySet) {
   CookiePartitionKeyCollection key_collection;
@@ -23,10 +28,9 @@ TEST(CookiePartitionKeyCollectionTest, SingletonSet) {
 
   EXPECT_FALSE(key_collection.IsEmpty());
   EXPECT_FALSE(key_collection.ContainsAllKeys());
-  EXPECT_THAT(
-      key_collection.PartitionKeys(),
-      testing::UnorderedElementsAre(
-          CookiePartitionKey::FromURLForTesting(GURL("https://www.foo.com"))));
+  EXPECT_THAT(key_collection.PartitionKeys(),
+              UnorderedElementsAre(CookiePartitionKey::FromURLForTesting(
+                  GURL("https://www.foo.com"))));
 }
 
 TEST(CookiePartitionKeyCollectionTest, MultipleElements) {
@@ -37,12 +41,11 @@ TEST(CookiePartitionKeyCollectionTest, MultipleElements) {
 
   EXPECT_FALSE(key_collection.IsEmpty());
   EXPECT_FALSE(key_collection.ContainsAllKeys());
-  EXPECT_THAT(
-      key_collection.PartitionKeys(),
-      testing::UnorderedElementsAre(
-          CookiePartitionKey::FromURLForTesting(
-              GURL("https://subdomain.foo.com")),
-          CookiePartitionKey::FromURLForTesting(GURL("https://www.bar.com"))));
+  EXPECT_THAT(key_collection.PartitionKeys(),
+              UnorderedElementsAre(CookiePartitionKey::FromURLForTesting(
+                                       GURL("https://subdomain.foo.com")),
+                                   CookiePartitionKey::FromURLForTesting(
+                                       GURL("https://www.bar.com"))));
 }
 
 TEST(CookiePartitionKeyCollectionTest, ContainsAll) {
@@ -63,76 +66,43 @@ TEST(CookiePartitionKeyCollectionTest, FromOptional) {
           CookiePartitionKey::FromURLForTesting(GURL("https://www.foo.com"))));
   EXPECT_FALSE(key_collection.IsEmpty());
   EXPECT_FALSE(key_collection.ContainsAllKeys());
-  EXPECT_THAT(
-      key_collection.PartitionKeys(),
-      testing::UnorderedElementsAre(
-          CookiePartitionKey::FromURLForTesting(GURL("https://www.foo.com"))));
+  EXPECT_THAT(key_collection.PartitionKeys(),
+              UnorderedElementsAre(CookiePartitionKey::FromURLForTesting(
+                  GURL("https://www.foo.com"))));
 }
 
-TEST(CookiePartitionKeyCollectionTest, FirstPartySetify) {
-  const GURL kOwnerURL("https://owner.com");
-  const SchemefulSite kOwnerSite(kOwnerURL);
-  const CookiePartitionKey kOwnerPartitionKey =
-      CookiePartitionKey::FromURLForTesting(kOwnerURL);
+TEST(CookiePartitionKeyCollectionTest, Contains) {
+  const CookiePartitionKey kPartitionKey =
+      CookiePartitionKey::FromURLForTesting(GURL("https://www.foo.com"));
+  const CookiePartitionKey kOtherPartitionKey =
+      CookiePartitionKey::FromURLForTesting(GURL("https://www.bar.com"));
+  const CookiePartitionKey kPartitionKeyNotInCollection =
+      CookiePartitionKey::FromURLForTesting(GURL("https://foobar.com"));
 
-  const GURL kMemberURL("https://member.com");
-  const SchemefulSite kMemberSite(kMemberURL);
-  const CookiePartitionKey kMemberPartitionKey =
-      CookiePartitionKey::FromURLForTesting(kMemberURL);
+  struct TestCase {
+    const CookiePartitionKeyCollection keychain;
+    const CookiePartitionKey key;
+    bool expects_contains;
+  } test_cases[] = {
+      // Empty keychain
+      {CookiePartitionKeyCollection(), kPartitionKey, false},
+      // Singleton keychain with key
+      {CookiePartitionKeyCollection(kPartitionKey), kPartitionKey, true},
+      // Singleton keychain with different key
+      {CookiePartitionKeyCollection(kOtherPartitionKey), kPartitionKey, false},
+      // Multiple keys
+      {CookiePartitionKeyCollection({kPartitionKey, kOtherPartitionKey}),
+       kPartitionKey, true},
+      {CookiePartitionKeyCollection({kPartitionKey, kOtherPartitionKey}),
+       kPartitionKeyNotInCollection, false},
+      // Contains all keys
+      {CookiePartitionKeyCollection::ContainsAll(), kPartitionKey, true},
+  };
 
-  const GURL kNonMemberURL("https://nonmember.com");
-  const CookiePartitionKey kNonMemberPartitionKey =
-      CookiePartitionKey::FromURLForTesting(kNonMemberURL);
-
-  TestCookieAccessDelegate delegate;
-  base::flat_map<SchemefulSite, std::set<SchemefulSite>> first_party_sets;
-  first_party_sets.insert(std::make_pair(
-      kOwnerSite, std::set<SchemefulSite>({kOwnerSite, kMemberSite})));
-  delegate.SetFirstPartySets(first_party_sets);
-
-  CookiePartitionKeyCollection empty_key_collection;
-  EXPECT_TRUE(empty_key_collection.FirstPartySetify(&delegate).IsEmpty());
-  EXPECT_TRUE(empty_key_collection.FirstPartySetify(nullptr).IsEmpty());
-
-  CookiePartitionKeyCollection contains_all_keys =
-      CookiePartitionKeyCollection::ContainsAll();
-  EXPECT_TRUE(contains_all_keys.FirstPartySetify(&delegate).ContainsAllKeys());
-  EXPECT_TRUE(contains_all_keys.FirstPartySetify(nullptr).ContainsAllKeys());
-
-  // An owner site of an FPS should not have its partition key changed.
-  CookiePartitionKeyCollection got =
-      CookiePartitionKeyCollection(kOwnerPartitionKey)
-          .FirstPartySetify(&delegate);
-  EXPECT_EQ(1u, got.PartitionKeys().size());
-  EXPECT_EQ(kOwnerPartitionKey, got.PartitionKeys()[0]);
-
-  // A member site should have its partition key changed to the owner site.
-  got = CookiePartitionKeyCollection(kMemberPartitionKey)
-            .FirstPartySetify(&delegate);
-  EXPECT_EQ(1u, got.PartitionKeys().size());
-  EXPECT_EQ(kOwnerPartitionKey, got.PartitionKeys()[0]);
-
-  // A member site's partition key should not change if the CookieAccessDelegate
-  // is null.
-  got = CookiePartitionKeyCollection(kMemberPartitionKey)
-            .FirstPartySetify(nullptr);
-  EXPECT_EQ(1u, got.PartitionKeys().size());
-  EXPECT_EQ(kMemberPartitionKey, got.PartitionKeys()[0]);
-
-  // A non-member site should not have its partition key changed.
-  got = CookiePartitionKeyCollection(kNonMemberPartitionKey)
-            .FirstPartySetify(&delegate);
-  EXPECT_EQ(1u, got.PartitionKeys().size());
-  EXPECT_EQ(kNonMemberPartitionKey, got.PartitionKeys()[0]);
-
-  // A key collection that contains a member site and non-member site should be
-  // changed to include the owner site and the unmodified non-member site.
-  got = CookiePartitionKeyCollection(
-            {kMemberPartitionKey, kNonMemberPartitionKey})
-            .FirstPartySetify(&delegate);
-  EXPECT_EQ(2u, got.PartitionKeys().size());
-  EXPECT_EQ(kOwnerPartitionKey, got.PartitionKeys()[0]);
-  EXPECT_EQ(kNonMemberPartitionKey, got.PartitionKeys()[1]);
+  for (const auto& test_case : test_cases) {
+    EXPECT_EQ(test_case.expects_contains,
+              test_case.keychain.Contains(test_case.key));
+  }
 }
 
 }  // namespace net

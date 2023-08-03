@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "ash/constants/ash_features.h"
 #include "ash/public/cpp/ambient/ambient_prefs.h"
 #include "ash/public/cpp/image_downloader.h"
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
@@ -75,7 +75,7 @@ constexpr net::NetworkTrafficAnnotationTag kAmbientClientNetworkTag =
 Profile* GetProfileForActiveUser() {
   const user_manager::User* const active_user = GetActiveUser();
   DCHECK(active_user);
-  return chromeos::ProfileHelper::Get()->GetProfileByUser(active_user);
+  return ash::ProfileHelper::Get()->GetProfileByUser(active_user);
 }
 
 bool IsPrimaryUser() {
@@ -109,7 +109,9 @@ AmbientClientImpl::AmbientClientImpl() = default;
 AmbientClientImpl::~AmbientClientImpl() = default;
 
 bool AmbientClientImpl::IsAmbientModeAllowed() {
-  DCHECK(chromeos::features::IsAmbientModeEnabled());
+  if (is_allowed_for_testing_.has_value()) {
+    return is_allowed_for_testing_.value();
+  }
 
   if (ash::DemoSession::IsDeviceInDemoMode())
     return false;
@@ -141,6 +143,10 @@ bool AmbientClientImpl::IsAmbientModeAllowed() {
   return true;
 }
 
+void AmbientClientImpl::SetAmbientModeAllowedForTesting(bool allowed) {
+  is_allowed_for_testing_ = allowed;
+}
+
 void AmbientClientImpl::RequestAccessToken(GetAccessTokenCallback callback) {
   auto* profile = GetProfileForActiveUser();
   DCHECK(profile);
@@ -168,28 +174,24 @@ void AmbientClientImpl::RequestAccessToken(GetAccessTokenCallback callback) {
 void AmbientClientImpl::DownloadImage(
     const std::string& url,
     ash::ImageDownloader::DownloadCallback callback) {
-  if (ash::features::IsAmbientModeNewUrlEnabled()) {
-    RequestAccessToken(base::BindOnce(
-        [](const std::string& url,
-           ash::ImageDownloader::DownloadCallback callback,
-           const std::string& gaia_id, const std::string& access_token,
-           const base::Time& expiration_time) {
-          if (access_token.empty()) {
-            std::move(callback).Run({});
-            return;
-          }
-          net::HttpRequestHeaders headers;
-          headers.SetHeader("Authorization", "Bearer " + access_token);
-          ash::ImageDownloader::Get()->Download(GURL(url),
-                                                kAmbientClientNetworkTag,
-                                                headers, std::move(callback));
-        },
-        url, std::move(callback)));
-  } else {
-    ash::ImageDownloader::Get()->Download(GURL(url), kAmbientClientNetworkTag,
-                                          /*additional_headers=*/{},
-                                          std::move(callback));
-  }
+  RequestAccessToken(base::BindOnce(
+      [](const std::string& url,
+         ash::ImageDownloader::DownloadCallback callback,
+         const std::string& gaia_id, const std::string& access_token,
+         const base::Time& expiration_time) {
+        if (access_token.empty()) {
+          std::move(callback).Run({});
+          return;
+        }
+        const auto* user = GetActiveUser();
+        DCHECK(user);
+        net::HttpRequestHeaders headers;
+        headers.SetHeader("Authorization", "Bearer " + access_token);
+        ash::ImageDownloader::Get()->Download(
+            GURL(url), kAmbientClientNetworkTag, user->GetAccountId(), headers,
+            std::move(callback));
+      },
+      url, std::move(callback)));
 }
 
 scoped_refptr<network::SharedURLLoaderFactory>
@@ -206,7 +208,7 @@ void AmbientClientImpl::RequestWakeLockProvider(
 }
 
 bool AmbientClientImpl::ShouldUseProdServer() {
-  if (chromeos::features::IsAmbientModeDevUseProdEnabled())
+  if (ash::features::IsAmbientModeDevUseProdEnabled())
     return true;
 
   auto channel = chrome::GetChannel();

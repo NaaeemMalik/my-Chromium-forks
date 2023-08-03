@@ -1,39 +1,35 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/viz/common/switches.h"
 
+#include <algorithm>
+#include <string>
+
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
+#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "components/viz/common/constants.h"
 
 namespace switches {
-
-// Screen width is useful for debugging. Shipping implementations should detect
-// this.
-const char kDeJellyScreenWidth[] = "de-jelly-screen-width";
 
 // The default number of the BeginFrames to wait to activate a surface with
 // dependencies.
 const char kDeadlineToSynchronizeSurfaces[] =
     "deadline-to-synchronize-surfaces";
 
+// Disables reporting of frame timing via ADPF, even if supported on the device.
+const char kDisableAdpf[] = "disable-adpf";
+
 // Disables begin frame limiting in both cc scheduler and display scheduler.
 // Also implies --disable-gpu-vsync (see //ui/gl/gl_switches.h).
 const char kDisableFrameRateLimit[] = "disable-frame-rate-limit";
 
-// Slows down animations during a DocumentTransition for debugging.
-const char kDocumentTransitionSlowdownFactor[] =
-    "document-transition-slowdown-factor";
-
 // Sets the number of max pending frames in the GL buffer queue to 1.
 const char kDoubleBufferCompositing[] = "double-buffer-compositing";
-
-// Experimental de-jelly support.
-const char kEnableDeJelly[] = "enable-de-jelly";
 
 // Enable compositing individual elements via hardware overlays when
 // permitted by device.
@@ -41,10 +37,7 @@ const char kEnableDeJelly[] = "enable-de-jelly";
 // fullscreen overlay and use it as main framebuffer where possible.
 const char kEnableHardwareOverlays[] = "enable-hardware-overlays";
 
-// Enables hit-test debug logging.
-const char kEnableVizHitTestDebug[] = "enable-viz-hit-test-debug";
-
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
 // ChromeOS uses one of two VideoDecoder implementations based on SoC/board
 // specific configurations that are signalled via this command line flag.
 // TODO(b/159825227): remove when the "old" video decoder is fully launched.
@@ -92,19 +85,6 @@ absl::optional<uint32_t> GetDeadlineToSynchronizeSurfaces() {
     return absl::nullopt;
   }
   return activation_deadline_in_frames;
-}
-
-int GetDocumentTransitionSlowDownFactor() {
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (!command_line->HasSwitch(kDocumentTransitionSlowdownFactor))
-    return 1;
-
-  auto factor_str =
-      command_line->GetSwitchValueASCII(kDocumentTransitionSlowdownFactor);
-  int factor = 0;
-  LOG_IF(ERROR, !base::StringToInt(factor_str, &factor))
-      << "Error parsing document transition slow down factor " << factor_str;
-  return std::max(1, factor);
 }
 
 }  // namespace switches

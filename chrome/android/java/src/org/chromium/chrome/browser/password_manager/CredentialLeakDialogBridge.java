@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.password_manager;
 
 import android.app.Activity;
 
+import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 
 import org.chromium.base.annotations.CalledByNative;
@@ -44,15 +45,18 @@ public class CredentialLeakDialogBridge {
 
     @CalledByNative
     public void showDialog(String credentialLeakTitle, String credentialLeakDetails,
-            boolean useChangePasswordIllustration, String positiveButton, String negativeButton) {
+            String positiveButton, String negativeButton) {
         Activity activity = mWindowAndroid.getActivity().get();
         if (activity == null) return;
 
+        @DrawableRes
+        int headerDrawableId;
+        headerDrawableId = PasswordManagerHelper.usesUnifiedPasswordManagerBranding()
+                ? R.drawable.password_check_header_red
+                : R.drawable.password_checkup_warning;
+
         PasswordManagerDialogContents contents = createDialogContents(credentialLeakTitle,
-                credentialLeakDetails,
-                useChangePasswordIllustration ? R.drawable.password_checkup_change_automatically
-                                              : R.drawable.password_checkup_warning,
-                positiveButton, negativeButton);
+                credentialLeakDetails, headerDrawableId, positiveButton, negativeButton);
         contents.setPrimaryButtonFilled(negativeButton != null);
         contents.setHelpButtonCallback(this::showHelpArticle);
 
@@ -98,8 +102,8 @@ public class CredentialLeakDialogBridge {
         if (currentTab == null) return;
 
         Profile profile = Profile.fromWebContents(currentTab.getWebContents());
-        HelpAndFeedbackLauncherImpl.getInstance().show(activity,
-                activity.getString(R.string.help_context_password_leak_detection), profile, null);
+        HelpAndFeedbackLauncherImpl.getForProfile(profile).show(
+                activity, activity.getString(R.string.help_context_password_leak_detection), null);
     }
 
     @NativeMethods

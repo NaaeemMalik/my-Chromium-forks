@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,11 @@
 #define CHROME_BROWSER_UI_TOOLBAR_APP_MENU_MODEL_H_
 
 #include <memory>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/timer/elapsed_timer.h"
+#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -23,10 +25,6 @@
 class AppMenuIconController;
 class BookmarkSubMenuModel;
 class Browser;
-
-namespace {
-class MockAppMenuModel;
-}  // namespace
 
 // Values should correspond to 'WrenchMenuAction' enum in enums.xml.
 enum AppMenuAction {
@@ -81,8 +79,16 @@ enum AppMenuAction {
   MENU_ACTION_UNINSTALL_APP = 51,
   MENU_ACTION_CHROME_TIPS = 53,
   MENU_ACTION_CHROME_WHATS_NEW = 54,
+  MENU_ACTION_LACROS_DATA_MIGRATION = 55,
+  MENU_ACTION_MENU_OPENED = 56,
+  // Only used by ExtensionsMenuModel sub menu.
+  MENU_ACTION_VISIT_CHROME_WEB_STORE = 57,
+  MENU_ACTION_PASSWORD_MANAGER = 58,
+  MENU_ACTION_TRANSLATE_PAGE = 59,
   LIMIT_MENU_ACTION
 };
+
+enum class AlertMenuItem { kNone, kReopenTabs, kPerformance };
 
 // Function to record WrenchMenu.MenuAction histogram
 void LogWrenchMenuAction(AppMenuAction action_id);
@@ -103,12 +109,56 @@ class ZoomMenuModel : public ui::SimpleMenuModel {
 
 class ToolsMenuModel : public ui::SimpleMenuModel {
  public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPerformanceMenuItem);
+
   ToolsMenuModel(ui::SimpleMenuModel::Delegate* delegate, Browser* browser);
 
   ToolsMenuModel(const ToolsMenuModel&) = delete;
   ToolsMenuModel& operator=(const ToolsMenuModel&) = delete;
 
   ~ToolsMenuModel() override;
+
+ private:
+  void Build(Browser* browser);
+};
+
+class ExtensionsMenuModel : public ui::SimpleMenuModel {
+ public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kManageExtensionsMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kVisitChromeWebStoreMenuItem);
+
+  ExtensionsMenuModel(ui::SimpleMenuModel::Delegate* delegate,
+                      Browser* browser);
+
+  ExtensionsMenuModel(const ExtensionsMenuModel&) = delete;
+  ExtensionsMenuModel& operator=(const ExtensionsMenuModel&) = delete;
+
+  ~ExtensionsMenuModel() override;
+
+ private:
+  void Build(Browser* browser);
+};
+
+class AutofillSubMenuModel : public ui::SimpleMenuModel {
+ public:
+  AutofillSubMenuModel(ui::SimpleMenuModel::Delegate* delegate,
+                       AppMenuIconController* app_menu_icon_controller);
+
+  AutofillSubMenuModel(const AutofillSubMenuModel&) = delete;
+  AutofillSubMenuModel& operator=(const AutofillSubMenuModel&) = delete;
+
+  ~AutofillSubMenuModel() override;
+};
+
+class FindAndEditSubMenuModel : public ui::SimpleMenuModel {
+ public:
+  FindAndEditSubMenuModel(ui::SimpleMenuModel::Delegate* delegate,
+                          Browser* browser);
+
+  FindAndEditSubMenuModel(const FindAndEditSubMenuModel&) = delete;
+  FindAndEditSubMenuModel& operator=(const FindAndEditSubMenuModel&) = delete;
+
+  ~FindAndEditSubMenuModel() override;
 
  private:
   void Build(Browser* browser);
@@ -121,7 +171,13 @@ class AppMenuModel : public ui::SimpleMenuModel,
                      public TabStripModelObserver,
                      public content::WebContentsObserver {
  public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kBookmarksMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kDownloadsMenuItem);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kHistoryMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kExtensionsMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kMoreToolsMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kIncognitoMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPasswordManagerMenuItem);
 
   // First command ID to use for the recent tabs menu. This is one higher than
   // the first command id used for the bookmarks menus, as the command ids for
@@ -139,7 +195,8 @@ class AppMenuModel : public ui::SimpleMenuModel,
   // dialog.
   AppMenuModel(ui::AcceleratorProvider* provider,
                Browser* browser,
-               AppMenuIconController* app_menu_icon_controller = nullptr);
+               AppMenuIconController* app_menu_icon_controller = nullptr,
+               AlertMenuItem alert_item = AlertMenuItem::kNone);
 
   AppMenuModel(const AppMenuModel&) = delete;
   AppMenuModel& operator=(const AppMenuModel&) = delete;
@@ -160,6 +217,7 @@ class AppMenuModel : public ui::SimpleMenuModel,
   bool IsCommandIdChecked(int command_id) const override;
   bool IsCommandIdEnabled(int command_id) const override;
   bool IsCommandIdVisible(int command_id) const override;
+  bool IsCommandIdAlerted(int command_id) const override;
   bool GetAcceleratorForCommandId(int command_id,
                                   ui::Accelerator* accelerator) const override;
 
@@ -197,10 +255,6 @@ class AppMenuModel : public ui::SimpleMenuModel,
   void CreateZoomMenu();
 
  private:
-  friend class ::MockAppMenuModel;
-
-  bool ShouldShowNewIncognitoWindowMenuItem();
-
   // Adds actionable global error menu items to the menu.
   // Examples: Extension permissions and sign in errors.
   // Returns a boolean indicating whether any menu items were added.
@@ -213,11 +267,11 @@ class AppMenuModel : public ui::SimpleMenuModel,
   // took to select the command.
   void LogMenuMetrics(int command_id);
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
   // Disables/Enables the settings item based on kSystemFeaturesDisableList
   // pref.
   void UpdateSettingsItemState();
-#endif  // BUILDFLAG(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Time menu has been open. Used by LogMenuMetrics() to record the time
   // to action when the user selects a menu item.
@@ -249,6 +303,8 @@ class AppMenuModel : public ui::SimpleMenuModel,
   base::CallbackListSubscription browser_zoom_subscription_;
 
   PrefChangeRegistrar local_state_pref_change_registrar_;
+
+  const AlertMenuItem alert_item_;
 };
 
 #endif  // CHROME_BROWSER_UI_TOOLBAR_APP_MENU_MODEL_H_

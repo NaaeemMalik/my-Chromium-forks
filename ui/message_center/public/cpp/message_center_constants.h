@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/color_palette.h"
 
@@ -27,6 +28,10 @@ const int kNotificationPreferredImageHeight = 240;
 const int kSmallImageSize = 16;
 const int kSmallImageSizeMD = 18;
 const int kSmallImagePadding = 4;
+
+// Rounded corners are applied to large and small images in ash
+constexpr int kImageCornerRadius = 8;
+constexpr int kJellyImageCornerRadius = 12;
 
 // Limits.
 const size_t kMaxVisibleMessageCenterNotifications = 100;
@@ -70,9 +75,9 @@ constexpr int kMinPixelsPerTitleCharacter = 4;
 
 // Message.
 
-// Max number of lines for message_view_.
-constexpr int kMaxLinesForMessageView = 1;
-constexpr int kMaxLinesForExpandedMessageView = 4;
+// Max number of lines for message_label_.
+constexpr int kMaxLinesForMessageLabel = 1;
+constexpr int kMaxLinesForExpandedMessageLabel = 4;
 
 // Character limit = pixels per line * line limit / min. pixels per character.
 constexpr size_t kMessageCharacterLimit =
@@ -98,9 +103,12 @@ const int kButtonHorizontalPadding = 16;   // In DIPs.
 const int kButtonIconTopPadding = 11;      // In DIPs.
 const int kButtonIconToTitlePadding = 16;  // In DIPs.
 
+// Max number of lines for progress notification status_view_.
+const int kMaxLinesForStatusView = 3;
+
 // Progress bar.
 const int kProgressBarTopPadding = 16;
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 const int kProgressBarThickness = 5;
 const int kProgressBarCornerRadius = 3;
 #endif
@@ -115,11 +123,18 @@ constexpr int kNotificationBorderThickness = 1;
 constexpr int kMarginBetweenItemsInList = 8;
 
 // Horizontal & vertical space around & between popup notifications.
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+constexpr int kMarginBetweenPopups = 8;
+#else
 constexpr int kMarginBetweenPopups = 10;
+#endif
 
 // Radius of the rounded corners of a notification.
 // The corners are only rounded in Chrome OS.
 constexpr int kNotificationCornerRadius = 2;
+
+// Animation Durations
+constexpr int kNotificationResizeAnimationDurationMs = 200;
 
 constexpr char kIdSuffixForGroupContainerNotification[] = "_copy";
 }  // namespace message_center

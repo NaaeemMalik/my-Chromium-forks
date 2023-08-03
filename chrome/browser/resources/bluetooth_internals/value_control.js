@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,13 @@
  * Javascript for ValueControl, served from gtx://bluetooth-internals/.
  */
 
-import {assert, assertNotReached} from 'gtx://resources/js/assert.m.js';
-import {define as crUiDefine} from 'gtx://resources/js/cr/ui.m.js';
+import {assert, assertNotReached} from 'gtx://resources/js/assert_ts.js';
+import {CustomElement} from 'gtx://resources/js/custom_element.js';
 
+import {GattResult, Property} from './device.mojom-webui.js';
 import {connectToDevice} from './device_broker.js';
-import {Snackbar, SnackbarType} from './snackbar.js';
+import {showSnackbar, SnackbarType} from './snackbar.js';
+import {getTemplate} from './value_control.html.js';
 
 /**
  * @typedef {{
@@ -106,7 +108,7 @@ export class Value {
    * @private
    */
   toHex_() {
-    if (this.value_.length == 0) {
+    if (this.value_.length === 0) {
       return '';
     }
 
@@ -204,19 +206,21 @@ export class Value {
  * @constructor
  * @extends {HTMLDivElement}
  */
-export const ValueControl = crUiDefine('div');
+export class ValueControlElement extends CustomElement {
+  static get is() {
+    return 'value-control';
+  }
 
-ValueControl.prototype = {
-  __proto__: HTMLDivElement.prototype,
+  static get template() {
+    return getTemplate();
+  }
 
-  /**
-   * Decorates the element as a ValueControl. Creates the layout for the value
-   * control by creating a text input, select element, and two buttons for
-   * read/write requests. Event handlers are attached and references to these
-   * elements are stored for later use.
-   */
-  decorate() {
-    this.classList.add('value-control');
+  static get observedAttributes() {
+    return ['data-value', 'data-options'];
+  }
+
+  constructor() {
+    super();
 
     /** @private {!Value} */
     this.value_ = new Value([]);
@@ -230,82 +234,75 @@ ValueControl.prototype = {
     this.descriptorId_ = null;
     /** @private {number} */
     this.properties_ = Number.MAX_SAFE_INTEGER;
+    /** @private {!HTMLInputElement} */
+    this.valueInput_ = this.shadowRoot.querySelector('input');
+    /** @private {!HTMLSelectElement} */
+    this.typeSelect_ = this.shadowRoot.querySelector('select');
+    /** @private {!HTMLButtonElement} */
+    this.writeBtn_ = this.shadowRoot.querySelector('button.write');
+    /** @private {!HTMLButtonElement} */
+    this.readBtn_ = this.shadowRoot.querySelector('button.read');
+    /** @private {!HTMLElement} */
+    this.unavailableMessage_ = this.shadowRoot.querySelector('h3');
+  }
 
-    this.unavailableMessage_ = document.createElement('h3');
-    this.unavailableMessage_.textContent = 'Value cannot be read or written.';
+  connectedCallback() {
+    this.classList.add('value-control');
 
-    this.valueInput_ = document.createElement('input');
     this.valueInput_.addEventListener('change', function() {
       try {
         this.value_.setAs(this.typeSelect_.value, this.valueInput_.value);
       } catch (e) {
-        Snackbar.show(e.message, SnackbarType.ERROR);
+        showSnackbar(e.message, SnackbarType.ERROR);
       }
     }.bind(this));
 
-    this.typeSelect_ = document.createElement('select');
-
-    Object.keys(ValueDataType).forEach(function(key) {
-      const type = ValueDataType[key];
-      const option = document.createElement('option');
-      option.value = type;
-      option.text = type;
-      this.typeSelect_.add(option);
-    }, this);
-
     this.typeSelect_.addEventListener('change', this.redraw.bind(this));
 
-    const inputDiv = document.createElement('div');
-    inputDiv.appendChild(this.valueInput_);
-    inputDiv.appendChild(this.typeSelect_);
-
-    this.readBtn_ = document.createElement('button');
-    this.readBtn_.textContent = 'Read';
     this.readBtn_.addEventListener('click', this.readValue_.bind(this));
 
-    this.writeBtn_ = document.createElement('button');
-    this.writeBtn_.textContent = 'Write';
     this.writeBtn_.addEventListener('click', this.writeValue_.bind(this));
 
-    const buttonsDiv = document.createElement('div');
-    buttonsDiv.appendChild(this.readBtn_);
-    buttonsDiv.appendChild(this.writeBtn_);
-
-    this.appendChild(this.unavailableMessage_);
-    this.appendChild(inputDiv);
-    this.appendChild(buttonsDiv);
-  },
+    this.redraw();
+  }
 
   /**
    * Sets the settings used by the value control and redraws the control to
    * match the read/write settings in |options.properties|. If properties
    * are not provided, no restrictions on reading/writing are applied.
-   * @param {!ValueLoadOptions} options
    */
-  load(options) {
-    this.deviceAddress_ = options.deviceAddress;
-    this.serviceId_ = options.serviceId;
-    this.characteristicId_ = options.characteristicId;
-    this.descriptorId_ = options.descriptorId;
+  attributeChangedCallback(name, oldValue, newValue) {
+    assert(name === 'data-value' || name === 'data-options');
 
-    if (options.properties) {
-      this.properties_ = options.properties;
+    if (oldValue === newValue) {
+      return;
+    }
+
+    if (name === 'data-options') {
+      const options = JSON.parse(newValue);
+      this.deviceAddress_ = options.deviceAddress;
+      this.serviceId_ = options.serviceId;
+      this.characteristicId_ = options.characteristicId;
+      this.descriptorId_ = options.descriptorId;
+
+      if (options.properties) {
+        this.properties_ = options.properties;
+      }
+    } else {
+      this.value_.setArray(JSON.parse(newValue));
     }
 
     this.redraw();
-  },
+  }
 
   /**
    * Redraws the value control with updated layout depending on the
    * availability of reads and writes and the current cached value.
    */
   redraw() {
-    this.readBtn_.hidden =
-        (this.properties_ & bluetooth.mojom.Property.READ) === 0;
-    this.writeBtn_.hidden =
-        (this.properties_ & bluetooth.mojom.Property.WRITE) === 0 &&
-        (this.properties_ & bluetooth.mojom.Property.WRITE_WITHOUT_RESPONSE) ===
-            0;
+    this.readBtn_.hidden = (this.properties_ & Property.READ) === 0;
+    this.writeBtn_.hidden = (this.properties_ & Property.WRITE) === 0 &&
+        (this.properties_ & Property.WRITE_WITHOUT_RESPONSE) === 0;
 
     const isAvailable = !this.readBtn_.hidden || !this.writeBtn_.hidden;
     this.unavailableMessage_.hidden = isAvailable;
@@ -317,7 +314,7 @@ ValueControl.prototype = {
     }
 
     this.valueInput_.value = this.value_.getAs(this.typeSelect_.value);
-  },
+  }
 
   /**
    * Sets the value of the control.
@@ -326,21 +323,20 @@ ValueControl.prototype = {
   setValue(value) {
     this.value_.setArray(value);
     this.redraw();
-  },
+  }
 
   /**
    * Gets an error string describing the given |result| code.
-   * @param {!bluetooth.mojom.GattResult} result
+   * @param {!GattResult} result
    * @private
    */
   getErrorString_(result) {
     // TODO(crbug.com/663394): Replace with more descriptive error
     // messages.
-    const GattResult = bluetooth.mojom.GattResult;
     return Object.keys(GattResult).find(function(key) {
       return GattResult[key] === result;
     });
-  },
+  }
 
   /**
    * Called when the read button is pressed. Connects to the device and
@@ -352,7 +348,8 @@ ValueControl.prototype = {
   readValue_() {
     this.readBtn_.disabled = true;
 
-    connectToDevice(assert(this.deviceAddress_))
+    assert(this.deviceAddress_);
+    connectToDevice(this.deviceAddress_)
         .then(function(device) {
           if (this.descriptorId_) {
             return device.readValueForDescriptor(
@@ -365,19 +362,19 @@ ValueControl.prototype = {
         .then(function(response) {
           this.readBtn_.disabled = false;
 
-          if (response.result === bluetooth.mojom.GattResult.SUCCESS) {
+          if (response.result === GattResult.SUCCESS) {
             this.setValue(response.value);
-            Snackbar.show(
+            showSnackbar(
                 this.deviceAddress_ + ': Read succeeded', SnackbarType.SUCCESS);
             return;
           }
 
           const errorString = this.getErrorString_(response.result);
-          Snackbar.show(
+          showSnackbar(
               this.deviceAddress_ + ': ' + errorString, SnackbarType.ERROR,
               'Retry', this.readValue_.bind(this));
         }.bind(this));
-  },
+  }
 
   /**
    * Called when the write button is pressed. Connects to the device and
@@ -389,7 +386,8 @@ ValueControl.prototype = {
   writeValue_() {
     this.writeBtn_.disabled = true;
 
-    connectToDevice(assert(this.deviceAddress_))
+    assert(this.deviceAddress_);
+    connectToDevice(this.deviceAddress_)
         .then(function(device) {
           if (this.descriptorId_) {
             return device.writeValueForDescriptor(
@@ -403,17 +401,19 @@ ValueControl.prototype = {
         .then(function(response) {
           this.writeBtn_.disabled = false;
 
-          if (response.result === bluetooth.mojom.GattResult.SUCCESS) {
-            Snackbar.show(
+          if (response.result === GattResult.SUCCESS) {
+            showSnackbar(
                 this.deviceAddress_ + ': Write succeeded',
                 SnackbarType.SUCCESS);
             return;
           }
 
           const errorString = this.getErrorString_(response.result);
-          Snackbar.show(
+          showSnackbar(
               this.deviceAddress_ + ': ' + errorString, SnackbarType.ERROR,
               'Retry', this.writeValue_.bind(this));
         }.bind(this));
-  },
-};
+  }
+}
+
+customElements.define('value-control', ValueControlElement);

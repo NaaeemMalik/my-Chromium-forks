@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -116,7 +116,7 @@ TEST_F(SerialChooserControllerTest, PortsAddedAndRemoved) {
   port->token = base::UnguessableToken::Create();
   port->display_name = "Test Port 1";
   port->path = base::FilePath(FILE_PATH_LITERAL("/dev/ttyS0"));
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // This path will be ignored and not generate additional chooser entries or
   // be displayed in the device name.
   port->alternate_path = base::FilePath(FILE_PATH_LITERAL("/dev/alternateS0"));

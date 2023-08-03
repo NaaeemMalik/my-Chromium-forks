@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,7 +28,6 @@ TEST(CTAPRequestTest, TestConstructMakeCredentialRequestParam) {
       fido_parsing_utils::Materialize(test_data::kUserId));
   user.name = "johnpsmith@example.com";
   user.display_name = "John P. Smith";
-  user.icon_url = GURL("https://pics.acme.com/00/p/aBjjjpqPb.png");
 
   CtapMakeCredentialRequest make_credential_param(
       test_data::kClientDataJson, std::move(rp), std::move(user),
@@ -83,6 +82,26 @@ TEST(CTAPRequestTest, PublicKeyCredentialDescriptorAsCBOR_1270757) {
   cbor::Value value = AsCBOR(descriptor);
   const cbor::Value::MapValue& map = value.GetMap();
   EXPECT_FALSE(base::Contains(map, cbor::Value("transports")));
+}
+
+// Also for https://crbug.com/1270757: check that
+// |PublicKeyCredentialDescriptor| notices when extra keys are present. The
+// |VirtualCtap2Device| will reject such requests.
+TEST(CTAPRequestTest, PublicKeyCredentialDescriptorNoticesExtraKeys) {
+  for (const bool extra_key : {false, true}) {
+    SCOPED_TRACE(extra_key);
+    cbor::Value::MapValue map;
+    map.emplace("type", "public-key");
+    map.emplace("id", std::vector<uint8_t>({1, 2, 3, 4}));
+    if (extra_key) {
+      map.emplace("unexpected", "value");
+    }
+    const absl::optional<PublicKeyCredentialDescriptor> descriptor(
+        PublicKeyCredentialDescriptor::CreateFromCBORValue(
+            cbor::Value(std::move(map))));
+    ASSERT_TRUE(descriptor);
+    EXPECT_EQ(extra_key, descriptor->had_other_keys);
+  }
 }
 
 }  // namespace device

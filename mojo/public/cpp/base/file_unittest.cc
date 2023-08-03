@@ -1,10 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/files/scoped_temp_dir.h"
 #include "base/sync_socket.h"
 #include "build/build_config.h"
+#include "mojo/buildflags.h"
 #include "mojo/public/cpp/base/file_mojom_traits.h"
 #include "mojo/public/cpp/base/read_only_file_mojom_traits.h"
 #include "mojo/public/cpp/test_support/test_utils.h"
@@ -100,8 +101,8 @@ TEST(FileTest, ReadOnlyFile) {
 }
 
 // This dies only if we can interrogate the underlying platform handle.
-#if defined(OS_WIN) || defined(OS_POSIX) || defined(OS_FUCHSIA)
-#if !defined(OS_NACL) && !defined(OS_AIX)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_AIX)
 TEST(FileTest, ReadOnlyFileDeath) {
 #if defined(OFFICIAL_BUILD)
   const char kReadOnlyFileCheckFailedRegex[] = "";
@@ -131,12 +132,13 @@ TEST(FileTest, ReadOnlyFileDeath) {
                                                                file_out),
       kReadOnlyFileCheckFailedRegex);
 }
-#endif  // !defined(OS_NACL) && !defined(OS_AIX)
-#endif  // defined(OS_WIN) || defined(OS_POSIX) || defined(OS_FUCHSIA)
+#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_AIX)
+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 
 // This should work on all platforms. This check might be relaxed in which case
-// this test can be removed.
-#if DCHECK_IS_ON()
+// this test can be removed. iOS without blink does not build SyncSocket, so do
+// not build this when blink isn't used.
+#if DCHECK_IS_ON() && (!BUILDFLAG(IS_IOS) || BUILDFLAG(MOJO_USE_APPLE_CHANNEL))
 TEST(FileTest, NonPhysicalFileDeath) {
 #if defined(OFFICIAL_BUILD)
   const char kPhysicalFileCheckFailedRegex[] = "";

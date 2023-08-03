@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,16 @@
 #include <utility>
 
 #include "base/base64.h"
-#include "base/feature_list.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/values.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
+#include "components/sync/base/model_type.h"
 
 namespace syncer {
 
 namespace {
-
-constexpr base::Feature kSyncResetVeryShortPollInterval{
-    "SyncResetVeryShortPollInterval", base::FEATURE_ENABLED_BY_DEFAULT};
 
 // 64-bit integer serialization of the base::Time when the last sync occurred.
 const char kSyncLastSyncedTime[] = "sync.last_synced_time";
@@ -36,13 +34,6 @@ const char kSyncGaiaId[] = "sync.gaia_id";
 const char kSyncCacheGuid[] = "sync.cache_guid";
 const char kSyncBirthday[] = "sync.birthday";
 const char kSyncBagOfChips[] = "sync.bag_of_chips";
-
-// Dictionary of last seen invalidation versions for each model type.
-const char kSyncInvalidationVersions[] = "sync.invalidation_versions";
-
-// Obsolete pref.
-const char kSyncObsoleteKeystoreEncryptionBootstrapToken[] =
-    "sync.keystore_encryption_bootstrap_token";
 
 }  // namespace
 
@@ -61,11 +52,6 @@ void SyncTransportDataPrefs::RegisterProfilePrefs(
   registry->RegisterTimePref(kSyncLastSyncedTime, base::Time());
   registry->RegisterTimePref(kSyncLastPollTime, base::Time());
   registry->RegisterTimeDeltaPref(kSyncPollIntervalSeconds, base::TimeDelta());
-  registry->RegisterDictionaryPref(kSyncInvalidationVersions);
-
-  // Obsolete pref.
-  registry->RegisterStringPref(kSyncObsoleteKeystoreEncryptionBootstrapToken,
-                               std::string());
 }
 
 void SyncTransportDataPrefs::ClearAll() {
@@ -74,7 +60,6 @@ void SyncTransportDataPrefs::ClearAll() {
   pref_service_->ClearPref(kSyncLastSyncedTime);
   pref_service_->ClearPref(kSyncLastPollTime);
   pref_service_->ClearPref(kSyncPollIntervalSeconds);
-  pref_service_->ClearPref(kSyncInvalidationVersions);
   pref_service_->ClearPref(kSyncGaiaId);
   pref_service_->ClearPref(kSyncCacheGuid);
   pref_service_->ClearPref(kSyncBirthday);
@@ -109,8 +94,7 @@ base::TimeDelta SyncTransportDataPrefs::GetPollInterval() const {
   // callers to use a reasonable default value instead.
   // This fixes a past bug where stored pref values were accidentally
   // re-interpreted from "seconds" to "microseconds"; see crbug.com/1246850.
-  if (poll_interval < base::Minutes(1) &&
-      base::FeatureList::IsEnabled(kSyncResetVeryShortPollInterval)) {
+  if (poll_interval < base::Minutes(1)) {
     pref_service_->ClearPref(kSyncPollIntervalSeconds);
     return base::TimeDelta();
   }
@@ -169,41 +153,6 @@ std::string SyncTransportDataPrefs::GetBagOfChips() const {
   std::string decoded;
   base::Base64Decode(encoded, &decoded);
   return decoded;
-}
-
-std::map<ModelType, int64_t> SyncTransportDataPrefs::GetInvalidationVersions()
-    const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  std::map<ModelType, int64_t> invalidation_versions;
-  const base::DictionaryValue* invalidation_dictionary =
-      pref_service_->GetDictionary(kSyncInvalidationVersions);
-  for (ModelType type : ProtocolTypes()) {
-    std::string key = ModelTypeToString(type);
-    std::string version_str;
-    if (!invalidation_dictionary->GetString(key, &version_str))
-      continue;
-    int64_t version = 0;
-    if (!base::StringToInt64(version_str, &version))
-      continue;
-    invalidation_versions[type] = version;
-  }
-  return invalidation_versions;
-}
-
-void SyncTransportDataPrefs::UpdateInvalidationVersions(
-    const std::map<ModelType, int64_t>& invalidation_versions) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  auto invalidation_dictionary = std::make_unique<base::DictionaryValue>();
-  for (const auto& map_iter : invalidation_versions) {
-    std::string version_str = base::NumberToString(map_iter.second);
-    invalidation_dictionary->SetString(ModelTypeToString(map_iter.first),
-                                       version_str);
-  }
-  pref_service_->Set(kSyncInvalidationVersions, *invalidation_dictionary);
-}
-
-void ClearObsoleteKeystoreBootstrapTokenPref(PrefService* pref_service) {
-  pref_service->ClearPref(kSyncObsoleteKeystoreEncryptionBootstrapToken);
 }
 
 }  // namespace syncer

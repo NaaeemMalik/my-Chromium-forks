@@ -3,16 +3,18 @@ rootWebArea focusable
 ++++genericContainer
 ++++++genericContainer
 ++++++++genericContainer ignored
-++++++++++popUpButton collapsed focusable name='Option 1' setSize=0 haspopup=menu
-++++++++++++genericContainer
-++++++++++++++staticText name='Option 1'
-++++++++++++++++inlineTextBox name='Option 1'
+++++++++++comboBoxMenuButton collapsed focusable value='Option 1' haspopup=listbox
 ++++++++++++genericContainer ignored
+++++++++++++++genericContainer
+++++++++++++++++staticText name='Option 1'
+++++++++++++++++++inlineTextBox name='Option 1'
+++++++++++++genericContainer ignored
+++++++++++++++genericContainer ignored
 ++++++++genericContainer ignored
 ++++++++++listBox ignored invisible
 ++++++genericContainer
 ++++++++genericContainer ignored
-++++++++++popUpButton collapsed name='Custom selectmenu button' setSize=0 haspopup=menu
+++++++++++comboBoxMenuButton collapsed value='Option 1' haspopup=listbox
 ++++++++++++staticText name='Custom selectmenu button'
 ++++++++++++++inlineTextBox name='Custom selectmenu button'
 ++++++++genericContainer ignored

@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SUBRESOURCE_FILTER_CONTENT_RENDERER_WEB_DOCUMENT_SUBRESOURCE_FILTER_IMPL_H_
 #define COMPONENTS_SUBRESOURCE_FILTER_CONTENT_RENDERER_WEB_DOCUMENT_SUBRESOURCE_FILTER_IMPL_H_
 
-#include "base/callback.h"
 #include "base/files/file.h"
+#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "components/subresource_filter/content/renderer/ad_resource_tracker.h"
@@ -72,6 +72,8 @@ class WebDocumentSubresourceFilterImpl
   LoadPolicy GetLoadPolicy(const blink::WebURL& resourceUrl,
                            blink::mojom::RequestContextType) override;
   LoadPolicy GetLoadPolicyForWebSocketConnect(
+      const blink::WebURL& url) override;
+  LoadPolicy GetLoadPolicyForWebTransportConnect(
       const blink::WebURL& url) override;
   void ReportDisallowedLoad() override;
   bool ShouldLogToConsole() override;

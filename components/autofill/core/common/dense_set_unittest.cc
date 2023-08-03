@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,39 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
+using ::testing::ElementsAre;
+
 namespace autofill {
 
-TEST(DenseSet, initialization) {
+// Every DenseSet test other than the sizeof test should be run for both packed
+// and unpacked DenseSets to maximize test coverage.
+template <typename PackOrNotPack>
+class DenseSetTest_PackedOrUnpacked : public testing::Test {
+ public:
+  static constexpr bool packed = PackOrNotPack::value;
+};
+
+using PackedAndNotPacked = ::testing::Types<std::true_type, std::false_type>;
+
+TYPED_TEST_SUITE(DenseSetTest_PackedOrUnpacked, PackedAndNotPacked);
+
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, size_of) {
+  constexpr bool packed = TestFixture::packed;
+  EXPECT_EQ(sizeof(DenseSet<size_t, 1, packed>), 1u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 7, packed>), 1u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 8, packed>), 2u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 15, packed>), 2u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 16, packed>), packed ? 3u : 4u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 31, packed>), 4u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 32, packed>), packed ? 5u : 8u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 63, packed>), packed ? 8u : 8u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 64, packed>), packed ? 9u : 16u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 127, packed>), packed ? 16u : 16u);
+  EXPECT_EQ(sizeof(DenseSet<size_t, 255, packed>), 32u);
+}
+
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, initialization) {
+  constexpr bool packed = TestFixture::packed;
   enum class T : size_t {
     One = 1,
     Two = 2,
@@ -21,7 +51,7 @@ TEST(DenseSet, initialization) {
     Five = 5,
     kMaxValue = Five,
   };
-  using DS = DenseSet<T>;
+  using DS = DenseSet<T, T::kMaxValue, packed>;
 
   DS s;
   EXPECT_TRUE(s.empty());
@@ -38,7 +68,98 @@ TEST(DenseSet, initialization) {
   EXPECT_EQ(DS({T::Four, T::Two, T::One}), s);
 }
 
-TEST(DenseSet, iterators_begin_end) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, initializer_list) {
+  constexpr bool packed = TestFixture::packed;
+
+  // The largest value so that DenseSet offers a constexpr constructor.
+  constexpr size_t kMaxValueForConstexpr = 63;
+
+  // Each of the below blocks is a copy that only varies in `kMax` and whether
+  // or not the `set` is `constexpr`.
+
+  {
+    constexpr size_t kMax = 10;
+    constexpr DenseSet<size_t, kMax, packed> set{0, 1, kMax - 2, kMax - 1,
+                                                 kMax};
+    EXPECT_THAT(std::vector<size_t>(set.begin(), set.end()),
+                ::testing::ElementsAre(0, 1, kMax - 2, kMax - 1, kMax));
+  }
+
+  {
+    constexpr size_t kMax = kMaxValueForConstexpr;
+    constexpr DenseSet<size_t, kMax, packed> set{0, 1, kMax - 2, kMax - 1,
+                                                 kMax};
+    EXPECT_THAT(std::vector<size_t>(set.begin(), set.end()),
+                ::testing::ElementsAre(0, 1, kMax - 2, kMax - 1, kMax));
+  }
+
+  {
+    constexpr size_t kMax = kMaxValueForConstexpr + 1;
+    DenseSet<size_t, kMax, packed> set{0, 1, kMax - 2, kMax - 1, kMax};
+    EXPECT_THAT(std::vector<size_t>(set.begin(), set.end()),
+                ::testing::ElementsAre(0, 1, kMax - 2, kMax - 1, kMax));
+  }
+
+  {
+    constexpr size_t kMax = kMaxValueForConstexpr + 2;
+    DenseSet<size_t, kMax, packed> set{0, 1, kMax - 2, kMax - 1, kMax};
+    EXPECT_THAT(std::vector<size_t>(set.begin(), set.end()),
+                ::testing::ElementsAre(0, 1, kMax - 2, kMax - 1, kMax));
+  }
+
+  {
+    constexpr size_t kMax = kMaxValueForConstexpr + 100;
+    DenseSet<size_t, kMax, packed> set{0, 1, kMax - 2, kMax - 1, kMax};
+    EXPECT_THAT(std::vector<size_t>(set.begin(), set.end()),
+                ::testing::ElementsAre(0, 1, kMax - 2, kMax - 1, kMax));
+  }
+}
+
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, data) {
+  constexpr bool packed = TestFixture::packed;
+  {
+    constexpr DenseSet<size_t, 23, packed> set{0, 1, 2, 3, 4, 20, 23};
+    if (packed) {
+      EXPECT_THAT(set.data(),
+                  ElementsAre((1ULL << 0) | (1ULL << 1) | (1ULL << 2) |
+                                  (1ULL << 3) | (1ULL << 4),
+                              0ULL, (1ULL << (20 - 16)) | (1ULL << (23 - 16))));
+    } else {
+      EXPECT_THAT(
+          set.data(),
+          ElementsAre((1ULL << 0) | (1ULL << 1) | (1ULL << 2) | (1ULL << 3) |
+                      (1ULL << 4) | (1ULL << 20) | (1ULL << 23)));
+    }
+  }
+  {
+    constexpr DenseSet<size_t, 31, packed> set{0, 1, 2, 3, 4, 20, 31};
+    if (packed) {
+      EXPECT_THAT(set.data(),
+                  ElementsAre((1ULL << 0) | (1ULL << 1) | (1ULL << 2) |
+                                  (1ULL << 3) | (1ULL << 4),
+                              0ULL, (1ULL << (20 - 16)), (1ULL << (31 - 24))));
+    } else {
+      EXPECT_THAT(
+          set.data(),
+          ElementsAre((1ULL << 0) | (1ULL << 1) | (1ULL << 2) | (1ULL << 3) |
+                      (1ULL << 4) | (1ULL << 20) | (1ULL << 31)));
+    }
+  }
+  {
+    constexpr DenseSet<size_t, 63, packed> set{0, 1, 63};
+    if (packed) {
+      EXPECT_THAT(set.data(),
+                  ElementsAre((1ULL << 0) | (1ULL << 1), 0ULL, 0ULL, 0ULL, 0ULL,
+                              0ULL, 0ULL, (1ULL << (63 - 56))));
+    } else {
+      EXPECT_THAT(set.data(),
+                  ElementsAre((1ULL << 0) | (1ULL << 1) | (1ULL << 63)));
+    }
+  }
+}
+
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, iterators_begin_end) {
+  constexpr bool packed = TestFixture::packed;
   enum class T : int {
     One = 1,
     Two = 2,
@@ -47,7 +168,7 @@ TEST(DenseSet, iterators_begin_end) {
     Five = 5,
     kMaxValue = Five,
   };
-  using DS = DenseSet<T, T::kMaxValue>;
+  using DS = DenseSet<T, T::kMaxValue, packed>;
 
   DS s;
   s.insert(T::Two);
@@ -81,7 +202,8 @@ TEST(DenseSet, iterators_begin_end) {
   EXPECT_THAT(s, ::testing::ElementsAre(T::One, T::Two, T::Four));
 }
 
-TEST(DenseSet, iterators_begin_end_reverse) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, iterators_begin_end_reverse) {
+  constexpr bool packed = TestFixture::packed;
   enum class T : char {
     One = 1,
     Two = 2,
@@ -90,7 +212,7 @@ TEST(DenseSet, iterators_begin_end_reverse) {
     Five = 5,
     kMaxValue = Five,
   };
-  using DS = DenseSet<T>;
+  using DS = DenseSet<T, T::kMaxValue, packed>;
 
   DS s;
   s.insert(T::Two);
@@ -122,7 +244,8 @@ TEST(DenseSet, iterators_begin_end_reverse) {
   }
 }
 
-TEST(DenseSet, iterators_rbegin_rend) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, iterators_rbegin_rend) {
+  constexpr bool packed = TestFixture::packed;
   enum class T {
     One = 1,
     Two = 2,
@@ -131,7 +254,7 @@ TEST(DenseSet, iterators_rbegin_rend) {
     Five = 5,
     kMaxValue = Five
   };
-  using DS = DenseSet<T, T::kMaxValue>;
+  using DS = DenseSet<T, T::kMaxValue, packed>;
 
   DS s;
   s.insert(T::Two);
@@ -166,7 +289,8 @@ TEST(DenseSet, iterators_rbegin_rend) {
               ::testing::ElementsAre(T::Four, T::Two, T::One));
 }
 
-TEST(DenseSet, lookup) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, lookup) {
+  constexpr bool packed = TestFixture::packed;
   enum class T {
     One = 1,
     Two = 2,
@@ -175,7 +299,7 @@ TEST(DenseSet, lookup) {
     Five = 5,
     kMaxValue = Five
   };
-  using DS = DenseSet<T, T::kMaxValue>;
+  using DS = DenseSet<T, T::kMaxValue, packed>;
 
   DS s;
   s.insert(T::Two);
@@ -241,9 +365,10 @@ TEST(DenseSet, lookup) {
   EXPECT_TRUE(s.contains_all({}));
 }
 
-TEST(DenseSet, iterators_lower_upper_bound) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, iterators_lower_upper_bound) {
+  constexpr bool packed = TestFixture::packed;
   enum class T { One = 1, Two = 2, Three = 3, Four = 4, Five = 5 };
-  using DS = DenseSet<T, T::Five>;
+  using DS = DenseSet<T, T::Five, packed>;
 
   DS s;
   s.insert(T::Two);
@@ -310,14 +435,15 @@ TEST(DenseSet, iterators_lower_upper_bound) {
   EXPECT_EQ(std::next(std::next(std::next(s.begin()))), s.end());
 }
 
-TEST(DenseSet, max_size) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, max_size) {
+  constexpr bool packed = TestFixture::packed;
   const int One = 1;
   const int Two = 2;
   // const int Three = 3;
   const int Four = 4;
   // const int Five = 5;
   const int kMaxValue = 5;
-  using DS = DenseSet<int, kMaxValue>;
+  using DS = DenseSet<int, kMaxValue, packed>;
 
   DS s;
   EXPECT_TRUE(s.empty());
@@ -335,14 +461,15 @@ TEST(DenseSet, max_size) {
   EXPECT_EQ(s.max_size(), 6u);
 }
 
-TEST(DenseSet, modifiers) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, modifiers) {
+  constexpr bool packed = TestFixture::packed;
   const size_t One = 1;
   const size_t Two = 2;
   const size_t Three = 3;
   const size_t Four = 4;
   // const size_t Five = 5;
   const size_t kMaxValue = 5;
-  using DS = DenseSet<size_t, kMaxValue>;
+  using DS = DenseSet<size_t, kMaxValue, packed>;
 
   DS s;
   s.insert(Two);
@@ -456,9 +583,10 @@ TEST(DenseSet, modifiers) {
   EXPECT_EQ(t.size(), 3u);
 }
 
-TEST(DenseSet, std_set) {
+TYPED_TEST(DenseSetTest_PackedOrUnpacked, std_set) {
+  constexpr bool packed = TestFixture::packed;
   constexpr size_t kMaxValue = 50;
-  DenseSet<size_t, kMaxValue> dense_set;
+  DenseSet<size_t, kMaxValue, packed> dense_set;
   std::set<size_t> std_set;
 
   auto expect_equivalence = [&] {

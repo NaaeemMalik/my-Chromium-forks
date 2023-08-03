@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,8 @@
 #include <string>
 #include <vector>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_widget_types.h"
@@ -21,14 +20,14 @@
 #include "weblayer/public/navigation_observer.h"
 #include "weblayer/public/tab_observer.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/scoped_java_ref.h"
 #elif defined(USE_AURA)
 namespace views {
 class Widget;
 class ViewsDelegate;
 }  // namespace views
-#if !defined(OS_CHROMEOS)
+#if !BUILDFLAG(IS_CHROMEOS)
 namespace display {
 class Screen;
 }
@@ -63,7 +62,7 @@ class Shell : public TabObserver,
   // Do one time initialization at application startup.
   static void Initialize();
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   static Shell* CreateNewWindow(const GURL& url, const gfx::Size& initial_size);
 #else
   static Shell* CreateNewWindow(Profile* web_profile,
@@ -163,7 +162,7 @@ class Shell : public TabObserver,
 
   gfx::Size content_size_;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   base::android::ScopedJavaGlobalRef<jobject> java_object_;
 #elif defined(USE_AURA)
   static wm::WMState* wm_state_;

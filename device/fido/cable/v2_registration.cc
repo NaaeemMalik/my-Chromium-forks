@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,7 +45,7 @@ class FCMHandler : public gcm::GCMAppHandler, public Registration {
     // number of new registrations with the FCM service. Thus this code does not
     // compile on other platforms. Check with //components/gcm_driver owners
     // before changing this.
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     CHECK(false) << "Do not use outside of Android.";
 #endif
 
@@ -74,7 +74,9 @@ class FCMHandler : public gcm::GCMAppHandler, public Registration {
     instance_id_->GetToken(
         kFCMSenderId, instance_id::kGCMScope,
         /*time_to_live=*/base::TimeDelta(),
-        /*flags=*/{},
+        // This flag causes high-priority messages to be processed immediately
+        // rather than deferred until the device is not dozing.
+        {instance_id::InstanceID::Flags::kBypassScheduler},
         base::BindOnce(&FCMHandler::GetTokenComplete, base::Unretained(this)));
   }
 
@@ -264,7 +266,8 @@ std::unique_ptr<Registration::Event> Registration::Event::FromSerialized(
   CBS cbs;
   CBS_init(&cbs, in.data(), in.size());
 
-  if (!CBS_get_u8(&cbs, &source) || !CBS_get_u8(&cbs, &request_type) ||
+  if (!CBS_get_u8(&cbs, &source) ||        //
+      !CBS_get_u8(&cbs, &request_type) ||  //
       !CBS_copy_bytes(&cbs, e->tunnel_id.data(), e->tunnel_id.size()) ||
       !CBS_copy_bytes(&cbs, e->routing_id.data(), e->routing_id.size()) ||
       !CBS_copy_bytes(&cbs, e->pairing_id.data(), e->pairing_id.size()) ||

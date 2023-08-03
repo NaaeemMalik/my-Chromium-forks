@@ -1,24 +1,25 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/navigation/session_storage_builder.h"
 
-#include <memory>
+#import <memory>
 
-#include "base/check_op.h"
-#include "base/mac/foundation_util.h"
-#include "ios/web/common/features.h"
+#import "base/check_op.h"
+#import "base/mac/foundation_util.h"
+#import "components/sessions/core/session_id.h"
+#import "ios/web/common/features.h"
 #import "ios/web/navigation/navigation_item_impl.h"
 #import "ios/web/navigation/navigation_item_storage_builder.h"
-#include "ios/web/navigation/navigation_manager_impl.h"
+#import "ios/web/navigation/navigation_manager_impl.h"
 #import "ios/web/navigation/wk_navigation_util.h"
 #import "ios/web/public/navigation/navigation_item.h"
 #import "ios/web/public/session/crw_session_storage.h"
 #import "ios/web/public/session/serializable_user_data_manager.h"
 #import "ios/web/public/web_client.h"
 #import "ios/web/session/session_certificate_policy_cache_impl.h"
-#include "ios/web/session/session_certificate_policy_cache_storage_builder.h"
+#import "ios/web/session/session_certificate_policy_cache_storage_builder.h"
 #import "ios/web/web_state/web_state_impl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -35,6 +36,10 @@ CRWSessionStorage* SessionStorageBuilder::BuildStorage(
   DCHECK_EQ(&web_state, navigation_manager.GetWebState());
 
   CRWSessionStorage* session_storage = [[CRWSessionStorage alloc] init];
+  session_storage.lastActiveTime = web_state.GetLastActiveTime();
+  session_storage.creationTime = web_state.GetCreationTime();
+  session_storage.stableIdentifier = web_state.GetStableIdentifier();
+  session_storage.uniqueIdentifier = web_state.GetUniqueIdentifier();
   session_storage.hasOpener = web_state.HasOpener();
   session_storage.lastCommittedItemIndex =
       navigation_manager.GetLastCommittedItemIndex();
@@ -81,9 +86,7 @@ CRWSessionStorage* SessionStorageBuilder::BuildStorage(
   const SerializableUserDataManager* user_data_manager =
       SerializableUserDataManager::FromWebState(&web_state);
   if (user_data_manager) {
-    [session_storage
-        setSerializableUserData:user_data_manager
-                                    ->CreateSerializableUserData()];
+    session_storage.userData = user_data_manager->GetUserDataForSession();
   }
   session_storage.userAgentType = web_state.GetUserAgentForSessionRestoration();
 
@@ -126,7 +129,7 @@ void SessionStorageBuilder::ExtractSessionState(
   web_state.SetSessionCertificatePolicyCacheImpl(std::move(cert_policy_cache));
 
   SerializableUserDataManager::FromWebState(&web_state)
-      ->AddSerializableUserData(session_storage.userData);
+      ->SetUserDataFromSession(session_storage.userData);
   UserAgentType user_agent_type = session_storage.userAgentType;
   web_state.SetUserAgent(user_agent_type);
 }

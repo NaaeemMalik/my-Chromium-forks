@@ -35,6 +35,7 @@
 #include "net/ssl/ssl_info.h"
 #include "services/network/public/cpp/cors/cors.h"
 #include "services/network/public/mojom/fetch_api.mojom-blink.h"
+#include "third_party/blink/public/mojom/timing/resource_timing.mojom-blink.h"
 #include "third_party/blink/public/platform/web_url_response.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_load_timing.h"
 #include "third_party/blink/renderer/platform/network/http_names.h"
@@ -50,7 +51,7 @@ namespace {
 template <typename Interface>
 Vector<Interface> IsolatedCopy(const Vector<Interface>& src) {
   Vector<Interface> result;
-  result.ReserveCapacity(src.size());
+  result.reserve(src.size());
   for (const auto& timestamp : src) {
     result.push_back(timestamp.IsolatedCopy());
   }
@@ -71,7 +72,6 @@ ResourceResponse::ResourceResponse()
       have_parsed_expires_header_(false),
       have_parsed_last_modified_header_(false),
       has_major_certificate_errors_(false),
-      is_legacy_tls_version_(false),
       has_range_requested_(false),
       timing_allow_passed_(false),
       was_fetched_via_spdy_(false),
@@ -127,7 +127,7 @@ KURL ResourceResponse::ResponseUrl() const {
   // Instead it has |url_list_via_service_worker_| which is only populated when
   // the response came from a service worker, and that response was not created
   // through `new Response()`. Use it when available.
-  if (!url_list_via_service_worker_.IsEmpty()) {
+  if (!url_list_via_service_worker_.empty()) {
     DCHECK(WasFetchedViaServiceWorker());
     return url_list_via_service_worker_.back();
   }
@@ -145,8 +145,8 @@ KURL ResourceResponse::ResponseUrl() const {
 }
 
 bool ResourceResponse::IsServiceWorkerPassThrough() const {
-  return cache_storage_cache_name_.IsEmpty() &&
-         !url_list_via_service_worker_.IsEmpty() &&
+  return cache_storage_cache_name_.empty() &&
+         !url_list_via_service_worker_.empty() &&
          ResponseUrl() == CurrentRequestUrl();
 }
 
@@ -261,7 +261,7 @@ void ResourceResponse::AddHttpHeaderField(const AtomicString& name,
 void ResourceResponse::AddHttpHeaderFieldWithMultipleValues(
     const AtomicString& name,
     const Vector<AtomicString>& values) {
-  if (values.IsEmpty())
+  if (values.empty())
     return;
 
   UpdateHeaderParsedState(name);
@@ -271,7 +271,7 @@ void ResourceResponse::AddHttpHeaderFieldWithMultipleValues(
   if (it != http_header_fields_.end())
     value_builder.Append(it->value);
   for (const auto& value : values) {
-    if (!value_builder.IsEmpty())
+    if (!value_builder.empty())
       value_builder.Append(", ");
     value_builder.Append(value);
   }
@@ -316,8 +316,8 @@ bool ResourceResponse::CacheControlContainsMustRevalidate() const {
 bool ResourceResponse::HasCacheValidatorFields() const {
   static const char kLastModifiedHeader[] = "last-modified";
   static const char kETagHeader[] = "etag";
-  return !http_header_fields_.Get(kLastModifiedHeader).IsEmpty() ||
-         !http_header_fields_.Get(kETagHeader).IsEmpty();
+  return !http_header_fields_.Get(kLastModifiedHeader).empty() ||
+         !http_header_fields_.Get(kETagHeader).empty();
 }
 
 absl::optional<base::TimeDelta> ResourceResponse::CacheControlMaxAge() const {
@@ -347,7 +347,7 @@ static absl::optional<base::Time> ParseDateValueInHeader(
     const HTTPHeaderMap& headers,
     const AtomicString& header_name) {
   const AtomicString& header_value = headers.Get(header_name);
-  if (header_value.IsEmpty())
+  if (header_value.empty())
     return absl::nullopt;
   // This handles all date formats required by RFC2616:
   // Sun, 06 Nov 1994 08:49:37 GMT  ; RFC 822, updated by RFC 1123
@@ -450,10 +450,6 @@ void ResourceResponse::SetResourceLoadTiming(
   resource_load_timing_ = std::move(resource_load_timing);
 }
 
-void ResourceResponse::SetCTPolicyCompliance(CTPolicyCompliance compliance) {
-  ct_policy_compliance_ = compliance;
-}
-
 AtomicString ResourceResponse::ConnectionInfoString() const {
   std::string connection_info_string =
       net::HttpResponseInfo::ConnectionInfoToString(connection_info_);
@@ -477,7 +473,7 @@ void ResourceResponse::SetEncodedDataLength(int64_t value) {
   encoded_data_length_ = value;
 }
 
-void ResourceResponse::SetEncodedBodyLength(int64_t value) {
+void ResourceResponse::SetEncodedBodyLength(uint64_t value) {
   encoded_body_length_ = value;
 }
 

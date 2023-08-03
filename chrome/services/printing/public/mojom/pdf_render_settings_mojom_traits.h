@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_SERVICES_PRINTING_PUBLIC_MOJOM_PDF_RENDER_SETTINGS_MOJOM_TRAITS_H_
 #define CHROME_SERVICES_PRINTING_PUBLIC_MOJOM_PDF_RENDER_SETTINGS_MOJOM_TRAITS_H_
 
+#include "base/notreached.h"
 #include "build/build_config.h"
 #include "chrome/services/printing/public/mojom/pdf_render_settings.mojom-shared.h"
 #include "printing/pdf_render_settings.h"
@@ -21,7 +22,7 @@ struct EnumTraits<printing::mojom::PdfRenderSettings_Mode,
     switch (mode) {
       case PrintMode::NORMAL:
         return MojomMode::NORMAL;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
       case PrintMode::TEXTONLY:
         return MojomMode::TEXTONLY;
       case PrintMode::POSTSCRIPT_LEVEL2:
@@ -46,7 +47,7 @@ struct EnumTraits<printing::mojom::PdfRenderSettings_Mode,
       case MojomMode::NORMAL:
         *output = PrintMode::NORMAL;
         return true;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
       case MojomMode::TEXTONLY:
         *output = PrintMode::TEXTONLY;
         return true;

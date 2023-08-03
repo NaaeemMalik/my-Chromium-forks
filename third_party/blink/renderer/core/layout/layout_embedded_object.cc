@@ -95,12 +95,7 @@ void LayoutEmbeddedObject::UpdateLayout() {
   NOT_DESTROYED();
   DCHECK(NeedsLayout());
 
-  UpdateLogicalWidth();
-  UpdateLogicalHeight();
-
   ClearLayoutOverflow();
-
-  UpdateAfterLayout();
 
   if (!GetEmbeddedContentView() && GetFrameView())
     GetFrameView()->AddPartToUpdate(*this);

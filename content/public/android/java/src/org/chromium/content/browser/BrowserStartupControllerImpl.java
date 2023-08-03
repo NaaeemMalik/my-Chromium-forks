@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,10 +23,10 @@ import org.chromium.base.library_loader.LoaderErrors;
 import org.chromium.base.library_loader.ProcessInitException;
 import org.chromium.base.metrics.ScopedSysTraceEvent;
 import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
 import org.chromium.content.app.ContentMain;
 import org.chromium.content.browser.ServicificationStartupUma.ServicificationStartup;
 import org.chromium.content_public.browser.BrowserStartupController;
-import org.chromium.content_public.browser.UiThreadTaskTraits;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -129,10 +129,10 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
     BrowserStartupControllerImpl() {
         mAsyncStartupCallbacks = new ArrayList<>();
         mMinimalBrowserStartedCallbacks = new ArrayList<>();
-        if (BuildInfo.isDebugAndroid()) {
-            // Only set up the tracing broadcast receiver on debug builds of the OS. Normal tracing
-            // should use the DevTools API.
-            PostTask.postTask(UiThreadTaskTraits.DEFAULT, new Runnable() {
+        if (BuildInfo.isDebugAndroid() && !ContextUtils.isSdkSandboxProcess()) {
+            // Only set up the tracing broadcast receiver on debug builds of the OS and
+            // non-SdkSandbox process. Normal tracing should use the DevTools API.
+            PostTask.postTask(TaskTraits.UI_DEFAULT, new Runnable() {
                 @Override
                 public void run() {
                     addStartupCompletedObserver(new StartupCallback() {
@@ -176,6 +176,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
     @Override
     public void startBrowserProcessesAsync(@LibraryProcessType int libraryProcessType,
             boolean startGpuProcess, boolean startMinimalBrowser, final StartupCallback callback) {
+        assert !LibraryLoader.isBrowserProcessStartupBlockedForTesting();
         assertProcessTypeSupported(libraryProcessType);
         assert ThreadUtils.runningOnUiThread() : "Tried to start the browser on the wrong thread.";
         ServicificationStartupUma.getInstance().record(ServicificationStartupUma.getStartupMode(
@@ -203,7 +204,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
             // This is the first time we have been asked to start the browser process. We set the
             // flag that indicates that we have kicked off starting the browser process.
             mHasStartedInitializingBrowserProcess = true;
-            sShouldStartGpuProcessOnBrowserStartup = startGpuProcess;
+            sShouldStartGpuProcessOnBrowserStartup |= startGpuProcess;
 
             // Start-up at this point occurs before the first frame of the app is drawn. Although
             // contentStart() can be called eagerly, deferring it would allow a frame to be drawn,
@@ -221,7 +222,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
                             : BrowserStartType.FULL_BROWSER;
                     if (contentStart() > 0) {
                         // Failed. The callbacks may not have run, so run them.
-                        enqueueCallbackExecution(STARTUP_FAILURE);
+                        enqueueCallbackExecutionOnStartupFailure();
                     }
                 }
             });
@@ -230,14 +231,17 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
             // If we missed the minimalBrowserStarted() call, launch the full browser now if needed.
             // Otherwise, minimalBrowserStarted() will handle the full browser launch.
             mCurrentBrowserStartType = BrowserStartType.FULL_BROWSER;
-            if (contentStart() > 0) enqueueCallbackExecution(STARTUP_FAILURE);
+            if (contentStart() > 0) enqueueCallbackExecutionOnStartupFailure();
         }
     }
 
     @Override
-    public void startBrowserProcessesSync(
-            @LibraryProcessType int libraryProcessType, boolean singleProcess) {
+    public void startBrowserProcessesSync(@LibraryProcessType int libraryProcessType,
+            boolean singleProcess, boolean startGpuProcess) {
+        assert !LibraryLoader.isBrowserProcessStartupBlockedForTesting();
         assertProcessTypeSupported(libraryProcessType);
+
+        sShouldStartGpuProcessOnBrowserStartup |= startGpuProcess;
 
         ServicificationStartupUma.getInstance().record(ServicificationStartupUma.getStartupMode(
                 mFullBrowserStartupDone, mMinimalBrowserStarted, false /* startMinimalBrowser */));
@@ -253,7 +257,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
                 mCurrentBrowserStartType = BrowserStartType.FULL_BROWSER;
                 if (contentStart() > 0) {
                     // Failed. The callbacks may not have run, so run them.
-                    enqueueCallbackExecution(STARTUP_FAILURE);
+                    enqueueCallbackExecutionOnStartupFailure();
                     startedSuccessfully = false;
                 }
             }
@@ -365,7 +369,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
             // If startFullBrowser() fails, execute the callbacks right away. Otherwise,
             // callbacks will be deferred until browser startup completes.
             mCurrentBrowserStartType = BrowserStartType.FULL_BROWSER;
-            if (contentStart() > 0) enqueueCallbackExecution(STARTUP_FAILURE);
+            if (contentStart() > 0) enqueueCallbackExecutionOnStartupFailure();
             return;
         }
 
@@ -405,19 +409,14 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
         mMinimalBrowserStartedCallbacks.clear();
     }
 
-    // Queue the callbacks to run. Since running the callbacks clears the list it is safe to call
-    // this more than once.
-    private void enqueueCallbackExecution(final int startupFailure) {
-        PostTask.postTask(UiThreadTaskTraits.BOOTSTRAP, new Runnable() {
-            @Override
-            public void run() {
-                executeEnqueuedCallbacks(startupFailure);
-            }
-        });
+    // Post a task to tell the callbacks that startup failed. Since the execution clears the
+    // callback lists, it is safe to call this more than once.
+    private void enqueueCallbackExecutionOnStartupFailure() {
+        PostTask.postTask(TaskTraits.UI_DEFAULT, () -> executeEnqueuedCallbacks(STARTUP_FAILURE));
     }
 
     private void postStartupCompleted(final StartupCallback callback) {
-        PostTask.postTask(UiThreadTaskTraits.BOOTSTRAP, new Runnable() {
+        PostTask.postTask(TaskTraits.UI_DEFAULT, new Runnable() {
             @Override
             public void run() {
                 if (mStartupSuccess) {
@@ -438,15 +437,15 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
         mPrepareToStartCompleted = true;
         try (ScopedSysTraceEvent e = ScopedSysTraceEvent.scoped("prepareToStartBrowserProcess")) {
             // This strictmode exception is to cover the case where the browser process is being
-            // started asynchronously but not in the main browser flow.  The main browser flow will
-            // trigger library loading earlier and this will be a no-op, but in the other cases this
-            // will need to block on loading libraries. This applies to tests and
+            // started asynchronously but not in the main browser flow.  The main browser flow
+            // will trigger library loading earlier and this will be a no-op, but in the other
+            // cases this will need to block on loading libraries. This applies to tests and
             // ManageSpaceActivity, which can be launched from Settings.
             StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
             try {
-                // Normally Main.java will have already loaded the library asynchronously, we only
-                // need to load it here if we arrived via another flow, e.g. bookmark access & sync
-                // setup.
+                // Normally Main.java will have already loaded the library asynchronously, we
+                // only need to load it here if we arrived via another flow, e.g. bookmark
+                // access & sync setup.
                 LibraryLoader.getInstance().ensureInitialized();
             } finally {
                 StrictMode.setThreadPolicy(oldPolicy);
@@ -458,7 +457,7 @@ public class BrowserStartupControllerImpl implements BrowserStartupController {
         }
 
         if (deferrableTask != null) {
-            PostTask.postTask(UiThreadTaskTraits.USER_BLOCKING, deferrableTask);
+            PostTask.postTask(TaskTraits.UI_USER_BLOCKING, deferrableTask);
         }
     }
 

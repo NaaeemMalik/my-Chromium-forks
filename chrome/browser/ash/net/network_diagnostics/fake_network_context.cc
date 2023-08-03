@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/logging.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace {
@@ -151,4 +151,4 @@ void FakeNetworkContext::SetUdpReceiveDelay(base::TimeDelta receive_delay) {
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

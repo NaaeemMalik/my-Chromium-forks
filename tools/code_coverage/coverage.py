@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython
-# Copyright 2017 The Chromium Authors. All rights reserved.
+#!/usr/bin/env vpython3
+# Copyright 2017 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """This script helps to generate code coverage report.
@@ -17,7 +17,7 @@
       --args="use_clang_coverage=true is_component_build=false\\
               is_debug=false dcheck_always_on=true"
   gclient runhooks
-  vpython tools/code_coverage/coverage.py crypto_unittests url_unittests \\
+  vpython3 tools/code_coverage/coverage.py crypto_unittests url_unittests \\
       -b out/coverage -o out/report -c 'out/coverage/crypto_unittests' \\
       -c 'out/coverage/url_unittests --gtest_filter=URLParser.PathURL' \\
       -f url/ -f crypto/
@@ -32,15 +32,19 @@
 
   * Sample flow for running a test target with xvfb (e.g. unit_tests):
 
-  vpython tools/code_coverage/coverage.py unit_tests -b out/coverage \\
+  vpython3 tools/code_coverage/coverage.py unit_tests -b out/coverage \\
       -o out/report -c 'python testing/xvfb.py out/coverage/unit_tests'
 
-  If you are building a fuzz target, you need to add "use_libfuzzer=true" GN
-  flag as well.
+  If you are building a fuzz target, in addition to "use_clang_coverage=true"
+  and "is_component_build=false", you must have the following GN flags as well:
+    optimize_for_fuzzing=false
+    use_remoteexec=false
+    is_asan=false (ASAN & other sanitizers are incompatible with coverage)
+    use_libfuzzer=true
 
   * Sample workflow for a fuzz target (e.g. pdfium_fuzzer):
 
-  vpython tools/code_coverage/coverage.py pdfium_fuzzer \\
+  vpython3 tools/code_coverage/coverage.py pdfium_fuzzer \\
       -b out/coverage -o out/report \\
       -c 'out/coverage/pdfium_fuzzer -runs=0 <corpus_dir>' \\
       -f third_party/pdfium
@@ -53,7 +57,7 @@
 
   * Sample workflow for running Blink web tests:
 
-  vpython tools/code_coverage/coverage.py blink_tests \\
+  vpython3 tools/code_coverage/coverage.py blink_tests \\
       -wt -b out/coverage -o out/report -f third_party/blink
 
   If you need to pass arguments to run_web_tests.py, use
@@ -70,6 +74,7 @@ from __future__ import print_function
 import sys
 
 import argparse
+import glob
 import json
 import logging
 import multiprocessing
@@ -79,12 +84,8 @@ import re
 import shlex
 import shutil
 import subprocess
-import six
 
-if six.PY2:
-  from urllib2 import urlopen
-else:
-  from urllib.request import urlopen
+from urllib.request import urlopen
 
 sys.path.append(
     os.path.join(
@@ -252,8 +253,8 @@ def _GeneratePerFileLineByLineCoverageInFormat(binary_paths, profdata_file_path,
   logging.debug('Finished running "llvm-cov show" command.')
 
 
-def _GeneratePerFileLineByLineCoverageInLcov(binary_paths, profdata_file_path, filters,
-                                             ignore_filename_regex):
+def _GeneratePerFileLineByLineCoverageInLcov(binary_paths, profdata_file_path,
+                                             filters, ignore_filename_regex):
   """Generates per file line-by-line coverage using "llvm-cov export".
 
   Args:
@@ -464,7 +465,17 @@ def _SplitCommand(command):
   """Split a command string into parts in a platform-specific way."""
   if coverage_utils.GetHostPlatform() == 'win':
     return command.split()
-  return shlex.split(command)
+  split_command = shlex.split(command)
+  # Python's subprocess does not do glob expansion, so we expand it out here.
+  new_command = []
+  for item in split_command:
+    if '*' in item:
+      files = glob.glob(item)
+      for file in files:
+        new_command.append(file)
+    else:
+      new_command.append(item)
+  return new_command
 
 
 def _ExecuteCommand(target, command, output_file_path):
@@ -516,7 +527,9 @@ def _IsFuzzerTarget(target):
   build_args = _GetBuildArgs()
   use_libfuzzer = ('use_libfuzzer' in build_args and
                    build_args['use_libfuzzer'] == 'true')
-  return use_libfuzzer and target.endswith('_fuzzer')
+  use_centipede = ('use_centipede' in build_args
+                   and build_args['use_centipede'] == 'true')
+  return (use_libfuzzer or use_centipede) and target.endswith('_fuzzer')
 
 
 def _ExecuteIOSCommand(command, output_file_path):
@@ -855,14 +868,13 @@ def _GetCommandForWebTests(arguments):
   cpu_count = max(1, cpu_count // 2)
 
   command_list = [
-      'python', 'testing/xvfb.py', 'python',
       'third_party/blink/tools/run_web_tests.py',
       '--additional-driver-flag=--no-sandbox',
       '--additional-env-var=LLVM_PROFILE_FILE=%s' %
       LLVM_PROFILE_FILE_PATH_SUBSTITUTION,
       '--child-processes=%d' % cpu_count, '--disable-breakpad',
       '--no-show-results', '--skip-failing-tests',
-      '--target=%s' % os.path.basename(BUILD_DIR), '--time-out-ms=30000'
+      '--target=%s' % os.path.basename(BUILD_DIR), '--timeout-ms=30000'
   ]
   if arguments.strip():
     command_list.append(arguments)
@@ -963,8 +975,10 @@ def _ParseCommandArguments():
       '-p',
       '--profdata-file',
       type=str,
+      action='append',
       required=False,
-      help='Path to profdata file to use for generating code coverage reports. '
+      help=
+      'Path(s) to profdata file(s) to use for generating code coverage reports. '
       'This can be useful if you generated the profdata file seperately in '
       'your own test harness. This option is ignored if run command(s) are '
       'already provided above using -c/--command option.')
@@ -1107,8 +1121,15 @@ def Main():
         args.targets, args.command, args.jobs)
     binary_paths = [_GetBinaryPath(command) for command in args.command]
   else:
-    # An input prof-data file is already provided. Just calculate binary paths.
-    profdata_file_path = args.profdata_file
+    # An input prof-data file(s) is already provided.
+    if len(args.profdata_file) == 1:
+      # If it's just one input file, use as-is.
+      profdata_file_path = args.profdata_file
+    else:
+      # Otherwise, there are multiple profdata files and we need to merge them.
+      profdata_file_path = _CreateCoverageProfileDataFromTargetProfDataFiles(args.profdata_file)
+    # Since input prof-data files were provided, we only need to calculate the
+    # binary paths from here.
     binary_paths = _GetBinaryPathsFromTargets(args.targets, args.build_dir)
 
   # If the checkout uses the hermetic xcode binaries, then otool must be

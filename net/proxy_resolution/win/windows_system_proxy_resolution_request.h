@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,6 +63,9 @@ class NET_EXPORT WindowsSystemProxyResolutionRequest
   virtual void ProxyResolutionComplete(const ProxyList& proxy_list,
                                        WinHttpStatus winhttp_status,
                                        int windows_error);
+
+  WindowsSystemProxyResolver::Request* GetProxyResolutionRequestForTesting();
+  void ResetProxyResolutionRequestForTesting();
 
  private:
   // Cancels the callback from the resolver for a previously started proxy

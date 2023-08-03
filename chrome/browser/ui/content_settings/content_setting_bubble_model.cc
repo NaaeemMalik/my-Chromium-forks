@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,14 +9,14 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/chrome_content_settings_utils.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
@@ -25,16 +25,15 @@
 #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/download/download_request_limiter.h"
-#include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/permission_bubble_media_access_handler.h"
-#include "chrome/browser/media/webrtc/system_media_capture_permissions_mac.h"
 #include "chrome/browser/permissions/permission_decision_auto_blocker_factory.h"
 #include "chrome/browser/permissions/quiet_notification_permission_ui_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/collected_cookies_infobar_delegate.h"
 #include "chrome/browser/ui/content_settings/content_setting_bubble_model_delegate.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/url_identity.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
@@ -50,7 +49,6 @@
 #include "components/custom_handlers/protocol_handler_registry.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/permissions/permission_decision_auto_blocker.h"
-#include "components/permissions/permission_manager.h"
 #include "components/permissions/permission_request_manager.h"
 #include "components/permissions/permission_result.h"
 #include "components/permissions/permission_uma_util.h"
@@ -64,9 +62,11 @@
 #include "components/url_formatter/elide_url.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/notification_service.h"
-#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/page.h"
+#include "content/public/browser/permission_controller.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
+#include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
@@ -76,15 +76,17 @@
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/loader/network_utils.h"
+#include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/window_open_disposition.h"
+#include "ui/base/window_open_disposition_utils.h"
 #include "ui/events/event.h"
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/resources/grit/ui_resources.h"
 
-#if defined(OS_MAC)
-#include "chrome/browser/browser_process_platform_part.h"
+#if BUILDFLAG(IS_MAC)
+#include "base/mac/mac_util.h"
 #include "chrome/browser/media/webrtc/system_media_capture_permissions_mac.h"
 #include "services/device/public/cpp/geolocation/geolocation_manager.h"
 #endif
@@ -103,18 +105,6 @@ namespace {
 
 using QuietUiReason = permissions::PermissionRequestManager::QuietUiReason;
 
-#if defined(OS_MAC)
-static constexpr char kCameraSettingsURI[] =
-    "x-apple.systempreferences:com.apple.preference.security?Privacy_"
-    "Camera";
-static constexpr char kMicSettingsURI[] =
-    "x-apple.systempreferences:com.apple.preference.security?Privacy_"
-    "Microphone";
-static constexpr char kLocationSettingsURI[] =
-    "x-apple.systempreferences:com.apple.preference.security?Privacy_"
-    "LocationServices";
-#endif  // defined(OS_MAC)
-
 // Returns a boolean indicating whether the setting should be managed by the
 // user (i.e. it is not controlled by policy). Also takes a (nullable) out-param
 // which is populated by the actual setting for the given URL.
@@ -127,13 +117,15 @@ bool GetSettingManagedByUser(const GURL& url,
   SettingSource source;
   ContentSetting setting;
   if (type == ContentSettingsType::COOKIES) {
+    // TODO(crbug.com/1386190): Consider whether the following check should
+    // somehow determine real CookieSettingOverrides rather than default to
+    // none.
     setting = CookieSettingsFactory::GetForProfile(profile)->GetCookieSetting(
-        url, url, &source);
+        url, url, net::CookieSettingOverrides(), &source);
   } else {
     SettingInfo info;
-    std::unique_ptr<base::Value> value =
-        map->GetWebsiteSetting(url, url, type, &info);
-    setting = content_settings::ValueToContentSetting(value.get());
+    const base::Value value = map->GetWebsiteSetting(url, url, type, &info);
+    setting = content_settings::ValueToContentSetting(value);
     source = info.source;
   }
 
@@ -177,10 +169,27 @@ int GetIdForContentType(const ContentSettingsTypeIdEntry* entries,
   return 0;
 }
 
-void SetAllowRunningInsecureContent(content::RenderFrameHost* frame) {
+void SetAllowRunningInsecureContent(
+    MixedContentSettingsTabHelper* mixed_content_settings,
+    content::RenderFrameHost* frame) {
+  // Set Insecure Content flag only if running insecure content is allowed
+  if (mixed_content_settings &&
+      !mixed_content_settings->IsRunningInsecureContentAllowed(*frame)) {
+    return;
+  }
+
   mojo::AssociatedRemote<content_settings::mojom::ContentSettingsAgent> agent;
   frame->GetRemoteAssociatedInterfaces()->GetInterface(&agent);
   agent->SetAllowRunningInsecureContent();
+}
+
+constexpr UrlIdentity::TypeSet allowed_types = {
+    UrlIdentity::Type::kDefault, UrlIdentity::Type::kFile,
+    UrlIdentity::Type::kIsolatedWebApp};
+constexpr UrlIdentity::FormatOptions options;
+
+UrlIdentity GetUrlIdentity(Profile* profile, const GURL& url) {
+  return UrlIdentity::CreateFromUrl(profile, url, allowed_types, options);
 }
 
 }  // namespace
@@ -221,9 +230,8 @@ ContentSettingSimpleBubbleModel::AsSimpleBubbleModel() {
 }
 
 void ContentSettingSimpleBubbleModel::SetTitle() {
-  // TODO(https://crbug.com/1103176): Plumb the actual frame reference here
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents()->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
 
   static const ContentSettingsTypeIdEntry kBlockedTitleIDs[] = {
       {ContentSettingsType::COOKIES, IDS_BLOCKED_COOKIES_TITLE},
@@ -246,11 +254,11 @@ void ContentSettingSimpleBubbleModel::SetTitle() {
       {ContentSettingsType::SENSORS, IDS_ALLOWED_SENSORS_TITLE},
   };
   const ContentSettingsTypeIdEntry* title_ids = kBlockedTitleIDs;
-  size_t num_title_ids = base::size(kBlockedTitleIDs);
+  size_t num_title_ids = std::size(kBlockedTitleIDs);
   if (content_settings->IsContentAllowed(content_type()) &&
       !content_settings->IsContentBlocked(content_type())) {
     title_ids = kAccessedTitleIDs;
-    num_title_ids = base::size(kAccessedTitleIDs);
+    num_title_ids = std::size(kAccessedTitleIDs);
   }
   int title_id = GetIdForContentType(title_ids, num_title_ids, content_type());
   if (title_id)
@@ -259,7 +267,7 @@ void ContentSettingSimpleBubbleModel::SetTitle() {
 
 void ContentSettingSimpleBubbleModel::SetMessage() {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents()->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
 
   // TODO(https://crbug.com/978882): Make the two arrays below static again once
   // we no longer need to check base::FeatureList.
@@ -292,11 +300,11 @@ void ContentSettingSimpleBubbleModel::SetMessage() {
            : IDS_ALLOWED_MOTION_SENSORS_MESSAGE},
   };
   const ContentSettingsTypeIdEntry* message_ids = kBlockedMessageIDs;
-  size_t num_message_ids = base::size(kBlockedMessageIDs);
+  size_t num_message_ids = std::size(kBlockedMessageIDs);
   if (content_settings->IsContentAllowed(content_type()) &&
       !content_settings->IsContentBlocked(content_type())) {
     message_ids = kAccessedMessageIDs;
-    num_message_ids = base::size(kAccessedMessageIDs);
+    num_message_ids = std::size(kAccessedMessageIDs);
   }
   int message_id =
       GetIdForContentType(message_ids, num_message_ids, content_type());
@@ -324,7 +332,7 @@ void ContentSettingSimpleBubbleModel::SetCustomLink() {
       {ContentSettingsType::MIXEDSCRIPT, IDS_ALLOW_INSECURE_CONTENT_BUTTON},
   };
   int custom_link_id =
-      GetIdForContentType(kCustomIDs, base::size(kCustomIDs), content_type());
+      GetIdForContentType(kCustomIDs, std::size(kCustomIDs), content_type());
   if (custom_link_id)
     set_custom_link(l10n_util::GetStringUTF16(custom_link_id));
 }
@@ -376,12 +384,20 @@ void ContentSettingMixedScriptBubbleModel::OnCustomLinkClicked() {
   if (mixed_content_settings) {
     // Update browser side settings to allow active mixed content.
     mixed_content_settings->AllowRunningOfInsecureContent(
-        *web_contents()->GetMainFrame());
+        GetPage().GetMainDocument());
   }
 
   // Update renderer side settings to allow active mixed content.
-  web_contents()->ForEachFrame(
-      base::BindRepeating(&::SetAllowRunningInsecureContent));
+  GetPage().GetMainDocument().ForEachRenderFrameHostWithAction(
+      [mixed_content_settings](content::RenderFrameHost* frame) {
+        // Stop the child frame enumeration if we have reached a fenced frame.
+        // This is correct since fence frames should ignore InsecureContent
+        // setting.
+        if (frame->IsFencedFrameRoot())
+          return content::RenderFrameHost::FrameIterationAction::kSkipChildren;
+        SetAllowRunningInsecureContent(mixed_content_settings, frame);
+        return content::RenderFrameHost::FrameIterationAction::kContinue;
+      });
 }
 
 // Don't set any manage text since none is displayed.
@@ -411,8 +427,10 @@ ContentSettingRPHBubbleModel::ContentSettingRPHBubbleModel(
                                       web_contents,
                                       ContentSettingsType::PROTOCOL_HANDLERS),
       registry_(registry),
-      pending_handler_(ProtocolHandler::EmptyProtocolHandler()),
-      previous_handler_(ProtocolHandler::EmptyProtocolHandler()) {
+      pending_handler_(
+          custom_handlers::ProtocolHandler::EmptyProtocolHandler()),
+      previous_handler_(
+          custom_handlers::ProtocolHandler::EmptyProtocolHandler()) {
   auto* content_settings =
       chrome::PageSpecificContentSettingsDelegate::FromWebContents(
           web_contents);
@@ -440,7 +458,7 @@ ContentSettingRPHBubbleModel::ContentSettingRPHBubbleModel(
   std::u16string radio_ignore_label =
       l10n_util::GetStringUTF16(IDS_REGISTER_PROTOCOL_HANDLER_IGNORE);
 
-  const GURL& url = web_contents->GetURL();
+  const GURL& url = web_contents->GetLastCommittedURL();
   RadioGroup radio_group;
   radio_group.url = url;
 
@@ -547,10 +565,10 @@ bool ContentSettingSingleRadioGroup::settings_changed() const {
 // content type and setting the default value based on the content setting.
 void ContentSettingSingleRadioGroup::SetRadioGroup() {
   const GURL& url = web_contents()->GetURL();
-  std::u16string display_host = url_formatter::FormatUrlForSecurityDisplay(url);
+  const UrlIdentity url_identity = GetUrlIdentity(GetProfile(), url);
 
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents()->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
   bool allowed = !content_settings->IsContentBlocked(content_type());
 
   // For the frame busting case the content is blocked but its content type is
@@ -590,13 +608,13 @@ void ContentSettingSingleRadioGroup::SetRadioGroup() {
   std::u16string radio_allow_label;
   if (allowed) {
     int resource_id = GetIdForContentType(
-        kAllowedAllowIDs, base::size(kAllowedAllowIDs), content_type());
+        kAllowedAllowIDs, std::size(kAllowedAllowIDs), content_type());
     radio_allow_label = l10n_util::GetStringUTF16(resource_id);
   } else {
     radio_allow_label = l10n_util::GetStringFUTF16(
-        GetIdForContentType(kBlockedAllowIDs, base::size(kBlockedAllowIDs),
+        GetIdForContentType(kBlockedAllowIDs, std::size(kBlockedAllowIDs),
                             content_type()),
-        display_host);
+        url_identity.name);
   }
 
   static const ContentSettingsTypeIdEntry kBlockedBlockIDs[] = {
@@ -622,11 +640,12 @@ void ContentSettingSingleRadioGroup::SetRadioGroup() {
   std::u16string radio_block_label;
   if (allowed) {
     int resource_id = GetIdForContentType(
-        kAllowedBlockIDs, base::size(kAllowedBlockIDs), content_type());
-    radio_block_label = l10n_util::GetStringFUTF16(resource_id, display_host);
+        kAllowedBlockIDs, std::size(kAllowedBlockIDs), content_type());
+    radio_block_label =
+        l10n_util::GetStringFUTF16(resource_id, url_identity.name);
   } else {
     radio_block_label = l10n_util::GetStringUTF16(GetIdForContentType(
-        kBlockedBlockIDs, base::size(kBlockedBlockIDs), content_type()));
+        kBlockedBlockIDs, std::size(kBlockedBlockIDs), content_type()));
   }
 
   radio_group.radio_items = {radio_allow_label, radio_block_label};
@@ -819,17 +838,17 @@ ContentSettingMediaStreamBubbleModel::ContentSettingMediaStreamBubbleModel(
   radio_item_setting_[1] = CONTENT_SETTING_BLOCK;
 
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
   state_ = content_settings->GetMicrophoneCameraState();
   DCHECK(CameraAccessed() || MicrophoneAccessed());
 
   // If the permission is turned off in MacOS system preferences, overwrite
   // the bubble to enable the user to trigger the system dialog.
   if (ShouldShowSystemMediaPermissions()) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
     InitializeSystemMediaPermissionBubble();
     return;
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
   }
 
   SetTitle();
@@ -879,21 +898,21 @@ void ContentSettingMediaStreamBubbleModel::OnManageButtonClicked() {
 
 void ContentSettingMediaStreamBubbleModel::OnDoneButtonClicked() {
   if (ShouldShowSystemMediaPermissions()) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
     DCHECK(CameraAccessed() || MicrophoneAccessed());
 
     base::RecordAction(UserMetricsAction("Media.OpenPreferencesClicked"));
     DCHECK(ShouldShowSystemMediaPermissions());
 
     if (CameraAccessed()) {
-      ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck(
-          GURL(kCameraSettingsURI), web_contents());
+      base::mac::OpenSystemSettingsPane(
+          base::mac::SystemSettingsPane::kPrivacySecurity_Camera);
     } else if (MicrophoneAccessed()) {
-      ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck(
-          GURL(kMicSettingsURI), web_contents());
+      base::mac::OpenSystemSettingsPane(
+          base::mac::SystemSettingsPane::kPrivacySecurity_Microphone);
     }
     return;
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
   }
 }
 
@@ -955,12 +974,11 @@ void ContentSettingMediaStreamBubbleModel::SetMessage() {
 
 void ContentSettingMediaStreamBubbleModel::SetRadioGroup() {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents()->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
   GURL url = content_settings->media_stream_access_origin();
   RadioGroup radio_group;
   radio_group.url = url;
-
-  std::u16string display_host = url_formatter::FormatUrlForSecurityDisplay(url);
+  const UrlIdentity url_identity = GetUrlIdentity(GetProfile(), url);
 
   DCHECK(CameraAccessed() || MicrophoneAccessed());
   int radio_allow_label_id = 0;
@@ -987,15 +1005,15 @@ void ContentSettingMediaStreamBubbleModel::SetRadioGroup() {
           CameraAccessed() ? IDS_BLOCKED_MEDIASTREAM_MIC_AND_CAMERA_NO_ACTION
                            : IDS_BLOCKED_MEDIASTREAM_MIC_NO_ACTION;
   } else {
-    permissions::PermissionManager* permission_manager =
-        permissions::PermissionsClient::Get()->GetPermissionManager(
-            web_contents()->GetBrowserContext());
-    permissions::PermissionResult pan_tilt_zoom_permission =
-        permission_manager->GetPermissionStatusForFrame(
-            ContentSettingsType::CAMERA_PAN_TILT_ZOOM,
-            web_contents()->GetMainFrame(), url);
     bool has_pan_tilt_zoom_permission_granted =
-        pan_tilt_zoom_permission.content_setting == CONTENT_SETTING_ALLOW;
+        web_contents()
+            ->GetBrowserContext()
+            ->GetPermissionController()
+            ->GetPermissionStatusForCurrentDocument(
+                blink::PermissionType::CAMERA_PAN_TILT_ZOOM,
+                &GetPage().GetMainDocument()) ==
+        blink::mojom::PermissionStatus::GRANTED;
+
     if (MicrophoneAccessed() && CameraAccessed()) {
       radio_allow_label_id =
           has_pan_tilt_zoom_permission_granted
@@ -1014,7 +1032,7 @@ void ContentSettingMediaStreamBubbleModel::SetRadioGroup() {
   }
 
   std::u16string radio_allow_label =
-      l10n_util::GetStringFUTF16(radio_allow_label_id, display_host);
+      l10n_util::GetStringFUTF16(radio_allow_label_id, url_identity.name);
   std::u16string radio_block_label =
       l10n_util::GetStringUTF16(radio_block_label_id);
 
@@ -1034,7 +1052,7 @@ void ContentSettingMediaStreamBubbleModel::SetRadioGroup() {
 void ContentSettingMediaStreamBubbleModel::UpdateSettings(
     ContentSetting setting) {
   PageSpecificContentSettings* page_content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents()->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
   // The same urls must be used as in other places (e.g. the infobar) in
   // order to override the existing rule. Otherwise a new rule is created.
   // TODO(markusheintz): Extract to a helper so that there is only a single
@@ -1063,7 +1081,7 @@ void ContentSettingMediaStreamBubbleModel::UpdateSettings(
   }
 }
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 void ContentSettingMediaStreamBubbleModel::
     InitializeSystemMediaPermissionBubble() {
   DCHECK(CameraAccessed() || MicrophoneAccessed());
@@ -1101,12 +1119,12 @@ void ContentSettingMediaStreamBubbleModel::
   set_title(l10n_util::GetStringUTF16(title_id));
   set_manage_text_style(ContentSettingBubbleModel::ManageTextStyle::kNone);
   SetCustomLink();
-  set_done_button_text(l10n_util::GetStringUTF16(IDS_OPEN_PREFERENCES_LINK));
+  set_done_button_text(l10n_util::GetStringUTF16(IDS_OPEN_SETTINGS_LINK));
 }
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 
 bool ContentSettingMediaStreamBubbleModel::ShouldShowSystemMediaPermissions() {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   return (((system_media_permissions::CheckSystemVideoCapturePermission() ==
                 system_media_permissions::SystemPermission::kDenied &&
             CameraAccessed() && !CameraBlocked()) ||
@@ -1117,7 +1135,7 @@ bool ContentSettingMediaStreamBubbleModel::ShouldShowSystemMediaPermissions() {
           !(MicrophoneAccessed() && MicrophoneBlocked()));
 #else
   return false;
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 }
 
 void ContentSettingMediaStreamBubbleModel::UpdateDefaultDeviceForType(
@@ -1134,7 +1152,7 @@ void ContentSettingMediaStreamBubbleModel::UpdateDefaultDeviceForType(
 
 void ContentSettingMediaStreamBubbleModel::SetMediaMenus() {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents()->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
   const std::string& requested_microphone =
       content_settings->media_stream_requested_audio_device();
   const std::string& requested_camera =
@@ -1204,7 +1222,7 @@ void ContentSettingMediaStreamBubbleModel::SetManageText() {
 
 void ContentSettingMediaStreamBubbleModel::SetCustomLink() {
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents()->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
   if (content_settings->IsMicrophoneCameraStateChanged()) {
     set_custom_link(
         l10n_util::GetStringUTF16(IDS_MEDIASTREAM_SETTING_CHANGED_MESSAGE));
@@ -1235,9 +1253,9 @@ ContentSettingGeolocationBubbleModel::ContentSettingGeolocationBubbleModel(
                                      web_contents,
                                      ContentSettingsType::GEOLOCATION) {
   SetCustomLink();
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   PageSpecificContentSettings* content_settings =
-      PageSpecificContentSettings::GetForFrame(web_contents->GetMainFrame());
+      PageSpecificContentSettings::GetForFrame(&GetPage().GetMainDocument());
   if (!content_settings)
     return;
 
@@ -1245,7 +1263,7 @@ ContentSettingGeolocationBubbleModel::ContentSettingGeolocationBubbleModel(
       content_settings->IsContentAllowed(ContentSettingsType::GEOLOCATION);
 
   device::GeolocationManager* geolocation_manager =
-      g_browser_process->platform_part()->geolocation_manager();
+      g_browser_process->geolocation_manager();
   LocationSystemPermissionStatus permission =
       geolocation_manager->GetSystemPermission();
   if (permission != LocationSystemPermissionStatus::kAllowed && is_allowed) {
@@ -1253,7 +1271,7 @@ ContentSettingGeolocationBubbleModel::ContentSettingGeolocationBubbleModel(
     // the bubble to enable the user to trigger the system dialog.
     InitializeSystemGeolocationPermissionBubble();
   }
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 }
 
 ContentSettingGeolocationBubbleModel::~ContentSettingGeolocationBubbleModel() =
@@ -1261,16 +1279,16 @@ ContentSettingGeolocationBubbleModel::~ContentSettingGeolocationBubbleModel() =
 
 void ContentSettingGeolocationBubbleModel::OnDoneButtonClicked() {
   if (show_system_geolocation_bubble_) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
     if (show_system_geolocation_bubble_) {
       base::RecordAction(UserMetricsAction(
           "ContentSettings.GeolocationDialog.OpenPreferencesClicked"));
     }
 
-    ExternalProtocolHandler::LaunchUrlWithoutSecurityCheck(
-        GURL(kLocationSettingsURI), web_contents());
+    base::mac::OpenSystemSettingsPane(
+        base::mac::SystemSettingsPane::kPrivacySecurity_LocationServices);
     return;
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
   }
 }
 
@@ -1287,7 +1305,7 @@ void ContentSettingGeolocationBubbleModel::CommitChanges() {
 
 void ContentSettingGeolocationBubbleModel::
     InitializeSystemGeolocationPermissionBubble() {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   if (base::FeatureList::IsEnabled(features::kLocationPermissionsExperiment)) {
     set_title(l10n_util::GetStringUTF16(
         IDS_GEOLOCATION_TURNED_OFF_IN_MACOS_SETTINGS));
@@ -1301,10 +1319,10 @@ void ContentSettingGeolocationBubbleModel::
       l10n_util::GetStringUTF16(IDS_GEOLOCATION),
       l10n_util::GetStringUTF16(IDS_TURNED_OFF), false, true, 0));
   set_manage_text_style(ContentSettingBubbleModel::ManageTextStyle::kNone);
-  set_done_button_text(l10n_util::GetStringUTF16(IDS_OPEN_PREFERENCES_LINK));
+  set_done_button_text(l10n_util::GetStringUTF16(IDS_OPEN_SETTINGS_LINK));
   set_radio_group(RadioGroup());
   show_system_geolocation_bubble_ = true;
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 }
 
 void ContentSettingGeolocationBubbleModel::SetCustomLink() {
@@ -1312,9 +1330,9 @@ void ContentSettingGeolocationBubbleModel::SetCustomLink() {
       web_contents()->GetBrowserContext());
   SettingInfo info;
   const GURL url =
-      web_contents()->GetMainFrame()->GetLastCommittedOrigin().GetURL();
+      GetPage().GetMainDocument().GetLastCommittedOrigin().GetURL();
   map->GetWebsiteSetting(url, url, ContentSettingsType::GEOLOCATION, &info);
-  if (info.session_model == SessionModel::OneTime)
+  if (info.metadata.session_model == SessionModel::OneTime)
     set_custom_link(l10n_util::GetStringUTF16(IDS_GEOLOCATION_WILL_ASK_AGAIN));
 }
 
@@ -1418,8 +1436,10 @@ void ContentSettingDownloadsBubbleModel::SetRadioGroup() {
       g_browser_process->download_request_limiter();
   const GURL& download_origin =
       download_request_limiter->GetDownloadOrigin(web_contents());
-  std::u16string display_host =
-      url_formatter::FormatUrlForSecurityDisplay(download_origin);
+
+  const UrlIdentity url_identity =
+      GetUrlIdentity(GetProfile(), download_origin);
+
   DCHECK(download_request_limiter);
 
   RadioGroup radio_group;
@@ -1428,13 +1448,14 @@ void ContentSettingDownloadsBubbleModel::SetRadioGroup() {
     case DownloadRequestLimiter::DOWNLOAD_UI_ALLOWED:
       radio_group.radio_items = {
           l10n_util::GetStringUTF16(IDS_ALLOWED_DOWNLOAD_NO_ACTION),
-          l10n_util::GetStringFUTF16(IDS_ALLOWED_DOWNLOAD_BLOCK, display_host)};
+          l10n_util::GetStringFUTF16(IDS_ALLOWED_DOWNLOAD_BLOCK,
+                                     url_identity.name)};
       radio_group.default_item = kAllowButtonIndex;
       break;
     case DownloadRequestLimiter::DOWNLOAD_UI_BLOCKED:
       radio_group.radio_items = {
           l10n_util::GetStringFUTF16(IDS_BLOCKED_DOWNLOAD_UNBLOCK,
-                                     display_host),
+                                     url_identity.name),
           l10n_util::GetStringUTF16(IDS_BLOCKED_DOWNLOAD_NO_ACTION)};
       radio_group.default_item = 1;
       break;
@@ -1580,7 +1601,21 @@ ContentSettingQuietRequestBubbleModel::ContentSettingQuietRequestBubbleModel(
       base::RecordAction(
           base::UserMetricsAction("Notifications.Quiet.StaticIconClicked"));
       break;
-    case QuietUiReason::kPredictedVeryUnlikelyGrant:
+    case QuietUiReason::kTriggeredDueToDisruptiveBehavior:
+      DCHECK_EQ(request_type, permissions::RequestType::kNotifications);
+      set_message(l10n_util::GetStringUTF16(
+          IDS_NOTIFICATIONS_QUIET_PERMISSION_BUBBLE_DISRUPTIVE_DESCRIPTION));
+      set_cancel_button_text(l10n_util::GetStringUTF16(
+          IDS_NOTIFICATIONS_QUIET_PERMISSION_BUBBLE_COMPACT_ALLOW_BUTTON));
+      set_done_button_text(l10n_util::GetStringUTF16(
+          IDS_NOTIFICATIONS_QUIET_PERMISSION_BUBBLE_CONTINUE_BLOCKING_BUTTON));
+      set_show_learn_more(true);
+      set_manage_text_style(ManageTextStyle::kNone);
+      base::RecordAction(
+          base::UserMetricsAction("Notifications.Quiet.StaticIconClicked"));
+      break;
+    case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
+    case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
       int bubble_message_string_id = 0;
       int bubble_done_button_string_id = 0;
       switch (request_type) {
@@ -1622,7 +1657,7 @@ void ContentSettingQuietRequestBubbleModel::OnManageButtonClicked() {
       permissions::PermissionRequestManager::FromWebContents(web_contents());
   CHECK_GT(manager->Requests().size(), 0u);
   DCHECK_EQ(manager->Requests().size(), 1u);
-  manager->set_managed_clicked();
+  manager->set_manage_clicked();
   if (is_UMA_for_test) {
     // `delegate()->ShowContentSettingsPage` opens a new tab. It is not needed
     // for UMA tests.
@@ -1685,7 +1720,8 @@ void ContentSettingQuietRequestBubbleModel::OnDoneButtonClicked() {
   switch (*quiet_ui_reason) {
     case QuietUiReason::kEnabledInPrefs:
     case QuietUiReason::kTriggeredByCrowdDeny:
-    case QuietUiReason::kPredictedVeryUnlikelyGrant:
+    case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
+    case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
       manager->Accept();
       base::RecordAction(base::UserMetricsAction(
           request_type == permissions::RequestType::kNotifications
@@ -1694,6 +1730,7 @@ void ContentSettingQuietRequestBubbleModel::OnDoneButtonClicked() {
       break;
     case QuietUiReason::kTriggeredDueToAbusiveRequests:
     case QuietUiReason::kTriggeredDueToAbusiveContent:
+    case QuietUiReason::kTriggeredDueToDisruptiveBehavior:
       manager->Deny();
       base::RecordAction(base::UserMetricsAction(
           "Notifications.Quiet.ContinueBlockingClicked"));
@@ -1711,21 +1748,17 @@ void ContentSettingQuietRequestBubbleModel::OnCancelButtonClicked() {
   switch (*quiet_ui_reason) {
     case QuietUiReason::kEnabledInPrefs:
     case QuietUiReason::kTriggeredByCrowdDeny:
-    case QuietUiReason::kPredictedVeryUnlikelyGrant:
+    case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
+    case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
       // No-op.
       break;
     case QuietUiReason::kTriggeredDueToAbusiveRequests:
     case QuietUiReason::kTriggeredDueToAbusiveContent:
+    case QuietUiReason::kTriggeredDueToDisruptiveBehavior:
       manager->Accept();
       base::RecordAction(
           base::UserMetricsAction("Notifications.Quiet.ShowForSiteClicked"));
       break;
-  }
-}
-
-void ContentSettingQuietRequestBubbleModel::OnBubbleDismissedByUser() {
-  if (on_bubble_dismissed_by_user_callback_) {
-    std::move(on_bubble_dismissed_by_user_callback_).Run();
   }
 }
 

@@ -1,14 +1,16 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef EXTENSIONS_COMMON_FEATURES_FEATURE_H_
 #define EXTENSIONS_COMMON_FEATURES_FEATURE_H_
 
+#include <map>
 #include <set>
 #include <string>
 
 #include "base/strings/string_piece.h"
+#include "extensions/common/context_data.h"
 #include "extensions/common/hashed_extension_id.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/mojom/manifest.mojom-shared.h"
@@ -16,6 +18,8 @@
 class GURL;
 
 namespace extensions {
+
+constexpr int kUnspecifiedContextId = -1;
 
 class Extension;
 
@@ -40,6 +44,8 @@ class Feature {
     WEBUI_CONTEXT,
     WEBUI_UNTRUSTED_CONTEXT,
     LOCK_SCREEN_EXTENSION_CONTEXT,
+    OFFSCREEN_EXTENSION_CONTEXT,
+    USER_SCRIPT_CONTEXT,
   };
 
   // The platforms the feature is supported in.
@@ -57,7 +63,7 @@ class Feature {
   // why not.
   enum AvailabilityResult {
     IS_AVAILABLE,
-    NOT_FOUND_IN_WHITELIST,
+    NOT_FOUND_IN_ALLOWLIST,
     INVALID_URL,
     INVALID_TYPE,
     INVALID_CONTEXT,
@@ -68,12 +74,32 @@ class Feature {
     INVALID_SESSION_TYPE,
     NOT_PRESENT,
     UNSUPPORTED_CHANNEL,
-    FOUND_IN_BLACKLIST,
+    FOUND_IN_BLOCKLIST,
     MISSING_COMMAND_LINE_SWITCH,
     FEATURE_FLAG_DISABLED,
+    REQUIRES_DEVELOPER_MODE,
+    MISSING_DELEGATED_AVAILABILITY_CHECK,
+    FAILED_DELEGATED_AVAILABILITY_CHECK,
   };
 
-  // Container for AvailabiltyResult that also exposes a user-visible error
+  // Shorthand for delegated availability check handler function signature. The
+  // function signature's arguments should contain all of the arguments passed
+  // into IsAvailableToContextImpl().
+  using DelegatedAvailabilityCheckHandler =
+      base::RepeatingCallback<bool(const std::string& api_full_name,
+                                   const Extension* extension,
+                                   Context context,
+                                   const GURL& url,
+                                   Platform platform,
+                                   int context_id,
+                                   bool check_developer_mode,
+                                   const ContextData& context_data)>;
+
+  // Mapping Feature::name() to override function.
+  using FeatureDelegatedAvailabilityCheckMap =
+      std::map<std::string, DelegatedAvailabilityCheckHandler>;
+
+  // Container for AvailabilityResult that also exposes a user-visible error
   // message in cases where the feature is not available.
   class Availability {
    public:
@@ -111,20 +137,30 @@ class Feature {
   // Tests whether this is an internal API or not.
   virtual bool IsInternal() const = 0;
 
+  // Returns if this feature's availability requires a delegated availability
+  // check.
+  virtual bool RequiresDelegatedAvailabilityCheck() const = 0;
+
+  // Sets the feature availability override handler to use.
+  virtual void SetDelegatedAvailabilityCheckHandler(
+      DelegatedAvailabilityCheckHandler handler) = 0;
+
   // Returns true if the feature is available to be parsed into a new extension
   // manifest.
   Availability IsAvailableToManifest(const HashedExtensionId& hashed_id,
                                      Manifest::Type type,
                                      mojom::ManifestLocation location,
-                                     int manifest_version) const {
+                                     int manifest_version,
+                                     int context_id) const {
     return IsAvailableToManifest(hashed_id, type, location, manifest_version,
-                                 GetCurrentPlatform());
+                                 GetCurrentPlatform(), context_id);
   }
   virtual Availability IsAvailableToManifest(const HashedExtensionId& hashed_id,
                                              Manifest::Type type,
                                              mojom::ManifestLocation location,
                                              int manifest_version,
-                                             Platform platform) const = 0;
+                                             Platform platform,
+                                             int context_id) const = 0;
 
   // Returns true if the feature is available to |extension|.
   Availability IsAvailableToExtension(const Extension* extension) const;
@@ -133,14 +169,34 @@ class Feature {
   // extension and context.
   Availability IsAvailableToContext(const Extension* extension,
                                     Context context,
-                                    const GURL& url) const {
-    return IsAvailableToContext(extension, context, url, GetCurrentPlatform());
+                                    const GURL& url,
+                                    int context_id,
+                                    const ContextData& context_data) const {
+    return IsAvailableToContext(extension, context, url, GetCurrentPlatform(),
+                                context_id, context_data);
   }
-  virtual Availability IsAvailableToContext(const Extension* extension,
-                                            Context context,
-                                            const GURL& url,
-                                            Platform platform) const = 0;
 
+  Availability IsAvailableToContext(const Extension* extension,
+                                    Context context,
+                                    const GURL& url,
+                                    Platform platform,
+                                    int context_id,
+                                    const ContextData& context_data) const {
+    return IsAvailableToContextImpl(extension, context, url, platform,
+                                    context_id, true, context_data);
+  }
+
+  Availability IsAvailableToContextIgnoringDevMode(
+      const Extension* extension,
+      Context context,
+      const GURL& url,
+      Platform platform,
+      int context_id,
+      const ContextData& context_data) const {
+    return IsAvailableToContextImpl(
+        extension, context, url, platform, context_id,
+        /*check_developer_mode=*/false, context_data);
+  }
   // Returns true if the feature is available to the current environment,
   // without needing to know information about an Extension or any other
   // contextual information. Typically used when the Feature is purely
@@ -150,12 +206,31 @@ class Feature {
   // relies on an Extension now - maybe it will, one day, so if there's an
   // Extension available (or a runtime context, etc) then use the more targeted
   // method instead.
-  virtual Availability IsAvailableToEnvironment() const = 0;
+  virtual Availability IsAvailableToEnvironment(int context_id) const = 0;
 
   virtual bool IsIdInBlocklist(const HashedExtensionId& hashed_id) const = 0;
   virtual bool IsIdInAllowlist(const HashedExtensionId& hashed_id) const = 0;
 
+  bool HasDelegatedAvailabilityCheckHandlerForTesting() const;
+
  protected:
+  friend class SimpleFeature;
+  friend class ComplexFeature;
+
+  // These parameters should be kept in sync with
+  // DelegatedAvailabilityCheckHandler.
+  virtual Availability IsAvailableToContextImpl(
+      const Extension* extension,
+      Context context,
+      const GURL& url,
+      Platform platform,
+      int context_id,
+      bool check_developer_mode,
+      const ContextData& context_data) const = 0;
+
+  // Gets whether a feature availability override handler has been set.
+  virtual bool HasDelegatedAvailabilityCheckHandler() const = 0;
+
   std::string name_;
   std::string alias_;
   std::string source_;

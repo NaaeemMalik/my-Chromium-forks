@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <memory>
 
 #include "ash/ash_export.h"
+#include "ash/public/cpp/clipboard_history_controller.h"
+#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
-#include "base/unguessable_token.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/models/simple_menu_model.h"
 #include "ui/views/controls/menu/menu_model_adapter.h"
@@ -25,9 +26,9 @@ class MenuRunner;
 
 namespace ash {
 
-namespace ClipboardHistoryUtil {
+namespace clipboard_history_util {
 enum class Action;
-}  // namespace ClipboardHistoryUtil
+}  // namespace clipboard_history_util
 
 class ClipboardHistory;
 class ClipboardHistoryItem;
@@ -36,10 +37,13 @@ class ClipboardHistoryResourceManager;
 
 // Used to show the clipboard history menu, which holds the last few things
 // copied.
-class ASH_EXPORT ClipboardHistoryMenuModelAdapter : views::MenuModelAdapter {
+class ASH_EXPORT ClipboardHistoryMenuModelAdapter
+    : public views::MenuModelAdapter {
  public:
   static std::unique_ptr<ClipboardHistoryMenuModelAdapter> Create(
       ui::SimpleMenuModel::Delegate* delegate,
+      ClipboardHistoryController::OnMenuClosingCallback
+          on_menu_closing_callback,
       base::RepeatingClosure menu_closed_callback,
       const ClipboardHistory* clipboard_history,
       const ClipboardHistoryResourceManager* resource_manager);
@@ -58,8 +62,9 @@ class ASH_EXPORT ClipboardHistoryMenuModelAdapter : views::MenuModelAdapter {
   // Returns if the menu is currently running.
   bool IsRunning() const;
 
-  // Hides and cancels the menu.
-  void Cancel();
+  // Hides and cancels the menu. `will_paste_item` indicates whether a clipboard
+  // history item will be pasted after the menu is closed.
+  void Cancel(bool will_paste_item);
 
   // Returns the command of the currently selected menu item. If no menu item is
   // currently selected, returns |absl::nullopt|.
@@ -69,7 +74,7 @@ class ASH_EXPORT ClipboardHistoryMenuModelAdapter : views::MenuModelAdapter {
   const ClipboardHistoryItem& GetItemFromCommandId(int command_id) const;
 
   // Returns the count of menu items.
-  int GetMenuItemsCount() const;
+  size_t GetMenuItemsCount() const;
 
   // Selects the menu item specified by `command_id`.
   void SelectMenuItemWithCommandId(int command_id);
@@ -84,23 +89,22 @@ class ASH_EXPORT ClipboardHistoryMenuModelAdapter : views::MenuModelAdapter {
   void AdvancePseudoFocus(bool reverse);
 
   // Returns the action to take on the menu item specified by `command_id`.
-  ClipboardHistoryUtil::Action GetActionForCommandId(int command_id) const;
+  clipboard_history_util::Action GetActionForCommandId(int command_id) const;
 
   // Returns menu bounds in screen coordinates.
   gfx::Rect GetMenuBoundsInScreenForTest() const;
 
-  const views::MenuItemView* GetMenuItemViewAtForTest(int index) const;
-  views::MenuItemView* GetMenuItemViewAtForTest(int index);
-
-  void set_item_removal_callback_for_test(base::RepeatingClosure new_callback) {
-    item_removal_callback_for_test_ = std::move(new_callback);
-  }
+  const views::MenuItemView* GetMenuItemViewAtForTest(size_t index) const;
+  views::MenuItemView* GetMenuItemViewAtForTest(size_t index);
 
  private:
+  class MenuModelWithWillCloseCallback;
   class ScopedA11yIgnore;
 
+  using ItemViewsByCommandId = std::map<int, ClipboardHistoryItemView*>;
+
   ClipboardHistoryMenuModelAdapter(
-      std::unique_ptr<ui::SimpleMenuModel> model,
+      std::unique_ptr<MenuModelWithWillCloseCallback> model,
       base::RepeatingClosure menu_closed_callback,
       const ClipboardHistory* clipboard_history,
       const ClipboardHistoryResourceManager* resource_manager);
@@ -119,14 +123,15 @@ class ASH_EXPORT ClipboardHistoryMenuModelAdapter : views::MenuModelAdapter {
   // views::MenuModelAdapter:
   views::MenuItemView* AppendMenuItem(views::MenuItemView* menu,
                                       ui::MenuModel* model,
-                                      int index) override;
+                                      size_t index) override;
   void OnMenuClosed(views::MenuItemView* menu) override;
 
   // The model which holds the contents of the menu.
-  std::unique_ptr<ui::SimpleMenuModel> const model_;
+  std::unique_ptr<MenuModelWithWillCloseCallback> const model_;
   // The root MenuItemView which contains all child MenuItemViews. Owned by
   // |menu_runner_|.
-  views::MenuItemView* root_view_ = nullptr;
+  raw_ptr<views::MenuItemView, DanglingUntriaged | ExperimentalAsh> root_view_ =
+      nullptr;
   // Responsible for showing |root_view_|.
   std::unique_ptr<views::MenuRunner> menu_runner_;
 
@@ -143,13 +148,14 @@ class ASH_EXPORT ClipboardHistoryMenuModelAdapter : views::MenuModelAdapter {
 
   // Stores mappings between command ids and history item view pointers.
   // It updates synchronously when a item is removed.
-  std::map<int, ClipboardHistoryItemView*> item_views_by_command_id_;
+  ItemViewsByCommandId item_views_by_command_id_;
 
-  const ClipboardHistory* const clipboard_history_;
+  const raw_ptr<const ClipboardHistory, ExperimentalAsh> clipboard_history_;
 
   // Resource manager used to fetch image models. Owned by
   // ClipboardHistoryController.
-  const ClipboardHistoryResourceManager* const resource_manager_;
+  const raw_ptr<const ClipboardHistoryResourceManager, ExperimentalAsh>
+      resource_manager_;
 
   // Indicates the number of item deletion operations in progress. Note that
   // a `ClipboardHistoryItemView` instance is deleted asynchronously.
@@ -159,9 +165,6 @@ class ASH_EXPORT ClipboardHistoryMenuModelAdapter : views::MenuModelAdapter {
 
   // Indicates whether `Run()` has been called before.
   bool run_before_ = false;
-
-  // Called when an item view is removed from the root menu.
-  base::RepeatingClosure item_removal_callback_for_test_;
 
   base::WeakPtrFactory<ClipboardHistoryMenuModelAdapter> weak_ptr_factory_{
       this};

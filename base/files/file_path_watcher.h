@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,7 @@
 #include <utility>
 
 #include "base/base_export.h"
-#include "base/callback_forward.h"
-#include "base/compiler_specific.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
 #include "base/task/sequenced_task_runner.h"
@@ -47,11 +46,27 @@ class BASE_EXPORT FilePathWatcher {
     // within the directory are watched.
     kRecursive,
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_APPLE)
     // Indicates that the watcher should watch the given path only (neither
     // ancestors nor descendants). The watch fails if the path does not exist.
     kTrivial,
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_APPLE)
+  };
+
+  // Flags are a generalization of |Type|. They are used in the new
+  // PlatformDelegate::WatchWithFlags.
+  struct WatchOptions {
+    Type type = Type::kNonRecursive;
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID) || \
+    BUILDFLAG(IS_FUCHSIA)
+    // The callback will return the full path to a changed file instead of
+    // the watched path supplied as |path| when Watch is called.
+    // So the full path can be different from the watched path when a folder is
+    // watched. In case of any error, it behaves as the original Watch.
+    bool report_modified_path = false;
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
+        // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
   };
 
   // Callback type for Watch(). |path| points to the file that was updated,
@@ -64,6 +79,7 @@ class BASE_EXPORT FilePathWatcher {
   class PlatformDelegate {
    public:
     using Type = FilePathWatcher::Type;
+    using WatchOptions = FilePathWatcher::WatchOptions;
 
     PlatformDelegate();
     PlatformDelegate(const PlatformDelegate&) = delete;
@@ -71,9 +87,14 @@ class BASE_EXPORT FilePathWatcher {
     virtual ~PlatformDelegate();
 
     // Start watching for the given |path| and notify |delegate| about changes.
-    virtual bool Watch(const FilePath& path,
-                       Type type,
-                       const Callback& callback) WARN_UNUSED_RESULT = 0;
+    [[nodiscard]] virtual bool Watch(const FilePath& path,
+                                     Type type,
+                                     const Callback& callback) = 0;
+
+    // A new, more general API. It can deal with multiple options.
+    [[nodiscard]] virtual bool WatchWithOptions(const FilePath& path,
+                                                const WatchOptions& options,
+                                                const Callback& callback);
 
     // Stop watching. This is called from FilePathWatcher's dtor in order to
     // allow to shut down properly while the object is still alive.
@@ -91,13 +112,9 @@ class BASE_EXPORT FilePathWatcher {
     }
 
     // Must be called before the PlatformDelegate is deleted.
-    void set_cancelled() {
-      cancelled_ = true;
-    }
+    void set_cancelled() { cancelled_ = true; }
 
-    bool is_cancelled() const {
-      return cancelled_;
-    }
+    bool is_cancelled() const { return cancelled_; }
 
    private:
     scoped_refptr<SequencedTaskRunner> task_runner_;
@@ -112,10 +129,10 @@ class BASE_EXPORT FilePathWatcher {
   // Returns true if the platform and OS version support recursive watches.
   static bool RecursiveWatchAvailable();
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // Whether there are outstanding inotify watches.
   static bool HasWatchesForTest();
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
   // Starts watching |path| (and its descendants if |type| is kRecursive) for
   // changes. |callback| will be run on the caller's sequence to report such
@@ -127,10 +144,15 @@ class BASE_EXPORT FilePathWatcher {
   // FileDescriptorWatcher.
   bool Watch(const FilePath& path, Type type, const Callback& callback);
 
+  // A new, more general API. It can deal with multiple options.
+  bool WatchWithOptions(const FilePath& path,
+                        const WatchOptions& options,
+                        const Callback& callback);
+
  private:
   std::unique_ptr<PlatformDelegate> impl_;
 
-  SequenceChecker sequence_checker_;
+  SEQUENCE_CHECKER(sequence_checker_);
 };
 
 }  // namespace base

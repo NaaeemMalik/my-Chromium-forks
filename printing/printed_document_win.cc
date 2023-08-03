@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,19 @@
 
 namespace printing {
 
+#if !defined(NDEBUG)
+bool PrintedDocument::IsPageInList(const PrintedPage& page) const {
+  // Make sure the page is from our list.
+  base::AutoLock lock(lock_);
+  return &page == mutable_.pages_.find(page.page_number() - 1)->second.get();
+}
+#endif
+
 mojom::ResultCode PrintedDocument::RenderPrintedPage(
     const PrintedPage& page,
     PrintingContext* context) const {
-#ifndef NDEBUG
-  {
-    // Make sure the page is from our list.
-    base::AutoLock lock(lock_);
-    DCHECK(&page == mutable_.pages_.find(page.page_number() - 1)->second.get());
-  }
+#if !defined(NDEBUG)
+  DCHECK(IsPageInList(page));
 #endif
 
   DCHECK(context);

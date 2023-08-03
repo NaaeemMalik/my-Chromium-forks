@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,43 +7,50 @@
 #include <memory>
 #include <utility>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/download/bubble/download_bubble_utils.h"
+#include "chrome/browser/download/download_crx_util.h"
 #include "chrome/browser/download/download_item_model.h"
 #include "chrome/browser/download/download_shelf.h"
 #include "chrome/browser/download/download_stats.h"
 #include "chrome/browser/ssl/security_state_tab_helper.h"
+#include "chrome/common/pref_names.h"
 #include "components/download/public/common/download_item.h"
 #include "components/security_state/core/security_state.h"
 #include "content/public/browser/download_item_utils.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/download/android/download_controller.h"
 #include "chrome/browser/download/android/download_controller_base.h"
 #else
+#include "chrome/browser/download/bubble/download_bubble_prefs.h"
+#include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
+#include "chrome/browser/download/bubble/download_bubble_update_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #endif
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/download/notification/download_notification_manager.h"
-#endif  // defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace {
 
 // DownloadShelfUIControllerDelegate{Android,} is used when a
 // DownloadUIController is
 // constructed without specifying an explicit Delegate.
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 
 class AndroidUIControllerDelegate : public DownloadUIController::Delegate {
  public:
@@ -60,7 +67,17 @@ void AndroidUIControllerDelegate::OnNewDownloadReady(
   DownloadControllerBase::Get()->OnDownloadStarted(item);
 }
 
-#else  // OS_ANDROID
+#else  // BUILDFLAG(IS_ANDROID)
+
+void InitializeDownloadBubbleUpdateService(Profile* profile,
+                                           content::DownloadManager* manager) {
+  DownloadBubbleUpdateService* download_bubble_update_service =
+      DownloadBubbleUpdateServiceFactory::GetForProfile(profile);
+  if (!download_bubble_update_service) {
+    return;
+  }
+  download_bubble_update_service->Initialize(manager);
+}
 
 class DownloadShelfUIControllerDelegate
     : public DownloadUIController::Delegate {
@@ -93,14 +110,14 @@ void DownloadShelfUIControllerDelegate::OnNewDownloadReady(
       web_contents = inspected;
   }
   Browser* browser =
-      web_contents ? chrome::FindBrowserWithWebContents(web_contents) : NULL;
+      web_contents ? chrome::FindBrowserWithWebContents(web_contents) : nullptr;
 
   // As a last resort, use the last active browser for this profile. Not ideal,
   // but better than not showing the download at all.
   if (browser == nullptr)
     browser = chrome::FindLastActiveWithProfile(profile_);
 
-  if (browser && browser->window() &&
+  if (browser && browser->window() && browser->window()->GetDownloadShelf() &&
       DownloadItemModel(item).ShouldShowInShelf()) {
     DownloadUIModel::DownloadUIModelPtr model = DownloadItemModel::Wrap(item);
 
@@ -109,35 +126,110 @@ void DownloadShelfUIControllerDelegate::OnNewDownloadReady(
   }
 }
 
-#endif  // !OS_ANDROID
+class DownloadBubbleUIControllerDelegate
+    : public DownloadUIController::Delegate {
+ public:
+  // |profile| is required to outlive DownloadBubbleUIControllerDelegate.
+  explicit DownloadBubbleUIControllerDelegate(Profile* profile)
+      : profile_(profile) {
+    if (download::IsDownloadBubbleV2Enabled(profile_) &&
+        profile_->IsOffTheRecord()) {
+      profile_->GetPrefs()->SetBoolean(prefs::kPromptForDownload, true);
+    }
+  }
+  ~DownloadBubbleUIControllerDelegate() override = default;
+
+ private:
+  // DownloadUIController::Delegate
+  void OnNewDownloadReady(download::DownloadItem* item) override;
+  void OnButtonClicked() override;
+
+  raw_ptr<Profile> profile_;
+};
+
+void DownloadBubbleUIControllerDelegate::OnNewDownloadReady(
+    download::DownloadItem* item) {
+  if (!DownloadItemModel(item).ShouldShowInBubble())
+    return;
+  // crx downloads are handled by the DownloadBubbleUpdateService.
+  // TODO(chlily): Consolidate these code paths.
+  if (download_crx_util::IsExtensionDownload(*item)) {
+    return;
+  }
+
+  Browser* browser_to_show_animation =
+      FindBrowserToShowAnimation(item, profile_);
+  BrowserList* browser_list = BrowserList::GetInstance();
+  if (!browser_list)
+    return;
+
+  for (auto* browser : *browser_list) {
+    if (browser && browser->window() &&
+        browser->window()->GetDownloadBubbleUIController()) {
+      browser->window()->GetDownloadBubbleUIController()->OnDownloadItemAdded(
+          item, /*may_show_animation=*/(browser == browser_to_show_animation));
+    }
+  }
+}
+
+void DownloadBubbleUIControllerDelegate::OnButtonClicked() {
+  BrowserList* browser_list = BrowserList::GetInstance();
+  if (!browser_list)
+    return;
+
+  for (auto* browser : *browser_list) {
+    if (browser && browser->window() &&
+        browser->window()->GetDownloadBubbleUIController()) {
+      browser->window()->GetDownloadBubbleUIController()->HandleButtonPressed();
+    }
+  }
+}
+
+#endif  // BUILDFLAG(IS_ANDROID)
 
 } // namespace
 
 DownloadUIController::Delegate::~Delegate() {
 }
 
+void DownloadUIController::Delegate::OnButtonClicked() {}
+
 DownloadUIController::DownloadUIController(content::DownloadManager* manager,
                                            std::unique_ptr<Delegate> delegate)
     : download_notifier_(manager, this), delegate_(std::move(delegate)) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (!delegate_)
     delegate_ = std::make_unique<AndroidUIControllerDelegate>();
-#elif defined(OS_CHROMEOS)
+#elif BUILDFLAG(IS_CHROMEOS)
   if (!delegate_) {
-    // The Profile is guaranteed to be valid since DownloadUIController is owned
-    // by DownloadService, which in turn is a profile keyed service.
-    delegate_ = std::make_unique<DownloadNotificationManager>(
-        Profile::FromBrowserContext(manager->GetBrowserContext()));
+    Profile* profile =
+        Profile::FromBrowserContext(manager->GetBrowserContext());
+    if (download::IsDownloadBubbleEnabled(profile)) {
+      delegate_ = std::make_unique<DownloadBubbleUIControllerDelegate>(profile);
+      InitializeDownloadBubbleUpdateService(profile, manager);
+    } else {
+      delegate_ = std::make_unique<DownloadNotificationManager>(profile);
+    }
   }
-#else   // defined(OS_CHROMEOS)
+#else   // BUILDFLAG(IS_CHROMEOS)
   if (!delegate_) {
-    delegate_ = std::make_unique<DownloadShelfUIControllerDelegate>(
-        Profile::FromBrowserContext(manager->GetBrowserContext()));
+    Profile* profile =
+        Profile::FromBrowserContext(manager->GetBrowserContext());
+    if (download::IsDownloadBubbleEnabled(profile)) {
+      delegate_ = std::make_unique<DownloadBubbleUIControllerDelegate>(profile);
+      InitializeDownloadBubbleUpdateService(profile, manager);
+    } else {
+      delegate_ = std::make_unique<DownloadShelfUIControllerDelegate>(profile);
+    }
   }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 DownloadUIController::~DownloadUIController() {
+}
+
+void DownloadUIController::OnButtonClicked() {
+  delegate_->OnButtonClicked();
 }
 
 void DownloadUIController::OnDownloadCreated(content::DownloadManager* manager,
@@ -157,10 +249,6 @@ void DownloadUIController::OnDownloadCreated(content::DownloadManager* manager,
       UMA_HISTOGRAM_ENUMERATION("Security.SecurityLevel.DownloadStarted",
                                 security_state_tab_helper->GetSecurityLevel(),
                                 security_state::SECURITY_LEVEL_COUNT);
-      UMA_HISTOGRAM_ENUMERATION(
-          "Security.SafetyTips.DownloadStarted",
-          security_state_tab_helper->GetVisibleSecurityState()
-              ->safety_tip_info.status);
     }
   }
 
@@ -189,8 +277,8 @@ void DownloadUIController::OnDownloadUpdated(content::DownloadManager* manager,
   bool should_notify =
       item->GetLastReason() ==
           download::DOWNLOAD_INTERRUPT_REASON_FILE_BLOCKED &&
-      item->GetMixedContentStatus() !=
-          download::DownloadItem::MixedContentStatus::SILENT_BLOCK;
+      item->GetInsecureDownloadStatus() !=
+          download::DownloadItem::InsecureDownloadStatus::SILENT_BLOCK;
 
   // Wait until the target path is determined or the download is canceled.
   if (item->GetTargetFilePath().empty() &&
@@ -201,7 +289,7 @@ void DownloadUIController::OnDownloadUpdated(content::DownloadManager* manager,
   content::WebContents* web_contents =
       content::DownloadItemUtils::GetWebContents(item);
   if (web_contents) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     DownloadController::CloseTabIfEmpty(web_contents, item);
 #else
     Browser* browser = chrome::FindBrowserWithWebContents(web_contents);
@@ -217,7 +305,7 @@ void DownloadUIController::OnDownloadUpdated(content::DownloadManager* manager,
         !item->IsSavePackageDownload()) {
       web_contents->Close();
     }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
   }
 
   if (item->GetState() == download::DownloadItem::CANCELLED)

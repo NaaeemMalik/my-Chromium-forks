@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/memory/raw_ptr.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/view.h"
 
@@ -63,10 +64,11 @@ class ReferenceLines : public views::View {
  private:
   const SkColor color_;
 
-  // Graph label values.
+  // Graph label values. Note that `right_` is not implemented, thus the
+  // [[maybe_unused]].
   float left_ = 0;
   float top_ = 0;
-  float right_ = 0;
+  [[maybe_unused]] float right_ = 0;
   float bottom_ = 0;
 
   std::u16string x_unit_;
@@ -78,10 +80,14 @@ class ReferenceLines : public views::View {
   float vertical_ticks_interval_ = 0;
 
   // Graph labels
-  views::Label* right_top_label_ = nullptr;     // not owned
-  views::Label* right_middle_label_ = nullptr;  // not owned
-  views::Label* right_bottom_label_ = nullptr;  // not owned
-  views::Label* left_bottom_label_ = nullptr;   // not owned
+  raw_ptr<views::Label, ExperimentalAsh> right_top_label_ =
+      nullptr;  // not owned
+  raw_ptr<views::Label, ExperimentalAsh> right_middle_label_ =
+      nullptr;  // not owned
+  raw_ptr<views::Label, ExperimentalAsh> right_bottom_label_ =
+      nullptr;  // not owned
+  raw_ptr<views::Label, ExperimentalAsh> left_bottom_label_ =
+      nullptr;  // not owned
 };
 
 }  // namespace hud_display

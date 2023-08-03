@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,6 +45,11 @@ class OmniboxController : public AutocompleteController::Observer {
     return autocomplete_controller_.get();
   }
 
+  void set_autocomplete_controller(
+      std::unique_ptr<AutocompleteController> autocomplete_controller) {
+    autocomplete_controller_ = std::move(autocomplete_controller);
+  }
+
   // Set |current_match_| to an invalid value, indicating that we do not yet
   // have a valid match for the current text in the omnibox.
   void InvalidateCurrentMatch();
@@ -74,6 +79,10 @@ class OmniboxController : public AutocompleteController::Observer {
   // know what it should display. Not every field is required for that purpose,
   // but the ones specifically needed are unclear. We should therefore spend
   // some time to extract these fields and use a tighter structure here.
+  // TODO(manukh): When `kRedoCurrentMatch` is enabled, this is unused and
+  //   replaced by `OmniboxEditModel::current_match_` which serves the same
+  //   purpose but is hopefully more often correctly set (`current_match_` here
+  //   is almost always invalid).
   AutocompleteMatch current_match_;
 
   base::WeakPtrFactory<OmniboxController> weak_ptr_factory_{this};

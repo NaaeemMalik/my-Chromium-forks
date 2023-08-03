@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/signin/dice_tab_helper.h"
 #include "chrome/browser/signin/dice_web_signin_interceptor.h"
@@ -24,6 +24,7 @@
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/navigation_simulator.h"
+#include "google_apis/gaia/core_account_id.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -42,6 +43,12 @@ class TestDiceWebSigninInterceptorDelegate
     : public DiceWebSigninInterceptor::Delegate {
  public:
   ~TestDiceWebSigninInterceptorDelegate() override = default;
+
+  bool IsSigninInterceptionSupported(
+      const content::WebContents& web_contents) override {
+    return false;
+  }
+
   std::unique_ptr<ScopedDiceWebSigninInterceptionBubbleHandle>
   ShowSigninInterceptionBubble(
       content::WebContents* web_contents,
@@ -51,7 +58,11 @@ class TestDiceWebSigninInterceptorDelegate
     return nullptr;
   }
 
-  void ShowProfileCustomizationBubble(Browser* browser) override {}
+  void ShowFirstRunExperienceInNewProfile(
+      Browser* browser,
+      const CoreAccountId& account_id,
+      DiceWebSigninInterceptor::SigninInterceptionType interception_type)
+      override {}
 };
 
 class MockDiceWebSigninInterceptor : public DiceWebSigninInterceptor {
@@ -83,15 +94,17 @@ class ProcessDiceHeaderDelegateImplTest
   ProcessDiceHeaderDelegateImplTest()
       : enable_sync_called_(false),
         show_error_called_(false),
-        account_id_("12345"),
         email_("foo@bar.com"),
-        auth_error_(GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS) {}
+        auth_error_(GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS) {
+    account_id_ = CoreAccountId::FromGaiaId("12345");
+  }
 
-  ~ProcessDiceHeaderDelegateImplTest() override {}
+  ~ProcessDiceHeaderDelegateImplTest() override = default;
 
   void AddAccount(bool is_primary) {
-    if (!identity_test_environment_profile_adaptor_)
+    if (!identity_test_environment_profile_adaptor_) {
       InitializeIdentityTestEnvironment();
+    }
     if (is_primary) {
       identity_test_environment_profile_adaptor_->identity_test_env()
           ->SetPrimaryAccount(email_, signin::ConsentLevel::kSync);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,8 @@ import androidx.annotation.WorkerThread;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
-import org.chromium.base.annotations.DoNotInline;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.annotations.DoNotInline;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -64,6 +64,7 @@ public abstract class AsyncTask<Result> {
 
     private final AtomicBoolean mCancelled = new AtomicBoolean();
     private final AtomicBoolean mTaskInvoked = new AtomicBoolean();
+    private int mIterationIdForTesting = PostTask.sTestIterationForTesting;
 
     private static class StealRunnableHandler implements RejectedExecutionHandler {
         @Override
@@ -142,7 +143,7 @@ public abstract class AsyncTask<Result> {
         // We check if this task is of a type which does not require post-execution.
         if (this instanceof BackgroundOnlyAsyncTask) {
             mStatus = Status.FINISHED;
-        } else {
+        } else if (mIterationIdForTesting == PostTask.sTestIterationForTesting) {
             ThreadUtils.postOnUiThread(() -> { finish(result); });
         }
     }
@@ -153,6 +154,20 @@ public abstract class AsyncTask<Result> {
      * @return The current status.
      */
     public final @Status int getStatus() {
+        return mStatus;
+    }
+
+    /**
+     * Returns the current status of this task, with adjustments made to make UMA more useful.
+     * Namely, we are going to return "PENDING" until the asynctask actually starts running. Right
+     * now, as soon as you try to schedule the AsyncTask, it gets set to "RUNNING" which doesn't
+     * make sense. However, we aren't fixing this globally as this is the well-defined API
+     * AsyncTasks have, so we are just fixing this for our UMA reporting.
+     *
+     * @return The current status.
+     */
+    public final @Status int getUmaStatus() {
+        if (mStatus == Status.RUNNING && !mTaskInvoked.get()) return Status.PENDING;
         return mStatus;
     }
 
@@ -294,7 +309,7 @@ public abstract class AsyncTask<Result> {
     @SuppressWarnings("NoDynamicStringsInTraceEventCheck")
     public final Result get() throws InterruptedException, ExecutionException {
         Result r;
-        int status = getStatus();
+        int status = getUmaStatus();
         if (status != Status.FINISHED && ThreadUtils.runningOnUiThread()) {
             RecordHistogram.recordEnumeratedHistogram(
                     GET_STATUS_UMA_HISTOGRAM, status, Status.NUM_ENTRIES);
@@ -332,7 +347,7 @@ public abstract class AsyncTask<Result> {
     public final Result get(long timeout, TimeUnit unit)
             throws InterruptedException, ExecutionException, TimeoutException {
         Result r;
-        int status = getStatus();
+        int status = getUmaStatus();
         if (status != Status.FINISHED && ThreadUtils.runningOnUiThread()) {
             RecordHistogram.recordEnumeratedHistogram(
                     GET_STATUS_UMA_HISTOGRAM, status, Status.NUM_ENTRIES);
@@ -427,7 +442,7 @@ public abstract class AsyncTask<Result> {
      * @return This instance of AsyncTask.
      */
     @MainThread
-    public final AsyncTask<Result> executeWithTaskTraits(TaskTraits taskTraits) {
+    public final AsyncTask<Result> executeWithTaskTraits(@TaskTraits int taskTraits) {
         executionPreamble();
         PostTask.postTask(taskTraits, mFuture);
         return this;
@@ -454,7 +469,8 @@ public abstract class AsyncTask<Result> {
         @Override
         @SuppressWarnings("NoDynamicStringsInTraceEventCheck")
         public void run() {
-            try (TraceEvent e = TraceEvent.scoped("AsyncTask.run: " + mFuture.getBlamedClass())) {
+            try (TraceEvent e = TraceEvent.scoped(
+                         "AsyncTask.run: " + mFuture.getBlamedClass().getName())) {
                 super.run();
             }
         }

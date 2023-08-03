@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "third_party/blink/renderer/platform/graphics/dom_node_id.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_types.h"
 #include "third_party/blink/renderer/platform/graphics/paint_invalidation_reason.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "ui/gfx/geometry/rect.h"
@@ -54,14 +54,9 @@ class PLATFORM_EXPORT DisplayItemClient : public GarbageCollectedMixin {
   // cached display items without calling this method.
   // See PaintController::ClientCacheIsValid() for more details.
   void Invalidate(
-      PaintInvalidationReason reason = PaintInvalidationReason::kFull) const {
-    // If a full invalidation reason is already set, do not overwrite it with
-    // a new reason.
-    if (IsFullPaintInvalidationReason(GetPaintInvalidationReason()) &&
-        // However, kUncacheable overwrites any other reason.
-        reason != PaintInvalidationReason::kUncacheable)
-      return;
-    paint_invalidation_reason_ = static_cast<uint8_t>(reason);
+      PaintInvalidationReason reason = PaintInvalidationReason::kLayout) const {
+    if (reason > GetPaintInvalidationReason())
+      paint_invalidation_reason_ = static_cast<uint8_t>(reason);
   }
 
   PaintInvalidationReason GetPaintInvalidationReason() const {
@@ -96,6 +91,7 @@ class PLATFORM_EXPORT DisplayItemClient : public GarbageCollectedMixin {
   friend class ObjectPaintInvalidatorTest;
   friend class PaintChunker;
   friend class PaintController;
+  friend class PaintControllerCycleScope;
 
   void MarkForValidation() const { marked_for_validation_ = 1; }
   bool IsMarkedForValidation() const { return marked_for_validation_; }

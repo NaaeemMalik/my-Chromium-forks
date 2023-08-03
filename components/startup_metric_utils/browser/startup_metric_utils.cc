@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "base/check_op.h"
 #include "base/containers/flat_set.h"
 #include "base/dcheck_is_on.h"
-#include "base/memory/memory_pressure_listener.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
@@ -22,13 +21,14 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/threading/platform_thread.h"
+#include "base/threading/scoped_thread_priority.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/version_info/version_info.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
 #include <winternl.h>
 #include "base/win/win_util.h"
@@ -55,10 +55,6 @@ base::TimeTicks g_message_loop_start_ticks;
 
 base::TimeTicks g_browser_window_display_ticks;
 
-base::MemoryPressureListener::MemoryPressureLevel
-    g_max_pressure_level_before_first_non_empty_paint = base::
-        MemoryPressureListener::MemoryPressureLevel::MEMORY_PRESSURE_LEVEL_NONE;
-
 // An enumeration of startup temperatures. This must be kept in sync with the
 // UMA StartupType enumeration defined in histograms.xml.
 enum StartupTemperature {
@@ -80,7 +76,7 @@ enum StartupTemperature {
 
 StartupTemperature g_startup_temperature = UNDETERMINED_STARTUP_TEMPERATURE;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 
 // These values are taken from the Startup.BrowserMessageLoopStartHardFaultCount
 // histogram. The latest revision landed on <5 and >3500 for a good split
@@ -203,7 +199,7 @@ absl::optional<uint32_t> GetHardFaultCountForCurrentProcess() {
 
   return absl::nullopt;
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 // Helper function for splitting out an UMA histogram based on startup
 // temperature. |histogram_function| is the histogram type, and corresponds to
@@ -260,45 +256,11 @@ void UmaHistogramWithTraceAndTemperature(
       end_ticks);
 }
 
-// Extension to the UmaHistogramWithTraceAndTemperature that records a
-// suffixed version of the histogram indicating the maximum pressure encountered
-// until now. Note that this is based on the
-// |g_max_pressure_level_before_first_non_empty_paint| value.
-void UmaHistogramAndTraceWithTemperatureAndMaxPressure(
-    void (*histogram_function)(const std::string& name, base::TimeDelta),
-    const char* histogram_basename,
-    base::TimeTicks begin_ticks,
-    base::TimeTicks end_ticks) {
-  UmaHistogramWithTraceAndTemperature(histogram_function, histogram_basename,
-                                      begin_ticks, end_ticks);
-  const auto value = end_ticks - begin_ticks;
-  switch (g_max_pressure_level_before_first_non_empty_paint) {
-    case base::MemoryPressureListener::MemoryPressureLevel::
-        MEMORY_PRESSURE_LEVEL_NONE:
-      (*histogram_function)(
-          base::StrCat({histogram_basename, ".NoMemoryPressure"}), value);
-      break;
-    case base::MemoryPressureListener::MemoryPressureLevel::
-        MEMORY_PRESSURE_LEVEL_MODERATE:
-      (*histogram_function)(
-          base::StrCat({histogram_basename, ".ModerateMemoryPressure"}), value);
-      break;
-    case base::MemoryPressureListener::MemoryPressureLevel::
-        MEMORY_PRESSURE_LEVEL_CRITICAL:
-      (*histogram_function)(
-          base::StrCat({histogram_basename, ".CriticalMemoryPressure"}), value);
-      break;
-    default:
-      NOTREACHED();
-      break;
-  }
-}
-
 // On Windows, records the number of hard-faults that have occurred in the
 // current chrome.exe process since it was started. This is a nop on other
 // platforms.
 void RecordHardFaultHistogram() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   DCHECK_EQ(UNDETERMINED_STARTUP_TEMPERATURE, g_startup_temperature);
 
   const absl::optional<uint32_t> hard_fault_count =
@@ -329,7 +291,7 @@ void RecordHardFaultHistogram() {
   // Record the startup 'temperature'.
   base::UmaHistogramEnumeration("Startup.Temperature", g_startup_temperature,
                                 STARTUP_TEMPERATURE_COUNT);
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 // Converts a base::Time value to a base::TimeTicks value. The conversion isn't
@@ -339,34 +301,26 @@ void RecordHardFaultHistogram() {
 // base::TimeTicks::Now() at play, but in practice it is pretty much instant
 // compared to multi-seconds startup timings.
 base::TimeTicks StartupTimeToTimeTicks(base::Time time) {
-// First get a base which represents the same point in time in both units.
-// Bump the priority of this thread while doing this as the wall clock time it
-// takes to resolve these two calls affects the precision of this method and
-// bumping the priority reduces the likelihood of a context switch interfering
-// with this computation.
+  // First get a base which represents the same point in time in both units.
+  // Bump the priority of this thread while doing this as the wall clock time it
+  // takes to resolve these two calls affects the precision of this method and
+  // bumping the priority reduces the likelihood of a context switch interfering
+  // with this computation.
+  absl::optional<base::ScopedBoostPriority> scoped_boost_priority;
 
 // Enabling this logic on OS X causes a significant performance regression.
-// https://crbug.com/601270
-#if !defined(OS_APPLE)
+// TODO(crbug.com/601270): Remove IS_APPLE ifdef once priority changes are
+// ignored on Mac main thread.
+#if !BUILDFLAG(IS_APPLE)
   static bool statics_initialized = false;
-
-  base::ThreadPriority previous_priority = base::ThreadPriority::NORMAL;
   if (!statics_initialized) {
-    previous_priority = base::PlatformThread::GetCurrentThreadPriority();
-    base::PlatformThread::SetCurrentThreadPriority(
-        base::ThreadPriority::DISPLAY);
+    statics_initialized = true;
+    scoped_boost_priority.emplace(base::ThreadType::kDisplayCritical);
   }
-#endif
+#endif  // !BUILDFLAG(IS_APPLE)
 
   static const base::Time time_base = base::Time::Now();
   static const base::TimeTicks trace_ticks_base = base::TimeTicks::Now();
-
-#if !defined(OS_APPLE)
-  if (!statics_initialized) {
-    base::PlatformThread::SetCurrentThreadPriority(previous_priority);
-  }
-  statics_initialized = true;
-#endif
 
   // Then use the TimeDelta common ground between the two units to make the
   // conversion.
@@ -544,19 +498,14 @@ void RecordFirstWebContentsNonEmptyPaint(
   if (!ShouldLogStartupHistogram())
     return;
 
-  UmaHistogramAndTraceWithTemperatureAndMaxPressure(
-      &base::UmaHistogramLongTimes100,
-      "Startup.FirstWebContents.NonEmptyPaint3", g_application_start_ticks,
-      now);
+  UmaHistogramWithTraceAndTemperature(&base::UmaHistogramLongTimes100,
+                                      "Startup.FirstWebContents.NonEmptyPaint3",
+                                      g_application_start_ticks, now);
+
   UmaHistogramWithTemperature(
       &base::UmaHistogramLongTimes100,
       "Startup.BrowserMessageLoopStart.To.NonEmptyPaint2",
       now - g_message_loop_start_ticks);
-
-  UmaHistogramWithTemperature(
-      &base::UmaHistogramLongTimes100,
-      "Startup.FirstWebContents.RenderProcessHostInit.ToNonEmptyPaint",
-      now - render_process_host_init_time);
 }
 
 void RecordFirstWebContentsMainNavigationStart(base::TimeTicks ticks) {
@@ -620,10 +569,8 @@ void RecordExternalStartupMetric(const char* histogram_name,
     SetNonBrowserUIDisplayed();
 }
 
-void OnMemoryPressureBeforeFirstNonEmptyPaint(
-    base::MemoryPressureListener::MemoryPressureLevel level) {
-  if (level > g_max_pressure_level_before_first_non_empty_paint)
-    g_max_pressure_level_before_first_non_empty_paint = level;
+void RecordFirstRunSentinelCreation(FirstRunSentinelCreationResult result) {
+  base::UmaHistogramEnumeration("FirstRun.Sentinel.Created", result);
 }
 
 }  // namespace startup_metric_utils

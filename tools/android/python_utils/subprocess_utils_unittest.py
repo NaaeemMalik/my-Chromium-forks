@@ -1,17 +1,57 @@
 #!/usr/bin/env python3
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Tests for subprocess_utils."""
 
 import os
+import pathlib
 import subprocess
 import unittest
 
-import subprocess_utils
+import git_metadata_utils, subprocess_utils
 
 _COMMAND_PROCESS_ERROR_LOG_REGEX = (r'Command ".*" failed with code \d+\.'
                                     r'(\nSTDERR: .*)?(\nSTDOUT: .*)?')
+
+
+class TestResolveCommands(unittest.TestCase):
+    """Tests for util commands like resolve_{ninja,autoninja}."""
+
+    def setUp(self):
+        self.original_path = os.environ.get('PATH')
+
+    def tearDown(self):
+        if self.original_path is not None:
+            os.environ['PATH'] = self.original_path
+        else:
+            del os.environ['PATH']
+
+    def test_resolve_ninja_returns_command_if_in_path(self):
+        ninja_dir = str(git_metadata_utils.get_chromium_src_path() /
+                        'third_party/ninja')
+        os.environ['PATH'] = ninja_dir
+        self.assertEqual('ninja', subprocess_utils.resolve_ninja())
+
+    def test_resolve_ninja_returns_depot_path_if_not_in_path(self):
+        if 'PATH' in os.environ:
+            del os.environ['PATH']
+        ninja_path = str(git_metadata_utils.get_chromium_src_path() /
+                         'third_party/ninja/ninja')
+        self.assertEqual(ninja_path, subprocess_utils.resolve_ninja())
+
+    def test_resolve_autoninja_returns_command_if_in_path(self):
+        autoninja_dir = str(git_metadata_utils.get_chromium_src_path() /
+                            'third_party/depot_tools')
+        os.environ['PATH'] = autoninja_dir
+        self.assertEqual('autoninja', subprocess_utils.resolve_autoninja())
+
+    def test_resolve_autoninja_returns_depot_path_if_not_in_path(self):
+        if 'PATH' in os.environ:
+            del os.environ['PATH']
+        autoninja_path = str(git_metadata_utils.get_chromium_src_path() /
+                             'third_party/depot_tools/autoninja')
+        self.assertEqual(autoninja_path, subprocess_utils.resolve_autoninja())
 
 
 class TestRunCommand(unittest.TestCase):
@@ -28,6 +68,14 @@ class TestRunCommand(unittest.TestCase):
         expected_cwd = '/usr/local/bin'
 
         pwd_output = subprocess_utils.run_command(['pwd'], cwd=expected_cwd)
+
+        self.assertEqual(expected_cwd, pwd_output)
+
+    def test_run_command_custom_cwd_path(self):
+        expected_cwd = '/usr/local/bin'
+
+        pwd_output = subprocess_utils.run_command(
+            ['pwd'], cwd=pathlib.Path(expected_cwd).resolve(strict=True))
 
         self.assertEqual(expected_cwd, pwd_output)
 

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -77,10 +77,11 @@ TEST_F(SingleVisitClusterFinalizerTest,
       testing::CreateDefaultAnnotatedVisit(1, GURL("https://google.com/")));
   history::ClusterVisit visit2 = testing::CreateClusterVisit(
       testing::CreateDefaultAnnotatedVisit(2, GURL("https://foo.com/")));
-  visit2.duplicate_visit_ids = {1};
+  visit2.duplicate_visits = {
+      testing::ClusterVisitToDuplicateClusterVisit(visit)};
 
   history::Cluster cluster;
-  cluster.visits = {visit, visit2};
+  cluster.visits = {visit2};
   FinalizeCluster(cluster);
   EXPECT_FALSE(cluster.should_show_on_prominent_ui_surfaces);
   histogram_tester.ExpectUniqueSample(

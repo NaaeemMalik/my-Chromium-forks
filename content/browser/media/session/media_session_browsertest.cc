@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/public/browser/media_session.h"
 
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
+#include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/lock.h"
@@ -102,14 +102,14 @@ class MediaSessionBrowserTestBase : public ContentBrowserTest {
   }
 
   void StartPlaybackAndWait(Shell* shell, const std::string& id) {
-    shell->web_contents()->GetMainFrame()->ExecuteJavaScriptForTests(
+    shell->web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
         u"document.querySelector('#" + base::ASCIIToUTF16(id) + u"').play();",
         base::NullCallback());
     WaitForStart(shell);
   }
 
   void StopPlaybackAndWait(Shell* shell, const std::string& id) {
-    shell->web_contents()->GetMainFrame()->ExecuteJavaScriptForTests(
+    shell->web_contents()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
         u"document.querySelector('#" + base::ASCIIToUTF16(id) + u"').pause();",
         base::NullCallback());
     WaitForStop(shell);
@@ -266,7 +266,7 @@ IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest, MultiplePlayersPlayPause) {
 }
 
 // Flaky on Mac. See https://crbug.com/980663
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_WebContents_Muted DISABLED_WebContents_Muted
 #else
 #define MAYBE_WebContents_Muted WebContents_Muted
@@ -294,7 +294,7 @@ IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest, MAYBE_WebContents_Muted) {
                    ->is_controllable);
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 // On Android, System Audio Focus would break this test.
 
 IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest, MultipleTabsPlayPause) {
@@ -334,7 +334,7 @@ IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest, MultipleTabsPlayPause) {
   EXPECT_TRUE(IsPlaying(shell(), "long-video"));
   EXPECT_TRUE(IsPlaying(other_shell, "long-video"));
 }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 IN_PROC_BROWSER_TEST_F(MediaSessionBrowserTest, GetMediaImageBitmap) {
   ASSERT_TRUE(embedded_test_server()->Start());

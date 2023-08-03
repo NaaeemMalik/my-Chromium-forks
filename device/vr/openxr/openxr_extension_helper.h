@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
+#include "device/vr/openxr/openxr_platform.h"
 #include "third_party/openxr/src/include/openxr/openxr.h"
-#include "third_party/openxr/src/include/openxr/openxr_platform.h"
 
 namespace device {
 struct OpenXrExtensionMethods {
@@ -43,6 +43,10 @@ struct OpenXrExtensionMethods {
   PFN_xrGetSceneComponentsMSFT xrGetSceneComponentsMSFT{nullptr};
   PFN_xrLocateSceneComponentsMSFT xrLocateSceneComponentsMSFT{nullptr};
   PFN_xrGetSceneMeshBuffersMSFT xrGetSceneMeshBuffersMSFT{nullptr};
+
+  // Time
+  PFN_xrConvertWin32PerformanceCounterToTimeKHR
+      xrConvertWin32PerformanceCounterToTimeKHR{nullptr};
 };
 
 class OpenXrExtensionEnumeration {

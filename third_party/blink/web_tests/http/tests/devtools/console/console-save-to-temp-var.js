@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,8 @@
 
     function didEvaluate(result) {
       TestRunner.assertTrue(!result.exceptionDetails, 'FAIL: was thrown. Expression: ' + expression);
-      SDK.consoleModel.saveToTempVariable(UI.context.flavor(SDK.ExecutionContext), result.object);
+      const consoleModel = SDK.targetManager.primaryPageTarget().model(SDK.ConsoleModel);
+      consoleModel.saveToTempVariable(UI.context.flavor(SDK.ExecutionContext), result.object);
       ConsoleTestRunner.waitUntilNthMessageReceived(2, evaluateNext);
     }
 

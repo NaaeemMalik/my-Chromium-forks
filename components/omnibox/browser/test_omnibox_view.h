@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,13 @@
 #include "ui/gfx/range/range.h"
 
 struct AutocompleteMatch;
-class OmniboxEditController;
+class OmniboxEditModelDelegate;
 
 // Fake implementation of OmniboxView for use in tests.
 class TestOmniboxView : public OmniboxView {
  public:
-  explicit TestOmniboxView(OmniboxEditController* controller)
-      : OmniboxView(controller, nullptr) {}
+  explicit TestOmniboxView(OmniboxEditModelDelegate* edit_model_delegate)
+      : OmniboxView(edit_model_delegate, nullptr) {}
 
   TestOmniboxView(const TestOmniboxView&) = delete;
   TestOmniboxView& operator=(const TestOmniboxView&) = delete;
@@ -38,12 +38,6 @@ class TestOmniboxView : public OmniboxView {
 
   // OmniboxView:
   void Update() override {}
-  void OpenMatch(const AutocompleteMatch& match,
-                 WindowOpenDisposition disposition,
-                 const GURL& alternate_nav_url,
-                 const std::u16string& pasted_text,
-                 size_t selected_line,
-                 base::TimeTicks match_selection_timestamp) override {}
   std::u16string GetText() const override;
   void SetWindowTextAndCaretPos(const std::u16string& text,
                                 size_t caret_pos,
@@ -56,7 +50,6 @@ class TestOmniboxView : public OmniboxView {
   void GetSelectionBounds(size_t* start, size_t* end) const override;
   size_t GetAllSelectionsLength() const override;
   void SelectAll(bool reversed) override;
-  void RevertAll() override {}
   void UpdatePopup() override {}
   void SetFocus(bool is_user_initiated) override {}
   void ApplyCaretVisibility() override {}

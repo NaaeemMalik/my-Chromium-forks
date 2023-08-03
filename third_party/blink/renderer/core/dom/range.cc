@@ -25,6 +25,7 @@
 
 #include "third_party/blink/renderer/core/dom/range.h"
 
+#include "third_party/blink/renderer/core/display_lock/display_lock_document_state.h"
 #include "third_party/blink/renderer/core/display_lock/display_lock_utilities.h"
 #include "third_party/blink/renderer/core/dom/character_data.h"
 #include "third_party/blink/renderer/core/dom/container_node.h"
@@ -59,9 +60,9 @@
 #include "third_party/blink/renderer/core/svg/svg_svg_element.h"
 #include "third_party/blink/renderer/core/trustedtypes/trusted_types_util.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
-#include "third_party/blink/renderer/platform/geometry/float_quad.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
+#include "ui/gfx/geometry/quad_f.h"
 
 namespace blink {
 
@@ -1412,19 +1413,21 @@ void Range::FixupRemovedChildrenAcrossShadowBoundary(ContainerNode& container) {
   BoundaryShadowNodeChildrenWillBeRemoved(end_, container);
 }
 
-static inline void BoundaryNodeWillBeRemoved(RangeBoundaryPoint& boundary,
+// Returns true if `boundary` was modified.
+static inline bool BoundaryNodeWillBeRemoved(RangeBoundaryPoint& boundary,
                                              Node& node_to_be_removed) {
   if (boundary.ChildBefore() == node_to_be_removed) {
     boundary.ChildBeforeWillBeRemoved();
-    return;
+    return true;
   }
 
   for (Node* n = &boundary.Container(); n; n = n->parentNode()) {
     if (n == node_to_be_removed) {
       boundary.SetToBeforeChild(node_to_be_removed);
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 static inline void BoundaryShadowNodeWillBeRemoved(RangeBoundaryPoint& boundary,
@@ -1448,8 +1451,14 @@ void Range::NodeWillBeRemoved(Node& node) {
   // should change following if-statement to DCHECK(!node->parentNode).
   if (!node.parentNode())
     return;
-  BoundaryNodeWillBeRemoved(start_, node);
-  BoundaryNodeWillBeRemoved(end_, node);
+  const bool is_collapsed = collapsed();
+  const bool start_updated = BoundaryNodeWillBeRemoved(start_, node);
+  if (is_collapsed) {
+    if (start_updated)
+      end_ = start_;
+  } else {
+    BoundaryNodeWillBeRemoved(end_, node);
+  }
 }
 
 void Range::FixupRemovedNodeAcrossShadowBoundary(Node& node) {
@@ -1595,33 +1604,33 @@ DOMRectList* Range::getClientRects() const {
       this, DisplayLockContext::ForcedPhase::kLayout);
   owner_document_->UpdateStyleAndLayout(DocumentUpdateReason::kJavaScript);
 
-  Vector<FloatQuad> quads;
+  Vector<gfx::QuadF> quads;
   GetBorderAndTextQuads(quads);
 
   return MakeGarbageCollected<DOMRectList>(quads);
 }
 
 DOMRect* Range::getBoundingClientRect() const {
-  return DOMRect::FromFloatRect(BoundingRect());
+  return DOMRect::FromRectF(BoundingRect());
 }
 
 // TODO(editing-dev): We should make
-// |Document::AdjustFloatQuadsForScrollAndAbsoluteZoom()| as const function
+// |Document::AdjustQuadsForScrollAndAbsoluteZoom()| as const function
 // and takes |const LayoutObject&|.
-static Vector<FloatQuad> ComputeTextQuads(const Document& owner_document,
-                                          const LayoutText& layout_text,
-                                          unsigned start_offset,
-                                          unsigned end_offset) {
-  Vector<FloatQuad> text_quads;
+static Vector<gfx::QuadF> ComputeTextQuads(const Document& owner_document,
+                                           const LayoutText& layout_text,
+                                           unsigned start_offset,
+                                           unsigned end_offset) {
+  Vector<gfx::QuadF> text_quads;
   layout_text.AbsoluteQuadsForRange(text_quads, start_offset, end_offset);
   const_cast<Document&>(owner_document)
-      .AdjustFloatQuadsForScrollAndAbsoluteZoom(
+      .AdjustQuadsForScrollAndAbsoluteZoom(
           text_quads, const_cast<LayoutText&>(layout_text));
   return text_quads;
 }
 
 // https://www.w3.org/TR/cssom-view-1/#dom-range-getclientrects
-void Range::GetBorderAndTextQuads(Vector<FloatQuad>& quads) const {
+void Range::GetBorderAndTextQuads(Vector<gfx::QuadF>& quads) const {
   Node* start_container = &start_.Container();
   Node* end_container = &end_.Container();
   Node* stop_node = PastLastNode();
@@ -1651,10 +1660,10 @@ void Range::GetBorderAndTextQuads(Vector<FloatQuad>& quads) const {
       LayoutObject* const layout_object = element_node->GetLayoutObject();
       if (!layout_object)
         continue;
-      Vector<FloatQuad> element_quads;
+      Vector<gfx::QuadF> element_quads;
       layout_object->AbsoluteQuads(element_quads);
-      owner_document_->AdjustFloatQuadsForScrollAndAbsoluteZoom(element_quads,
-                                                                *layout_object);
+      owner_document_->AdjustQuadsForScrollAndAbsoluteZoom(element_quads,
+                                                           *layout_object);
 
       quads.AppendVector(element_quads);
       continue;
@@ -1713,7 +1722,7 @@ void Range::GetBorderAndTextQuads(Vector<FloatQuad>& quads) const {
   }
 }
 
-FloatRect Range::BoundingRect() const {
+gfx::RectF Range::BoundingRect() const {
   absl::optional<DisplayLockUtilities::ScopedForcedUpdate> force_locks;
   if (!collapsed()) {
     force_locks = DisplayLockUtilities::ScopedForcedUpdate(
@@ -1724,15 +1733,15 @@ FloatRect Range::BoundingRect() const {
   }
   owner_document_->UpdateStyleAndLayout(DocumentUpdateReason::kJavaScript);
 
-  Vector<FloatQuad> quads;
+  Vector<gfx::QuadF> quads;
   GetBorderAndTextQuads(quads);
 
-  FloatRect result;
-  for (const FloatQuad& quad : quads)
+  gfx::RectF result;
+  for (const gfx::QuadF& quad : quads)
     result.Union(quad.BoundingBox());  // Skips empty rects.
 
   // If all rects are empty, return the first rect.
-  if (result.IsEmpty() && !quads.IsEmpty())
+  if (result.IsEmpty() && !quads.empty())
     return quads.front().BoundingBox();
 
   return result;

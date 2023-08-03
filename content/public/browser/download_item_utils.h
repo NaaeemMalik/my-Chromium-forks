@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,10 +40,9 @@ class CONTENT_EXPORT DownloadItemUtils {
                          GlobalRenderFrameHostId id);
 
   // Attach information to a DownloadItem.
-  // TODO(crbug.com/1278041): This method is test only and should be renamed.
-  static void AttachInfo(download::DownloadItem* downloadItem,
-                         BrowserContext* browser_context,
-                         WebContents* web_contents);
+  static void AttachInfoForTesting(download::DownloadItem* downloadItem,
+                                   BrowserContext* browser_context,
+                                   WebContents* web_contents);
 };
 
 }  // namespace content

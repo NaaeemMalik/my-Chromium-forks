@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,13 +24,13 @@ WebStateImpl::SerializedData::SerializedData(WebStateImpl* owner,
       session_storage_(session_storage) {
   DCHECK(owner_);
   DCHECK(session_storage_);
+  DCHECK(session_storage_.stableIdentifier.length);
+  DCHECK(session_storage_.uniqueIdentifier.is_valid());
 
   // Restore the serializable user data as user code may depend on accessing
-  // on those values on a unrealized WebState (e.g. it can be used to store
-  // a unique identifier used to access the tab snapshot). Remove once the
-  // tab identifier is managed by WebState directly, see crbug.com/1276776.
+  // on those values even for an unrealized WebState.
   if (session_storage_.userData) {
-    SerializableUserDataManager::FromWebState(owner_)->AddSerializableUserData(
+    SerializableUserDataManager::FromWebState(owner_)->SetUserDataFromSession(
         session_storage_.userData);
   }
 }
@@ -60,22 +60,52 @@ CRWSessionStorage* WebStateImpl::SerializedData::GetSessionStorage() const {
           const_cast<const WebStateImpl*>(owner_));
 
   if (user_data_manager) {
-    std::unique_ptr<SerializableUserData> user_data =
-        user_data_manager->CreateSerializableUserData();
-    [session_storage_ setSerializableUserData:std::move(user_data)];
+    session_storage_.userData = user_data_manager->GetUserDataForSession();
   }
 
   return session_storage_;
+}
+
+base::Time WebStateImpl::SerializedData::GetLastActiveTime() const {
+  if (!create_params_.last_active_time.is_null())
+    return create_params_.last_active_time;
+
+  return session_storage_.lastActiveTime;
+}
+
+base::Time WebStateImpl::SerializedData::GetCreationTime() const {
+  return session_storage_.creationTime;
 }
 
 BrowserState* WebStateImpl::SerializedData::GetBrowserState() const {
   return create_params_.browser_state;
 }
 
+NSString* WebStateImpl::SerializedData::GetStableIdentifier() const {
+  return session_storage_.stableIdentifier;
+}
+
+SessionID WebStateImpl::SerializedData::GetUniqueIdentifier() const {
+  return session_storage_.uniqueIdentifier;
+}
+
 const std::u16string& WebStateImpl::SerializedData::GetTitle() const {
   static const std::u16string kEmptyString16;
   CRWNavigationItemStorage* item = GetLastCommittedItem();
   return item ? item.title : kEmptyString16;
+}
+
+const FaviconStatus& WebStateImpl::SerializedData::GetFaviconStatus() const {
+  return favicon_status_;
+}
+
+void WebStateImpl::SerializedData::SetFaviconStatus(
+    const FaviconStatus& favicon_status) {
+  favicon_status_ = favicon_status;
+}
+
+int WebStateImpl::SerializedData::GetNavigationItemCount() const {
+  return session_storage_.itemStorages.count;
 }
 
 const GURL& WebStateImpl::SerializedData::GetVisibleURL() const {

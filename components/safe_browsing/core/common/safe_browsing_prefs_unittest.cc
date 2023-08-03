@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
@@ -33,6 +34,12 @@ class SafeBrowsingPrefsTest : public ::testing::Test {
     prefs_.registry()->RegisterBooleanPref(
         prefs::kSafeBrowsingExtendedReportingOptInAllowed, true);
     prefs_.registry()->RegisterListPref(prefs::kSafeBrowsingAllowlistDomains);
+    prefs_.registry()->RegisterBooleanPref(
+        prefs::kRealTimeDownloadProtectionRequestAllowedByPolicy, true);
+    prefs_.registry()->RegisterBooleanPref(
+        prefs::kSafeBrowsingCsdPhishingProtectionAllowedByPolicy, true);
+    prefs_.registry()->RegisterBooleanPref(
+        prefs::kSafeBrowsingExtensionProtectionAllowedByPolicy, true);
   }
 
   void ResetPrefs(bool scout_reporting) {
@@ -54,15 +61,7 @@ class SafeBrowsingPrefsTest : public ::testing::Test {
   TestingPrefServiceSimple prefs_;
 };
 
-// TODO(crbug.com/881476) disabled for flaky crashes.
-#if defined(OS_WIN)
-#define MAYBE_GetSafeBrowsingExtendedReportingLevel \
-  DISABLED_GetSafeBrowsingExtendedReportingLevel
-#else
-#define MAYBE_GetSafeBrowsingExtendedReportingLevel \
-  GetSafeBrowsingExtendedReportingLevel
-#endif
-TEST_F(SafeBrowsingPrefsTest, MAYBE_GetSafeBrowsingExtendedReportingLevel) {
+TEST_F(SafeBrowsingPrefsTest, GetSafeBrowsingExtendedReportingLevel) {
   // By Default, extended reporting is off.
   EXPECT_EQ(SBER_LEVEL_OFF, GetExtendedReportingLevel(prefs_));
 
@@ -74,27 +73,19 @@ TEST_F(SafeBrowsingPrefsTest, MAYBE_GetSafeBrowsingExtendedReportingLevel) {
   EXPECT_EQ(SBER_LEVEL_OFF, GetExtendedReportingLevel(prefs_));
 }
 
-// TODO(crbug.com/881476) disabled for flaky crashes.
-#if defined(OS_WIN)
-#define MAYBE_VerifyMatchesPasswordProtectionLoginURL \
-  DISABLED_VerifyMatchesPasswordProtectionLoginURL
-#else
-#define MAYBE_VerifyMatchesPasswordProtectionLoginURL \
-  VerifyMatchesPasswordProtectionLoginURL
-#endif
-TEST_F(SafeBrowsingPrefsTest, MAYBE_VerifyMatchesPasswordProtectionLoginURL) {
+TEST_F(SafeBrowsingPrefsTest, VerifyMatchesPasswordProtectionLoginURL) {
   GURL url("https://mydomain.com/login.html#ref?username=alice");
   EXPECT_FALSE(prefs_.HasPrefPath(prefs::kPasswordProtectionLoginURLs));
   EXPECT_FALSE(MatchesPasswordProtectionLoginURL(url, prefs_));
 
-  base::ListValue login_urls;
+  base::Value::List login_urls;
   login_urls.Append("https://otherdomain.com/login.html");
-  prefs_.Set(prefs::kPasswordProtectionLoginURLs, login_urls);
+  prefs_.SetList(prefs::kPasswordProtectionLoginURLs, login_urls.Clone());
   EXPECT_TRUE(prefs_.HasPrefPath(prefs::kPasswordProtectionLoginURLs));
   EXPECT_FALSE(MatchesPasswordProtectionLoginURL(url, prefs_));
 
   login_urls.Append("https://mydomain.com/login.html");
-  prefs_.Set(prefs::kPasswordProtectionLoginURLs, login_urls);
+  prefs_.SetList(prefs::kPasswordProtectionLoginURLs, std::move(login_urls));
   EXPECT_TRUE(prefs_.HasPrefPath(prefs::kPasswordProtectionLoginURLs));
   EXPECT_TRUE(MatchesPasswordProtectionLoginURL(url, prefs_));
 }
@@ -121,12 +112,8 @@ TEST_F(SafeBrowsingPrefsTest, EnhancedProtection) {
   EXPECT_FALSE(IsEnhancedProtectionEnabled(prefs_));
 
   SetEnhancedProtectionPrefForTests(&prefs_, true);
+  EXPECT_TRUE(IsEnhancedProtectionEnabled(prefs_));
   {
-    base::test::ScopedFeatureList scoped_feature_list;
-    EXPECT_TRUE(IsEnhancedProtectionEnabled(prefs_));
-  }
-  {
-    base::test::ScopedFeatureList scoped_feature_list;
     prefs_.SetBoolean(prefs::kSafeBrowsingEnabled, false);
     EXPECT_FALSE(IsEnhancedProtectionEnabled(prefs_));
   }
@@ -171,14 +158,38 @@ TEST_F(SafeBrowsingPrefsTest, VerifyIsURLAllowlistedByPolicy) {
   GURL target_url("https://www.foo.com");
 
   EXPECT_FALSE(prefs_.HasPrefPath(prefs::kSafeBrowsingAllowlistDomains));
-  base::ListValue allowlisted_domains;
+  base::Value::List allowlisted_domains;
   allowlisted_domains.Append("foo.com");
-  prefs_.Set(prefs::kSafeBrowsingAllowlistDomains, allowlisted_domains);
+  prefs_.SetList(prefs::kSafeBrowsingAllowlistDomains,
+                 std::move(allowlisted_domains));
   StringListPrefMember string_list_pref;
   string_list_pref.Init(prefs::kSafeBrowsingAllowlistDomains, &prefs_);
   EXPECT_TRUE(IsURLAllowlistedByPolicy(target_url, prefs_));
 
   GURL not_allowlisted_url("https://www.bar.com");
   EXPECT_FALSE(IsURLAllowlistedByPolicy(not_allowlisted_url, prefs_));
+}
+
+TEST_F(SafeBrowsingPrefsTest,
+       VerifyIsRealTimeDownloadProtectionRequestAllowed) {
+  // Confirm default state.
+  EXPECT_TRUE(IsRealTimeDownloadProtectionRequestAllowed(prefs_));
+  prefs_.SetBoolean(prefs::kRealTimeDownloadProtectionRequestAllowedByPolicy,
+                    false);
+  EXPECT_FALSE(IsRealTimeDownloadProtectionRequestAllowed(prefs_));
+}
+
+TEST_F(SafeBrowsingPrefsTest, VerifyIsCsdPhishingProtectionAllowed) {
+  EXPECT_TRUE(IsCsdPhishingProtectionAllowed(prefs_));
+  prefs_.SetBoolean(prefs::kSafeBrowsingCsdPhishingProtectionAllowedByPolicy,
+                    false);
+  EXPECT_FALSE(IsCsdPhishingProtectionAllowed(prefs_));
+}
+
+TEST_F(SafeBrowsingPrefsTest, VerifySafeBrowsingExtensionProtectionAllowed) {
+  EXPECT_TRUE(IsSafeBrowsingExtensionProtectionAllowed(prefs_));
+  prefs_.SetBoolean(prefs::kSafeBrowsingExtensionProtectionAllowedByPolicy,
+                    false);
+  EXPECT_FALSE(IsSafeBrowsingExtensionProtectionAllowed(prefs_));
 }
 }  // namespace safe_browsing

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@
 class TestOmniboxEditModel : public OmniboxEditModel {
  public:
   TestOmniboxEditModel(OmniboxView* view,
-                       OmniboxEditController* controller,
+                       OmniboxEditModelDelegate* edit_model_delegate,
                        PrefService* pref_service);
   ~TestOmniboxEditModel() override;
   TestOmniboxEditModel(const TestOmniboxEditModel&) = delete;
@@ -32,10 +32,12 @@ class TestOmniboxEditModel : public OmniboxEditModel {
                           bool is_temporary_text,
                           const std::u16string& inline_autocompletion,
                           const std::u16string& prefix_autocompletion,
-                          const SplitAutocompletion& split_autocompletion,
                           const std::u16string& keyword,
                           bool is_keyword_hint,
-                          const std::u16string& additional_text) override;
+                          const std::u16string& additional_text,
+                          const AutocompleteMatch& match) override;
+
+  bool HasTemporaryText() { return has_temporary_text_; }
 
   const std::u16string& text() const { return text_; }
   bool is_temporary_text() const { return is_temporary_text_; }

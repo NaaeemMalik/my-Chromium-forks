@@ -1,10 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "device/bluetooth/dbus/bluetooth_advertisement_monitor_service_provider_impl.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 
@@ -185,6 +185,17 @@ void BluetoothAdvertisementMonitorServiceProviderImpl::WriteProperties(
   dict_entry_writer.AppendVariantOfUint16(
       filter_->device_lost_timeout().InSeconds());
   array_writer.CloseContainer(&dict_entry_writer);
+
+  if (filter_->rssi_sampling_period().has_value()) {
+    array_writer.OpenDictEntry(&dict_entry_writer);
+    dict_entry_writer.AppendString(
+        bluetooth_advertisement_monitor::kRSSISamplingPeriod);
+
+    // Convert from ms to 100ms * N format.
+    dict_entry_writer.AppendVariantOfUint16(
+        filter_->rssi_sampling_period().value().InMilliseconds() / 100);
+    array_writer.CloseContainer(&dict_entry_writer);
+  }
 
   array_writer.OpenDictEntry(&dict_entry_writer);
   dict_entry_writer.AppendString(bluetooth_advertisement_monitor::kPatterns);

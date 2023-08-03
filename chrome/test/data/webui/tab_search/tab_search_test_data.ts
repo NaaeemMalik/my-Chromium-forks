@@ -1,9 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {Token} from 'chrome://resources/mojo/mojo/public/mojom/base/token.mojom-webui.js';
-import {ProfileData, RecentlyClosedTab, Tab, Window} from 'chrome://tab-search.top-chrome/tab_search.js';
+import {ProfileData, RecentlyClosedTab, Tab, TabAlertState, Window} from 'chrome://tab-search.top-chrome/tab_search.js';
 
 export const SAMPLE_WINDOW_HEIGHT: number = 448;
 
@@ -12,8 +12,6 @@ export function createTab(overrides: Partial<Tab>): Tab {
       {
         active: false,
         alertStates: [],
-        faviconUrl: undefined,
-        groupId: undefined,
         index: 0,
         isDefaultFavicon: false,
         lastActiveElapsedText: '',
@@ -26,6 +24,39 @@ export function createTab(overrides: Partial<Tab>): Tab {
       },
       overrides);
 }
+
+export const SAMPLE_WINDOW_DATA_WITH_MEDIA_TAB: Window[] = [{
+  active: true,
+  height: SAMPLE_WINDOW_HEIGHT,
+  tabs: [
+    createTab({
+      active: false,
+      alertStates: [TabAlertState.kMediaRecording],
+      index: 0,
+      tabId: 1,
+      title: 'Meet',
+      url: {url: 'https://meet.google.com/'},
+      lastActiveTimeTicks: {internalValue: BigInt(4)},
+    }),
+    createTab({
+      active: false,
+      index: 1,
+      tabId: 2,
+      title: 'Google',
+      url: {url: 'https://www.google.com'},
+      lastActiveTimeTicks: {internalValue: BigInt(5)},
+    }),
+    createTab({
+      active: false,
+      index: 2,
+      tabId: 3,
+      title: 'Example',
+      url: {url: 'https://www.example.com'},
+      lastActiveTimeTicks: {internalValue: BigInt(3)},
+    }),
+  ],
+}];
+
 
 export const SAMPLE_WINDOW_DATA: Window[] = [
   {
@@ -78,7 +109,7 @@ export const SAMPLE_WINDOW_DATA: Window[] = [
         url: {url: 'https://www.apple.com/'},
       }),
     ],
-  }
+  },
 ];
 
 export const SAMPLE_RECENTLY_CLOSED_DATA: RecentlyClosedTab[] = [
@@ -88,7 +119,6 @@ export const SAMPLE_RECENTLY_CLOSED_DATA: RecentlyClosedTab[] = [
     url: {url: 'https://www.paypal.com'},
     lastActiveTime: {internalValue: BigInt(11)},
     lastActiveElapsedText: '',
-    groupId: undefined,
   },
   {
     tabId: 101,
@@ -96,7 +126,6 @@ export const SAMPLE_RECENTLY_CLOSED_DATA: RecentlyClosedTab[] = [
     url: {url: 'https://www.stripe.com'},
     lastActiveTime: {internalValue: BigInt(12)},
     lastActiveElapsedText: '',
-    groupId: undefined,
   },
 ];
 
@@ -140,7 +169,6 @@ export function generateSampleRecentlyClosedTabsFromSiteNames(
   return siteNames.map((siteName, i) => {
     return {
       tabId: i + 1,
-      groupId: undefined,
       title: siteName,
       url: {url: 'https://www.' + siteName.toLowerCase() + '.com'},
       lastActiveTimeTicks: {internalValue: BigInt(siteNames.length - i)},
@@ -160,7 +188,6 @@ export function generateSampleRecentlyClosedTabs(
       url: {url: `https://www.sampletab.com?q=${tabId}`},
       lastActiveTime: {internalValue: BigInt(count - i)},
       lastActiveElapsedText: '',
-      groupId: undefined,
     };
 
     if (groupId !== undefined) {
@@ -180,7 +207,7 @@ export function generateSampleDataFromSiteNames(siteNames: string[]):
     windows: [{
       active: true,
       height: SAMPLE_WINDOW_HEIGHT,
-      tabs: generateSampleTabsFromSiteNames(siteNames)
+      tabs: generateSampleTabsFromSiteNames(siteNames),
     }],
     recentlyClosedTabs: [],
     tabGroups: [],

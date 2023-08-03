@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,12 @@
 #include "ash/app_list/model/app_list_item.h"
 #include "ash/app_list/model/app_list_model_observer.h"
 #include "ash/app_list/model/app_list_test_model.h"
+#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/app_list/app_list_config.h"
 #include "ash/public/cpp/app_list/app_list_config_provider.h"
-#include "ash/public/cpp/app_list/app_list_switches.h"
 #include "base/command_line.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/scoped_feature_list.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/models/list_model_observer.h"
 
@@ -27,16 +28,10 @@ namespace {
 
 class TestObserver : public AppListModelObserver {
  public:
-  TestObserver()
-      : status_changed_count_(0),
-        items_added_(0),
-        items_removed_(0),
-        items_updated_(0) {}
-
+  TestObserver() = default;
   TestObserver(const TestObserver&) = delete;
   TestObserver& operator=(const TestObserver&) = delete;
-
-  ~TestObserver() override {}
+  ~TestObserver() override = default;
 
   // AppListModelObserver
   void OnAppListModelStatusChanged() override { ++status_changed_count_; }
@@ -62,22 +57,20 @@ class TestObserver : public AppListModelObserver {
   }
 
  private:
-  int status_changed_count_;
-  size_t items_added_;
-  size_t items_removed_;
-  size_t items_updated_;
+  int status_changed_count_ = 0;
+  size_t items_added_ = 0;
+  size_t items_removed_ = 0;
+  size_t items_updated_ = 0;
 };
 
 }  // namespace
 
 class AppListModelTest : public testing::Test {
  public:
-  AppListModelTest() {}
-
+  AppListModelTest() = default;
   AppListModelTest(const AppListModelTest&) = delete;
   AppListModelTest& operator=(const AppListModelTest&) = delete;
-
-  ~AppListModelTest() override {}
+  ~AppListModelTest() override = default;
 
   // testing::Test overrides:
   void SetUp() override {
@@ -123,6 +116,18 @@ class AppListModelTest : public testing::Test {
 
   std::string GetModelContents() {
     return GetItemListContents(model_->top_level_item_list());
+  }
+
+  // Creates a folder named `name` with `num_apps` items. The returned pointer
+  // is owned by the `model_`.
+  AppListFolderItem* CreateFolderWithApps(const char* name, size_t num_apps) {
+    AppListFolderItem* folder = new AppListFolderItem(name, model_.get());
+    model_->AddItem(folder);  // Takes ownership.
+    for (int i = 0; static_cast<size_t>(i) < num_apps; ++i) {
+      model_->AddItemToFolder(model_->CreateItem(model_->GetItemName(i)),
+                              folder->id());
+    }
+    return folder;
   }
 
   std::unique_ptr<test::AppListTestModel> model_;
@@ -254,13 +259,8 @@ TEST_F(AppListModelFolderTest, MergeItemIntoFolder) {
   model_->PopulateApps(1);
 
   AppListItem* item0 = model_->top_level_item_list()->item_at(0);
-  AppListFolderItem* folder = new AppListFolderItem("folder1", model_.get());
-  model_->AddItem(folder);
   const size_t num_folder_apps = 2;
-  for (int i = 0; static_cast<size_t>(i) < num_folder_apps; ++i) {
-    std::string name = model_->GetItemName(i);
-    model_->AddItemToFolder(model_->CreateItem(name), folder->id());
-  }
+  AppListFolderItem* folder = CreateFolderWithApps("folder1", num_folder_apps);
 
   // Calling MergeItems(AppListItem, AppListFolderItem) results in
   // AppListFolderItem being deleted. Previously AppListModel did not remove
@@ -269,63 +269,57 @@ TEST_F(AppListModelFolderTest, MergeItemIntoFolder) {
   model_->MergeItems(item0->id(), folder->id());
 }
 
+// Tests Icon generation configuration for folders on different grid types.
 TEST_F(AppListModelFolderTest, NonSharedConfigIconGeneration) {
   // Ensure any configs set by previous tests are cleared.
   AppListConfigProvider::Get().ResetForTesting();
 
-  // Start with kLarge config available.
-  const AppListConfig* large_config =
-      AppListConfigProvider::Get().GetConfigForType(AppListConfigType::kLarge,
+  // Start with kRegular config available.
+  const AppListConfig* regular_config =
+      AppListConfigProvider::Get().GetConfigForType(AppListConfigType::kRegular,
                                                     true);
-  ASSERT_TRUE(large_config);
+  ASSERT_TRUE(regular_config);
 
-  AppListFolderItem* folder = new AppListFolderItem("folder1", model_.get());
   const size_t num_folder_apps = 5;
   const size_t num_observed_apps = 4;
-  model_->AddItem(folder);
-  for (int i = 0; static_cast<size_t>(i) < num_folder_apps; ++i) {
-    std::string name = model_->GetItemName(i);
-    model_->AddItemToFolder(model_->CreateItem(name), folder->id());
-  }
+  AppListFolderItem* folder = CreateFolderWithApps("folder1", num_folder_apps);
 
-  // Verify that the folder has folder image for large config.
-  FolderImage* large_config_image =
-      folder->GetFolderImageForTesting(AppListConfigType::kLarge);
-  ASSERT_TRUE(large_config_image);
-  EXPECT_EQ(large_config->folder_unclipped_icon_size(),
-            large_config_image->icon().size());
+  // Verify that the folder has folder image for regular config.
+  FolderImage* regular_config_image =
+      folder->GetFolderImageForTesting(AppListConfigType::kRegular);
+  ASSERT_TRUE(regular_config_image);
+  EXPECT_EQ(regular_config->unclipped_icon_size(),
+            regular_config_image->icon().size());
 
   // Verify that the folder is observing the app list item.
   EXPECT_TRUE(ItemObservedByFolder(
       folder, folder->item_list()->item_at(num_observed_apps - 1),
-      AppListConfigType::kLarge));
+      AppListConfigType::kRegular));
   EXPECT_FALSE(ItemObservedByFolder(
       folder, folder->item_list()->item_at(num_observed_apps),
-      AppListConfigType::kLarge));
+      AppListConfigType::kRegular));
 
-  // Not medium folder image, as the config does not exist yet.
-  EXPECT_FALSE(folder->GetFolderImageForTesting(AppListConfigType::kMedium));
+  // Not kDense folder image, as the config does not exist yet.
+  EXPECT_FALSE(folder->GetFolderImageForTesting(AppListConfigType::kDense));
 
-  // Create medium config, and verify the folder image for medium config gets
+  // Create dense config, and verify the folder image for dense config gets
   // created.
-  const AppListConfig* medium_config =
-      AppListConfigProvider::Get().GetConfigForType(AppListConfigType::kMedium,
+  const AppListConfig* dense_config =
+      AppListConfigProvider::Get().GetConfigForType(AppListConfigType::kDense,
                                                     true);
-  FolderImage* medium_config_image =
-      folder->GetFolderImageForTesting(AppListConfigType::kMedium);
-  ASSERT_TRUE(medium_config_image);
-  EXPECT_EQ(medium_config->folder_unclipped_icon_size(),
-            medium_config_image->icon().size());
+  FolderImage* dense_config_image =
+      folder->GetFolderImageForTesting(AppListConfigType::kDense);
+  ASSERT_TRUE(dense_config_image);
+  EXPECT_EQ(dense_config->unclipped_icon_size(),
+            dense_config_image->icon().size());
 
   // Verify that the folder is observing the app list item.
   EXPECT_TRUE(ItemObservedByFolder(
       folder, folder->item_list()->item_at(num_observed_apps - 1),
-      AppListConfigType::kMedium));
+      AppListConfigType::kDense));
   EXPECT_FALSE(ItemObservedByFolder(
       folder, folder->item_list()->item_at(num_observed_apps),
-      AppListConfigType::kMedium));
-
-  EXPECT_FALSE(folder->GetFolderImageForTesting(AppListConfigType::kSmall));
+      AppListConfigType::kDense));
 
   AppListConfigProvider::Get().ResetForTesting();
 }
@@ -521,12 +515,12 @@ TEST_F(AppListModelFolderTest, UninstallFolderItems) {
   EXPECT_EQ("folder1", GetModelContents());
 }
 
-TEST_F(AppListModelFolderTest, UninstallPersistentFolderItem) {
+TEST_F(AppListModelFolderTest, UninstallSystemFolderItem) {
   AppListItem* item0 = model_->CreateAndAddItem("Item 0");
   AppListItem* item1 = model_->CreateAndAddItem("Item 1");
   AppListFolderItem* folder1 = static_cast<AppListFolderItem*>(
       model_->AddItem(new AppListFolderItem("folder1", model_.get())));
-  folder1->SetIsPersistent(true);
+  folder1->SetIsSystemFolder(true);
   EXPECT_EQ("Item 0,Item 1,folder1", GetModelContents());
 
   // Move all items to folder1.
@@ -612,6 +606,50 @@ TEST_F(AppListModelFolderTest, DisableFolders) {
   std::string oem_folder_id = oem_folder->id();
   model_->AddItemToFolder(oem_item, oem_folder_id);
   EXPECT_EQ(std::string("folder1,") + kOemFolderId, GetModelContents());
+}
+
+TEST_F(AppListModelFolderTest, IsNewInstall) {
+  AppListFolderItem* folder = CreateFolderWithApps("folder1", 2);
+  AppListItem* item0 = model_->FindItem("Item 0");
+  ASSERT_TRUE(item0);
+  AppListItem* item1 = model_->FindItem("Item 1");
+  ASSERT_TRUE(item1);
+
+  // If both children are new installs, the folder contains a new install.
+  item0->SetIsNewInstall(true);
+  item1->SetIsNewInstall(true);
+  EXPECT_TRUE(item0->is_new_install());
+  EXPECT_TRUE(item1->is_new_install());
+  EXPECT_TRUE(folder->is_new_install());
+
+  // If one child is a new install, the folder contains a new install.
+  item0->SetIsNewInstall(false);
+  EXPECT_FALSE(item0->is_new_install());
+  EXPECT_TRUE(item1->is_new_install());
+  EXPECT_TRUE(folder->is_new_install());
+
+  // If no child is a new install, the folder does not contain a new install.
+  item1->SetIsNewInstall(false);
+  EXPECT_FALSE(item0->is_new_install());
+  EXPECT_FALSE(item1->is_new_install());
+  EXPECT_FALSE(folder->is_new_install());
+}
+
+TEST_F(AppListModelFolderTest, IsNewInstallClearedOnDeleteItem) {
+  AppListFolderItem* folder = CreateFolderWithApps("folder1", 2);
+  AppListItem* item0 = model_->FindItem("Item 0");
+  ASSERT_TRUE(item0);
+  AppListItem* item1 = model_->FindItem("Item 1");
+  ASSERT_TRUE(item1);
+
+  // If the second item is a new install, the folder contains a new install.
+  item1->SetIsNewInstall(true);
+  EXPECT_TRUE(folder->is_new_install());
+
+  // Deleting the item means the folder no longer contains a new install.
+  model_->DeleteItem("Item 1");
+  item1 = nullptr;
+  EXPECT_FALSE(folder->is_new_install());
 }
 
 }  // namespace ash

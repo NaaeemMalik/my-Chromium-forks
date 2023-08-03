@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include "device/vr/buildflags/buildflags.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/feature_list.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #else
@@ -80,7 +80,7 @@ void VrTabHelper::SetIsContentDisplayedInHeadset(content::WebContents* contents,
   bool old_state = vr_tab_helper->IsContentDisplayedInHeadset(contents);
   vr_tab_helper->SetIsContentDisplayedInHeadset(state);
   if (old_state != state) {
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     Browser* browser = chrome::FindBrowserWithWebContents(contents);
     if (browser) {
       TabStripModel* tab_strip_model = browser->tab_strip_model();
@@ -96,45 +96,13 @@ void VrTabHelper::SetIsContentDisplayedInHeadset(content::WebContents* contents,
 
 /* static */
 void VrTabHelper::ExitVrPresentation() {
-#if defined(OS_WIN) && BUILDFLAG(ENABLE_VR)
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(ENABLE_VR)
   content::XRRuntimeManager::ExitImmersivePresentation();
 #endif
 }
 
 void VrTabHelper::SetIsContentDisplayedInHeadset(bool state) {
   is_content_displayed_in_headset_ = state;
-}
-
-bool VrTabHelper::IsUiSuppressedInVr(content::WebContents* contents,
-                                     UiSuppressedElement element) {
-  if (!IsInVr(contents))
-    return false;
-
-  switch (element) {
-    // The following are suppressed if in VR.
-    case UiSuppressedElement::kHttpAuth:
-    case UiSuppressedElement::kSslClientCertificate:
-    case UiSuppressedElement::kUsbChooser:
-    case UiSuppressedElement::kFileChooser:
-    case UiSuppressedElement::kBluetoothChooser:
-    case UiSuppressedElement::kPasswordManager:
-    case UiSuppressedElement::kMediaRouterPresentationRequest:
-    // Note that this enum suppresses two type of UIs. One is Chrome's missing
-    // storage permission Dialog which is an Android AlertDialog. And if user
-    // clicked positive button on the AlertDialog, Chrome will request storage
-    // permission from Android which triggers standard permission request
-    // dialog. Permission request dialog is not supported in VR either (see
-    // https://crbug.com/642934). So we need to make sure that both AlertDialog
-    // and permission request dialog are supported in VR before we disable this
-    // suppression.
-    case UiSuppressedElement::kFileAccessPermission:
-    case UiSuppressedElement::kContextMenu:
-      return true;
-    case UiSuppressedElement::kPlaceholderForPreviousHighValue:
-    case UiSuppressedElement::kCount:
-      NOTREACHED();
-      return false;
-  }
 }
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(VrTabHelper);

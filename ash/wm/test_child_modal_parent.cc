@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <memory>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/aura/window.h"
 #include "ui/views/background.h"
@@ -98,8 +98,8 @@ TestChildModalParent::TestChildModalParent(aura::Window* context)
                           base::Unretained(this)),
       u"Show/Hide Child Modal Window");
   button_ = AddChildView(std::move(button));
-  AddChildView(textfield_);
-  AddChildView(host_);
+  AddChildView(textfield_.get());
+  AddChildView(host_.get());
 }
 
 TestChildModalParent::~TestChildModalParent() = default;

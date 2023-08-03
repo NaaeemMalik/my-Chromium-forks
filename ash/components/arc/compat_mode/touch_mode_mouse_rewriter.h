@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -55,6 +55,14 @@ class TouchModeMouseRewriter : public aura::WindowObserver,
   void SendScrollEvent(const ui::MouseWheelEvent& original_event,
                        const Continuation continuation);
 
+  ui::EventDispatchDetails RewriteMouseWheelEvent(
+      const ui::MouseWheelEvent& event,
+      const Continuation continuation);
+  ui::EventDispatchDetails RewriteMouseClickEvent(
+      const ui::MouseEvent& event,
+      const Continuation continuation);
+  bool IsInResizeLockedWindow(const aura::Window* window) const;
+
   // Used for right click long press.
   bool release_event_scheduled_ = false;
   bool left_pressed_ = false;
@@ -62,10 +70,11 @@ class TouchModeMouseRewriter : public aura::WindowObserver,
 
   // Used for mouse wheel smooth scroll.
   int scroll_y_offset_ = 0;
+  int scroll_x_offset_ = 0;
   base::TimeDelta scroll_timeout_;
 
   std::multiset<aura::WindowTreeHost*> hosts_;
-  std::set<aura::Window*> enabled_windows_;
+  std::set<const aura::Window*> enabled_windows_;
 
   base::ScopedMultiSourceObservation<aura::Window, aura::WindowObserver>
       window_observations_{this};

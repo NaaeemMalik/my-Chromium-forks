@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,18 +8,16 @@
 #include <stddef.h>
 #include <memory>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/message_loop/message_pump_default.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/condition_variable.h"
-#include "base/task/post_task.h"
-#include "base/task/sequence_manager/task_queue_impl.h"
+#include "base/task/sequence_manager/task_queue.h"
 #include "base/task/sequence_manager/test/mock_time_domain.h"
 #include "base/task/sequence_manager/test/sequence_manager_for_test.h"
-#include "base/task/sequence_manager/test/test_task_queue.h"
 #include "base/task/sequence_manager/test/test_task_time_observer.h"
 #include "base/task/sequence_manager/thread_controller_with_message_pump_impl.h"
 #include "base/task/single_thread_task_runner.h"
@@ -28,7 +26,6 @@
 #include "base/task/thread_pool/thread_pool_impl.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/threading/thread.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -60,17 +57,6 @@ class PerfTestTimeDomain : public MockTimeDomain {
   PerfTestTimeDomain(const PerfTestTimeDomain&) = delete;
   PerfTestTimeDomain& operator=(const PerfTestTimeDomain&) = delete;
   ~PerfTestTimeDomain() override = default;
-
-  base::TimeTicks GetNextDelayedTaskTime(WakeUp next_wake_up,
-                                         LazyNow* lazy_now) const override {
-    // Check if we have a task that should be running now.
-    if (next_wake_up.time <= NowTicks())
-      return base::TimeTicks();
-
-    // Rely on MaybeFastForwardToWakeUp to be called to advance
-    // time.
-    return base::TimeTicks::Max();
-  }
 
   bool MaybeFastForwardToWakeUp(absl::optional<WakeUp> wake_up,
                                 bool quit_when_idle_requested) override {
@@ -124,9 +110,8 @@ class BaseSequenceManagerPerfTestDelegate : public PerfTestDelegate {
   bool MultipleQueuesSupported() const override { return true; }
 
   scoped_refptr<TaskRunner> CreateTaskRunner() override {
-    scoped_refptr<TestTaskQueue> task_queue =
-        manager_->CreateTaskQueueWithType<TestTaskQueue>(
-            TaskQueue::Spec("test"));
+    scoped_refptr<TaskQueue> task_queue =
+        manager_->CreateTaskQueue(TaskQueue::Spec(QueueName::TEST_TQ));
     owned_task_queues_.push_back(task_queue);
     return task_queue->task_runner();
   }
@@ -156,7 +141,7 @@ class BaseSequenceManagerPerfTestDelegate : public PerfTestDelegate {
   std::unique_ptr<SequenceManager> manager_;
   std::unique_ptr<TimeDomain> time_domain_;
   std::unique_ptr<RunLoop> run_loop_;
-  std::vector<scoped_refptr<TestTaskQueue>> owned_task_queues_;
+  std::vector<scoped_refptr<TaskQueue>> owned_task_queues_;
 };
 
 class SequenceManagerWithMessagePumpPerfTestDelegate
@@ -179,8 +164,7 @@ class SequenceManagerWithMessagePumpPerfTestDelegate
     // ThreadControllerWithMessagePumpImpl doesn't provide a default task
     // runner.
     scoped_refptr<TaskQueue> default_task_queue =
-        GetManager()->template CreateTaskQueueWithType<TestTaskQueue>(
-            TaskQueue::Spec("default"));
+        GetManager()->CreateTaskQueue(TaskQueue::Spec(QueueName::DEFAULT_TQ));
     GetManager()->SetDefaultTaskRunner(default_task_queue->task_runner());
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/sequence_checker.h"
@@ -26,6 +26,8 @@ class UnguessableToken;
 }  // namespace base
 
 namespace device {
+
+class BluetoothUUID;
 
 // TODO(leonhsl): Merge this class with SerialDeviceEnumerator if/once
 // SerialDeviceEnumerator is exposed only via the Device Service.
@@ -75,6 +77,7 @@ class SerialPortManagerImpl : public mojom::SerialPortManager,
 
   void OpenBluetoothSerialPortOnUI(
       const std::string& address,
+      const BluetoothUUID& service_class_id,
       mojom::SerialConnectionOptionsPtr options,
       mojo::PendingRemote<mojom::SerialPortClient> client,
       mojo::PendingRemote<mojom::SerialPortConnectionWatcher> watcher,

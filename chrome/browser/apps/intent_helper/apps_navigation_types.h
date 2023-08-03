@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "ui/base/models/image_model.h"
 
 namespace apps {
@@ -92,6 +92,18 @@ struct IntentPickerAppInfo {
 
   // The string shown to the user to identify this app in the intent picker.
   std::string display_name;
+};
+
+// The variant of the Intent Picker bubble to display. Used to customize some
+// strings and behavior.
+enum class IntentPickerBubbleType {
+  // Used to select an app to handle http/https links.
+  kLinkCapturing,
+  // Used to select an app to handle external protocol links (e.g. sms:).
+  kExternalProtocol,
+  // Special case of kExternalProtocol for tel: links, which can also be handled
+  // by Android devices.
+  kClickToCall,
 };
 
 // Callback to allow app-platform-specific code to asynchronously signal what

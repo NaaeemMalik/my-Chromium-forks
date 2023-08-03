@@ -1,15 +1,19 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/engine/commit_contribution_impl.h"
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
-#include "base/guid.h"
 #include "base/logging.h"
+#include "base/uuid.h"
 #include "base/values.h"
+#include "components/sync/base/data_type_histogram.h"
+#include "components/sync/base/features.h"
+#include "components/sync/base/passphrase_enums.h"
 #include "components/sync/base/time.h"
 #include "components/sync/base/unique_position.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
@@ -81,7 +85,8 @@ void CommitContributionImpl::AddToCommitMessage(
   commit_message->mutable_entries()->Reserve(commit_message->entries_size() +
                                              commit_requests_.size());
 
-  for (const auto& commit_request : commit_requests_) {
+  for (const std::unique_ptr<CommitRequestData>& commit_request :
+       commit_requests_) {
     sync_pb::SyncEntity* sync_entity = commit_message->add_entries();
     if (only_commit_specifics_) {
       DCHECK(!commit_request->entity->is_deleted());
@@ -98,6 +103,15 @@ void CommitContributionImpl::AddToCommitMessage(
     // sending password in plain text.
     CHECK(
         !sync_entity->specifics().password().has_client_only_encrypted_data());
+
+    // Purposefully crash since no metadata should be uploaded if a custom
+    // passphrase is set.
+    CHECK(!IsExplicitPassphrase(passphrase_type_) ||
+          !sync_entity->specifics().password().has_unencrypted_metadata());
+
+    // Record the size of the sync entity being committed.
+    syncer::SyncRecordModelTypeEntitySizeHistogram(
+        type_, sync_entity->specifics().ByteSizeLong());
 
     if (commit_request->entity->is_deleted()) {
       RecordEntityChangeMetrics(type_, ModelTypeEntityChange::kLocalDeletion);
@@ -211,9 +225,9 @@ void CommitContributionImpl::PopulateCommitProto(
   } else if (type != BOOKMARKS ||
              !entity_data.client_tag_hash.value().empty()) {
     // The client tag is mandatory for all datatypes except bookmarks, and
-    // experimental for bookmarks (behind feature toggle).
-    commit_proto->set_client_defined_unique_tag(
-        entity_data.client_tag_hash.value());
+    // for bookmarks it depends on the version of the browser that was used
+    // to originally create the bookmark.
+    commit_proto->set_client_tag_hash(entity_data.client_tag_hash.value());
   }
 
   commit_proto->set_version(commit_entity.base_version);
@@ -235,15 +249,13 @@ void CommitContributionImpl::PopulateCommitProto(
           commit_proto->set_folder(true);
           break;
       }
-      // position_in_parent field is set only for legacy reasons.  See comments
-      // in sync.proto for more information.
       const UniquePosition unique_position = UniquePosition::FromProto(
           entity_data.specifics.bookmark().unique_position());
       DCHECK(unique_position.IsValid());
-      commit_proto->set_position_in_parent(unique_position.ToInt64());
       *commit_proto->mutable_unique_position() = unique_position.ToProto();
-      if (!entity_data.parent_id.empty()) {
-        commit_proto->set_parent_id_string(entity_data.parent_id);
+      // parent_id field is set only for legacy clients only, before M99.
+      if (!entity_data.legacy_parent_id.empty()) {
+        commit_proto->set_parent_id_string(entity_data.legacy_parent_id);
       }
     }
     commit_proto->set_ctime(TimeToProtoTime(entity_data.creation_time));
@@ -263,7 +275,8 @@ void CommitContributionImpl::AdjustCommitProto(
     // across restarts in case of recommitting an item, it doesn't result in
     // creating a duplicate.
     if (commit_proto->id_string().empty()) {
-      commit_proto->set_id_string(base::GenerateGUID());
+      commit_proto->set_id_string(
+          base::Uuid::GenerateRandomV4().AsLowercaseString());
     }
   }
 
@@ -275,21 +288,30 @@ void CommitContributionImpl::AdjustCommitProto(
     const sync_pb::PasswordSpecificsData& password_data =
         password_specifics.client_only_encrypted_data();
     sync_pb::EntitySpecifics encrypted_password;
-    if (!IsExplicitPassphrase(passphrase_type_) &&
-        password_specifics.unencrypted_metadata().url() !=
-            password_data.signon_realm()) {
-      encrypted_password.mutable_password()
-          ->mutable_unencrypted_metadata()
-          ->set_url(password_data.signon_realm());
-      encrypted_password.mutable_password()
-          ->mutable_unencrypted_metadata()
-          ->set_blacklisted(password_data.blacklisted());
+
+    // Keep the unencrypted metadata for non-custom passphrase users.
+    if (!IsExplicitPassphrase(passphrase_type_)) {
+      *encrypted_password.mutable_password()->mutable_unencrypted_metadata() =
+          commit_proto->specifics().password().unencrypted_metadata();
     }
 
     bool result = cryptographer_->Encrypt(
         password_data,
         encrypted_password.mutable_password()->mutable_encrypted());
     DCHECK(result);
+    if (base::FeatureList::IsEnabled(syncer::kPasswordNotesWithBackup)) {
+      // `encrypted_notes_backup` field needs to be populated regardless of
+      // whether or not there are any notes.
+      result = cryptographer_->Encrypt(password_data.notes(),
+                                       encrypted_password.mutable_password()
+                                           ->mutable_encrypted_notes_backup());
+      DCHECK(result);
+      // When encrypting both blobs succeeds, both encrypted blobs must use the
+      // key name.
+      DCHECK_EQ(
+          encrypted_password.password().encrypted().key_name(),
+          encrypted_password.password().encrypted_notes_backup().key_name());
+    }
     *commit_proto->mutable_specifics() = std::move(encrypted_password);
     commit_proto->set_name("encrypted");
   } else if (cryptographer_) {

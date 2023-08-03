@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,12 @@
 #define DEVICE_BLUETOOTH_TEST_TEST_BLUETOOTH_ADAPTER_OBSERVER_H_
 
 #include <stdint.h>
+
 #include <string>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
+#include "build/build_config.h"
 #include "device/bluetooth/bluetooth_adapter.h"
 
 namespace device {
@@ -57,7 +59,12 @@ class TestBluetoothAdapterObserver : public BluetoothAdapter::Observer {
       const device::BluetoothDevice::ServiceDataMap& service_data_map,
       const device::BluetoothDevice::ManufacturerDataMap& manufacturer_data_map)
       override;
-#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+#if BUILDFLAG(IS_CHROMEOS)
+  void DeviceBondedChanged(device::BluetoothAdapter* adapter,
+                           device::BluetoothDevice* device,
+                           bool new_bonded_status) override;
+#endif
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
   void DevicePairedChanged(device::BluetoothAdapter* adapter,
                            device::BluetoothDevice* device,
                            bool new_paired_status) override;
@@ -105,6 +112,11 @@ class TestBluetoothAdapterObserver : public BluetoothAdapter::Observer {
   void GattDescriptorValueChanged(BluetoothAdapter* adapter,
                                   BluetoothRemoteGattDescriptor* descriptor,
                                   const std::vector<uint8_t>& value) override;
+#if BUILDFLAG(IS_CHROMEOS)
+  void LowEnergyScanSessionHardwareOffloadingStatusChanged(
+      BluetoothAdapter::LowEnergyScanSessionHardwareOffloadingStatus status)
+      override;
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Adapter related:
   int present_changed_count() const { return present_changed_count_; }
@@ -149,7 +161,14 @@ class TestBluetoothAdapterObserver : public BluetoothAdapter::Observer {
     return last_manufacturer_data_map_;
   }
 
-#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+#if BUILDFLAG(IS_CHROMEOS)
+  int device_bonded_changed_count() const {
+    return device_bonded_changed_count_;
+  }
+  bool device_new_bonded_status() const { return device_new_bonded_status_; }
+#endif
+
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
   int device_paired_changed_count() const {
     return device_paired_changed_count_;
   }
@@ -221,6 +240,12 @@ class TestBluetoothAdapterObserver : public BluetoothAdapter::Observer {
   std::vector<uint8_t> last_changed_descriptor_value() const {
     return last_changed_descriptor_value_;
   }
+#if BUILDFLAG(IS_CHROMEOS)
+  BluetoothAdapter::LowEnergyScanSessionHardwareOffloadingStatus
+  last_low_energy_scan_session_hardware_offloading_status() const {
+    return last_low_energy_scan_session_hardware_offloading_status_;
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
  private:
   // Some tests use a message loop since background processing is simulated;
@@ -258,7 +283,12 @@ class TestBluetoothAdapterObserver : public BluetoothAdapter::Observer {
   base::RepeatingClosure discovering_changed_callback_;
   base::RepeatingClosure discovery_change_completed_callback_;
 
-#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+#if BUILDFLAG(IS_CHROMEOS)
+  int device_bonded_changed_count_;
+  bool device_new_bonded_status_;
+#endif
+
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
   int device_paired_changed_count_;
   bool device_new_paired_status_;
   int device_mtu_changed_count_;
@@ -292,6 +322,13 @@ class TestBluetoothAdapterObserver : public BluetoothAdapter::Observer {
   std::string last_gatt_descriptor_id_;
   BluetoothUUID last_gatt_descriptor_uuid_;
   std::vector<uint8_t> last_changed_descriptor_value_;
+
+#if BUILDFLAG(IS_CHROMEOS)
+  BluetoothAdapter::LowEnergyScanSessionHardwareOffloadingStatus
+      last_low_energy_scan_session_hardware_offloading_status_ =
+          BluetoothAdapter::LowEnergyScanSessionHardwareOffloadingStatus::
+              kUndetermined;
+#endif  // BUILDFLAG(IS_CHROMEOS)
 };
 
 }  // namespace device

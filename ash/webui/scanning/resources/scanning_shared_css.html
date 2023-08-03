@@ -5,7 +5,36 @@
 <link rel="stylesheet" href="gtx://resources/cr_elements/md_select_css.html">
 
 <template>
-  <style include="cr-shared-style md-select scanning-fonts">
+  <style include="cr-shared-style md-select scanning-fonts cros-color-overrides">
+    :host {
+      --scanning-progress-bar: var(--google-blue-600);
+      --scanning-progress-bar-track: rgba(
+          var(--google-blue-600-rgb),
+          var(--cros-second-tone-opacity));
+      --scanning-scrollbar-rgb: var(--google-grey-600-rgb);
+      --scanning-scrollbar: rgba(var(--scanning-scrollbar-rgb), 0.38);
+      --scanning-scrollbar-thumb: rgb(var(--scanning-scrollbar-rgb))
+    }
+
+    :host-context(body.jelly-enabled) {
+      --scanning-progress-bar: var(--cros-sys-progress);
+      --scanning-progress-bar-track:  var(--cros-sys-progress_container);
+      --scanning-scrollbar-rgb: var(--google-grey-600-rgb);
+      --scanning-scrollbar: var(--cros-sys-scrollbar);
+      --scanning-scrollbar-thumb: var(--cros-sys-on_secondary);
+    }
+
+    :host-context(body.jelly-enabled) select.md-select {
+      --md-select-bg-color: var(--cros-sys-app_base_shaded);
+      --md-select-focus-shadow-color: var(--cros-sys-focus_ring);
+      --md-select-option-bg-color: var(--cros-sys-app_base_shaded);
+    }
+
+    paper-progress {
+      --paper-progress-active-color: var(--scanning-progress-bar);
+      --paper-progress-container-color: var(--scanning-progress-bar-track);
+    }
+
     select {
       height: 32px;
       overflow: hidden;
@@ -13,6 +42,9 @@
     }
 
     select.md-select {
+      --md-select-bg-color: var(--cros-bg-color-dropped-elevation-2);
+      --md-select-focus-shadow-color: var(--cros-focus-ring-color);
+      --md-select-option-bg-color: var(--cros-bg-color-elevation-2);
       background-position-x: calc(100% - 12px);
       color: var(--scanning-scan-setting-text-color);
       font-family: var(--scanning-scan-setting-font-family);
@@ -28,12 +60,13 @@
     }
 
     ::-webkit-scrollbar {
-      -webkit-appearance: none;
+      background-color: var(--scanning-scrollbar);
+      border-radius: 4px;
       width: 4px;
     }
 
     ::-webkit-scrollbar-thumb {
-      background-color: rgba(0, 0, 0, 0.5);
+      background-color: var(--scanning-scrollbar-thumb);
       border-radius: 4px;
     }
 
@@ -108,6 +141,16 @@
         --right-panel-margin-inline-start: 60px;
         --right-panel-padding-inline-end: 32px;
         --right-panel-padding-inline-start: 32px;
+      }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :host-context(body:not(.jelly-enabled)) {
+        --scanning-progress-bar: var(--google-blue-300);
+        --scanning-progress-bar-track: rgba(
+            var(--google-blue-300-rgb),
+            var(--cros-second-tone-opacity));
+        --scanning-scrollbar-rgb: var(--google-grey-400-rgb);
       }
     }
   </style>

@@ -1,17 +1,17 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_PUBLIC_BROWSER_BACKGROUND_SYNC_CONTEXT_H_
 #define CONTENT_PUBLIC_BROWSER_BACKGROUND_SYNC_CONTEXT_H_
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "build/build_config.h"
 #include "content/common/content_export.h"
 #include "third_party/blink/public/mojom/background_sync/background_sync.mojom.h"
 #include "url/origin.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/jni_android.h"
 #include "base/android/scoped_java_ref.h"
 #endif
@@ -27,7 +27,7 @@ class StoragePartition;
 // other components.
 class CONTENT_EXPORT BackgroundSyncContext {
  public:
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Processes pending Background Sync registrations of |sync_type| for all the
   // storage partitions in |browser_context|, and then runs  the |j_runnable|
   // when done.

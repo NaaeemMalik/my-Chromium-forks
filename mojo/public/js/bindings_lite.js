@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -761,7 +761,6 @@ mojo.internal.Decoder = class {
         new DataView(this.data_.buffer, arrayOffset), this.handles_,
         this.context_);
 
-    const size = arrayDecoder.decodeUint32(0);
     const numElements = arrayDecoder.decodeUint32(4);
     if (!numElements)
       return [];
@@ -956,7 +955,7 @@ mojo.internal.Decoder = class {
 
   decodeInterfaceProxy(type, offset) {
     const handle = this.decodeHandle(offset);
-    const version = this.decodeUint32(offset + 4);  // TODO: support versioning
+    // TODO: support versioning
     if (!handle)
       return null;
     return new type(handle);
@@ -1411,9 +1410,13 @@ mojo.internal.Map = function(keyType, valueType, valueNullable) {
         const values =
             (value.constructor.name == 'Map') ? Array.from(value.values())
                                               : keys.map(k => value[k]);
-
+        // Size of map is equal to kMapDataSize + 8-byte aligned array for keys
+        // + (not necessarily 8-byte aligned) array for values.
         const size = mojo.internal.kMapDataSize +
-            mojo.internal.computeTotalArraySize({elementType: keyType}, keys) +
+            mojo.internal.align(
+                mojo.internal.computeTotalArraySize(
+                    {elementType: keyType}, keys),
+              8) +
             mojo.internal.computeTotalArraySize(
                 {
                   elementType: valueType,

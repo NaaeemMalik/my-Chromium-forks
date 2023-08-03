@@ -1,19 +1,22 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/share/share_history.h"
 
 #include "base/containers/flat_map.h"
+#include "base/memory/ptr_util.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/share/proto/share_history_message.pb.h"
 #include "components/leveldb_proto/public/proto_database_provider.h"
 #include "content/public/browser/storage_partition.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/jni_string.h"
 #include "chrome/browser/profiles/profile_android.h"
 
@@ -32,6 +35,8 @@ const char* const kShareHistoryFolder = "share_history";
 // that it is the same string as the above folder name is a coincidence; please
 // do not fold these constants together.
 const char* const kShareHistoryKey = "share_history";
+
+constexpr auto kMaxHistoryAge = base::Days(90);
 
 int TodaysDay() {
   return (base::Time::Now() - base::Time::UnixEpoch()).InDays();
@@ -120,7 +125,7 @@ void ShareHistory::GetFlatShareHistory(GetFlatHistoryCallback callback,
   }
 
   if (db_init_status_ != leveldb_proto::Enums::kOK) {
-    base::SequencedTaskRunnerHandle::Get()->PostTask(
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), std::vector<Target>()));
     return;
   }
@@ -146,7 +151,7 @@ void ShareHistory::GetFlatShareHistory(GetFlatHistoryCallback callback,
   std::sort(result.begin(), result.end(),
             [](const Target& a, const Target& b) { return a.count > b.count; });
 
-  base::SequencedTaskRunnerHandle::Get()->PostTask(
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), result));
 }
 
@@ -178,7 +183,7 @@ void ShareHistory::OnInitDone(leveldb_proto::Enums::InitStatus status) {
     // as in the happy case, but without going through LevelDB; i.e., act as
     // though the initial read failed, instead of the LevelDB initialization, so
     // that control always ends up in OnInitialReadDone.
-    base::SequencedTaskRunnerHandle::Get()->PostTask(
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&ShareHistory::OnInitialReadDone,
                                   weak_factory_.GetWeakPtr(), false,
                                   std::make_unique<mojom::ShareHistory>()));
@@ -198,7 +203,7 @@ void ShareHistory::OnInitialReadDone(
   init_finished_ = true;
   post_init_callbacks_.Notify();
 
-  // TODO(ellyjones): Expire entries older than WINDOW days.
+  Clear(base::Time(), base::Time::Now() - kMaxHistoryAge);
 }
 
 void ShareHistory::FlushToBackingDb() {
@@ -238,7 +243,7 @@ mojom::TargetShareHistory* ShareHistory::TargetShareHistoryByName(
 
 }  // namespace sharing
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 void JNI_ShareHistoryBridge_AddShareEntry(JNIEnv* env,
                                           const JavaParamRef<jobject>& jprofile,
                                           const JavaParamRef<jstring>& name) {

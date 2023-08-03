@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,13 +20,6 @@ bool IsAppBundleAlertStyle() {
 
 std::string MacNotificationStyleSuffix(bool is_alert) {
   return is_alert ? "Alert" : "Banner";
-}
-
-void LogMacNotificationDelivered(bool is_alert, bool success) {
-  base::UmaHistogramBoolean(
-      base::StrCat({"Notifications.macOS.Delivered.",
-                    MacNotificationStyleSuffix(is_alert)}),
-      success);
 }
 
 void LogMacNotificationActionReceived(bool is_alert, bool is_valid) {

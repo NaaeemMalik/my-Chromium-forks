@@ -1,8 +1,20 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "net/cookies/cookie_partition_key_collection.h"
+
+#include <vector>
+
+#include "base/containers/contains.h"
+#include "base/containers/flat_map.h"
+#include "base/containers/flat_set.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "net/base/schemeful_site.h"
+#include "net/cookies/cookie_access_delegate.h"
+#include "net/cookies/cookie_partition_key.h"
+#include "net/first_party_sets/first_party_set_entry.h"
 
 namespace net {
 
@@ -15,17 +27,16 @@ CookiePartitionKeyCollection::CookiePartitionKeyCollection(
     CookiePartitionKeyCollection&& other) = default;
 
 CookiePartitionKeyCollection::CookiePartitionKeyCollection(
-    const CookiePartitionKey& key) {
-  keys_.push_back(key);
-}
+    const CookiePartitionKey& key)
+    : CookiePartitionKeyCollection(base::flat_set<CookiePartitionKey>({key})) {}
 
 CookiePartitionKeyCollection::CookiePartitionKeyCollection(
-    const std::vector<CookiePartitionKey>& keys)
-    : keys_(keys) {}
+    base::flat_set<CookiePartitionKey> keys)
+    : keys_(std::move(keys)) {}
 
 CookiePartitionKeyCollection::CookiePartitionKeyCollection(
-    bool contains_all_keys_)
-    : contains_all_keys_(contains_all_keys_) {}
+    bool contains_all_keys)
+    : contains_all_keys_(contains_all_keys) {}
 
 CookiePartitionKeyCollection& CookiePartitionKeyCollection::operator=(
     const CookiePartitionKeyCollection& other) = default;
@@ -35,23 +46,9 @@ CookiePartitionKeyCollection& CookiePartitionKeyCollection::operator=(
 
 CookiePartitionKeyCollection::~CookiePartitionKeyCollection() = default;
 
-CookiePartitionKeyCollection CookiePartitionKeyCollection::FirstPartySetify(
-    const CookieAccessDelegate* cookie_access_delegate) const {
-  if (!cookie_access_delegate || IsEmpty() || ContainsAllKeys())
-    return *this;
-  std::vector<CookiePartitionKey> keys;
-  keys.reserve(PartitionKeys().size());
-  for (const auto& key : PartitionKeys()) {
-    absl::optional<SchemefulSite> fps_owner =
-        cookie_access_delegate->FindFirstPartySetOwner(key.site());
-    if (fps_owner) {
-      keys.push_back(
-          CookiePartitionKey::FromWire(fps_owner.value(), key.nonce()));
-    } else {
-      keys.push_back(key);
-    }
-  }
-  return CookiePartitionKeyCollection(keys);
+bool CookiePartitionKeyCollection::Contains(
+    const CookiePartitionKey& key) const {
+  return contains_all_keys_ || base::Contains(keys_, key);
 }
 
 }  // namespace net

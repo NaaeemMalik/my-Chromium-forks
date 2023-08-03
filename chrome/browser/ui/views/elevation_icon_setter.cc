@@ -1,21 +1,20 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/elevation_icon_setter.h"
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/task/post_task.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
+#include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/views/controls/button/label_button.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
 #include <shellapi.h>
 
-#include "base/task/task_runner_util.h"
 #include "base/win/win_util.h"
 #include "ui/display/win/dpi.h"
 #include "ui/gfx/icon_util.h"
@@ -26,7 +25,7 @@
 
 namespace {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 SkBitmap GetElevationIcon() {
   if (!base::win::UserAccountControlIsEnabled())
     return SkBitmap();
@@ -52,14 +51,13 @@ SkBitmap GetElevationIcon() {
 ElevationIconSetter::ElevationIconSetter(views::LabelButton* button,
                                          base::OnceClosure callback)
     : button_(button) {
-#if defined(OS_WIN)
-  base::PostTaskAndReplyWithResult(
-      base::ThreadPool::CreateCOMSTATaskRunner(
-          {base::MayBlock(), base::TaskPriority::USER_BLOCKING})
-          .get(),
-      FROM_HERE, base::BindOnce(&GetElevationIcon),
-      base::BindOnce(&ElevationIconSetter::SetButtonIcon,
-                     weak_factory_.GetWeakPtr(), std::move(callback)));
+#if BUILDFLAG(IS_WIN)
+  base::ThreadPool::CreateCOMSTATaskRunner(
+      {base::MayBlock(), base::TaskPriority::USER_BLOCKING})
+      ->PostTaskAndReplyWithResult(
+          FROM_HERE, base::BindOnce(&GetElevationIcon),
+          base::BindOnce(&ElevationIconSetter::SetButtonIcon,
+                         weak_factory_.GetWeakPtr(), std::move(callback)));
 #endif
 }
 
@@ -70,7 +68,7 @@ void ElevationIconSetter::SetButtonIcon(base::OnceClosure callback,
                                         const SkBitmap& icon) {
   if (!icon.isNull()) {
     float device_scale_factor = 1.0f;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     // Windows gives us back a correctly-scaled image for the current DPI, so
     // mark this image as having been scaled for the current DPI already.
     device_scale_factor = display::win::GetDPIScale();

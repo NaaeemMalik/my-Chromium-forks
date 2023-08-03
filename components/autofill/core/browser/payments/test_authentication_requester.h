@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,41 +14,41 @@
 #include "components/autofill/core/browser/payments/credit_card_otp_authenticator.h"
 #include "components/autofill/core/browser/payments/full_card_request.h"
 
-#if !defined(OS_IOS)
+#if !BUILDFLAG(IS_IOS)
 #include "components/autofill/core/browser/payments/credit_card_fido_authenticator.h"
 #endif
 
 namespace autofill {
 
-// Test class for requesting authentication from CreditCardCVCAuthenticator or
-// CreditCardFIDOAuthenticator.
-#if defined(OS_IOS)
+// Test class for requesting authentication from CreditCardCvcAuthenticator or
+// CreditCardFidoAuthenticator.
+#if BUILDFLAG(IS_IOS)
 class TestAuthenticationRequester
-    : public CreditCardCVCAuthenticator::Requester,
+    : public CreditCardCvcAuthenticator::Requester,
       public CreditCardOtpAuthenticator::Requester {
 #else
 class TestAuthenticationRequester
-    : public CreditCardCVCAuthenticator::Requester,
-      public CreditCardFIDOAuthenticator::Requester,
+    : public CreditCardCvcAuthenticator::Requester,
+      public CreditCardFidoAuthenticator::Requester,
       public CreditCardOtpAuthenticator::Requester {
 #endif
  public:
   TestAuthenticationRequester();
   ~TestAuthenticationRequester() override;
 
-  // CreditCardCVCAuthenticator::Requester:
-  void OnCVCAuthenticationComplete(
-      const CreditCardCVCAuthenticator::CVCAuthenticationResponse& response)
+  // CreditCardCvcAuthenticator::Requester:
+  void OnCvcAuthenticationComplete(
+      const CreditCardCvcAuthenticator::CvcAuthenticationResponse& response)
       override;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   bool ShouldOfferFidoAuth() const override;
   bool UserOptedInToFidoFromSettingsPageOnMobile() const override;
 #endif
 
-#if !defined(OS_IOS)
-  // CreditCardFIDOAuthenticator::Requester:
+#if !BUILDFLAG(IS_IOS)
+  // CreditCardFidoAuthenticator::Requester:
   void OnFIDOAuthenticationComplete(
-      const CreditCardFIDOAuthenticator::FidoAuthenticationResponse& response)
+      const CreditCardFidoAuthenticator::FidoAuthenticationResponse& response)
       override;
   void OnFidoAuthorizationComplete(bool did_succeed) override;
 
@@ -73,7 +73,7 @@ class TestAuthenticationRequester
   }
 
  private:
-  // Set when CreditCardFIDOAuthenticator invokes IsUserVerifiableCallback().
+  // Set when CreditCardFidoAuthenticator invokes IsUserVerifiableCallback().
   absl::optional<bool> is_user_verifiable_;
 
   // Is set to true if authentication was successful.

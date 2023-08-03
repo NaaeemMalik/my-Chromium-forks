@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,14 @@
 #include "base/json/values_util.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/notreached.h"
+#include "base/strings/string_piece_forward.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/account_id/account_id.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "components/user_manager/common_types.h"
 #include "components/user_manager/user_manager.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -138,20 +141,12 @@ const char* kObsoleteKeys[] = {
     kOfflineSigninLimitObsolete,
 };
 
-PrefService* GetLocalStateLegacy() {
-  if (!UserManager::IsInitialized())
-    return nullptr;
-
-  return UserManager::Get()->GetLocalState();
-}
-
 // Checks if values in |dict| correspond with |account_id| identity.
-bool UserMatches(const AccountId& account_id,
-                 const base::DictionaryValue& dict) {
-  std::string value;
-  if (account_id.GetAccountType() != AccountType::UNKNOWN &&
-      dict.GetString(kAccountTypeKey, &value) &&
-      account_id.GetAccountType() != AccountId::StringToAccountType(value)) {
+bool UserMatches(const AccountId& account_id, const base::Value::Dict& dict) {
+  const std::string* account_type = dict.FindString(kAccountTypeKey);
+  if (account_id.GetAccountType() != AccountType::UNKNOWN && account_type &&
+      account_id.GetAccountType() !=
+          AccountId::StringToAccountType(*account_type)) {
     return false;
   }
 
@@ -160,14 +155,14 @@ bool UserMatches(const AccountId& account_id,
   // this function should likely be returning false even if the e-mail matches.
   switch (account_id.GetAccountType()) {
     case AccountType::GOOGLE: {
-      bool has_gaia_id = dict.GetString(kGAIAIdKey, &value);
-      if (has_gaia_id && account_id.GetGaiaId() == value)
+      const std::string* gaia_id = dict.FindString(kGAIAIdKey);
+      if (gaia_id && account_id.GetGaiaId() == *gaia_id)
         return true;
       break;
     }
     case AccountType::ACTIVE_DIRECTORY: {
-      bool has_obj_guid = dict.GetString(kObjGuidKey, &value);
-      if (has_obj_guid && account_id.GetObjGuid() == value)
+      const std::string* obj_guid = dict.FindString(kObjGuidKey);
+      if (obj_guid && account_id.GetObjGuid() == *obj_guid)
         return true;
       break;
     }
@@ -175,32 +170,32 @@ bool UserMatches(const AccountId& account_id,
     }
   }
 
-  bool has_email = dict.GetString(kCanonicalEmail, &value);
-  if (has_email && account_id.GetUserEmail() == value)
+  const std::string* email = dict.FindString(kCanonicalEmail);
+  if (email && account_id.GetUserEmail() == *email)
     return true;
 
   return false;
 }
 
 // Fills relevant |dict| values based on |account_id|.
-void UpdateIdentity(const AccountId& account_id, base::DictionaryValue& dict) {
+void UpdateIdentity(const AccountId& account_id, base::Value::Dict& dict) {
   if (!account_id.GetUserEmail().empty())
-    dict.SetString(kCanonicalEmail, account_id.GetUserEmail());
+    dict.Set(kCanonicalEmail, account_id.GetUserEmail());
 
   switch (account_id.GetAccountType()) {
     case AccountType::GOOGLE:
       if (!account_id.GetGaiaId().empty())
-        dict.SetString(kGAIAIdKey, account_id.GetGaiaId());
+        dict.Set(kGAIAIdKey, account_id.GetGaiaId());
       break;
     case AccountType::ACTIVE_DIRECTORY:
       if (!account_id.GetObjGuid().empty())
-        dict.SetString(kObjGuidKey, account_id.GetObjGuid());
+        dict.Set(kObjGuidKey, account_id.GetObjGuid());
       break;
     case AccountType::UNKNOWN:
       return;
   }
-  dict.SetString(kAccountTypeKey,
-                 AccountId::AccountTypeToString(account_id.GetAccountType()));
+  dict.Set(kAccountTypeKey,
+           AccountId::AccountTypeToString(account_id.GetAccountType()));
 }
 
 }  // namespace
@@ -211,37 +206,33 @@ KnownUser::KnownUser(PrefService* local_state) : local_state_(local_state) {
 
 KnownUser::~KnownUser() = default;
 
-bool KnownUser::FindPrefs(const AccountId& account_id,
-                          const base::DictionaryValue** out_value) {
+const base::Value::Dict* KnownUser::FindPrefs(
+    const AccountId& account_id) const {
   // UserManager is usually NULL in unit tests.
   if (account_id.GetAccountType() != AccountType::ACTIVE_DIRECTORY &&
       UserManager::IsInitialized() &&
       UserManager::Get()->IsUserNonCryptohomeDataEphemeral(account_id)) {
-    return false;
+    return nullptr;
   }
 
   if (!account_id.is_valid())
-    return false;
+    return nullptr;
 
-  const base::ListValue* known_users = local_state_->GetList(kKnownUsers);
-  for (const base::Value& element_value : known_users->GetList()) {
-    if (element_value.is_dict()) {
-      const base::DictionaryValue& element =
-          base::Value::AsDictionaryValue(element_value);
-      if (UserMatches(account_id, element)) {
-        if (out_value)
-          *out_value = &element;
-
-        return true;
-      }
-    }
+  const base::Value::List& known_users = local_state_->GetList(kKnownUsers);
+  for (const base::Value& element_value : known_users) {
+    if (!element_value.is_dict())
+      continue;
+    const base::Value::Dict& dict = element_value.GetDict();
+    if (!UserMatches(account_id, dict))
+      continue;
+    return &dict;
   }
-  return false;
+  return nullptr;
 }
 
-void KnownUser::UpdatePrefs(const AccountId& account_id,
-                            const base::DictionaryValue& values,
-                            bool clear) {
+void KnownUser::SetPath(const AccountId& account_id,
+                        const std::string& path,
+                        absl::optional<base::Value> opt_value) {
   // UserManager is usually NULL in unit tests.
   if (account_id.GetAccountType() != AccountType::ACTIVE_DIRECTORY &&
       UserManager::IsInitialized() &&
@@ -252,101 +243,119 @@ void KnownUser::UpdatePrefs(const AccountId& account_id,
   if (!account_id.is_valid())
     return;
 
-  ListPrefUpdate update(local_state_, kKnownUsers);
-  for (base::Value& element_value : update->GetList()) {
-    if (element_value.is_dict()) {
-      base::DictionaryValue* element =
-          static_cast<base::DictionaryValue*>(&element_value);
-      if (UserMatches(account_id, *element)) {
-        if (clear)
-          element->DictClear();
-        element->MergeDictionary(&values);
-        UpdateIdentity(account_id, *element);
-        return;
-      }
+  ScopedListPrefUpdate update(local_state_, kKnownUsers);
+  for (base::Value& element_value : *update) {
+    if (!element_value.is_dict())
+      continue;
+    base::Value::Dict& dict = element_value.GetDict();
+    if (!UserMatches(account_id, dict))
+      continue;
+    if (opt_value.has_value()) {
+      dict.SetByDottedPath(path, std::move(opt_value).value());
+    } else {
+      dict.RemoveByDottedPath(path);
     }
+
+    UpdateIdentity(account_id, dict);
+    return;
   }
-  std::unique_ptr<base::DictionaryValue> new_value(new base::DictionaryValue());
-  new_value->MergeDictionary(&values);
-  UpdateIdentity(account_id, *new_value);
-  update->Append(std::move(new_value));
+  if (!opt_value.has_value())
+    return;
+
+  base::Value::Dict new_dict;
+  new_dict.SetByDottedPath(path, std::move(opt_value).value());
+  UpdateIdentity(account_id, new_dict);
+  update->Append(std::move(new_dict));
 }
 
-bool KnownUser::GetStringPref(const AccountId& account_id,
-                              const std::string& path,
-                              std::string* out_value) {
-  const base::DictionaryValue* user_pref_dict = nullptr;
-  if (!FindPrefs(account_id, &user_pref_dict))
-    return false;
+const std::string* KnownUser::FindStringPath(const AccountId& account_id,
+                                             base::StringPiece path) const {
+  const base::Value::Dict* user_pref_dict = FindPrefs(account_id);
+  if (!user_pref_dict)
+    return nullptr;
 
-  return user_pref_dict->GetString(path, out_value);
+  return user_pref_dict->FindStringByDottedPath(path);
+}
+
+bool KnownUser::GetStringPrefForTest(const AccountId& account_id,
+                                     const std::string& path,
+                                     std::string* out_value) {
+  const std::string* res = FindStringPath(account_id, path);
+  if (out_value && res)
+    *out_value = *res;
+  return res;
 }
 
 void KnownUser::SetStringPref(const AccountId& account_id,
                               const std::string& path,
                               const std::string& in_value) {
-  base::DictionaryValue dict;
-  dict.SetString(path, in_value);
-  UpdatePrefs(account_id, dict, false);
+  SetPath(account_id, path, base::Value(in_value));
 }
 
-bool KnownUser::GetBooleanPref(const AccountId& account_id,
-                               const std::string& path,
-                               bool* out_value) {
-  const base::DictionaryValue* user_pref_dict = nullptr;
-  if (!FindPrefs(account_id, &user_pref_dict))
-    return false;
+absl::optional<bool> KnownUser::FindBoolPath(const AccountId& account_id,
+                                             base::StringPiece path) const {
+  const base::Value::Dict* user_pref_dict = FindPrefs(account_id);
+  if (!user_pref_dict)
+    return absl::nullopt;
 
-  absl::optional<bool> ret_value = user_pref_dict->FindBoolPath(path);
-  if (!ret_value.has_value())
-    return false;
+  return user_pref_dict->FindBoolByDottedPath(path);
+}
 
-  *out_value = ret_value.value();
-  return true;
+bool KnownUser::GetBooleanPrefForTest(const AccountId& account_id,
+                                      const std::string& path,
+                                      bool* out_value) {
+  auto opt_val = FindBoolPath(account_id, path);
+  if (out_value && opt_val.has_value())
+    *out_value = opt_val.value();
+
+  return opt_val.has_value();
 }
 
 void KnownUser::SetBooleanPref(const AccountId& account_id,
                                const std::string& path,
                                const bool in_value) {
-  base::DictionaryValue dict;
-  dict.SetBoolean(path, in_value);
-  UpdatePrefs(account_id, dict, false);
+  SetPath(account_id, path, base::Value(in_value));
 }
 
-bool KnownUser::GetIntegerPref(const AccountId& account_id,
-                               const std::string& path,
-                               int* out_value) {
-  const base::DictionaryValue* user_pref_dict = nullptr;
-  if (!FindPrefs(account_id, &user_pref_dict))
-    return false;
-  return user_pref_dict->GetInteger(path, out_value);
+absl::optional<int> KnownUser::FindIntPath(const AccountId& account_id,
+                                           base::StringPiece path) const {
+  const base::Value::Dict* user_pref_dict = FindPrefs(account_id);
+  if (!user_pref_dict)
+    return absl::nullopt;
+
+  return user_pref_dict->FindIntByDottedPath(path);
+}
+
+bool KnownUser::GetIntegerPrefForTest(const AccountId& account_id,
+                                      const std::string& path,
+                                      int* out_value) {
+  auto opt_val = FindIntPath(account_id, path);
+  if (out_value && opt_val.has_value())
+    *out_value = opt_val.value();
+
+  return opt_val.has_value();
 }
 
 void KnownUser::SetIntegerPref(const AccountId& account_id,
                                const std::string& path,
                                const int in_value) {
-  base::DictionaryValue dict;
-  dict.SetInteger(path, in_value);
-  UpdatePrefs(account_id, dict, false);
+  SetPath(account_id, path, base::Value(in_value));
 }
 
-bool KnownUser::GetPref(const AccountId& account_id,
-                        const std::string& path,
-                        const base::Value** out_value) {
-  const base::DictionaryValue* user_pref_dict = nullptr;
-  if (!FindPrefs(account_id, &user_pref_dict))
-    return false;
-
-  *out_value = user_pref_dict->FindPath(path);
+bool KnownUser::GetPrefForTest(const AccountId& account_id,
+                               const std::string& path,
+                               const base::Value** out_value) {
+  *out_value = FindPath(account_id, path);
   return *out_value != nullptr;
 }
 
-void KnownUser::SetPref(const AccountId& account_id,
-                        const std::string& path,
-                        base::Value in_value) {
-  base::DictionaryValue dict;
-  dict.SetPath(path, std::move(in_value));
-  UpdatePrefs(account_id, dict, false);
+const base::Value* KnownUser::FindPath(const AccountId& account_id,
+                                       const std::string& path) const {
+  const base::Value::Dict* user_pref_dict = FindPrefs(account_id);
+  if (!user_pref_dict)
+    return nullptr;
+
+  return user_pref_dict->FindByDottedPath(path);
 }
 
 void KnownUser::RemovePref(const AccountId& account_id,
@@ -355,7 +364,7 @@ void KnownUser::RemovePref(const AccountId& account_id,
   for (const std::string& key : kReservedKeys)
     CHECK_NE(path, key);
 
-  ClearPref(account_id, path);
+  SetPath(account_id, path, absl::nullopt);
 }
 
 AccountId KnownUser::GetAccountId(const std::string& user_email,
@@ -372,57 +381,47 @@ AccountId KnownUser::GetAccountId(const std::string& user_email,
   AccountId result(EmptyAccountId());
   // UserManager is usually NULL in unit tests.
   if (account_type == AccountType::UNKNOWN && UserManager::IsInitialized() &&
-      UserManager::Get()->GetPlatformKnownUserId(user_email, id, &result)) {
+      UserManager::Get()->GetPlatformKnownUserId(user_email, &result)) {
     return result;
   }
 
-  std::string stored_gaia_id;
-  std::string stored_obj_guid;
   const std::string sanitized_email =
       user_email.empty()
           ? std::string()
           : gaia::CanonicalizeEmail(gaia::SanitizeEmail(user_email));
 
   if (!sanitized_email.empty()) {
-    if (GetStringPref(AccountId::FromUserEmail(sanitized_email), kGAIAIdKey,
-                      &stored_gaia_id)) {
+    const AccountId account_id(AccountId::FromUserEmail(sanitized_email));
+    if (const std::string* stored_gaia_id =
+            FindStringPath(account_id, kGAIAIdKey)) {
       if (!id.empty()) {
         DCHECK(account_type == AccountType::GOOGLE);
-        if (id != stored_gaia_id)
+        if (id != *stored_gaia_id)
           LOG(ERROR) << "User gaia id has changed. Sync will not work.";
       }
 
       // gaia_id is associated with cryptohome.
-      return AccountId::FromUserEmailGaiaId(sanitized_email, stored_gaia_id);
+      return AccountId::FromUserEmailGaiaId(sanitized_email, *stored_gaia_id);
     }
 
-    if (GetStringPref(AccountId::FromUserEmail(sanitized_email), kObjGuidKey,
-                      &stored_obj_guid)) {
+    if (const std::string* stored_obj_guid =
+            FindStringPath(account_id, kObjGuidKey)) {
       if (!id.empty()) {
         DCHECK(account_type == AccountType::ACTIVE_DIRECTORY);
-        if (id != stored_obj_guid)
+        if (id != *stored_obj_guid)
           LOG(ERROR) << "User object guid has changed. Sync will not work.";
       }
 
       // obj_guid is associated with cryptohome.
       return AccountId::AdFromUserEmailObjGuid(sanitized_email,
-                                               stored_obj_guid);
+                                               *stored_obj_guid);
     }
   }
 
-  std::string stored_email;
   switch (account_type) {
     case AccountType::GOOGLE:
-      if (GetStringPref(AccountId::FromGaiaId(id), kCanonicalEmail,
-                        &stored_email)) {
-        return AccountId::FromUserEmailGaiaId(stored_email, id);
-      }
       return AccountId::FromUserEmailGaiaId(sanitized_email, id);
     case AccountType::ACTIVE_DIRECTORY:
-      if (GetStringPref(AccountId::AdFromObjGuid(id), kCanonicalEmail,
-                        &stored_email)) {
-        return AccountId::AdFromUserEmailObjGuid(stored_email, id);
-      }
       return AccountId::AdFromUserEmailObjGuid(sanitized_email, id);
     case AccountType::UNKNOWN:
       return AccountId::FromUserEmail(sanitized_email);
@@ -431,40 +430,72 @@ AccountId KnownUser::GetAccountId(const std::string& user_email,
   return EmptyAccountId();
 }
 
+AccountId KnownUser::GetAccountIdByCryptohomeId(
+    const CryptohomeId& cryptohome_id) {
+  if (cryptohome_id->empty())
+    return EmptyAccountId();
+
+  const std::vector<AccountId> known_account_ids = GetKnownAccountIds();
+
+  // A LOT of tests start with --login_user <user>, and not registering this
+  // user before. So we might have "known_user" entry without gaia_id.
+  for (const AccountId& known_id : known_account_ids) {
+    if (known_id.HasAccountIdKey() &&
+        known_id.GetAccountIdKey() == cryptohome_id.value()) {
+      return known_id;
+    }
+  }
+
+  for (const AccountId& known_id : known_account_ids) {
+    if (known_id.GetUserEmail() == cryptohome_id.value()) {
+      return known_id;
+    }
+  }
+
+  // GetPlatformKnownAccountId
+  AccountId result(EmptyAccountId());
+  // UserManager is usually NULL in unit tests.
+  if (UserManager::IsInitialized() &&
+      UserManager::Get()->GetPlatformKnownUserId(cryptohome_id.value(),
+                                                 &result)) {
+    return result;
+  }
+  return AccountId::FromNonCanonicalEmail(cryptohome_id.value(), std::string(),
+                                          AccountType::UNKNOWN);
+}
+
 std::vector<AccountId> KnownUser::GetKnownAccountIds() {
   std::vector<AccountId> result;
 
-  const base::ListValue* known_users = local_state_->GetList(kKnownUsers);
-  for (const base::Value& element_value : known_users->GetList()) {
-    if (element_value.is_dict()) {
-      const base::DictionaryValue& element =
-          base::Value::AsDictionaryValue(element_value);
-      std::string email;
-      std::string gaia_id;
-      std::string obj_guid;
-      const bool has_email = element.GetString(kCanonicalEmail, &email);
-      const bool has_gaia_id = element.GetString(kGAIAIdKey, &gaia_id);
-      const bool has_obj_guid = element.GetString(kObjGuidKey, &obj_guid);
-      AccountType account_type = AccountType::GOOGLE;
-      std::string account_type_string;
-      if (element.GetString(kAccountTypeKey, &account_type_string)) {
-        account_type = AccountId::StringToAccountType(account_type_string);
-      }
-      switch (account_type) {
-        case AccountType::GOOGLE:
-          if (has_email || has_gaia_id) {
-            result.push_back(AccountId::FromUserEmailGaiaId(email, gaia_id));
-          }
-          break;
-        case AccountType::ACTIVE_DIRECTORY:
-          if (has_email && has_obj_guid) {
-            result.push_back(
-                AccountId::AdFromUserEmailObjGuid(email, obj_guid));
-          }
-          break;
-        default:
-          NOTREACHED() << "Unknown account type";
-      }
+  const base::Value::List& known_users = local_state_->GetList(kKnownUsers);
+  for (const base::Value& element_value : known_users) {
+    if (!element_value.is_dict())
+      continue;
+    const base::Value::Dict& dict = element_value.GetDict();
+    const std::string* email = dict.FindString(kCanonicalEmail);
+    const std::string* gaia_id = dict.FindString(kGAIAIdKey);
+    const std::string* obj_guid = dict.FindString(kObjGuidKey);
+    AccountType account_type = AccountType::GOOGLE;
+    if (const std::string* account_type_string =
+            dict.FindString(kAccountTypeKey)) {
+      account_type = AccountId::StringToAccountType(*account_type_string);
+    }
+    switch (account_type) {
+      case AccountType::GOOGLE:
+        if (email || gaia_id) {
+          result.push_back(AccountId::FromUserEmailGaiaId(
+              email ? *email : std::string(),
+              gaia_id ? *gaia_id : std::string()));
+        }
+        break;
+      case AccountType::ACTIVE_DIRECTORY:
+        if (email && obj_guid) {
+          result.push_back(
+              AccountId::AdFromUserEmailObjGuid(*email, *obj_guid));
+        }
+        break;
+      default:
+        NOTREACHED() << "Unknown account type";
     }
   }
   return result;
@@ -504,9 +535,8 @@ void KnownUser::UpdateId(const AccountId& account_id) {
                 AccountId::AccountTypeToString(account_id.GetAccountType()));
 }
 
-bool KnownUser::FindGaiaID(const AccountId& account_id,
-                           std::string* out_value) {
-  return GetStringPref(account_id, kGAIAIdKey, out_value);
+const std::string* KnownUser::FindGaiaID(const AccountId& account_id) {
+  return FindStringPath(account_id, kGAIAIdKey);
 }
 
 void KnownUser::SetDeviceId(const AccountId& account_id,
@@ -519,10 +549,9 @@ void KnownUser::SetDeviceId(const AccountId& account_id,
 }
 
 std::string KnownUser::GetDeviceId(const AccountId& account_id) {
-  std::string device_id;
-  if (GetStringPref(account_id, kDeviceId, &device_id)) {
-    return device_id;
-  }
+  const std::string* device_id = FindStringPath(account_id, kDeviceId);
+  if (device_id)
+    return *device_id;
   return std::string();
 }
 
@@ -532,10 +561,9 @@ void KnownUser::SetGAPSCookie(const AccountId& account_id,
 }
 
 std::string KnownUser::GetGAPSCookie(const AccountId& account_id) {
-  std::string gaps_cookie;
-  if (GetStringPref(account_id, kGAPSCookie, &gaps_cookie)) {
-    return gaps_cookie;
-  }
+  const std::string* gaps_cookie = FindStringPath(account_id, kGAPSCookie);
+  if (gaps_cookie)
+    return *gaps_cookie;
   return std::string();
 }
 
@@ -545,10 +573,7 @@ void KnownUser::UpdateUsingSAML(const AccountId& account_id,
 }
 
 bool KnownUser::IsUsingSAML(const AccountId& account_id) {
-  bool using_saml;
-  if (GetBooleanPref(account_id, kUsingSAMLKey, &using_saml))
-    return using_saml;
-  return false;
+  return FindBoolPath(account_id, kUsingSAMLKey).value_or(false);
 }
 
 void KnownUser::UpdateIsUsingSAMLPrincipalsAPI(
@@ -559,12 +584,7 @@ void KnownUser::UpdateIsUsingSAMLPrincipalsAPI(
 }
 
 bool KnownUser::GetIsUsingSAMLPrincipalsAPI(const AccountId& account_id) {
-  bool is_using_saml_principals_api;
-  if (GetBooleanPref(account_id, kIsUsingSAMLPrincipalsAPI,
-                     &is_using_saml_principals_api)) {
-    return is_using_saml_principals_api;
-  }
-  return false;
+  return FindBoolPath(account_id, kIsUsingSAMLPrincipalsAPI).value_or(false);
 }
 
 void KnownUser::SetProfileRequiresPolicy(const AccountId& account_id,
@@ -576,16 +596,17 @@ void KnownUser::SetProfileRequiresPolicy(const AccountId& account_id,
 
 ProfileRequiresPolicy KnownUser::GetProfileRequiresPolicy(
     const AccountId& account_id) {
-  bool requires_policy;
-  if (GetBooleanPref(account_id, kProfileRequiresPolicy, &requires_policy)) {
-    return requires_policy ? ProfileRequiresPolicy::kPolicyRequired
-                           : ProfileRequiresPolicy::kNoPolicyRequired;
+  absl::optional<bool> requires_policy =
+      FindBoolPath(account_id, kProfileRequiresPolicy);
+  if (requires_policy.has_value()) {
+    return requires_policy.value() ? ProfileRequiresPolicy::kPolicyRequired
+                                   : ProfileRequiresPolicy::kNoPolicyRequired;
   }
   return ProfileRequiresPolicy::kUnknown;
 }
 
 void KnownUser::ClearProfileRequiresPolicy(const AccountId& account_id) {
-  ClearPref(account_id, kProfileRequiresPolicy);
+  SetPath(account_id, kProfileRequiresPolicy, absl::nullopt);
 }
 
 void KnownUser::UpdateReauthReason(const AccountId& account_id,
@@ -593,31 +614,32 @@ void KnownUser::UpdateReauthReason(const AccountId& account_id,
   SetIntegerPref(account_id, kReauthReasonKey, reauth_reason);
 }
 
-bool KnownUser::FindReauthReason(const AccountId& account_id, int* out_value) {
-  return GetIntegerPref(account_id, kReauthReasonKey, out_value);
+absl::optional<int> KnownUser::FindReauthReason(
+    const AccountId& account_id) const {
+  return FindIntPath(account_id, kReauthReasonKey);
 }
 
 void KnownUser::SetChallengeResponseKeys(const AccountId& account_id,
-                                         base::Value value) {
-  DCHECK(value.is_list());
-  SetPref(account_id, kChallengeResponseKeys, std::move(value));
+                                         base::Value::List value) {
+  SetPath(account_id, kChallengeResponseKeys, base::Value(std::move(value)));
 }
 
-base::Value KnownUser::GetChallengeResponseKeys(const AccountId& account_id) {
-  const base::Value* value = nullptr;
-  if (!GetPref(account_id, kChallengeResponseKeys, &value) || !value->is_list())
-    return base::Value();
-  return value->Clone();
+base::Value::List KnownUser::GetChallengeResponseKeys(
+    const AccountId& account_id) {
+  const base::Value* value = FindPath(account_id, kChallengeResponseKeys);
+  if (!value || !value->is_list())
+    return base::Value::List();
+  return value->GetList().Clone();
 }
 
 void KnownUser::SetLastOnlineSignin(const AccountId& account_id,
                                     base::Time time) {
-  SetPref(account_id, kLastOnlineSignin, base::TimeToValue(time));
+  SetPath(account_id, kLastOnlineSignin, base::TimeToValue(time));
 }
 
 base::Time KnownUser::GetLastOnlineSignin(const AccountId& account_id) {
-  const base::Value* value = nullptr;
-  if (!GetPref(account_id, kLastOnlineSignin, &value))
+  const base::Value* value = FindPath(account_id, kLastOnlineSignin);
+  if (!value)
     return base::Time();
   absl::optional<base::Time> time = base::ValueToTime(value);
   if (!time)
@@ -629,20 +651,16 @@ void KnownUser::SetOfflineSigninLimit(
     const AccountId& account_id,
     absl::optional<base::TimeDelta> time_delta) {
   if (!time_delta) {
-    ClearPref(account_id, kOfflineSigninLimit);
+    SetPath(account_id, kOfflineSigninLimit, absl::nullopt);
   } else {
-    SetPref(account_id, kOfflineSigninLimit,
+    SetPath(account_id, kOfflineSigninLimit,
             base::TimeDeltaToValue(time_delta.value()));
   }
 }
 
 absl::optional<base::TimeDelta> KnownUser::GetOfflineSigninLimit(
     const AccountId& account_id) {
-  const base::Value* value = nullptr;
-  if (!GetPref(account_id, kOfflineSigninLimit, &value))
-    return absl::nullopt;
-  absl::optional<base::TimeDelta> time_delta = base::ValueToTimeDelta(value);
-  return time_delta;
+  return base::ValueToTimeDelta(FindPath(account_id, kOfflineSigninLimit));
 }
 
 void KnownUser::SetIsEnterpriseManaged(const AccountId& account_id,
@@ -651,10 +669,7 @@ void KnownUser::SetIsEnterpriseManaged(const AccountId& account_id,
 }
 
 bool KnownUser::GetIsEnterpriseManaged(const AccountId& account_id) {
-  bool is_enterprise_managed;
-  if (GetBooleanPref(account_id, kIsEnterpriseManaged, &is_enterprise_managed))
-    return is_enterprise_managed;
-  return false;
+  return FindBoolPath(account_id, kIsEnterpriseManaged).value_or(false);
 }
 
 void KnownUser::SetAccountManager(const AccountId& account_id,
@@ -662,9 +677,8 @@ void KnownUser::SetAccountManager(const AccountId& account_id,
   SetStringPref(account_id, kAccountManager, manager);
 }
 
-bool KnownUser::GetAccountManager(const AccountId& account_id,
-                                  std::string* manager) {
-  return GetStringPref(account_id, kAccountManager, manager);
+const std::string* KnownUser::GetAccountManager(const AccountId& account_id) {
+  return FindStringPath(account_id, kAccountManager);
 }
 
 void KnownUser::SetUserLastLoginInputMethodId(
@@ -673,9 +687,9 @@ void KnownUser::SetUserLastLoginInputMethodId(
   SetStringPref(account_id, kLastInputMethod, input_method_id);
 }
 
-bool KnownUser::GetUserLastInputMethodId(const AccountId& account_id,
-                                         std::string* input_method_id) {
-  return GetStringPref(account_id, kLastInputMethod, input_method_id);
+const std::string* KnownUser::GetUserLastInputMethodId(
+    const AccountId& account_id) {
+  return FindStringPath(account_id, kLastInputMethod);
 }
 
 void KnownUser::SetUserPinLength(const AccountId& account_id, int pin_length) {
@@ -683,19 +697,12 @@ void KnownUser::SetUserPinLength(const AccountId& account_id, int pin_length) {
 }
 
 int KnownUser::GetUserPinLength(const AccountId& account_id) {
-  int pin_length = 0;
-  if (GetIntegerPref(account_id, kPinAutosubmitLength, &pin_length))
-    return pin_length;
-  return 0;
+  return FindIntPath(account_id, kPinAutosubmitLength).value_or(0);
 }
 
 bool KnownUser::PinAutosubmitIsBackfillNeeded(const AccountId& account_id) {
-  bool backfill_needed;
-  if (GetBooleanPref(account_id, kPinAutosubmitBackfillNeeded,
-                     &backfill_needed))
-    return backfill_needed;
   // If the pref is not set, the pref needs to be backfilled.
-  return true;
+  return FindBoolPath(account_id, kPinAutosubmitBackfillNeeded).value_or(true);
 }
 
 void KnownUser::PinAutosubmitSetBackfillNotNeeded(const AccountId& account_id) {
@@ -712,19 +719,20 @@ void KnownUser::SetPasswordSyncToken(const AccountId& account_id,
   SetStringPref(account_id, kPasswordSyncToken, token);
 }
 
-std::string KnownUser::GetPasswordSyncToken(const AccountId& account_id) {
-  std::string token;
-  if (GetStringPref(account_id, kPasswordSyncToken, &token))
-    return token;
-  // Return empty string if sync token was not set for the account yet.
-  return std::string();
+const std::string* KnownUser::GetPasswordSyncToken(
+    const AccountId& account_id) const {
+  return FindStringPath(account_id, kPasswordSyncToken);
+}
+
+void KnownUser::ClearPasswordSyncToken(const AccountId& account_id) {
+  SetPath(account_id, kPasswordSyncToken, absl::nullopt);
 }
 
 void KnownUser::SetOnboardingCompletedVersion(
     const AccountId& account_id,
     const absl::optional<base::Version> version) {
   if (!version) {
-    ClearPref(account_id, kOnboardingCompletedVersion);
+    SetPath(account_id, kOnboardingCompletedVersion, absl::nullopt);
   } else {
     SetStringPref(account_id, kOnboardingCompletedVersion,
                   version.value().GetString());
@@ -733,11 +741,13 @@ void KnownUser::SetOnboardingCompletedVersion(
 
 absl::optional<base::Version> KnownUser::GetOnboardingCompletedVersion(
     const AccountId& account_id) {
-  std::string str_version;
-  if (!GetStringPref(account_id, kOnboardingCompletedVersion, &str_version))
+  const std::string* str_version =
+      FindStringPath(account_id, kOnboardingCompletedVersion);
+
+  if (!str_version)
     return absl::nullopt;
 
-  base::Version version = base::Version(str_version);
+  base::Version version = base::Version(*str_version);
   if (!version.IsValid())
     return absl::nullopt;
   return version;
@@ -745,7 +755,7 @@ absl::optional<base::Version> KnownUser::GetOnboardingCompletedVersion(
 
 void KnownUser::RemoveOnboardingCompletedVersionForTests(
     const AccountId& account_id) {
-  ClearPref(account_id, kOnboardingCompletedVersion);
+  SetPath(account_id, kOnboardingCompletedVersion, absl::nullopt);
 }
 
 void KnownUser::SetPendingOnboardingScreen(const AccountId& account_id,
@@ -754,66 +764,54 @@ void KnownUser::SetPendingOnboardingScreen(const AccountId& account_id,
 }
 
 void KnownUser::RemovePendingOnboardingScreen(const AccountId& account_id) {
-  ClearPref(account_id, kPendingOnboardingScreen);
+  SetPath(account_id, kPendingOnboardingScreen, absl::nullopt);
 }
 
 std::string KnownUser::GetPendingOnboardingScreen(const AccountId& account_id) {
-  std::string screen;
-  if (GetStringPref(account_id, kPendingOnboardingScreen, &screen))
-    return screen;
+  if (const std::string* screen =
+          FindStringPath(account_id, kPendingOnboardingScreen)) {
+    return *screen;
+  }
   // Return empty string if no screen is pending.
   return std::string();
 }
 
-void KnownUser::ClearPref(const AccountId& account_id,
-                          const std::string& path) {
-  const base::DictionaryValue* user_pref_dict = nullptr;
-  if (!FindPrefs(account_id, &user_pref_dict))
-    return;
-
-  base::Value updated_user_pref = user_pref_dict->Clone();
-  base::DictionaryValue* updated_user_pref_dict;
-  updated_user_pref.GetAsDictionary(&updated_user_pref_dict);
-
-  updated_user_pref_dict->RemovePath(path);
-  UpdatePrefs(account_id, *updated_user_pref_dict, true);
+bool KnownUser::UserExists(const AccountId& account_id) {
+  return FindPrefs(account_id);
 }
 
 void KnownUser::RemovePrefs(const AccountId& account_id) {
   if (!account_id.is_valid())
     return;
 
-  ListPrefUpdate update(local_state_, kKnownUsers);
-  base::Value::ListView update_view = update->GetList();
-  for (auto it = update_view.begin(); it != update_view.end(); ++it) {
-    base::DictionaryValue* element = nullptr;
-    if (it->GetAsDictionary(&element)) {
-      if (UserMatches(account_id, *element)) {
-        update->EraseListIter(it);
-        break;
-      }
+  ScopedListPrefUpdate update(local_state_, kKnownUsers);
+  base::Value::List& update_list = update.Get();
+  for (auto it = update_list.begin(); it != update_list.end(); ++it) {
+    if (UserMatches(account_id, it->GetDict())) {
+      update_list.erase(it);
+      break;
     }
   }
 }
 
 void KnownUser::CleanEphemeralUsers() {
-  ListPrefUpdate update(local_state_, kKnownUsers);
-  update->EraseListValueIf([](const auto& value) {
+  ScopedListPrefUpdate update(local_state_, kKnownUsers);
+  update->EraseIf([](const auto& value) {
     if (!value.is_dict())
       return false;
 
-    absl::optional<bool> is_ephemeral = value.FindBoolKey(kIsEphemeral);
+    absl::optional<bool> is_ephemeral = value.GetDict().FindBool(kIsEphemeral);
     return is_ephemeral && *is_ephemeral;
   });
 }
 
 void KnownUser::CleanObsoletePrefs() {
-  ListPrefUpdate update(local_state_, kKnownUsers);
-  for (base::Value& user_entry : update.Get()->GetList()) {
+  ScopedListPrefUpdate update(local_state_, kKnownUsers);
+  for (base::Value& user_entry : *update) {
     if (!user_entry.is_dict())
       continue;
     for (const std::string& key : kObsoleteKeys)
-      user_entry.RemoveKey(key);
+      user_entry.GetDict().Remove(key);
   }
 }
 
@@ -822,467 +820,4 @@ void KnownUser::RegisterPrefs(PrefRegistrySimple* registry) {
   registry->RegisterListPref(kKnownUsers);
 }
 
-// --- Legacy interface ---
-namespace known_user {
-
-bool FindPrefs(const AccountId& account_id,
-               const base::DictionaryValue** out_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).FindPrefs(account_id, out_value);
-}
-
-void UpdatePrefs(const AccountId& account_id,
-                 const base::DictionaryValue& values,
-                 bool clear) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).UpdatePrefs(account_id, values, clear);
-}
-
-bool GetStringPref(const AccountId& account_id,
-                   const std::string& path,
-                   std::string* out_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).GetStringPref(account_id, path, out_value);
-}
-
-void SetStringPref(const AccountId& account_id,
-                   const std::string& path,
-                   const std::string& in_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetStringPref(account_id, path, in_value);
-}
-
-bool GetBooleanPref(const AccountId& account_id,
-                    const std::string& path,
-                    bool* out_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).GetBooleanPref(account_id, path, out_value);
-}
-
-void SetBooleanPref(const AccountId& account_id,
-                    const std::string& path,
-                    const bool in_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetBooleanPref(account_id, path, in_value);
-}
-
-bool GetIntegerPref(const AccountId& account_id,
-                    const std::string& path,
-                    int* out_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).GetIntegerPref(account_id, path, out_value);
-}
-
-void SetIntegerPref(const AccountId& account_id,
-                    const std::string& path,
-                    const int in_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetIntegerPref(account_id, path, in_value);
-}
-
-bool GetPref(const AccountId& account_id,
-             const std::string& path,
-             const base::Value** out_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).GetPref(account_id, path, out_value);
-}
-
-void SetPref(const AccountId& account_id,
-             const std::string& path,
-             base::Value in_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetPref(account_id, path, std::move(in_value));
-}
-
-void RemovePref(const AccountId& account_id, const std::string& path) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).RemovePref(account_id, path);
-}
-
-AccountId GetAccountId(const std::string& user_email,
-                       const std::string& id,
-                       const AccountType& account_type) {
-  DCHECK((id.empty() && account_type == AccountType::UNKNOWN) ||
-         (!id.empty() && account_type != AccountType::UNKNOWN));
-  PrefService* local_state = GetLocalStateLegacy();
-  if (local_state) {
-    return KnownUser(local_state).GetAccountId(user_email, id, account_type);
-  }
-
-  // The handling of the local-state-not-initialized case is pretty complex - it
-  // is KnownUser::GetAccountId with all queries assuming to return false.
-  // This should be come unnecessary when all callers are migrated to the
-  // KnownUser class interface (https://crbug.com/1150434) and thus responsible
-  // to pass a valid |local_state| pointer.
-
-  // In tests empty accounts are possible.
-  if (user_email.empty() && id.empty() &&
-      account_type == AccountType::UNKNOWN) {
-    return EmptyAccountId();
-  }
-  AccountId result(EmptyAccountId());
-  // UserManager is usually NULL in unit tests.
-  if (account_type == AccountType::UNKNOWN && UserManager::IsInitialized() &&
-      UserManager::Get()->GetPlatformKnownUserId(user_email, id, &result)) {
-    return result;
-  }
-  const std::string sanitized_email =
-      user_email.empty()
-          ? std::string()
-          : gaia::CanonicalizeEmail(gaia::SanitizeEmail(user_email));
-  std::string stored_email;
-  switch (account_type) {
-    case AccountType::GOOGLE:
-      return AccountId::FromUserEmailGaiaId(sanitized_email, id);
-    case AccountType::ACTIVE_DIRECTORY:
-      return AccountId::AdFromUserEmailObjGuid(sanitized_email, id);
-    case AccountType::UNKNOWN:
-      return AccountId::FromUserEmail(sanitized_email);
-  }
-  NOTREACHED();
-  return EmptyAccountId();
-}
-
-std::vector<AccountId> GetKnownAccountIds() {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return {};
-  return KnownUser(local_state).GetKnownAccountIds();
-}
-
-void SaveKnownUser(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SaveKnownUser(account_id);
-}
-
-void UpdateId(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).UpdateId(account_id);
-}
-
-bool FindGaiaID(const AccountId& account_id, std::string* out_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).FindGaiaID(account_id, out_value);
-}
-
-void SetDeviceId(const AccountId& account_id, const std::string& device_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetDeviceId(account_id, device_id);
-}
-
-std::string GetDeviceId(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return std::string();
-  return KnownUser(local_state).GetDeviceId(account_id);
-}
-
-void SetGAPSCookie(const AccountId& account_id,
-                   const std::string& gaps_cookie) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetGAPSCookie(account_id, gaps_cookie);
-}
-
-std::string GetGAPSCookie(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return std::string();
-  return KnownUser(local_state).GetGAPSCookie(account_id);
-}
-
-void UpdateUsingSAML(const AccountId& account_id, const bool using_saml) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).UpdateUsingSAML(account_id, using_saml);
-}
-
-bool IsUsingSAML(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).IsUsingSAML(account_id);
-}
-
-void USER_MANAGER_EXPORT
-UpdateIsUsingSAMLPrincipalsAPI(const AccountId& account_id,
-                               bool is_using_saml_principals_api) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state)
-      .UpdateIsUsingSAMLPrincipalsAPI(account_id, is_using_saml_principals_api);
-}
-
-bool USER_MANAGER_EXPORT
-GetIsUsingSAMLPrincipalsAPI(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).GetIsUsingSAMLPrincipalsAPI(account_id);
-}
-
-void SetProfileRequiresPolicy(const AccountId& account_id,
-                              ProfileRequiresPolicy required) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetProfileRequiresPolicy(account_id, required);
-}
-
-ProfileRequiresPolicy GetProfileRequiresPolicy(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return ProfileRequiresPolicy::kUnknown;
-  return KnownUser(local_state).GetProfileRequiresPolicy(account_id);
-}
-
-void ClearProfileRequiresPolicy(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).ClearProfileRequiresPolicy(account_id);
-}
-
-void UpdateReauthReason(const AccountId& account_id, const int reauth_reason) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).UpdateReauthReason(account_id, reauth_reason);
-}
-
-bool FindReauthReason(const AccountId& account_id, int* out_value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).FindReauthReason(account_id, out_value);
-}
-
-void SetChallengeResponseKeys(const AccountId& account_id, base::Value value) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state)
-      .SetChallengeResponseKeys(account_id, std::move(value));
-}
-
-base::Value GetChallengeResponseKeys(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return base::Value();
-  return KnownUser(local_state).GetChallengeResponseKeys(account_id);
-}
-
-void SetLastOnlineSignin(const AccountId& account_id, base::Time time) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetLastOnlineSignin(account_id, time);
-}
-
-base::Time GetLastOnlineSignin(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return base::Time();
-  return KnownUser(local_state).GetLastOnlineSignin(account_id);
-}
-
-void SetOfflineSigninLimit(const AccountId& account_id,
-                           absl::optional<base::TimeDelta> time_delta) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetOfflineSigninLimit(account_id, time_delta);
-}
-
-absl::optional<base::TimeDelta> GetOfflineSigninLimit(
-    const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return absl::nullopt;
-  return KnownUser(local_state).GetOfflineSigninLimit(account_id);
-}
-
-void SetIsEnterpriseManaged(const AccountId& account_id,
-                            bool is_enterprise_managed) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state)
-      .SetIsEnterpriseManaged(account_id, is_enterprise_managed);
-}
-
-bool GetIsEnterpriseManaged(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).GetIsEnterpriseManaged(account_id);
-}
-
-void SetAccountManager(const AccountId& account_id,
-                       const std::string& manager) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetAccountManager(account_id, manager);
-}
-
-bool GetAccountManager(const AccountId& account_id, std::string* manager) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state).GetAccountManager(account_id, manager);
-}
-
-void SetUserLastLoginInputMethodId(const AccountId& account_id,
-                                   const std::string& input_method_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state)
-      .SetUserLastLoginInputMethodId(account_id, input_method_id);
-}
-
-bool GetUserLastInputMethodId(const AccountId& account_id,
-                              std::string* input_method_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return false;
-  return KnownUser(local_state)
-      .GetUserLastInputMethodId(account_id, input_method_id);
-}
-
-void SetUserPinLength(const AccountId& account_id, int pin_length) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetUserPinLength(account_id, pin_length);
-}
-
-int GetUserPinLength(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return 0;
-  return KnownUser(local_state).GetUserPinLength(account_id);
-}
-
-bool PinAutosubmitIsBackfillNeeded(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state) {
-    // If the pref is not set, the pref needs to be backfilled.
-    return true;
-  }
-  return KnownUser(local_state).PinAutosubmitIsBackfillNeeded(account_id);
-}
-
-void PinAutosubmitSetBackfillNotNeeded(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).PinAutosubmitSetBackfillNotNeeded(account_id);
-}
-
-void PinAutosubmitSetBackfillNeededForTests(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state)
-      .PinAutosubmitSetBackfillNeededForTests(account_id);
-}
-
-void SetPasswordSyncToken(const AccountId& account_id,
-                          const std::string& token) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return;
-  return KnownUser(local_state).SetPasswordSyncToken(account_id, token);
-}
-
-std::string GetPasswordSyncToken(const AccountId& account_id) {
-  PrefService* local_state = GetLocalStateLegacy();
-  // Local State may not be initialized in tests.
-  if (!local_state)
-    return std::string();
-  return KnownUser(local_state).GetPasswordSyncToken(account_id);
-}
-
-}  // namespace known_user
 }  // namespace user_manager

@@ -1,11 +1,11 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "cc/layers/picture_layer_impl.h"
 
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/memory/raw_ptr.h"
+#include "base/ranges/algorithm.h"
 #include "base/timer/lap_timer.h"
 #include "cc/test/fake_picture_layer_impl.h"
 #include "cc/test/fake_raster_source.h"
@@ -31,8 +31,7 @@ void AddTiling(float scale,
   tiling->set_resolution(HIGH_RESOLUTION);
   tiling->CreateAllTilesForTesting();
   std::vector<Tile*> tiling_tiles = tiling->AllTilesForTesting();
-  std::copy(
-      tiling_tiles.begin(), tiling_tiles.end(), std::back_inserter(*all_tiles));
+  base::ranges::copy(tiling_tiles, std::back_inserter(*all_tiles));
 }
 
 class PictureLayerImplPerfTest : public LayerTreeImplTestBase,
@@ -97,8 +96,9 @@ class PictureLayerImplPerfTest : public LayerTreeImplTestBase,
     host_impl()
         ->pending_tree()
         ->property_trees()
-        ->scroll_tree.UpdateScrollOffsetBaseForTesting(
-            pending_layer_->element_id(), gfx::PointF(viewport.origin()));
+        ->scroll_tree_mutable()
+        .UpdateScrollOffsetBaseForTesting(pending_layer_->element_id(),
+                                          gfx::PointF(viewport.origin()));
     host_impl()->pending_tree()->UpdateDrawProperties();
 
     timer_.Reset();
@@ -144,8 +144,9 @@ class PictureLayerImplPerfTest : public LayerTreeImplTestBase,
     host_impl()
         ->pending_tree()
         ->property_trees()
-        ->scroll_tree.UpdateScrollOffsetBaseForTesting(
-            pending_layer_->element_id(), gfx::PointF(viewport.origin()));
+        ->scroll_tree_mutable()
+        .UpdateScrollOffsetBaseForTesting(pending_layer_->element_id(),
+                                          gfx::PointF(viewport.origin()));
     host_impl()->pending_tree()->UpdateDrawProperties();
 
     timer_.Reset();

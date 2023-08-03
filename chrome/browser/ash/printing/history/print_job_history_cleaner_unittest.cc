@@ -1,19 +1,19 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/printing/history/print_job_history_cleaner.h"
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ash/printing/history/print_job_history_service.h"
+#include "chrome/browser/ash/printing/history/print_job_info.pb.h"
 #include "chrome/browser/ash/printing/history/test_print_job_database.h"
-#include "chrome/browser/chromeos/printing/history/print_job_info.pb.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/testing_pref_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -22,7 +22,7 @@ namespace ash {
 
 namespace {
 
-using ::chromeos::printing::proto::PrintJobInfo;
+using printing::proto::PrintJobInfo;
 
 constexpr char kId1[] = "id1";
 constexpr char kId2[] = "id2";

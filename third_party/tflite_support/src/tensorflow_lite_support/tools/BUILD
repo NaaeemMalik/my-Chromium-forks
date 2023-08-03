@@ -1,4 +1,5 @@
 package(
+    default_applicable_licenses = ["//tensorflow_lite_support:license"],
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -12,9 +13,4 @@ py_binary(
         "@absl_py//absl:app",
         "@absl_py//absl/flags",
     ],
-)
-
-py_library(
-    name = "expect_flatbuffers_installed",
-    srcs = [],
 )

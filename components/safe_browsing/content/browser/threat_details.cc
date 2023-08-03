@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -14,10 +14,10 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/containers/contains.h"
 #include "base/containers/cxx20_erase.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
@@ -29,26 +29,27 @@
 #include "components/safe_browsing/content/browser/base_ui_manager.h"
 #include "components/safe_browsing/content/browser/threat_details_cache.h"
 #include "components/safe_browsing/content/browser/threat_details_history.h"
+#include "components/safe_browsing/content/browser/web_contents_key.h"
 #include "components/safe_browsing/content/browser/web_ui/safe_browsing_ui.h"
 #include "components/safe_browsing/core/browser/db/hit_report.h"
 #include "components/safe_browsing/core/browser/referrer_chain_provider.h"
 #include "components/safe_browsing/core/common/features.h"
+#include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/security_interstitials/content/unsafe_resource_util.h"
 #include "content/public/browser/back_forward_cache.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
+#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 
 using content::BrowserThread;
 using content::NavigationEntry;
-using content::RenderFrameHost;
 using content::WebContents;
 
 // Keep in sync with KMaxNodes in components/safe_browsing/content/renderer/
@@ -128,12 +129,70 @@ ClientSafeBrowsingReportRequest::ReportType GetReportTypeFromSBThreatType(
     case SB_THREAT_TYPE_SUBRESOURCE_FILTER:
     case SB_THREAT_TYPE_CSD_ALLOWLIST:
     case SB_THREAT_TYPE_HIGH_CONFIDENCE_ALLOWLIST:
-    case SB_THREAT_TYPE_ACCURACY_TIPS:
     case DEPRECATED_SB_THREAT_TYPE_URL_PASSWORD_PROTECTION_PHISHING:
+    case SB_THREAT_TYPE_MANAGED_POLICY_WARN:
+    case SB_THREAT_TYPE_MANAGED_POLICY_BLOCK:
       // Gated by SafeBrowsingBlockingPage::ShouldReportThreatDetails.
       NOTREACHED() << "We should not send report for threat type: "
                    << threat_type;
       return ClientSafeBrowsingReportRequest::UNKNOWN;
+  }
+}
+
+// Helper function that converts mojom::RequestDestination to
+// ClientSafeBrowsingReportRequest::UrlRequestDestination.
+ClientSafeBrowsingReportRequest::UrlRequestDestination
+GetUrlRequestDestinationFromMojomRequestDestination(
+    network::mojom::RequestDestination request_destination) {
+  switch (request_destination) {
+    case network::mojom::RequestDestination::kEmpty:
+      return ClientSafeBrowsingReportRequest::EMPTY;
+    case network::mojom::RequestDestination::kAudio:
+      return ClientSafeBrowsingReportRequest::AUDIO;
+    case network::mojom::RequestDestination::kAudioWorklet:
+      return ClientSafeBrowsingReportRequest::AUDIO_WORKLET;
+    case network::mojom::RequestDestination::kDocument:
+      return ClientSafeBrowsingReportRequest::DOCUMENT;
+    case network::mojom::RequestDestination::kEmbed:
+      return ClientSafeBrowsingReportRequest::EMBED;
+    case network::mojom::RequestDestination::kFont:
+      return ClientSafeBrowsingReportRequest::FONT;
+    case network::mojom::RequestDestination::kFrame:
+      return ClientSafeBrowsingReportRequest::FRAME;
+    case network::mojom::RequestDestination::kIframe:
+      return ClientSafeBrowsingReportRequest::IFRAME;
+    case network::mojom::RequestDestination::kImage:
+      return ClientSafeBrowsingReportRequest::IMAGE;
+    case network::mojom::RequestDestination::kManifest:
+      return ClientSafeBrowsingReportRequest::MANIFEST;
+    case network::mojom::RequestDestination::kObject:
+      return ClientSafeBrowsingReportRequest::OBJECT;
+    case network::mojom::RequestDestination::kPaintWorklet:
+      return ClientSafeBrowsingReportRequest::PAINT_WORKLET;
+    case network::mojom::RequestDestination::kReport:
+      return ClientSafeBrowsingReportRequest::REPORT;
+    case network::mojom::RequestDestination::kScript:
+      return ClientSafeBrowsingReportRequest::SCRIPT;
+    case network::mojom::RequestDestination::kServiceWorker:
+      return ClientSafeBrowsingReportRequest::SERVICE_WORKER;
+    case network::mojom::RequestDestination::kSharedWorker:
+      return ClientSafeBrowsingReportRequest::SHARED_WORKER;
+    case network::mojom::RequestDestination::kStyle:
+      return ClientSafeBrowsingReportRequest::STYLE;
+    case network::mojom::RequestDestination::kTrack:
+      return ClientSafeBrowsingReportRequest::TRACK;
+    case network::mojom::RequestDestination::kVideo:
+      return ClientSafeBrowsingReportRequest::VIDEO;
+    case network::mojom::RequestDestination::kWebBundle:
+      return ClientSafeBrowsingReportRequest::WEB_BUNDLE;
+    case network::mojom::RequestDestination::kWorker:
+      return ClientSafeBrowsingReportRequest::WORKER;
+    case network::mojom::RequestDestination::kXslt:
+      return ClientSafeBrowsingReportRequest::XSLT;
+    case network::mojom::RequestDestination::kFencedframe:
+      return ClientSafeBrowsingReportRequest::FENCED_FRAME;
+    case network::mojom::RequestDestination::kWebIdentity:
+      return ClientSafeBrowsingReportRequest::WEB_IDENTITY;
   }
 }
 
@@ -383,8 +442,8 @@ ThreatDetails::ThreatDetails(
     ReferrerChainProvider* referrer_chain_provider,
     bool trim_to_ad_tags,
     ThreatDetailsDoneCallback done_callback)
-    : content::WebContentsObserver(web_contents),
-      url_loader_factory_(url_loader_factory),
+    : url_loader_factory_(url_loader_factory),
+      web_contents_(web_contents),
       ui_manager_(ui_manager),
       browser_context_(web_contents->GetBrowserContext()),
       resource_(resource),
@@ -574,6 +633,9 @@ void ThreatDetails::StartCollection() {
   if (IsReportableUrl(resource_.url)) {
     report_->set_url(resource_.url.spec());
     report_->set_type(GetReportTypeFromSBThreatType(resource_.threat_type));
+    report_->set_url_request_destination(
+        GetUrlRequestDestinationFromMojomRequestDestination(
+            resource_.request_destination));
   }
 
   GURL referrer_url;
@@ -637,8 +699,10 @@ void ThreatDetails::StartCollection() {
     // OnReceivedThreatDOMDetails will be called when the renderer replies.
     // TODO(mattm): In theory, if the user proceeds through the warning DOM
     // detail collection could be started once the page loads.
-    web_contents()->GetMainFrame()->ForEachRenderFrameHost(base::BindRepeating(
-        &ThreatDetails::RequestThreatDOMDetails, GetWeakPtr()));
+    web_contents_->GetPrimaryMainFrame()->ForEachRenderFrameHost(
+        [this](content::RenderFrameHost* frame) {
+          RequestThreatDOMDetails(frame);
+        });
   }
 }
 
@@ -647,7 +711,7 @@ void ThreatDetails::RequestThreatDOMDetails(content::RenderFrameHost* frame) {
       frame,
       back_forward_cache::DisabledReason(
           back_forward_cache::DisabledReasonId::kSafeBrowsingThreatDetails));
-  if (!frame->IsRenderFrameCreated()) {
+  if (!frame->IsRenderFrameLive()) {
     // A child frame may have been created browser-side but has not completed
     // setting up the renderer for it yet. In particular, this occurs if the
     // child frame was blocked and that's why we're showing a safe browsing page
@@ -660,44 +724,36 @@ void ThreatDetails::RequestThreatDOMDetails(content::RenderFrameHost* frame) {
       threat_reporter.BindNewPipeAndPassReceiver());
   safe_browsing::mojom::ThreatReporter* raw_threat_report =
       threat_reporter.get();
-  pending_render_frame_hosts_.push_back(frame);
   raw_threat_report->GetThreatDOMDetails(
       base::BindOnce(&ThreatDetails::OnReceivedThreatDOMDetails, GetWeakPtr(),
-                     std::move(threat_reporter), frame->GetGlobalId()));
+                     std::move(threat_reporter), frame->GetWeakDocumentPtr()));
 }
 
 // When the renderer is done, this is called.
 void ThreatDetails::OnReceivedThreatDOMDetails(
     mojo::Remote<mojom::ThreatReporter> threat_reporter,
-    content::GlobalRenderFrameHostId sender_id,
+    content::WeakDocumentPtr sender,
     std::vector<mojom::ThreatDOMDetailsNodePtr> params) {
   // If the RenderFrameHost was closed between sending the IPC and this callback
   // running, |sender| will be invalid.
-  auto* sender = content::RenderFrameHost::FromID(sender_id);
-  if (!sender) {
+  auto* sender_rfh = sender.AsRenderFrameHostIfValid();
+  if (!sender_rfh) {
     return;
   }
-  const auto sender_it = std::find(pending_render_frame_hosts_.begin(),
-                                   pending_render_frame_hosts_.end(), sender);
-  if (sender_it == pending_render_frame_hosts_.end()) {
-    return;
-  }
-
-  pending_render_frame_hosts_.erase(sender_it);
 
   // Lookup the FrameTreeNode ID of any child frames in the list of DOM nodes.
-  const int sender_process_id = sender->GetProcess()->GetID();
-  const int sender_frame_tree_node_id = sender->GetFrameTreeNodeId();
+  const int sender_process_id = sender_rfh->GetProcess()->GetID();
+  const int sender_frame_tree_node_id = sender_rfh->GetFrameTreeNodeId();
   KeyToFrameTreeIdMap child_frame_tree_map;
   for (const mojom::ThreatDOMDetailsNodePtr& node : params) {
-    if (node->child_frame_routing_id == 0)
+    if (!node->child_frame_token)
       continue;
 
     const std::string cur_element_key =
         GetElementKey(sender_frame_tree_node_id, node->node_id);
     int child_frame_tree_node_id =
-        content::RenderFrameHost::GetFrameTreeNodeIdForRoutingId(
-            sender_process_id, node->child_frame_routing_id);
+        content::RenderFrameHost::GetFrameTreeNodeIdForFrameToken(
+            sender_process_id, node->child_frame_token.value());
     if (child_frame_tree_node_id !=
         content::RenderFrameHost::kNoFrameTreeNodeId) {
       child_frame_tree_map[cur_element_key] = child_frame_tree_node_id;
@@ -857,20 +913,7 @@ void ThreatDetails::OnCacheCollectionReady() {
   MaybeFillReferrerChain();
 
   // Send the report, using the SafeBrowsingService.
-  std::string serialized;
-  if (!report_->SerializeToString(&serialized)) {
-    DLOG(ERROR) << "Unable to serialize the threat report.";
-    AllDone();
-    return;
-  }
-
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(&WebUIInfoSingleton::AddToCSBRRsSent,
-                     base::Unretained(WebUIInfoSingleton::GetInstance()),
-                     std::move(report_)));
-
-  ui_manager_->SendSerializedThreatDetails(browser_context_, serialized);
+  ui_manager_->SendThreatDetails(browser_context_, std::move(report_));
 
   AllDone();
 }
@@ -885,8 +928,10 @@ void ThreatDetails::MaybeFillReferrerChain() {
     return;
   }
 
-  referrer_chain_provider_->IdentifyReferrerChainByWebContents(
-      web_contents(), kThreatDetailsUserGestureLimit,
+  // We would have cancelled a prerender if it was blocked, so we can use the
+  // primary main frame here.
+  referrer_chain_provider_->IdentifyReferrerChainByRenderFrameHost(
+      web_contents_->GetPrimaryMainFrame(), kThreatDetailsUserGestureLimit,
       report_->mutable_referrer_chain());
 }
 
@@ -894,16 +939,7 @@ void ThreatDetails::AllDone() {
   is_all_done_ = true;
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(std::move(done_callback_),
-                                base::Unretained(web_contents())));
-}
-
-void ThreatDetails::RenderFrameDeleted(RenderFrameHost* render_frame_host) {
-  base::Erase(pending_render_frame_hosts_, render_frame_host);
-}
-
-void ThreatDetails::RenderFrameHostChanged(RenderFrameHost* old_host,
-                                           RenderFrameHost* new_host) {
-  base::Erase(pending_render_frame_hosts_, old_host);
+                                GetWebContentsKey(web_contents_)));
 }
 
 base::WeakPtr<ThreatDetails> ThreatDetails::GetWeakPtr() {

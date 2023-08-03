@@ -1,16 +1,20 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/arc/tracing/arc_app_performance_tracing_session.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/numerics/safe_conversions.h"
 #include "chrome/browser/ash/arc/tracing/arc_app_performance_tracing.h"
 #include "components/exo/shell_surface_util.h"
 #include "components/exo/surface.h"
 #include "content/public/browser/browser_thread.h"
 #include "ui/aura/window.h"
+
+// Enable VLOG level 1.
+#undef ENABLED_VLOG_LEVEL
+#define ENABLED_VLOG_LEVEL 1
 
 namespace arc {
 
@@ -69,6 +73,9 @@ void ArcAppPerformanceTracingSession::StopAndAnalyzeInternal() {
 
 void ArcAppPerformanceTracingSession::OnSurfaceDestroying(
     exo::Surface* surface) {
+  // |scoped_surface_| might be already reset in case window is destroyed
+  // first.
+  DCHECK(!scoped_surface_ || (scoped_surface_->get() == surface));
   Stop();
 }
 
@@ -95,7 +102,11 @@ void ArcAppPerformanceTracingSession::Start() {
 
   exo::Surface* const surface = exo::GetShellRootSurface(window_);
   DCHECK(surface);
-  surface->AddSurfaceObserver(this);
+  // Use scoped surface observer to be safe on the surface
+  // destruction. |exo::GetShellRootSurface| would fail in case
+  // the surface gets destroyed before widget.
+  scoped_surface_ =
+      std::make_unique<exo::ScopedSurface>(surface, this /* observer */);
 
   // Schedule result analyzing at the end of tracing.
   tracing_start_ = base::TimeTicks::Now();
@@ -113,10 +124,7 @@ void ArcAppPerformanceTracingSession::Start() {
 void ArcAppPerformanceTracingSession::Stop() {
   tracing_active_ = false;
   tracing_timer_.Stop();
-  exo::Surface* const surface = exo::GetShellRootSurface(window_);
-  // Surface might be destroyed.
-  if (surface)
-    surface->RemoveSurfaceObserver(this);
+  scoped_surface_.reset();
 }
 
 void ArcAppPerformanceTracingSession::HandleCommit(

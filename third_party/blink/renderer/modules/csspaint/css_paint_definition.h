@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,10 @@
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
-#include "third_party/blink/renderer/platform/geometry/float_size.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_record.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
+#include "ui/gfx/geometry/size_f.h"
 #include "v8/include/v8.h"
 
 namespace blink {
@@ -49,7 +49,7 @@ class MODULES_EXPORT CSSPaintDefinition final
   ~CSSPaintDefinition() override;
 
   // PaintDefinition override
-  sk_sp<PaintRecord> Paint(
+  PaintRecord Paint(
       const CompositorPaintWorkletInput*,
       const CompositorPaintWorkletJob::AnimatedPropertyValues&) override;
 
@@ -57,15 +57,14 @@ class MODULES_EXPORT CSSPaintDefinition final
   // class. The size given will be the size of the PaintRenderingContext2D
   // given to the callback.
   //
-  // This may return a nullptr (representing an invalid image) if javascript
-  // throws an error.
+  // This may return an empty PaintRecord (representing an invalid image) if
+  // javascript throws an error.
   //
   // The |container_size| is without subpixel snapping.
-  sk_sp<PaintRecord> Paint(const gfx::SizeF& container_size,
-                           float zoom,
-                           StylePropertyMapReadOnly*,
-                           const CSSStyleValueVector*,
-                           float device_scale_factor);
+  PaintRecord Paint(const gfx::SizeF& container_size,
+                    float zoom,
+                    StylePropertyMapReadOnly*,
+                    const CSSStyleValueVector*);
   const Vector<CSSPropertyID>& NativeInvalidationProperties() const {
     return native_invalidation_properties_;
   }

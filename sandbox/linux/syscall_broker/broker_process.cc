@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,16 +18,18 @@
 #include <utility>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/file_util.h"
+#include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/process/process_metrics.h"
 #include "build/build_config.h"
 #include "sandbox/linux/syscall_broker/broker_channel.h"
 #include "sandbox/linux/syscall_broker/broker_client.h"
+#include "sandbox/linux/syscall_broker/broker_command.h"
 #include "sandbox/linux/syscall_broker/broker_host.h"
 #include "sandbox/linux/syscall_broker/broker_permission_list.h"
+#include "sandbox/linux/system_headers/linux_syscalls.h"
 
 namespace sandbox {
 
@@ -62,7 +64,9 @@ bool BrokerProcess::ForkSignalBasedBroker(
   BrokerChannel::EndPoint ipc_reader, ipc_writer;
   BrokerChannel::CreatePair(&ipc_reader, &ipc_writer);
 
-  int child_pid = fork();
+  pid_t parent_pid = getpid();
+
+  pid_t child_pid = fork();
   if (child_pid == -1)
     return false;
 
@@ -87,7 +91,8 @@ bool BrokerProcess::ForkSignalBasedBroker(
 
   CHECK(std::move(broker_process_init_callback).Run(*policy_));
 
-  BrokerHost broker_host_signal_based(*policy_, std::move(ipc_reader));
+  BrokerHost broker_host_signal_based(*policy_, std::move(ipc_reader),
+                                      parent_pid);
   broker_host_signal_based.LoopAndHandleRequests();
   _exit(1);
   NOTREACHED();
@@ -117,44 +122,44 @@ bool BrokerProcess::IsSyscallBrokerable(int sysno, bool fast_check) const {
   // and are default disabled in Android. So, we should refuse to broker them
   // to be consistent with the platform's restrictions.
   switch (sysno) {
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_access:
 #endif
     case __NR_faccessat:
     case __NR_faccessat2:
       return !fast_check || policy_->allowed_command_set.test(COMMAND_ACCESS);
 
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_mkdir:
 #endif
     case __NR_mkdirat:
       return !fast_check || policy_->allowed_command_set.test(COMMAND_MKDIR);
 
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_open:
 #endif
     case __NR_openat:
       return !fast_check || policy_->allowed_command_set.test(COMMAND_OPEN);
 
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_readlink:
 #endif
     case __NR_readlinkat:
       return !fast_check || policy_->allowed_command_set.test(COMMAND_READLINK);
 
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_rename:
 #endif
     case __NR_renameat:
     case __NR_renameat2:
       return !fast_check || policy_->allowed_command_set.test(COMMAND_RENAME);
 
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_rmdir:
       return !fast_check || policy_->allowed_command_set.test(COMMAND_RMDIR);
 #endif
 
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_stat:
     case __NR_lstat:
 #endif
@@ -179,7 +184,7 @@ bool BrokerProcess::IsSyscallBrokerable(int sysno, bool fast_check) const {
       return !fast_check || policy_->allowed_command_set.test(COMMAND_STAT);
 #endif
 
-#if !defined(__aarch64__) && !defined(OS_ANDROID)
+#if !defined(__aarch64__) && !BUILDFLAG(IS_ANDROID)
     case __NR_unlink:
       return !fast_check || policy_->allowed_command_set.test(COMMAND_UNLINK);
 #endif
@@ -187,7 +192,9 @@ bool BrokerProcess::IsSyscallBrokerable(int sysno, bool fast_check) const {
       // If rmdir() doesn't exist, unlinkat is used with AT_REMOVEDIR.
       return !fast_check || policy_->allowed_command_set.test(COMMAND_RMDIR) ||
              policy_->allowed_command_set.test(COMMAND_UNLINK);
-
+    case __NR_inotify_add_watch:
+      return !fast_check ||
+             policy_->allowed_command_set.test(COMMAND_INOTIFY_ADD_WATCH);
     default:
       return false;
   }

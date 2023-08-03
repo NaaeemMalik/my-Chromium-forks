@@ -1,12 +1,14 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/wm/window_util.h"
 
 #include <memory>
+#include <tuple>
 
 #include "ash/constants/app_types.h"
+#include "ash/constants/ash_pref_names.h"
 #include "ash/multi_user/multi_user_window_manager_impl.h"
 #include "ash/public/cpp/app_types_util.h"
 #include "ash/public/cpp/shell_window_ids.h"
@@ -19,19 +21,23 @@
 #include "ash/shelf/shelf.h"
 #include "ash/shell.h"
 #include "ash/shell_delegate.h"
+#include "ash/wm/float/float_controller.h"
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/overview/overview_session.h"
+#include "ash/wm/snap_group/snap_group_controller.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "ash/wm/window_positioning_utils.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/wm_event.h"
-#include "base/bind.h"
 #include "base/containers/contains.h"
-#include "base/ignore_result.h"
+#include "base/functional/bind.h"
+#include "base/ranges/algorithm.h"
 #include "chromeos/ui/base/chromeos_ui_constants.h"
 #include "chromeos/ui/frame/interior_resize_handler_targeter.h"
+#include "chromeos/ui/wm/features.h"
+#include "components/prefs/pref_service.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/client/capture_client.h"
 #include "ui/aura/client/focus_client.h"
@@ -45,6 +51,7 @@
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
+#include "ui/events/event.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/geometry/transform_util.h"
@@ -85,8 +92,11 @@ class InteriorResizeHandleTargeterAsh
 }  // namespace
 
 aura::Window* GetActiveWindow() {
-  return ::wm::GetActivationClient(Shell::GetPrimaryRootWindow())
-      ->GetActiveWindow();
+  if (auto* activation_client =
+          wm::GetActivationClient(Shell::GetPrimaryRootWindow())) {
+    return activation_client->GetActiveWindow();
+  }
+  return nullptr;
 }
 
 aura::Window* GetFocusedWindow() {
@@ -177,9 +187,7 @@ int GetNonClientComponent(aura::Window* window, const gfx::Point& location) {
 }
 
 void SetChildrenUseExtendedHitRegionForWindow(aura::Window* window) {
-  gfx::Insets mouse_extend(
-      -chromeos::kResizeOutsideBoundsSize, -chromeos::kResizeOutsideBoundsSize,
-      -chromeos::kResizeOutsideBoundsSize, -chromeos::kResizeOutsideBoundsSize);
+  gfx::Insets mouse_extend(-chromeos::kResizeOutsideBoundsSize);
   gfx::Insets touch_extend = gfx::ScaleToFlooredInsets(
       mouse_extend, chromeos::kResizeOutsideBoundsScaleForTouch);
   window->SetEventTargeter(std::make_unique<::wm::EasyResizeWindowTargeter>(
@@ -224,15 +232,22 @@ bool ShouldExcludeForCycleList(const aura::Window* window) {
 }
 
 bool ShouldExcludeForOverview(const aura::Window* window) {
-  // If we're currently in tablet splitview, remove the default snapped window
-  // from the window list. The default snapped window occupies one side of the
-  // screen, while the other windows occupy the other side of the screen in
-  // overview mode. The default snap position is the position where the window
-  // was first snapped. See |default_snap_position_| in SplitViewController for
-  // more detail.
+  // If we're currently in tablet splitview or in clamshell mode with
+  // `IsArm1AutomaticallyLockEnabled()` (see SnapGroupController for more
+  // details), remove the default snapped window from the window list. The
+  // default snapped window occupies one side of the screen, while the other
+  // windows occupy the other side of the screen in overview mode. The default
+  // snap position is the position where the window was first snapped. See
+  // `default_snap_position_` in SplitViewController for more details.
   auto* split_view_controller =
       SplitViewController::Get(Shell::GetPrimaryRootWindow());
-  if (split_view_controller->InTabletSplitViewMode() &&
+
+  auto* snap_group_controller = Shell::Get()->snap_group_controller();
+  const bool should_exclude_in_clamshell =
+      snap_group_controller &&
+      snap_group_controller->IsArm1AutomaticallyLockEnabled();
+  if ((split_view_controller->InTabletSplitViewMode() ||
+       should_exclude_in_clamshell) &&
       window == split_view_controller->GetDefaultSnappedWindow()) {
     return true;
   }
@@ -266,12 +281,19 @@ void MinimizeAndHideWithoutAnimation(
     // minimization. We minimize ARC windows first so they receive occlusion
     // updates before losing focus from being hidden. See crbug.com/910304.
     // TODO(oshima): Investigate better way to handle ARC apps immediately.
-    WindowState::Get(window)->Minimize();
+
+    // Suspect some callsites may use this on a window without a window state
+    // (`aura::client::WINDOW_TYPE_CONTROL`) or windows that cannot be
+    // minimized. See https://crbug.com/1200596.
+    auto* window_state = WindowState::Get(window);
+    if (window_state && window_state->CanMinimize())
+      window_state->Minimize();
 
     window->Hide();
   }
+
   if (windows.size()) {
-    // Disable the animations using |disable|. However, doing so will skip
+    // Disabling the animations using `ScopedAnimationDisabler` will skip
     // detaching the resources associated with the layer. So we have to trick
     // the compositor into releasing the resources.
     // crbug.com/924802.
@@ -312,8 +334,7 @@ void ExpandArcPipWindow() {
     return;
 
   auto pip_window_iter =
-      std::find_if(pip_container->children().begin(),
-                   pip_container->children().end(), IsArcPipWindow);
+      base::ranges::find_if(pip_container->children(), IsArcPipWindow);
   if (pip_window_iter == pip_container->children().end())
     return;
 
@@ -344,8 +365,33 @@ aura::Window* GetTopWindow() {
   return windows.empty() ? nullptr : windows[0];
 }
 
+aura::Window* GetTopNonFloatedWindow() {
+  MruWindowTracker::WindowList windows =
+      Shell::Get()->mru_window_tracker()->BuildWindowForCycleList(kActiveDesk);
+  for (aura::Window* window : windows) {
+    if (!WindowState::Get(window)->IsFloated())
+      return window;
+  }
+  return nullptr;
+}
+
+aura::Window* GetFloatedWindowForActiveDesk() {
+  if (!chromeos::wm::features::IsWindowLayoutMenuEnabled()) {
+    return nullptr;
+  }
+
+  auto* float_controller = Shell::Get()->float_controller();
+  DCHECK(float_controller);
+  return float_controller->FindFloatedWindowOfDesk(
+      DesksController::Get()->GetTargetActiveDesk());
+}
+
 bool ShouldMinimizeTopWindowOnBack() {
   Shell* shell = Shell::Get();
+  // We never want to minimize the main app window in the Kiosk session.
+  if (shell->session_controller()->IsRunningInAppMode())
+    return false;
+
   if (!shell->tablet_mode_controller()->InTabletMode())
     return false;
 
@@ -379,16 +425,31 @@ bool ShouldMinimizeTopWindowOnBack() {
   return !shell->shell_delegate()->CanGoBack(window);
 }
 
+bool IsMinimizedOrTucked(aura::Window* window) {
+  DCHECK(window->parent());
+
+  WindowState* window_state = WindowState::Get(window);
+  if (!window_state) {
+    return false;
+  }
+  if (window_state->IsFloated()) {
+    return !window->is_destroying() &&
+           Shell::Get()->float_controller()->IsFloatedWindowTuckedForTablet(
+               window);
+  }
+  return window_state->IsMinimized();
+}
+
 void SendBackKeyEvent(aura::Window* root_window) {
   // Send up event as well as down event as ARC++ clients expect this
   // sequence.
   // TODO: Investigate if we should be using the current modifiers.
   ui::KeyEvent press_key_event(ui::ET_KEY_PRESSED, ui::VKEY_BROWSER_BACK,
                                ui::EF_NONE);
-  ignore_result(root_window->GetHost()->SendEventToSink(&press_key_event));
+  std::ignore = root_window->GetHost()->SendEventToSink(&press_key_event);
   ui::KeyEvent release_key_event(ui::ET_KEY_RELEASED, ui::VKEY_BROWSER_BACK,
                                  ui::EF_NONE);
-  ignore_result(root_window->GetHost()->SendEventToSink(&release_key_event));
+  std::ignore = root_window->GetHost()->SendEventToSink(&release_key_event);
 }
 
 WindowTransientDescendantIteratorRange GetVisibleTransientTreeIterator(
@@ -410,19 +471,18 @@ gfx::RectF GetTransformedBounds(aura::Window* transformed_window,
       continue;
     }
     gfx::RectF window_bounds(window->GetTargetBounds());
-    gfx::Transform new_transform =
-        TransformAboutPivot(gfx::ToRoundedPoint(window_bounds.origin()),
-                            window->layer()->GetTargetTransform());
-    new_transform.TransformRect(&window_bounds);
+    const gfx::Transform new_transform = TransformAboutPivot(
+        window_bounds.origin(), window->layer()->GetTargetTransform());
+    window_bounds = new_transform.MapRect(window_bounds);
 
     // The preview title is shown above the preview window. Hide the window
     // header for apps or browser windows with no tabs (web apps) to avoid
     // showing both the window header and the preview title.
     if (top_inset > 0) {
-      gfx::RectF header_bounds(window_bounds);
+      gfx::RectF header_bounds = window_bounds;
       header_bounds.set_height(top_inset);
-      new_transform.TransformRect(&header_bounds);
-      window_bounds.Inset(0, header_bounds.height(), 0, 0);
+      header_bounds = new_transform.MapRect(header_bounds);
+      window_bounds.Inset(gfx::InsetsF::TLBR(header_bounds.height(), 0, 0, 0));
     }
     ::wm::TranslateRectToScreen(window->parent(), &window_bounds);
     bounds.Union(window_bounds);
@@ -443,6 +503,23 @@ bool ShouldShowForCurrentUser(aura::Window* window) {
     return true;
 
   return account_id == multi_user_window_manager->CurrentAccountId();
+}
+
+aura::Window* GetEventHandlerForEvent(const ui::LocatedEvent& event) {
+  gfx::Point location_in_screen = event.location();
+  ::wm::ConvertPointToScreen(static_cast<aura::Window*>(event.target()),
+                             &location_in_screen);
+  aura::Window* root_window_at_point = GetRootWindowAt(location_in_screen);
+  gfx::Point location_in_root = location_in_screen;
+  ::wm::ConvertPointFromScreen(root_window_at_point, &location_in_root);
+  return root_window_at_point->GetEventHandlerForPoint(location_in_root);
+}
+
+bool IsNaturalScrollOn() {
+  PrefService* pref =
+      Shell::Get()->session_controller()->GetActivePrefService();
+  return pref->GetBoolean(prefs::kTouchpadEnabled) &&
+         pref->GetBoolean(prefs::kNaturalScroll);
 }
 
 }  // namespace window_util

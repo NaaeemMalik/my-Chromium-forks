@@ -1,9 +1,10 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -17,11 +18,12 @@
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/style/platform_style.h"
 #include "ui/views/test/views_test_base.h"
+#include "ui/views/test/views_test_utils.h"
 #include "ui/views/test/widget_test.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "ui/base/test/scoped_fake_full_keyboard_access.h"
 #endif
 
@@ -330,9 +332,17 @@ TEST_F(DialogTest, HitTest_CloseButton) {
 
   const gfx::Rect close_button_bounds =
       frame->GetCloseButtonForTesting()->bounds();
+#if BUILDFLAG(IS_WIN)
+  // On Win, when HTCLOSE is returned, the tooltip is automatically generated.
+  // Do not return |HTCLOSE| to use views tooltip.
+  EXPECT_EQ(HTCAPTION,
+            frame->NonClientHitTest(gfx::Point(close_button_bounds.x() + 4,
+                                               close_button_bounds.y() + 4)));
+#else
   EXPECT_EQ(HTCLOSE,
             frame->NonClientHitTest(gfx::Point(close_button_bounds.x() + 4,
                                                close_button_bounds.y() + 4)));
+#endif
 }
 
 TEST_F(DialogTest, BoundsAccommodateTitle) {
@@ -377,7 +387,7 @@ TEST_F(DialogTest, ActualBoundsMatchPreferredBounds) {
   gfx::Size preferred_size(root_view->GetPreferredSize());
   EXPECT_FALSE(preferred_size.IsEmpty());
   root_view->SizeToPreferredSize();
-  root_view->Layout();
+  views::test::RunScheduledLayout(root_view);
   EXPECT_EQ(preferred_size, root_view->size());
 }
 
@@ -425,7 +435,7 @@ TEST_F(DialogTest, InitialFocusWithDeactivatedWidget) {
 // If the initially focused View provided is unfocusable, check the next
 // available focusable View is focused.
 TEST_F(DialogTest, UnfocusableInitialFocus) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // On Mac, make all buttons unfocusable by turning off full keyboard access.
   // This is the more common configuration, and if a dialog has a focusable
   // textfield, tree or table, that should obtain focus instead.
@@ -438,7 +448,7 @@ TEST_F(DialogTest, UnfocusableInitialFocus) {
   dialog->AddChildView(textfield);
   Widget* dialog_widget = CreateDialogWidget(dialog);
 
-#if !defined(OS_MAC)
+#if !BUILDFLAG(IS_MAC)
   // For non-Mac, turn off focusability on all the dialog's buttons manually.
   // This achieves the same effect as disabling full keyboard access.
   dialog->GetOkButton()->SetFocusBehavior(View::FocusBehavior::NEVER);

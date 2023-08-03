@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/signin/public/base/signin_metrics.h"
@@ -166,9 +167,9 @@ const std::string kGaiaId1 = signin::GetTestGaiaIdForEmail("1@mail.com");
 const std::string kGaiaId2 = signin::GetTestGaiaIdForEmail("2@mail.com");
 const std::string kGaiaId3 = signin::GetTestGaiaIdForEmail("3@mail.com");
 
-const ListedAccount one(Account(CoreAccountId(kGaiaId1)));
-const ListedAccount two(Account(CoreAccountId(kGaiaId2)));
-const ListedAccount three(Account(CoreAccountId(kGaiaId3)));
+const ListedAccount one(Account(CoreAccountId::FromGaiaId(kGaiaId1)));
+const ListedAccount two(Account(CoreAccountId::FromGaiaId(kGaiaId2)));
+const ListedAccount three(Account(CoreAccountId::FromGaiaId(kGaiaId3)));
 
 const std::vector<ListedAccount> no_accounts{};
 const std::vector<ListedAccount> just_one{one};
@@ -393,7 +394,7 @@ TEST_F(AccountInvestigatorTest, TryPeriodicReportWithPrimary) {
 }
 
 // Neither iOS nor Android support unconsented primary accounts.
-#if !defined(OS_IOS) && !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
 TEST_F(AccountInvestigatorTest, TryPeriodicReportWithUnconsentedPrimary) {
   investigator()->Initialize();
 
@@ -413,7 +414,7 @@ TEST_F(AccountInvestigatorTest, TryPeriodicReportWithUnconsentedPrimary) {
       "Signin.CookieJar.SignedInCountWithPrimary.SyncConsumer",
       /*count=*/0);
 }
-#endif  // !defined(OS_IOS) && !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
 
 TEST_F(AccountInvestigatorTest, TryPeriodicReportWithEnterprisePrimary) {
   investigator()->Initialize();

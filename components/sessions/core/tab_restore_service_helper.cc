@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,9 @@
 #include "base/metrics/histogram.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
+#include "base/observer_list.h"
 #include "base/strings/stringprintf.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/memory_usage_estimator.h"
@@ -30,6 +31,7 @@
 #include "components/sessions/core/live_tab.h"
 #include "components/sessions/core/live_tab_context.h"
 #include "components/sessions/core/serialized_navigation_entry.h"
+#include "components/sessions/core/session_constants.h"
 #include "components/sessions/core/session_id.h"
 #include "components/sessions/core/session_types.h"
 #include "components/sessions/core/tab_restore_service_client.h"
@@ -38,6 +40,67 @@
 #include "components/tab_groups/tab_group_visual_data.h"
 
 namespace sessions {
+namespace {
+
+// Specifies what entries are added.
+enum class AddBehavior {
+  // Adds the current entry, and entries preceeding it.
+  kCurrentAndPreceedingEntries,
+
+  // Adds entries after the current.
+  kEntriesFollowingCurrentEntry,
+};
+
+// Adds serialized navigation entries from a LiveTab.
+void AddSerializedNavigationEntries(
+    LiveTab* live_tab,
+    AddBehavior behavior,
+    std::vector<SerializedNavigationEntry>& navigations) {
+  // It is assumed this is called for back navigations first, at which point the
+  // vector should be empty. This is necessary as back navigations are added
+  // in reverse order and then the vector is reversed.
+  DCHECK(behavior == AddBehavior::kEntriesFollowingCurrentEntry ||
+         navigations.empty());
+  const int max_index = live_tab->GetEntryCount();
+  const int delta =
+      (behavior == AddBehavior::kCurrentAndPreceedingEntries) ? -1 : 1;
+  int current_index = live_tab->GetCurrentEntryIndex();
+  if (behavior == AddBehavior::kEntriesFollowingCurrentEntry)
+    ++current_index;
+  int added_count = 0;
+  while (current_index >= 0 && current_index < max_index &&
+         added_count <= gMaxPersistNavigationCount) {
+    SerializedNavigationEntry entry = live_tab->GetEntryAtIndex(current_index);
+    current_index += delta;
+    // Reader Mode is meant to be considered a "mode" that users can only enter
+    // using a button in the omnibox, so it does not show up in recently closed
+    // tabs, session sync, or chrome://history. Remove Reader Mode pages from
+    // the navigations.
+    if (entry.virtual_url().SchemeIs(dom_distiller::kDomDistillerScheme))
+      continue;
+
+    // An entry might have an empty URL (e.g. if it's the initial
+    // NavigationEntry). Don't try to persist it, as it is not actually
+    // associated with any navigation and will just result in about:blank on
+    // session restore.
+    if (entry.virtual_url().is_empty())
+      continue;
+
+    // As this code was identified as doing a lot of allocations, push_back is
+    // always used and the vector is reversed for `kCurrentAndPreceedingEntries`
+    // when done. Doing this instead of inserting at the beginning results in
+    // less memory operations.
+    navigations.push_back(std::move(entry));
+    ++added_count;
+  }
+  // Iteration for `kCurrentAndPreceedingEntries` happens in descending order.
+  // This results in the entries being added in reverse order. Use
+  // std::reverse() so the entries end up in ascending order.
+  if (behavior == AddBehavior::kCurrentAndPreceedingEntries)
+    std::reverse(navigations.begin(), navigations.end());
+}
+
+}  // namespace
 
 // TabRestoreServiceHelper::Observer -------------------------------------------
 
@@ -66,9 +129,8 @@ TabRestoreServiceHelper::TabRestoreServiceHelper(
       time_factory_(time_factory) {
   DCHECK(tab_restore_service_);
   base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
-      this,
-      "TabRestoreServiceHelper",
-      base::ThreadTaskRunnerHandle::Get());
+      this, "TabRestoreServiceHelper",
+      base::SingleThreadTaskRunner::GetCurrentDefault());
 }
 
 void TabRestoreServiceHelper::SetHelperObserver(Observer* observer) {
@@ -82,8 +144,7 @@ TabRestoreServiceHelper::~TabRestoreServiceHelper() {
       this);
 }
 
-void TabRestoreServiceHelper::AddObserver(
-    TabRestoreServiceObserver* observer) {
+void TabRestoreServiceHelper::AddObserver(TabRestoreServiceObserver* observer) {
   observer_list_.AddObserver(observer);
 }
 
@@ -133,6 +194,7 @@ void TabRestoreServiceHelper::BrowserClosing(LiveTabContext* context) {
   closing_contexts_.insert(context);
 
   auto window = std::make_unique<Window>();
+  window->type = context->GetWindowType();
   window->selected_tab_index = context->GetSelectedIndex();
   window->timestamp = TimeNow();
   window->app_name = context->GetAppName();
@@ -345,51 +407,17 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreMostRecentEntry(
     LiveTabContext* context) {
   if (entries_.empty())
     return std::vector<LiveTab*>();
-  auto& entry = *entries_.front();
-  switch (entry.type) {
-    case TabRestoreService::TAB: {
-      auto& tab = static_cast<const Tab&>(entry);
-      if (tab.timestamp != base::Time() &&
-          !tab.timestamp.ToDeltaSinceWindowsEpoch().is_zero())
-        UMA_HISTOGRAM_LONG_TIMES("TabManager.TimeSinceTabClosedUntilRestored",
-                                 TimeNow() - tab.timestamp);
-      break;
-    }
-    case TabRestoreService::WINDOW: {
-      auto& window = static_cast<Window&>(entry);
-      if (window.timestamp != base::Time() &&
-          !window.timestamp.ToDeltaSinceWindowsEpoch().is_zero())
-        UMA_HISTOGRAM_LONG_TIMES(
-            "TabManager.TimeSinceWindowClosedUntilRestored",
-            TimeNow() - window.timestamp);
-      break;
-    }
-    case TabRestoreService::GROUP: {
-      auto& group = static_cast<Group&>(entry);
-      if (group.timestamp != base::Time() &&
-          !group.timestamp.ToDeltaSinceWindowsEpoch().is_zero())
-        UMA_HISTOGRAM_LONG_TIMES("TabManager.TimeSinceGroupClosedUntilRestored",
-                                 TimeNow() - group.timestamp);
-      break;
-    }
-  }
   return RestoreEntryById(context, entries_.front()->id,
                           WindowOpenDisposition::UNKNOWN);
 }
 
-std::unique_ptr<TabRestoreService::Tab>
-TabRestoreServiceHelper::RemoveTabEntryById(SessionID id) {
+void TabRestoreServiceHelper::RemoveTabEntryById(SessionID id) {
   auto it = GetEntryIteratorById(id);
-  if (it == entries_.end())
-    return nullptr;
+  if (it == entries_.end() || (*it)->type != TabRestoreService::TAB)
+    return;
 
-  if ((*it)->type != TabRestoreService::TAB)
-    return nullptr;
-
-  auto tab = std::unique_ptr<Tab>(static_cast<Tab*>(it->release()));
   entries_.erase(it);
   NotifyTabsChanged();
-  return tab;
 }
 
 std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
@@ -410,7 +438,7 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
   // Normally an entry's ID should match the ID that is being restored. If it
   // does not, then the entry is a window or group from which a single tab will
   // be restored (reachable through OS-level menus like Mac > History).
-  bool entry_id_matches_restore_id = entry.id == id;
+  bool entry_id_matches_restore_id = entry.id == id || entry.original_id == id;
 
   // |context| will be NULL in cases where one isn't already available (eg,
   // when invoked on Mac OS X with no windows open). In this case, create a
@@ -419,6 +447,13 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
   switch (entry.type) {
     case TabRestoreService::TAB: {
       auto& tab = static_cast<const Tab&>(entry);
+
+      if (tab.timestamp != base::Time() &&
+          !tab.timestamp.ToDeltaSinceWindowsEpoch().is_zero()) {
+        UMA_HISTOGRAM_LONG_TIMES("TabRestore.Tab.TimeBetweenClosedAndRestored",
+                                 TimeNow() - tab.timestamp);
+      }
+
       LiveTab* restored_tab = nullptr;
       context = RestoreTab(tab, context, disposition, &restored_tab);
       live_tabs.push_back(restored_tab);
@@ -429,13 +464,22 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
       LiveTabContext* current_context = context;
       auto& window = static_cast<Window&>(entry);
 
+      if (window.timestamp != base::Time() &&
+          !window.timestamp.ToDeltaSinceWindowsEpoch().is_zero()) {
+        UMA_HISTOGRAM_LONG_TIMES(
+            "TabRestore.Window.TimeBetweenClosedAndRestored",
+            TimeNow() - window.timestamp);
+      }
+
       // When restoring a window, either the entire window can be restored, or a
-      // single tab within it. If the entry's ID matches the one to restore,
-      // then the entire window will be restored.
-      if (entry_id_matches_restore_id) {
+      // single tab within it. If the entry's ID matches the one to restore, or
+      // the entry corresponds to an application, then the entire window will be
+      // restored.
+      if (entry_id_matches_restore_id || !window.app_name.empty()) {
         context = client_->CreateLiveTabContext(
-            window.app_name, window.bounds, window.show_state, window.workspace,
-            window.user_title, window.extra_data);
+            context, window.type, window.app_name, window.bounds,
+            window.show_state, window.workspace, window.user_title,
+            window.extra_data);
 
         base::flat_map<tab_groups::TabGroupId, tab_groups::TabGroupId>
             new_group_ids;
@@ -493,7 +537,7 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
           SessionID::id_type restored_tab_browser_id;
           {
             const Tab& tab = *window.tabs[tab_i];
-            if (tab.id != id)
+            if (tab.id != id && tab.original_id != id)
               continue;
 
             restored_tab_browser_id = tab.browser_id;
@@ -548,6 +592,13 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
     }
     case TabRestoreService::GROUP: {
       auto& group = static_cast<Group&>(entry);
+
+      if (group.timestamp != base::Time() &&
+          !group.timestamp.ToDeltaSinceWindowsEpoch().is_zero()) {
+        UMA_HISTOGRAM_LONG_TIMES(
+            "TabRestore.Group.TimeBetweenClosedAndRestored",
+            TimeNow() - group.timestamp);
+      }
 
       // When restoring a group, either the entire group can be restored, or a
       // single tab within it. If the entry's ID matches the one to restore,
@@ -653,7 +704,7 @@ void TabRestoreServiceHelper::PruneEntries() {
 TabRestoreService::Entries::iterator
 TabRestoreServiceHelper::GetEntryIteratorById(SessionID id) {
   for (auto i = entries_.begin(); i != entries_.end(); ++i) {
-    if ((*i)->id == id)
+    if ((*i)->id == id || (*i)->original_id == id)
       return i;
 
     // For Window and Group entries, see if the ID matches a tab. If so, report
@@ -661,14 +712,14 @@ TabRestoreServiceHelper::GetEntryIteratorById(SessionID id) {
     if ((*i)->type == TabRestoreService::WINDOW) {
       auto& window = static_cast<const Window&>(**i);
       for (const auto& tab : window.tabs) {
-        if (tab->id == id) {
+        if (tab->id == id || tab->original_id == id) {
           return i;
         }
       }
     } else if ((*i)->type == TabRestoreService::GROUP) {
       auto& group = static_cast<const Group&>(**i);
       for (const auto& tab : group.tabs) {
-        if (tab->id == id) {
+        if (tab->id == id || tab->original_id == id) {
           return i;
         }
       }
@@ -691,13 +742,12 @@ bool TabRestoreServiceHelper::OnMemoryDump(
     return true;
   }
 
-  std::string entries_dump_name = base::StringPrintf(
-      "tab_restore/service_helper_0x%" PRIXPTR "/entries",
-      reinterpret_cast<uintptr_t>(this));
+  std::string entries_dump_name =
+      base::StringPrintf("tab_restore/service_helper_0x%" PRIXPTR "/entries",
+                         reinterpret_cast<uintptr_t>(this));
   pmd->CreateAllocatorDump(entries_dump_name)
       ->AddScalar(MemoryAllocatorDump::kNameObjectCount,
-                  MemoryAllocatorDump::kUnitsObjects,
-                  entries_.size());
+                  MemoryAllocatorDump::kUnitsObjects, entries_.size());
 
   for (const auto& entry : entries_) {
     const char* type_string = "";
@@ -714,9 +764,7 @@ bool TabRestoreServiceHelper::OnMemoryDump(
     }
 
     std::string entry_dump_name = base::StringPrintf(
-        "%s/%s_0x%" PRIXPTR,
-        entries_dump_name.c_str(),
-        type_string,
+        "%s/%s_0x%" PRIXPTR, entries_dump_name.c_str(), type_string,
         reinterpret_cast<uintptr_t>(entry.get()));
     auto* entry_dump = pmd->CreateAllocatorDump(entry_dump_name);
 
@@ -725,8 +773,7 @@ bool TabRestoreServiceHelper::OnMemoryDump(
                           entry->EstimateMemoryUsage());
 
     auto age = base::Time::Now() - entry->timestamp;
-    entry_dump->AddScalar("age",
-                          MemoryAllocatorDump::kUnitsObjects,
+    entry_dump->AddScalar("age", MemoryAllocatorDump::kUnitsObjects,
                           age.InSeconds());
 
     if (system_allocator_name)
@@ -754,30 +801,19 @@ void TabRestoreServiceHelper::PopulateTab(Tab* tab,
                                           int index,
                                           LiveTabContext* context,
                                           LiveTab* live_tab) {
-  int max_entry_count =
-      live_tab->IsInitialBlankNavigation() ? 0 : live_tab->GetEntryCount();
-  tab->navigations.resize(static_cast<int>(max_entry_count));
-  int actual_entry_count = 0;
-  int current_navigation_index = live_tab->GetCurrentEntryIndex();
-  for (int i = 0; i < max_entry_count; ++i) {
-    SerializedNavigationEntry entry = live_tab->GetEntryAtIndex(i);
-    // Reader Mode is meant to be considered a "mode" that users can only enter
-    // using a button in the omnibox, so it does not show up in recently closed
-    // tabs, session sync, or gtx://history. Remove Reader Mode pages from
-    // the navigations.
-    if (!entry.virtual_url().SchemeIs(dom_distiller::kDomDistillerScheme)) {
-      tab->navigations[actual_entry_count++] = entry;
-    } else if (current_navigation_index >= i) {
-      // The page removed was behind the current navigation index, so
-      // decrement the current navigation index.
-      current_navigation_index--;
+  tab->current_navigation_index = 0;
+  if (!live_tab->IsInitialBlankNavigation() && live_tab->GetEntryCount() > 0) {
+    AddSerializedNavigationEntries(
+        live_tab, AddBehavior::kCurrentAndPreceedingEntries, tab->navigations);
+    if (!tab->navigations.empty()) {
+      tab->current_navigation_index =
+          static_cast<int>(tab->navigations.size()) - 1;
     }
+    AddSerializedNavigationEntries(
+        live_tab, AddBehavior::kEntriesFollowingCurrentEntry, tab->navigations);
   }
-  if (actual_entry_count != max_entry_count)
-    tab->navigations.resize(static_cast<int>(actual_entry_count));
 
   tab->timestamp = TimeNow();
-  tab->current_navigation_index = current_navigation_index;
   tab->tabstrip_index = index;
   tab->extension_app_id = client_->GetExtensionAppIDForTab(live_tab);
   tab->user_agent_override = live_tab->GetUserAgentOverride();
@@ -838,8 +874,9 @@ LiveTabContext* TabRestoreServiceHelper::RestoreTab(
       tab_index = tab.tabstrip_index;
     } else {
       context = client_->CreateLiveTabContext(
-          std::string(), gfx::Rect(), ui::SHOW_STATE_NORMAL, std::string(),
-          std::string(), std::map<std::string, std::string>());
+          context, SessionWindow::TYPE_NORMAL, std::string(), gfx::Rect(),
+          ui::SHOW_STATE_NORMAL, std::string(), std::string(),
+          std::map<std::string, std::string>());
       if (tab.browser_id)
         UpdateTabBrowserIDs(tab.browser_id, context->GetSessionID());
     }

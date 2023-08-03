@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,16 +14,18 @@ import android.widget.ImageView.ScaleType;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.view.ViewCompat;
+import androidx.core.widget.ImageViewCompat;
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper.DefaultFaviconHelper;
 import org.chromium.chrome.browser.ui.favicon.FaviconUtils;
+import org.chromium.components.browser_ui.util.TraceEventVectorDrawableCompat;
 import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectableItemView;
+import org.chromium.components.browser_ui.widget.selectable_list.SelectableListUtils;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 
@@ -49,12 +51,9 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
 
         mMinIconSize = getResources().getDimensionPixelSize(R.dimen.default_favicon_min_size);
         mDisplayedIconSize = getResources().getDimensionPixelSize(R.dimen.default_favicon_size);
-        mIconGenerator = FaviconUtils.createCircularIconGenerator(getResources());
+        mIconGenerator = FaviconUtils.createCircularIconGenerator(context);
         mEndPadding =
                 context.getResources().getDimensionPixelSize(R.dimen.default_list_row_padding);
-
-        mStartIconSelectedColorList =
-                AppCompatResources.getColorStateList(context, R.color.default_icon_color_inverse);
     }
 
     @Override
@@ -65,9 +64,9 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
         mRemoveButton = mEndButtonView;
         mRemoveButton.setImageResource(R.drawable.btn_delete_24dp);
         mRemoveButton.setContentDescription(getContext().getString((R.string.remove)));
-        ApiCompatibilityUtils.setImageTintList(mRemoveButton,
+        ImageViewCompat.setImageTintList(mRemoveButton,
                 AppCompatResources.getColorStateList(
-                        getContext(), R.color.default_icon_color_secondary));
+                        getContext(), R.color.default_icon_color_secondary_tint_list));
         mRemoveButton.setOnClickListener(v -> remove());
         mRemoveButton.setScaleType(ScaleType.CENTER_INSIDE);
         mRemoveButton.setPaddingRelative(
@@ -89,17 +88,18 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
 
         mTitleView.setText(item.getTitle());
         mDescriptionView.setText(item.getDomain());
+        SelectableListUtils.setContentDescriptionContext(getContext(), mRemoveButton,
+                item.getTitle(), SelectableListUtils.ContentDescriptionSource.REMOVE_BUTTON);
         mIsItemRemoved = false;
 
         if (item.wasBlockedVisit()) {
             if (mBlockedVisitDrawable == null) {
-                mBlockedVisitDrawable = VectorDrawableCompat.create(
-                        getContext().getResources(), R.drawable.ic_block_red,
-                        getContext().getTheme());
+                mBlockedVisitDrawable =
+                        TraceEventVectorDrawableCompat.create(getContext().getResources(),
+                                R.drawable.ic_block_red, getContext().getTheme());
             }
             setStartIconDrawable(mBlockedVisitDrawable);
-            mTitleView.setTextColor(
-                    ApiCompatibilityUtils.getColor(getResources(), R.color.default_red));
+            mTitleView.setTextColor(getContext().getColor(R.color.default_red));
         } else {
             setStartIconDrawable(mFaviconHelper.getDefaultFaviconDrawable(
                     getContext().getResources(), item.getUrl(), true));

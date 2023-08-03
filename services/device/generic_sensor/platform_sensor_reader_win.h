@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/synchronization/lock.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/thread_annotations.h"
 #include "services/device/generic_sensor/platform_sensor_reader_win_base.h"
 #include "services/device/public/mojom/sensor.mojom.h"
@@ -36,8 +37,8 @@ class PlatformSensorReaderWin32 final : public PlatformSensorReaderWinBase {
   // Following methods are thread safe.
   void SetClient(Client* client) override;
   base::TimeDelta GetMinimalReportingInterval() const override;
-  bool StartSensor(const PlatformSensorConfiguration& configuration) override
-      WARN_UNUSED_RESULT;
+  [[nodiscard]] bool StartSensor(
+      const PlatformSensorConfiguration& configuration) override;
   void StopSensor() override;
 
   PlatformSensorReaderWin32(const PlatformSensorReaderWin32&) = delete;
@@ -55,11 +56,11 @@ class PlatformSensorReaderWin32 final : public PlatformSensorReaderWinBase {
       REFSENSOR_TYPE_ID sensor_type,
       Microsoft::WRL::ComPtr<ISensorManager> sensor_manager);
 
-  bool SetReportingInterval(const PlatformSensorConfiguration& configuration)
-      WARN_UNUSED_RESULT;
+  [[nodiscard]] bool SetReportingInterval(
+      const PlatformSensorConfiguration& configuration);
   void ListenSensorEvent();
-  HRESULT SensorReadingChanged(ISensorDataReport* report,
-                               SensorReading* reading) WARN_UNUSED_RESULT;
+  [[nodiscard]] HRESULT SensorReadingChanged(ISensorDataReport* report,
+                                             SensorReading* reading);
   void SensorError();
 
  private:

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,11 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "base/version.h"
 #include "base/win/scoped_handle.h"
@@ -265,11 +266,11 @@ void DeleteStartupSentinel();
 void DeleteStartupSentinelForVersion(const std::wstring& version);
 
 // Gets a string resource from the DLL with the given id.
-std::wstring GetStringResource(int base_message_id);
+std::wstring GetStringResource(UINT base_message_id);
 
 // Gets a string resource from the DLL with the given id after replacing the
 // placeholders with the provided substitutions.
-std::wstring GetStringResource(int base_message_id,
+std::wstring GetStringResource(UINT base_message_id,
                                const std::vector<std::wstring>& subst);
 
 // Gets the language selected by the base::win::i18n::LanguageSelector.

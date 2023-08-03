@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,8 @@
 #include "base/memory/raw_ptr.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/sharesheet/sharesheet_ui_delegate.h"
+#include "chromeos/components/sharesheet/constants.h"
+#include "components/services/app_service/public/cpp/intent.h"
 
 namespace sharesheet {
 class SharesheetServiceDelegator;
@@ -25,20 +27,20 @@ class SharesheetBubbleViewDelegate : public ::sharesheet::SharesheetUiDelegate {
   SharesheetBubbleViewDelegate(
       gfx::NativeWindow native_window,
       ::sharesheet::SharesheetServiceDelegator* sharesheet_service_delegator);
-  ~SharesheetBubbleViewDelegate() override = default;
+  ~SharesheetBubbleViewDelegate() override;
   SharesheetBubbleViewDelegate(const SharesheetBubbleViewDelegate&) = delete;
   SharesheetBubbleViewDelegate& operator=(const SharesheetBubbleViewDelegate&) =
       delete;
 
   // ::sharesheet::SharesheetUiDelegate:
   void ShowBubble(std::vector<::sharesheet::TargetInfo> targets,
-                  apps::mojom::IntentPtr intent,
+                  apps::IntentPtr intent,
                   ::sharesheet::DeliveredCallback delivered_callback,
                   ::sharesheet::CloseCallback close_callback) override;
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   void ShowNearbyShareBubbleForArc(
-      apps::mojom::IntentPtr intent,
+      apps::IntentPtr intent,
       ::sharesheet::DeliveredCallback delivered_callback,
       ::sharesheet::CloseCallback close_callback) override;
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
@@ -55,8 +57,8 @@ class SharesheetBubbleViewDelegate : public ::sharesheet::SharesheetUiDelegate {
 
   SharesheetBubbleView* GetBubbleViewForTesting();
 
-  // Owned by views.
-  raw_ptr<SharesheetBubbleView> sharesheet_bubble_view_;
+  std::unique_ptr<SharesheetBubbleView> sharesheet_bubble_view_owned_;
+  raw_ptr<SharesheetBubbleView> sharesheet_bubble_view_ = nullptr;
 };
 
 }  // namespace sharesheet

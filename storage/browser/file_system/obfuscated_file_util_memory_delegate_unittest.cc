@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -488,7 +488,7 @@ TEST_F(ObfuscatedFileUtilMemoryDelegateTest, MoveDirectoryOverDirectory) {
 
   base::File::Error result = file_util()->CopyOrMoveFile(
       dir, dir2, FileSystemOperation::CopyOrMoveOptionSet(), move);
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   EXPECT_EQ(base::File::FILE_ERROR_NOT_A_FILE, result);
 #else
   EXPECT_EQ(base::File::FILE_OK, result);
@@ -578,7 +578,7 @@ TEST_F(ObfuscatedFileUtilMemoryDelegateTest, MoveFile_Directory) {
   EXPECT_EQ(1020, GetSize(to_file));
 }
 
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 TEST_F(ObfuscatedFileUtilMemoryDelegateTest, MoveFile_OverwriteEmptyDirectory) {
   base::FilePath from_directory = Path("fromdirectory");
   base::FilePath to_directory = Path("todirectory");
@@ -714,13 +714,13 @@ TEST_F(ObfuscatedFileUtilMemoryDelegateTest, ComputeDirectorySize) {
 
   ASSERT_EQ(base::File::FILE_OK,
             file_util()->CreateFileForTesting(
-                file_name0, base::span<const char>(content, 10)));
+                file_name0, base::span<const char>(content, 10u)));
   ASSERT_EQ(base::File::FILE_OK,
             file_util()->CreateFileForTesting(
-                file_name1, base::span<const char>(content, 15)));
+                file_name1, base::span<const char>(content, 15u)));
   ASSERT_EQ(base::File::FILE_OK,
             file_util()->CreateFileForTesting(
-                file_name2, base::span<const char>(content, 20)));
+                file_name2, base::span<const char>(content, 20u)));
 
   ASSERT_EQ(20u, file_util()->ComputeDirectorySize(dir_name2));
   ASSERT_EQ(35u, file_util()->ComputeDirectorySize(dir_name1));

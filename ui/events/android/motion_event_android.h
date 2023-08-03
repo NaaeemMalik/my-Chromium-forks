@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,7 +58,7 @@ class EVENTS_EXPORT MotionEventAndroid : public MotionEvent {
                      jfloat ticks_x,
                      jfloat ticks_y,
                      jfloat tick_multiplier,
-                     jlong time_ms,
+                     base::TimeTicks time,
                      jint android_action,
                      jint pointer_count,
                      jint history_size,

@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/login/screens/recommend_apps/recommend_apps_fetcher_impl.h"
 
-#include "ash/public/mojom/cros_display_config.mojom.h"
 #include "base/base64url.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
@@ -14,8 +13,8 @@
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
-#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "chrome/browser/about_flags.h"
 #include "chrome/browser/ash/login/screens/recommend_apps/recommend_apps_fetcher_delegate.h"
 #include "content/public/browser/gpu_data_manager.h"
 #include "extensions/common/api/system_display.h"
@@ -37,8 +36,8 @@
 namespace ash {
 namespace {
 
-constexpr const char kGetAppListUrl[] =
-    "https://android.clients.google.com/fdfe/chrome/getfastreinstallappslist";
+constexpr const char kGetRevisedAppListUrl[] =
+    "https://android.clients.google.com/fdfe/chrome/getSetupAppRecommendations";
 
 constexpr int kResponseErrorNotEnoughApps = 5;
 
@@ -217,6 +216,10 @@ gfx::ExtensionSet GetGLExtensions(const gpu::GPUInfo& gpu_info) {
   return extensionSet;
 }
 
+const std::string& GetDeviceFingerprint(const arc::ArcFeatures& arc_features) {
+  return arc_features.build_props.at("ro.build.fingerprint");
+}
+
 const std::string& GetAndroidSdkVersion(const arc::ArcFeatures& arc_features) {
   return arc_features.build_props.at("ro.build.version.sdk");
 }
@@ -275,7 +278,8 @@ RecommendAppsFetcherImpl::ScopedGpuInfoForTest::~ScopedGpuInfoForTest() {
 
 RecommendAppsFetcherImpl::RecommendAppsFetcherImpl(
     RecommendAppsFetcherDelegate* delegate,
-    mojo::PendingRemote<mojom::CrosDisplayConfigController> display_config,
+    mojo::PendingRemote<crosapi::mojom::CrosDisplayConfigController>
+        display_config,
     network::mojom::URLLoaderFactory* url_loader_factory)
     : delegate_(delegate),
       url_loader_factory_(url_loader_factory),
@@ -359,11 +363,12 @@ void RecommendAppsFetcherImpl::OnProtoMessageCompressedAndEncoded(
 }
 
 void RecommendAppsFetcherImpl::OnAshResponse(
-    std::vector<mojom::DisplayUnitInfoPtr> all_displays_info) {
+    std::vector<crosapi::mojom::DisplayUnitInfoPtr> all_displays_info) {
   ash_ready_ = true;
 
   int screen_density = 0;
-  for (const mojom::DisplayUnitInfoPtr& display_info : all_displays_info) {
+  for (const crosapi::mojom::DisplayUnitInfoPtr& display_info :
+       all_displays_info) {
     if (base::NumberToString(display::Display::InternalDisplayId()) ==
         display_info->id) {
       screen_density = display_info->dpi_x + display_info->dpi_y;
@@ -400,6 +405,8 @@ void RecommendAppsFetcherImpl::OnArcFeaturesRead(
     play_store_version_ = read_result.value().play_store_version;
 
     android_sdk_version_ = GetAndroidSdkVersion(read_result.value());
+
+    device_fingerprint_ = GetDeviceFingerprint(read_result.value());
   }
 
   MaybeStartCompressAndEncodeProtoMessage();
@@ -430,7 +437,9 @@ void RecommendAppsFetcherImpl::StartDownload() {
         })");
 
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  resource_request->url = GURL(kGetAppListUrl);
+  resource_request->url = GURL(kGetRevisedAppListUrl);
+  resource_request->headers.SetHeader("X-DFE-Device-Fingerprint",
+                                      device_fingerprint_);
   resource_request->method = "GET";
   resource_request->load_flags =
       net::LOAD_BYPASS_CACHE | net::LOAD_DISABLE_CACHE;
@@ -496,18 +505,16 @@ void RecommendAppsFetcherImpl::OnDownloaded(
   //
   // The response starts with a prefix ")]}'". This needs to be removed before
   // further parsing.
-  constexpr base::StringPiece json_xss_prevention_prefix(")]}'");
-  base::StringPiece response_body_json(*response_body);
+  const std::string json_xss_prevention_prefix = ")]}'";
+  std::string response_body_json = *response_body;
   if (base::StartsWith(response_body_json, json_xss_prevention_prefix))
-    response_body_json.remove_prefix(json_xss_prevention_prefix.length());
-  absl::optional<base::Value> output = ParseResponse(response_body_json);
-  if (!output.has_value()) {
-    RecordUmaResponseAppCount(0);
-    delegate_->OnParseResponseError();
-    return;
-  }
+    response_body_json =
+        response_body_json.substr(json_xss_prevention_prefix.length());
 
-  delegate_->OnLoadSuccess(std::move(output.value()));
+  data_decoder::DataDecoder::ParseJsonIsolated(
+      response_body_json,
+      base::BindOnce(&RecommendAppsFetcherImpl::OnJsonParsed,
+                     weak_ptr_factory_.GetWeakPtr()));
 }
 
 void RecommendAppsFetcherImpl::Start() {
@@ -523,40 +530,24 @@ void RecommendAppsFetcherImpl::Retry() {
 }
 
 absl::optional<base::Value> RecommendAppsFetcherImpl::ParseResponse(
-    base::StringPiece response) {
-  base::Value output(base::Value::Type::LIST);
-
-  base::JSONReader::ValueWithError parsed_json =
-      base::JSONReader::ReadAndReturnValueWithError(response);
-
-  if (!parsed_json.value ||
-      (!parsed_json.value->is_list() && !parsed_json.value->is_dict())) {
-    LOG(ERROR) << "Error parsing response JSON: " << parsed_json.error_message;
-    RecordUmaResponseParseResult(
-        RECOMMEND_APPS_RESPONSE_PARSE_RESULT_INVALID_JSON);
-    return absl::nullopt;
-  }
+    const base::Value& parsed_json) {
+  base::Value::List output;
 
   // If the response is a dictionary, it is an error message in the
   // following format:
   //   {"Error code":"error code","Error message":"Error message"}
-  if (parsed_json.value->is_dict()) {
-    const base::Value* response_error_code_value =
-        parsed_json.value->FindKeyOfType("Error code",
-                                         base::Value::Type::STRING);
-
-    if (!response_error_code_value) {
-      LOG(ERROR) << "Unable to find error code: response="
-                 << response.substr(0, 128);
+  if (parsed_json.is_dict()) {
+    const std::string* response_error_code_str =
+        parsed_json.GetDict().FindString("Error code");
+    if (!response_error_code_str) {
+      LOG(ERROR) << "Unable to find error code";
       RecordUmaResponseParseResult(
           RECOMMEND_APPS_RESPONSE_PARSE_RESULT_INVALID_JSON);
       return absl::nullopt;
     }
 
-    base::StringPiece response_error_code_str =
-        response_error_code_value->GetString();
     int response_error_code = 0;
-    if (!base::StringToInt(response_error_code_str, &response_error_code)) {
+    if (!base::StringToInt(*response_error_code_str, &response_error_code)) {
       LOG(WARNING) << "Unable to parse error code: " << response_error_code_str;
       RecordUmaResponseParseResult(
           RECOMMEND_APPS_RESPONSE_PARSE_RESULT_INVALID_ERROR_CODE);
@@ -578,7 +569,7 @@ absl::optional<base::Value> RecommendAppsFetcherImpl::ParseResponse(
   }
 
   // Otherwise, the response should return a list of apps.
-  base::Value::ConstListView app_list = parsed_json.value->GetList();
+  const base::Value::List& app_list = parsed_json.GetList();
   if (app_list.empty()) {
     DVLOG(1) << "No app in the response.";
     RecordUmaResponseParseResult(RECOMMEND_APPS_RESPONSE_PARSE_RESULT_NO_APP);
@@ -586,24 +577,26 @@ absl::optional<base::Value> RecommendAppsFetcherImpl::ParseResponse(
   }
 
   for (auto& item : app_list) {
-    base::Value output_map(base::Value::Type::DICTIONARY);
-
-    if (!item.is_dict()) {
+    const base::Value::Dict* item_dict = item.GetIfDict();
+    if (!item_dict) {
       DVLOG(1) << "Cannot parse item.";
       continue;
     }
 
+    base::Value::Dict output_map;
     // Retrieve the app title.
-    const base::Value* title =
-        item.FindPathOfType({"title_", "name_"}, base::Value::Type::STRING);
-    if (title)
-      output_map.SetKey("name", base::Value(title->GetString()));
+    const std::string* title =
+        item_dict->FindStringByDottedPath("title_.name_");
+    if (title) {
+      output_map.Set("name", *title);
+    }
 
     // Retrieve the package name.
-    const base::Value* package_name =
-        item.FindPathOfType({"id_", "id_"}, base::Value::Type::STRING);
-    if (package_name)
-      output_map.SetKey("package_name", base::Value(package_name->GetString()));
+    const std::string* package_name =
+        item_dict->FindStringByDottedPath("id_.id_");
+    if (package_name) {
+      output_map.Set("package_name", *package_name);
+    }
 
     // Retrieve the icon URL for the app.
     //
@@ -613,13 +606,13 @@ absl::optional<base::Value> RecommendAppsFetcherImpl::ParseResponse(
     // a protobuf, we should not directly access this field but use the wrapper
     // method getSafeUrlString() to read it. In our case, we don't have the
     // option other than access it directly.
-    const base::Value* icon_url = item.FindPathOfType(
-        {"icon_", "url_", "privateDoNotAccessOrElseSafeUrlWrappedValue_"},
-        base::Value::Type::STRING);
-    if (icon_url)
-      output_map.SetKey("icon", base::Value(icon_url->GetString()));
+    const std::string* icon_url = item_dict->FindStringByDottedPath(
+        "icon_.url_.privateDoNotAccessOrElseSafeUrlWrappedValue_");
+    if (icon_url) {
+      output_map.Set("icon", *icon_url);
+    }
 
-    if (output_map.DictEmpty()) {
+    if (output_map.empty()) {
       DVLOG(1) << "Invalid app item.";
       continue;
     }
@@ -628,9 +621,18 @@ absl::optional<base::Value> RecommendAppsFetcherImpl::ParseResponse(
   }
 
   RecordUmaResponseParseResult(RECOMMEND_APPS_RESPONSE_PARSE_RESULT_NO_ERROR);
-  RecordUmaResponseAppCount(static_cast<int>(output.GetList().size()));
+  RecordUmaResponseAppCount(static_cast<int>(output.size()));
 
-  return output;
+  return base::Value(std::move(output));
+}
+
+void RecommendAppsFetcherImpl::OnJsonParsed(
+    data_decoder::DataDecoder::ValueOrError result) {
+  if (!result.has_value()) {
+    delegate_->OnParseResponseError();
+    return;
+  }
+  delegate_->OnLoadSuccess(std::move(*result));
 }
 
 }  // namespace ash

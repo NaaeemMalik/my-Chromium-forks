@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,6 +24,7 @@
 #include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/splitview/split_view_constants.h"
 #include "ash/wm/splitview/split_view_controller.h"
+#include "ash/wm/splitview/split_view_divider.h"
 #include "ash/wm/splitview/split_view_utils.h"
 #include "ash/wm/switchable_windows.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
@@ -42,6 +43,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/values.h"
 #include "chromeos/ui/base/window_state_type.h"
+#include "chromeos/ui/frame/caption_buttons/snap_controller.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/aura/test/test_windows.h"
@@ -897,24 +899,24 @@ TEST_F(TabletModeWindowManagerTest, PersistPreMinimizedShowState) {
   window_state->Maximize();
   window_state->Minimize();
   EXPECT_EQ(ui::SHOW_STATE_MAXIMIZED,
-            window->GetProperty(aura::client::kPreMinimizedShowStateKey));
+            window->GetProperty(aura::client::kRestoreShowStateKey));
 
   Shell::Get()->tablet_mode_controller()->SetEnabledForTest(true);
   window_state->Unminimize();
   // Check that pre-minimized window show state is not cleared due to
   // unminimizing in tablet mode.
   EXPECT_EQ(ui::SHOW_STATE_MAXIMIZED,
-            window->GetProperty(aura::client::kPreMinimizedShowStateKey));
+            window->GetProperty(aura::client::kRestoreShowStateKey));
   window_state->Minimize();
   EXPECT_EQ(ui::SHOW_STATE_MAXIMIZED,
-            window->GetProperty(aura::client::kPreMinimizedShowStateKey));
+            window->GetProperty(aura::client::kRestoreShowStateKey));
 
   Shell::Get()->tablet_mode_controller()->SetEnabledForTest(false);
   window_state->Unminimize();
   EXPECT_TRUE(window_state->IsMaximized());
 }
 
-// Tests unminimizing in tablet mode and then existing tablet mode should have
+// Tests unminimizing in tablet mode and then exiting tablet mode should have
 // pre-minimized window show state.
 TEST_F(TabletModeWindowManagerTest, UnminimizeInTabletMode) {
   // Tests restoring to maximized show state.
@@ -937,6 +939,20 @@ TEST_F(TabletModeWindowManagerTest, UnminimizeInTabletMode) {
   window_state->Unminimize();
   Shell::Get()->tablet_mode_controller()->SetEnabledForTest(false);
   EXPECT_EQ(gfx::Rect(10, 10, 100, 100), window->GetBoundsInScreen());
+}
+
+// Tests that if we minimize a snapped window, it is snapped upon unminimizing.
+TEST_F(TabletModeWindowManagerTest, UnminimizeSnapInTabletMode) {
+  Shell::Get()->tablet_mode_controller()->SetEnabledForTest(true);
+  std::unique_ptr<aura::Window> window = CreateAppWindow();
+  auto* window_state = WindowState::Get(window.get());
+  WMEvent event(WM_EVENT_SNAP_PRIMARY);
+  window_state->OnWMEvent(&event);
+  ASSERT_TRUE(window_state->IsSnapped());
+
+  window_state->Minimize();
+  window_state->Unminimize();
+  EXPECT_TRUE(window_state->IsSnapped());
 }
 
 // Check that a full screen window remains full screen upon entering maximize
@@ -1564,21 +1580,6 @@ TEST_F(TabletModeWindowManagerTest, DontChangeBoundsForMinimizedWindow) {
   EXPECT_EQ(window->bounds(), rect);
 }
 
-// Test that if a window is currently in tab-dragging process, its window bounds
-// should not updated.
-TEST_F(TabletModeWindowManagerTest, DontChangeBoundsForTabDraggingWindow) {
-  gfx::Rect rect(0, 0, 200, 200);
-  std::unique_ptr<aura::Window> window(
-      CreateWindow(aura::client::WINDOW_TYPE_NORMAL, rect));
-  // Now put the window in tab-dragging process.
-  window->SetProperty(kIsDraggingTabsKey, true);
-
-  TabletModeWindowManager* manager = CreateTabletModeWindowManager();
-  ASSERT_TRUE(manager);
-  EXPECT_EQ(1, manager->GetNumberOfManagedWindows());
-  EXPECT_EQ(window->bounds(), rect);
-}
-
 // Make sure that transient children should not be maximized.
 TEST_F(TabletModeWindowManagerTest, DontMaximizeTransientChild) {
   gfx::Rect rect(0, 0, 200, 200);
@@ -1680,9 +1681,10 @@ TEST_F(TabletModeWindowManagerTest, ClamshellTabletTransitionTest) {
 
   // 8. Tablet -> Clamshell. If tablet splitscreen is active with two snapped
   // windows, the two windows will remain snapped in clamshell mode.
-  split_view_controller()->SnapWindow(window.get(), SplitViewController::LEFT);
-  split_view_controller()->SnapWindow(window2.get(),
-                                      SplitViewController::RIGHT);
+  split_view_controller()->SnapWindow(
+      window.get(), SplitViewController::SnapPosition::kPrimary);
+  split_view_controller()->SnapWindow(
+      window2.get(), SplitViewController::SnapPosition::kSecondary);
   EXPECT_TRUE(split_view_controller()->InSplitViewMode());
   EXPECT_FALSE(overview_controller->InOverviewSession());
   DestroyTabletModeWindowManager();
@@ -1737,10 +1739,13 @@ TEST_F(TabletModeWindowManagerTest,
   EXPECT_TRUE(split_view_controller()->IsWindowInSplitView(window.get()));
   // Check the window is moved to 1/3 snapped position.
   EXPECT_EQ(window->bounds().width(),
-            1200 * 0.33 - kSplitviewDividerShortSideLength / 2);
-  // Exit tablet mode and verify the window stays in the same position.
+            std::round(1200 * chromeos::kOneThirdSnapRatio) -
+                kSplitviewDividerShortSideLength / 2);
+  // Exit tablet mode and verify the window stays near the same position.
   DestroyTabletModeWindowManager();
-  EXPECT_EQ(window->bounds().width(), 1200 * 0.33);
+  EXPECT_NEAR(window->bounds().width(),
+              std::round(1200 * chromeos::kOneThirdSnapRatio),
+              kSplitviewDividerShortSideLength / 2);
 
   // Now test the 2 windows case.
   std::unique_ptr<aura::Window> window2(
@@ -1758,13 +1763,83 @@ TEST_F(TabletModeWindowManagerTest,
   EXPECT_TRUE(split_view_controller()->IsWindowInSplitView(window2.get()));
   // Check |window| and |window2| is moved to 1/3 snapped position.
   EXPECT_EQ(window->bounds().width(),
-            1200 * 0.33 - kSplitviewDividerShortSideLength / 2);
+            std::round(1200 * chromeos::kOneThirdSnapRatio) -
+                kSplitviewDividerShortSideLength / 2);
   EXPECT_EQ(window2->bounds().width(),
             1200 - window->bounds().width() - kSplitviewDividerShortSideLength);
-  // Exit tablet mode and verify the windows stay in the same position.
+  // Exit tablet mode and verify the windows stay near the same position.
   DestroyTabletModeWindowManager();
-  EXPECT_EQ(window->bounds().width(), 1200 * 0.33);
-  EXPECT_EQ(window2->bounds().width(), 1200 - window->bounds().width());
+  EXPECT_NEAR(window->bounds().width(),
+              std::round(1200 * chromeos::kOneThirdSnapRatio),
+              kSplitviewDividerShortSideLength / 2);
+  EXPECT_NEAR(window2->bounds().width(), 1200 - window->bounds().width(),
+              kSplitviewDividerShortSideLength / 2);
+}
+
+// Tests partial split clamshell <-> tablet transition.
+TEST_F(TabletModeWindowManagerTest, PartialClamshellTabletTransitionTest) {
+  // 1. Create a window and snap to primary 2/3.
+  auto window1 = CreateTestWindow();
+  OverviewController* overview_controller = Shell::Get()->overview_controller();
+  const WMEvent snap_primary_two_third(WM_EVENT_SNAP_PRIMARY,
+                                       chromeos::kTwoThirdSnapRatio);
+  WindowState::Get(window1.get())->OnWMEvent(&snap_primary_two_third);
+  // Enter tablet mode and verify that overview opens and the window and
+  // divider are at 2/3.
+  CreateTabletModeWindowManager();
+  EXPECT_TRUE(overview_controller->InOverviewSession());
+  EXPECT_TRUE(split_view_controller()->IsWindowInSplitView(window1.get()));
+  const gfx::Rect work_area_bounds =
+      display::Screen::GetScreen()->GetPrimaryDisplay().work_area();
+  int divider_origin_x = split_view_controller()
+                             ->split_view_divider()
+                             ->GetDividerBoundsInScreen(
+                                 /*is_dragging=*/false)
+                             .x();
+  const int divider_delta = kSplitviewDividerShortSideLength / 2;
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kTwoThirdSnapRatio),
+            window1->bounds().width() + divider_delta);
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kTwoThirdSnapRatio),
+            divider_origin_x + divider_delta);
+  // Exit tablet mode and verify the window stays in the same position.
+  DestroyTabletModeWindowManager();
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kTwoThirdSnapRatio),
+            window1->bounds().width());
+
+  // 2. Create another window and snap to secondary at 1/3.
+  auto window2 = CreateTestWindow();
+  const WMEvent snap_secondary_one_third(WM_EVENT_SNAP_SECONDARY,
+                                         chromeos::kOneThirdSnapRatio);
+  WindowState::Get(window2.get())->OnWMEvent(&snap_secondary_one_third);
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kOneThirdSnapRatio),
+            window2->bounds().width());
+  // Enter tablet mode and verify the windows are in splitview and the window
+  // bounds and divider are at 2/3.
+  CreateTabletModeWindowManager();
+  EXPECT_TRUE(split_view_controller()->IsWindowInSplitView(window1.get()));
+  EXPECT_TRUE(split_view_controller()->IsWindowInSplitView(window2.get()));
+  divider_origin_x = split_view_controller()
+                         ->split_view_divider()
+                         ->GetDividerBoundsInScreen(
+                             /*is_dragging=*/false)
+                         .x();
+
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kTwoThirdSnapRatio),
+            window1->bounds().width() + divider_delta);
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kOneThirdSnapRatio),
+            window2->bounds().width() + divider_delta);
+  EXPECT_EQ(
+      std::round(work_area_bounds.width() * chromeos::kTwoThirdSnapRatio) -
+          divider_delta,
+      divider_origin_x);
+
+  // Exit tablet mode and verify the windows are still at 2/3, with allowance
+  // for the divider width since it is only there in tablet mode.
+  DestroyTabletModeWindowManager();
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kTwoThirdSnapRatio),
+            window1->bounds().width());
+  EXPECT_EQ(std::round(work_area_bounds.width() * chromeos::kOneThirdSnapRatio),
+            window2->bounds().width());
 }
 
 // Test that when switching from clamshell mode to tablet mode, if overview mode
@@ -1805,6 +1880,89 @@ TEST_F(TabletModeWindowManagerTest, HomeLauncherVisibilityTest) {
 
   EXPECT_FALSE(overview_controller->InOverviewSession());
   EXPECT_TRUE(home_screen_window->TargetVisibility());
+}
+
+// Test the basic restore behavior in tablet mode. Different with the restore
+// behavior in clamshell mode, a window can not be restored to kNormal window
+// state if it's maximizable.
+TEST_F(TabletModeWindowManagerTest, BasicRestoreBehaviors) {
+  TabletModeWindowManager* manager = CreateTabletModeWindowManager();
+  EXPECT_TRUE(manager);
+  gfx::Rect rect(10, 10, 200, 50);
+  std::unique_ptr<aura::Window> window(
+      CreateWindow(aura::client::WINDOW_TYPE_NORMAL, rect));
+
+  WindowState* window_state = WindowState::Get(window.get());
+  EXPECT_TRUE(window_state->IsMaximized());
+
+  // Restoring a maximized window in tablet mode will still keep it in maximized
+  // state.
+  window_state->Restore();
+  EXPECT_TRUE(window_state->IsMaximized());
+
+  // Transition to kPrimarySnapped window state.
+  const WMEvent snap_left(WM_EVENT_SNAP_PRIMARY);
+  window_state->OnWMEvent(&snap_left);
+  // Restoring a snapped window in tablet mode will change the window back to
+  // maximized window state.
+  window_state->Restore();
+  EXPECT_TRUE(window_state->IsMaximized());
+
+  // Transition to kFullscreen window state.
+  const WMEvent fullscreen_event(WM_EVENT_FULLSCREEN);
+  window_state->OnWMEvent(&fullscreen_event);
+  // Restoring a fullscreen window in tablet mode will change the window back to
+  // maximized window state.
+  window_state->Restore();
+  EXPECT_TRUE(window_state->IsMaximized());
+
+  // Transition to kMinimized window state.
+  const WMEvent minimized_event(WM_EVENT_MINIMIZE);
+  window_state->OnWMEvent(&minimized_event);
+  window_state->Restore();
+  EXPECT_TRUE(window_state->IsMaximized());
+
+  // Transition to kPrimarySnapped first and then to kFullscreen and then try to
+  // restore it.
+  window_state->OnWMEvent(&snap_left);
+  window_state->OnWMEvent(&fullscreen_event);
+  window_state->Restore();
+  EXPECT_TRUE(window_state->IsSnapped());
+
+  // Minimize and then restore it will still restore the window back to snapped
+  // window state.
+  window_state->OnWMEvent(&minimized_event);
+  window_state->Restore();
+  EXPECT_TRUE(window_state->IsSnapped());
+}
+
+TEST_F(TabletModeWindowManagerTest, NonMaximizableWindowRestore) {
+  TabletModeWindowManager* manager = CreateTabletModeWindowManager();
+  EXPECT_TRUE(manager);
+
+  gfx::Rect rect(10, 10, 200, 50);
+  gfx::Size max_size(300, 200);
+  std::unique_ptr<aura::Window> window(CreateNonMaximizableWindow(
+      aura::client::WINDOW_TYPE_NORMAL, rect, max_size));
+
+  WindowState* window_state = WindowState::Get(window.get());
+  EXPECT_FALSE(window_state->IsMaximized());
+  EXPECT_EQ(window_state->GetStateType(), WindowStateType::kNormal);
+
+  const WMEvent maximize_event(WM_EVENT_MAXIMIZE);
+  window_state->OnWMEvent(&maximize_event);
+  EXPECT_EQ(window_state->GetStateType(), WindowStateType::kNormal);
+
+  const WMEvent fullscreen_event(WM_EVENT_FULLSCREEN);
+  window_state->OnWMEvent(&fullscreen_event);
+  EXPECT_EQ(window_state->GetStateType(), WindowStateType::kFullscreen);
+
+  window_state->Restore();
+  EXPECT_EQ(window_state->GetStateType(), WindowStateType::kNormal);
+
+  // Restoring a kNormal window will keep it in the same kNormal state.
+  window_state->Restore();
+  EXPECT_EQ(window_state->GetStateType(), WindowStateType::kNormal);
 }
 
 }  // namespace ash

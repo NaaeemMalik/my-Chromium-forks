@@ -1,24 +1,30 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '//resources/cr_elements/cr_radio_button/cr_radio_button_style_css.m.js';
-import '//resources/cr_elements/policy/cr_policy_pref_indicator.m.js';
-import '//resources/polymer/v3_0/iron-a11y-keys-behavior/iron-a11y-keys-behavior.js';
-import '../settings_shared_css.js';
+import '//resources/cr_elements/cr_radio_button/cr_radio_button_style.css.js';
+import '//resources/cr_elements/cr_shared_vars.css.js';
+import '//resources/cr_elements/policy/cr_policy_pref_indicator.js';
+// <if expr='chromeos_ash'>
+import '//resources/cr_elements/chromeos/cros_color_overrides.css.js';
 
-import {CrRadioButtonBehavior} from '//resources/cr_elements/cr_radio_button/cr_radio_button_behavior.m.js';
-import {assert} from '//resources/js/assert.m.js';
-import {html, mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+// </if>
 
-import {prefToString} from '../prefs/pref_util.js';
+import {CrRadioButtonMixin, CrRadioButtonMixinInterface} from '//resources/cr_elements/cr_radio_button/cr_radio_button_mixin.js';
+import {assert} from '//resources/js/assert_ts.js';
+import {mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {PrefControlMixin, PrefControlMixinInterface} from '/shared/settings/controls/pref_control_mixin.js';
+import {prefToString} from 'chrome://resources/cr_components/settings_prefs/pref_util.js';
+import {PaperRippleBehavior} from 'chrome://resources/polymer/v3_0/paper-behaviors/paper-ripple-behavior.js';
 
-import {PrefControlMixin, PrefControlMixinInterface} from './pref_control_mixin.js';
+import {getTemplate} from './controlled_radio_button.html.js';
 
 const ControlledRadioButtonElementBase =
-    mixinBehaviors([CrRadioButtonBehavior], PrefControlMixin(PolymerElement)) as
-    {
-      new (): PolymerElement & CrRadioButtonBehavior & PrefControlMixinInterface
+    mixinBehaviors(
+        [PaperRippleBehavior],
+        CrRadioButtonMixin(PrefControlMixin(PolymerElement))) as {
+      new (): PolymerElement & CrRadioButtonMixinInterface &
+          PrefControlMixinInterface & PaperRippleBehavior,
     };
 
 export class ControlledRadioButtonElement extends
@@ -28,7 +34,7 @@ export class ControlledRadioButtonElement extends
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get observers() {
@@ -37,16 +43,37 @@ export class ControlledRadioButtonElement extends
     ];
   }
 
+  // Overridden from CrRadioButtonMixin
+  override getPaperRipple() {
+    return this.getRipple();
+  }
+
+  // Overridden from PaperRippleBehavior
+  /* eslint-disable-next-line @typescript-eslint/naming-convention */
+  override _createRipple() {
+    this._rippleContainer = this.shadowRoot!.querySelector('.disc-wrapper');
+    const ripple = super._createRipple();
+    ripple.id = 'ink';
+    ripple.setAttribute('recenters', '');
+    ripple.classList.add('circle', 'toggle-ink');
+    return ripple;
+  }
+
   private updateDisabled_() {
     this.disabled =
         this.pref!.enforcement === chrome.settingsPrivate.Enforcement.ENFORCED;
   }
 
   private showIndicator_(): boolean {
-    return this.disabled && this.name === prefToString(assert(this.pref!));
+    if (!this.disabled) {
+      return false;
+    }
+
+    assert(this.pref);
+    return this.name === prefToString(this.pref);
   }
 
-  private onIndicatorTap_(e: Event) {
+  private onIndicatorClick_(e: Event) {
     // Disallow <controlled-radio-button on-click="..."> when disabled.
     e.preventDefault();
     e.stopPropagation();

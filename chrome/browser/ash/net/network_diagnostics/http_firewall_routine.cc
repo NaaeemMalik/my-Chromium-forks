@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,19 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/ranges/algorithm.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_util.h"
-#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/storage_partition.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
+
 namespace {
+
+namespace mojom = ::chromeos::network_diagnostics::mojom;
 
 // Http port number.
 constexpr int kHttpPort = 80;
@@ -163,4 +166,4 @@ void HttpFirewallRoutine::OnProbeComplete(
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

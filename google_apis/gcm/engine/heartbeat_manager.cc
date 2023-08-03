@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,11 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/location.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/power_monitor/power_monitor.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
@@ -32,13 +32,13 @@ const int kMinClientHeartbeatIntervalMs = 1000 * 30;  // 30 seconds.
 // Minimum time spent sleeping before we force a new heartbeat.
 const int kMinSuspendTimeMs = 1000 * 10; // 10 seconds.
 
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
 // The period at which to check if the heartbeat time has passed. Used to
 // protect against platforms where the timer is delayed by the system being
 // suspended.  Only needed on linux because the other OSes provide a standard
 // way to be notified of system suspend and resume events.
 const int kHeartbeatMissedCheckMs = 1000 * 60 * 5;  // 5 minutes.
-#endif  // defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
 
 }  // namespace
 
@@ -150,7 +150,6 @@ void HeartbeatManager::OnResume() {
   // MCS was silently lost during that time, even if a heartbeat is not yet
   // due. Force a heartbeat to detect if the connection is still good.
   base::TimeDelta elapsed = base::Time::Now() - suspend_time_;
-  UMA_HISTOGRAM_LONG_TIMES("GCM.SuspendTime", elapsed);
 
   // Make sure a minimum amount of time has passed before forcing a heartbeat to
   // avoid any tight loop scenarios.
@@ -192,7 +191,7 @@ void HeartbeatManager::RestartTimer() {
       base::BindRepeating(&HeartbeatManager::OnHeartbeatTriggered,
                           weak_ptr_factory_.GetWeakPtr()));
 
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   // Windows, Mac, Android, iOS, and Chrome OS all provide a way to be notified
   // when the system is suspending or resuming.  The only one that does not is
   // Linux so we need to poll to check for missed heartbeats.
@@ -201,7 +200,7 @@ void HeartbeatManager::RestartTimer() {
       base::BindOnce(&HeartbeatManager::CheckForMissedHeartbeat,
                      weak_ptr_factory_.GetWeakPtr()),
       base::Milliseconds(kHeartbeatMissedCheckMs));
-#endif  // defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
 }
 
 void HeartbeatManager::CheckForMissedHeartbeat() {
@@ -211,20 +210,18 @@ void HeartbeatManager::CheckForMissedHeartbeat() {
 
   // If the heartbeat has been missed, manually trigger it.
   if (base::Time::Now() > heartbeat_expected_time_) {
-    UMA_HISTOGRAM_LONG_TIMES("GCM.HeartbeatMissedDelta",
-                             base::Time::Now() - heartbeat_expected_time_);
     OnHeartbeatTriggered();
     return;
   }
 
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   // Otherwise check again later.
   io_task_runner_->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&HeartbeatManager::CheckForMissedHeartbeat,
                      weak_ptr_factory_.GetWeakPtr()),
       base::Milliseconds(kHeartbeatMissedCheckMs));
-#endif  // defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
 }
 
 void HeartbeatManager::UpdateHeartbeatInterval() {

@@ -1,23 +1,24 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // clang-format off
-import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {sendWithPromise} from 'gtx://resources/js/cr.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.js';
 // clang-format on
 
 export interface AppearanceBrowserProxy {
   getDefaultZoom(): Promise<number>;
   getThemeInfo(themeId: string): Promise<chrome.management.ExtensionInfo>;
 
-  /** @return Whether the current profile is supervised. */
-  isSupervised(): boolean;
+  /** @return Whether the current profile is a child account. */
+  isChildAccount(): boolean;
 
   useDefaultTheme(): void;
 
-  // <if expr="is_linux and not chromeos">
-  useSystemTheme(): void;
+  // <if expr="is_linux">
+  useGtkTheme(): void;
+  useQtTheme(): void;
   // </if>
 
   validateStartupPage(url: string): Promise<boolean>;
@@ -25,28 +26,28 @@ export interface AppearanceBrowserProxy {
 
 export class AppearanceBrowserProxyImpl implements AppearanceBrowserProxy {
   getDefaultZoom(): Promise<number> {
-    return new Promise(function(resolve) {
-      chrome.settingsPrivate.getDefaultZoom(resolve);
-    });
+    return chrome.settingsPrivate.getDefaultZoom();
   }
 
   getThemeInfo(themeId: string): Promise<chrome.management.ExtensionInfo> {
-    return new Promise(function(resolve) {
-      chrome.management.get(themeId, resolve);
-    });
+    return chrome.management.get(themeId);
   }
 
-  isSupervised() {
-    return loadTimeData.getBoolean('isSupervised');
+  isChildAccount() {
+    return loadTimeData.getBoolean('isChildAccount');
   }
 
   useDefaultTheme() {
     chrome.send('useDefaultTheme');
   }
 
-  // <if expr="is_linux and not chromeos">
-  useSystemTheme() {
-    chrome.send('useSystemTheme');
+  // <if expr="is_linux">
+  useGtkTheme() {
+    chrome.send('useGtkTheme');
+  }
+
+  useQtTheme() {
+    chrome.send('useQtTheme');
   }
   // </if>
 

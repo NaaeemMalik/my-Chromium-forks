@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,6 +29,7 @@ import androidx.annotation.Nullable;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.ui.messages.R;
+import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.animation.Interpolators;
 import org.chromium.components.browser_ui.widget.text.TemplatePreservingTextView;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -119,8 +120,9 @@ public class SnackbarView {
     }
 
     public void dismiss() {
-        // Disable action button during animation.
-        mActionButtonView.setEnabled(false);
+        // Prevent clicks during dismissal animations. Intentionally not using setEnabled(false) to
+        // avoid unnecessary text color changes in this transitory state.
+        mActionButtonView.setOnClickListener(null);
         AnimatorSet animatorSet = new AnimatorSet();
         animatorSet.setDuration(mAnimationDuration);
         animatorSet.addListener(new AnimatorListenerAdapter() {
@@ -188,7 +190,7 @@ public class SnackbarView {
     void overrideParent(ViewGroup overridingParent) {
         mRootContentView.removeOnLayoutChangeListener(mLayoutListener);
         mParent = overridingParent == null ? mOriginalParent : overridingParent;
-        if (isShowing()) {
+        if (mContainerView.getParent() != null) {
             ((ViewGroup) mContainerView.getParent()).removeView(mContainerView);
         }
         addToParent();
@@ -253,8 +255,7 @@ public class SnackbarView {
         // Themes are used first.
         if (snackbar.getTheme() == Snackbar.Theme.GOOGLE) {
             // TODO(crbug.com/1260203): Revisit once we know whether to make this dynamic.
-            return ApiCompatibilityUtils.getColor(
-                    view.getResources(), R.color.default_control_color_active_baseline);
+            return view.getContext().getColor(R.color.default_control_color_active_baseline);
         }
 
         assert snackbar.getTheme() == Snackbar.Theme.BASIC;
@@ -262,13 +263,12 @@ public class SnackbarView {
             return snackbar.getBackgroundColor();
         }
 
-        return ApiCompatibilityUtils.getColor(
-                view.getResources(), R.color.snackbar_background_color);
+        return SemanticColorUtils.getSnackbarBackgroundColor(view.getContext());
     }
 
     private static int getTextAppearance(Snackbar snackbar) {
         if (snackbar.getTheme() == Snackbar.Theme.GOOGLE) {
-            return R.style.TextAppearance_TextMedium_Primary_Baseline_Inverse;
+            return R.style.TextAppearance_TextMedium_Primary_OnAccent1;
         }
 
         assert snackbar.getTheme() == Snackbar.Theme.BASIC;

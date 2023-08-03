@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,10 @@ namespace ash {
 // The time duration for transformation animations.
 constexpr base::TimeDelta kTransition = base::Milliseconds(300);
 
+// The duration for window restore animation when feature Jellyroll is Enabled.
+constexpr base::TimeDelta kWindowRestoreDurationCrOSNext =
+    base::Milliseconds(350);
+
 // In the conceptual overview table, the window margin is the space reserved
 // around the window within the cell. This margin does not overlap so the
 // closest distance between adjacent windows will be twice this amount.
@@ -23,10 +27,20 @@ constexpr int kWindowMargin = 5;
 // Height of an item header.
 constexpr int kHeaderHeightDp = WindowMiniView::kHeaderHeightDp;
 
-// Windows whose aspect ratio surpass this (width twice as large as height or
-// vice versa) will be classified as too wide or too tall and will be handled
-// slightly differently in overview mode.
+// Corner radius of the overview item.
+constexpr int kOverviewItemCornerRadius =
+    WindowMiniView::kWindowMiniViewCornerRadius;
+
+// Windows whose aspect ratio surpass this (width twice as large as height
+// or vice versa) will be classified as too wide or too tall and will be
+// handled slightly differently in overview mode.
 constexpr float kExtremeWindowRatioThreshold = 2.f;
+
+// Inset for the focus ring around the focusable overview items. The ring is 2px
+// thick and should have a 2px gap from the view it is associated with. Since
+// the thickness is 2px and the stroke is in the middle, we use a -3px inset to
+// achieve this.
+constexpr int kFocusRingHaloInset = -3;
 
 }  // namespace ash
 

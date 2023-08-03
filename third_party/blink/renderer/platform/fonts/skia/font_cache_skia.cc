@@ -54,13 +54,17 @@
 #include "third_party/skia/include/core/SkStream.h"
 #include "third_party/skia/include/core/SkTypeface.h"
 
+#if BUILDFLAG(IS_MAC)
+#error This file should not be used by MacOS.
+#endif
+
 namespace blink {
 
 AtomicString ToAtomicString(const SkString& str) {
   return AtomicString::FromUTF8(str.c_str(), str.size());
 }
 
-#if defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 // This function is called on android or when we are emulating android fonts on
 // linux and the embedder has overriden the default fontManager with
 // WebFontRendering::setSkiaFontMgr.
@@ -84,7 +88,8 @@ AtomicString FontCache::GetFamilyNameForCharacter(
   typeface->getFamilyName(&skia_family_name);
   return ToAtomicString(skia_family_name);
 }
-#endif  // defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) ||
+        // BUILDFLAG(IS_CHROMEOS)
 
 void FontCache::PlatformInit() {}
 
@@ -139,7 +144,7 @@ scoped_refptr<SimpleFontData> FontCache::GetLastResortFallbackFont(
     font_platform_data = GetFontPlatformData(description, arial_creation_params,
                                              AlternateFontName::kLastResort);
   }
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Try some more Windows-specific fallbacks.
   if (!font_platform_data) {
     DEFINE_THREAD_SAFE_STATIC_LOCAL(const FontFaceCreationParams,
@@ -197,7 +202,7 @@ sk_sp<SkTypeface> FontCache::CreateTypeface(
     const FontDescription& font_description,
     const FontFaceCreationParams& creation_params,
     std::string& name) {
-#if !defined(OS_WIN) && !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
+#if !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
   // TODO(fuchsia): Revisit this and other font code for Fuchsia.
 
   if (creation_params.CreationType() == kCreateFontByFciIdAndTtcIndex) {
@@ -215,7 +220,7 @@ sk_sp<SkTypeface> FontCache::CreateTypeface(
   // convert the name to utf8
   name = family.Utf8();
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // If this is a locale-specific family, try looking up locale-specific
   // typeface first.
   if (const char* locale_family = GetLocaleSpecificFamilyName(family)) {
@@ -223,37 +228,16 @@ sk_sp<SkTypeface> FontCache::CreateTypeface(
             CreateLocaleSpecificTypeface(font_description, locale_family))
       return typeface;
   }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
-#if defined(OS_WIN)
-  // TODO(vmpstr): Deal with paint typeface here.
-  if (sideloaded_fonts_) {
-    HashMap<String, sk_sp<SkTypeface>, CaseFoldingHash>::iterator
-        sideloaded_font = sideloaded_fonts_->find(name.c_str());
-    if (sideloaded_font != sideloaded_fonts_->end())
-      return sideloaded_font->value;
-  }
-#endif
-
-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN)
-  // On linux if the fontManager has been overridden then we should be calling
-  // the embedder provided font Manager rather than calling
-  // SkTypeface::CreateFromName which may redirect the call to the default font
-  // Manager.  On Windows the font manager is always present.
-  if (font_manager_) {
-    auto tf = sk_sp<SkTypeface>(font_manager_->matchFamilyStyle(
-        name.c_str(), font_description.SkiaFontStyle()));
-    return tf;
-  }
-#endif
-
-  // FIXME: Use m_fontManager, matchFamilyStyle instead of
-  // legacyCreateTypeface on all platforms.
-  return SkTypeface_Factory::FromFamilyNameAndFontStyle(
-      name.c_str(), font_description.SkiaFontStyle());
+  // TODO(https://crbug.com/1425390: Assign FontCache::font_manager_ in the
+  // ctor.
+  auto font_manager = font_manager_ ? font_manager_ : SkFontMgr::RefDefault();
+  return sk_sp<SkTypeface>(font_manager->matchFamilyStyle(
+      name.empty() ? nullptr : name.c_str(), font_description.SkiaFontStyle()));
 }
 
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 std::unique_ptr<FontPlatformData> FontCache::CreateFontPlatformData(
     const FontDescription& font_description,
     const FontFaceCreationParams& creation_params,
@@ -262,9 +246,9 @@ std::unique_ptr<FontPlatformData> FontCache::CreateFontPlatformData(
   std::string name;
 
   sk_sp<SkTypeface> typeface;
-#if defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   bool noto_color_emoji_from_gmscore = false;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Use the unique local matching pathway for fetching Noto Color Emoji Compat
   // from GMS core if this family is requested, see font_cache_android.cc. Noto
   // Color Emoji Compat is an up-to-date emoji font shipped with GMSCore which
@@ -289,20 +273,30 @@ std::unique_ptr<FontPlatformData> FontCache::CreateFontPlatformData(
   if (!typeface)
     return nullptr;
 
+  bool synthetic_bold =
+      (font_description.Weight() >
+           FontSelectionValue(200) +
+               FontSelectionValue(typeface->fontStyle().weight()) ||
+       font_description.IsSyntheticBold()) &&
+      font_description.GetFontSynthesisWeight() ==
+          FontDescription::kAutoFontSynthesisWeight;
+
+  bool synthetic_italic = (((font_description.Style() == ItalicSlopeValue()) &&
+                            !typeface->isItalic()) ||
+                           font_description.IsSyntheticItalic()) &&
+                          font_description.GetFontSynthesisStyle() ==
+                              FontDescription::kAutoFontSynthesisStyle;
+
+  ResolvedFontFeatures resolved_font_features =
+      font_description.GetFontVariantAlternates()
+          ? font_description.GetFontVariantAlternates()
+                ->GetResolvedFontFeatures()
+          : ResolvedFontFeatures();
+
   std::unique_ptr<FontPlatformData> font_platform_data =
       std::make_unique<FontPlatformData>(
-          typeface, name, font_size,
-          ((font_description.Weight() >
-                FontSelectionValue(200) +
-                    FontSelectionValue(typeface->fontStyle().weight()) ||
-            font_description.IsSyntheticBold()) &&
-           font_description.GetFontSynthesisWeight() ==
-               FontDescription::kAutoFontSynthesisWeight),
-          (((font_description.Style() == ItalicSlopeValue()) &&
-            !typeface->isItalic()) ||
-           font_description.IsSyntheticItalic()) &&
-              font_description.GetFontSynthesisStyle() ==
-                  FontDescription::kAutoFontSynthesisStyle,
+          typeface, name, font_size, synthetic_bold, synthetic_italic,
+          font_description.TextRendering(), resolved_font_features,
           font_description.Orientation());
 
   font_platform_data->SetAvoidEmbeddedBitmaps(
@@ -310,6 +304,6 @@ std::unique_ptr<FontPlatformData> FontCache::CreateFontPlatformData(
 
   return font_platform_data;
 }
-#endif  // !defined(OS_WIN)
+#endif  // !BUILDFLAG(IS_WIN)
 
 }  // namespace blink

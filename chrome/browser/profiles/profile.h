@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,13 @@
 #include <vector>
 
 #include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "content/public/browser/browser_context.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/scoped_java_ref.h"
 #endif
 
@@ -44,6 +45,7 @@ class WebUI;
 namespace policy {
 class SchemaRegistryService;
 class ProfilePolicyConnector;
+class ProfileCloudPolicyManager;
 class UserCloudPolicyManager;
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -104,6 +106,11 @@ class Profile : public content::BrowserContext {
     // Creates a unique OTR profile id to be used for media router.
     static OTRProfileID CreateUniqueForMediaRouter();
 
+#if BUILDFLAG(IS_CHROMEOS)
+    // Creates a unique OTR profile id to be used for captive portal signin on
+    // ChromeOS.
+    static OTRProfileID CreateUniqueForCaptivePortal();
+#endif
     // Creates a unique OTR profile id for tests.
     static OTRProfileID CreateUniqueForTesting();
 
@@ -121,7 +128,12 @@ class Profile : public content::BrowserContext {
 
     bool AllowsBrowserWindows() const;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_CHROMEOS)
+    // Returns true if the OTR Profile was created for captive portal signin.
+    bool IsCaptivePortal() const;
+#endif
+
+#if BUILDFLAG(IS_ANDROID)
     // Constructs a Java OTRProfileID from the provided C++ OTRProfileID
     base::android::ScopedJavaLocalRef<jobject> ConvertToJavaOTRProfileID(
         JNIEnv* env) const;
@@ -143,7 +155,6 @@ class Profile : public content::BrowserContext {
 #endif
 
    private:
-    friend class ProfileDestroyer;
     friend std::ostream& operator<<(std::ostream& out,
                                     const OTRProfileID& profile_id);
 
@@ -287,7 +298,11 @@ class Profile : public content::BrowserContext {
   // profile is not OffTheRecord.
   virtual const Profile* GetOriginalProfile() const = 0;
 
-  // Returns whether the profile is associated with a child account.
+  // Returns whether the profile is associated with the account of a child.
+  // This method should not be used in new code to gate child-specific
+  // functionality. Prefer a feture specific method
+  // (eg. `SupervisedUserService::IsURLFilteringEnabled()`) or alternatively
+  // use `SupervisedUserService::IsSubjectToParentalControls()`.
   virtual bool IsChild() const = 0;
 
   // Returns whether opening browser windows is allowed in this profile. For
@@ -343,6 +358,7 @@ class Profile : public content::BrowserContext {
 #else
   // Returns the UserCloudPolicyManager.
   virtual policy::UserCloudPolicyManager* GetUserCloudPolicyManager() = 0;
+  virtual policy::ProfileCloudPolicyManager* GetProfileCloudPolicyManager() = 0;
 #endif
 
   virtual policy::ProfilePolicyConnector* GetProfilePolicyConnector() = 0;
@@ -393,6 +409,8 @@ class Profile : public content::BrowserContext {
 
   // IsRegularProfile(), IsSystemProfile(), IsIncognitoProfile(), and
   // IsGuestSession() are mutually exclusive.
+  // Note: IsGuestSession() is not mutually exclusive with the rest of the
+  // methods mentioned above on Ash and Lacros. TODO(crbug.com/1348572).
   //
   // IsSystemProfile() returns true for both regular and off-the-record profile
   //   of the system profile.
@@ -427,6 +445,13 @@ class Profile : public content::BrowserContext {
 
   // Returns true if this is the main profile as defined above.
   virtual bool IsMainProfile() const = 0;
+
+  // Returns true if the profile path is for an web app profile.
+  static bool IsWebAppProfilePath(const base::FilePath& profile_path);
+
+  // Returns true if the name of the profile (i.e. `profile_path.BaseName()`) is
+  // for an web app profile.
+  static bool IsWebAppProfileName(const std::string& profile_path);
 #endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
   bool CanUseDiskWhenOffTheRecord() override;
@@ -480,6 +505,8 @@ class Profile : public content::BrowserContext {
 
   virtual void RecordPrimaryMainFrameNavigation() = 0;
 
+  base::WeakPtr<Profile> GetWeakPtr();
+
  protected:
   // Creates an OffTheRecordProfile which points to this Profile.
   static std::unique_ptr<Profile> CreateOffTheRecordProfile(
@@ -492,6 +519,7 @@ class Profile : public content::BrowserContext {
                                              bool incognito_pref_store);
 
   void NotifyOffTheRecordProfileCreated(Profile* off_the_record);
+  void NotifyProfileInitializationComplete();
 
   // Returns whether the user has signed in this profile to an account.
   virtual bool IsSignedIn() = 0;
@@ -515,10 +543,15 @@ class Profile : public content::BrowserContext {
   // true or false, so that calls can be nested.
   int accessibility_pause_level_ = 0;
 
-  base::ObserverList<ProfileObserver> observers_;
+  base::ObserverList<ProfileObserver,
+                     /*check_empty=*/true,
+                     /*allow_reentrancy=*/false>
+      observers_;
 
   class ChromeVariationsClient;
   std::unique_ptr<variations::VariationsClient> chrome_variations_client_;
+
+  base::WeakPtrFactory<Profile> weak_factory_{this};
 };
 
 // The comparator for profile pointers as key in a map.

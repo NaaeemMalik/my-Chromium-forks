@@ -1,17 +1,19 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.keyboard_accessory.sheet_tabs;
+
+import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +43,7 @@ import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.keyboard_accessory.AccessoryTabType;
 import org.chromium.chrome.browser.keyboard_accessory.R;
@@ -49,11 +52,12 @@ import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.UserInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.UserInfoField;
 import org.chromium.chrome.browser.keyboard_accessory.sheet_component.AccessorySheetCoordinator;
-import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetTabModel.AccessorySheetDataPiece;
+import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetTabItemsModel.AccessorySheetDataPiece;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.util.browser.Features;
+import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.ui.widget.ChipView;
 import org.chromium.url.GURL;
 
 import java.util.concurrent.ExecutionException;
@@ -65,12 +69,13 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@SuppressWarnings("DoNotMock") // Mocks GURL
 public class CreditCardAccessorySheetViewTest {
     private static final String CUSTOM_ICON_URL = "https://www.example.com/image.png";
     private static final Bitmap TEST_CARD_ART_IMAGE =
             Bitmap.createBitmap(100, 200, Bitmap.Config.ARGB_8888);
 
-    private AccessorySheetTabModel mModel;
+    private AccessorySheetTabItemsModel mModel;
     private AtomicReference<RecyclerView> mView = new AtomicReference<>();
 
     @Rule
@@ -86,10 +91,11 @@ public class CreditCardAccessorySheetViewTest {
         mActivityTestRule.startMainActivityOnBlankPage();
         PersonalDataManager.setInstanceForTesting(mMockPersonalDataManager);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            mModel = new AccessorySheetTabModel();
+            mModel = new AccessorySheetTabItemsModel();
             AccessorySheetCoordinator accessorySheet =
                     new AccessorySheetCoordinator(mActivityTestRule.getActivity().findViewById(
-                            R.id.keyboard_accessory_sheet_stub));
+                                                          R.id.keyboard_accessory_sheet_stub),
+                            null);
             accessorySheet.setTabs(new KeyboardAccessoryData.Tab[] {new KeyboardAccessoryData.Tab(
                     "Credit Cards", null, null, R.layout.credit_card_accessory_sheet,
                     AccessoryTabType.CREDIT_CARDS, new KeyboardAccessoryData.Tab.Listener() {
@@ -170,6 +176,7 @@ public class CreditCardAccessorySheetViewTest {
 
     @Test
     @MediumTest
+    @Features.EnableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_NEW_CARD_ART_AND_NETWORK_IMAGES})
     public void testAddingUserInfoWithIconUrl_iconCachedInPersonalDataManager()
             throws ExecutionException {
         GURL iconUrl = mock(GURL.class);
@@ -178,7 +185,8 @@ public class CreditCardAccessorySheetViewTest {
         // Return the cached image when
         // PersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable is called for the
         // above url.
-        when(mMockPersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable(any()))
+        when(mMockPersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable(
+                     any(), any(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(TEST_CARD_ART_IMAGE);
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {
@@ -214,7 +222,8 @@ public class CreditCardAccessorySheetViewTest {
         when(iconUrl.getSpec()).thenReturn(CUSTOM_ICON_URL);
         // Return null when PersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable is
         // called for the above url.
-        when(mMockPersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable(any()))
+        when(mMockPersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable(
+                     any(), any(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(null);
 
         TestThreadUtils.runOnUiThreadBlocking(() -> {

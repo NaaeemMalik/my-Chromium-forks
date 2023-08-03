@@ -2,7 +2,7 @@
       :host {
         display: flex;
         user-select: none;
-        --cr-search-field-clear-icon-fill: var(--google-grey-refresh-700);
+        --cr-search-field-clear-icon-fill: var(--google-grey-700);
         --cr-search-field-clear-icon-margin-end : -4px;
         --cr-search-field-input-border-bottom: 1px solid var(--cr-secondary-text-color);
       }
@@ -65,7 +65,7 @@
       }
     </style>
     <iron-icon id="searchIcon" icon="cr:search" part="searchIcon"></iron-icon>
-    <cr-input id="searchInput" on-search="onSearchTermSearch"
+    <cr-input id="searchInput" part="searchInput" on-search="onSearchTermSearch"
         on-input="onSearchTermInput" aria-label$="[[label]]" type="search"
         autofocus="[[autofocus]]" placeholder="[[label]]" spellcheck="false">
       <iron-icon id="searchIconInline" slot="inline-prefix" icon="cr:search"></iron-icon>

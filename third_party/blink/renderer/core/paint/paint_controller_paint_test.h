@@ -1,10 +1,13 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_PAINT_PAINT_CONTROLLER_PAINT_TEST_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_PAINT_PAINT_CONTROLLER_PAINT_TEST_H_
 
+#include "base/check_op.h"
+#include "cc/paint/paint_op.h"
+#include "cc/paint/paint_op_buffer_iterator.h"
 #include "third_party/blink/renderer/core/editing/frame_selection.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
@@ -13,9 +16,10 @@
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_layer.h"
 #include "third_party/blink/renderer/platform/graphics/paint/cull_rect.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_chunk_subset.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller_test.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/testing/paint_test_configurations.h"
 
 namespace blink {
@@ -28,12 +32,7 @@ class PaintControllerPaintTestBase : public RenderingTest {
  protected:
   LayoutView& GetLayoutView() const { return *GetDocument().GetLayoutView(); }
   PaintController& RootPaintController() const {
-    if (RuntimeEnabledFeatures::CompositeAfterPaintEnabled())
-      return GetDocument().View()->GetPaintControllerForTesting();
-    return GetLayoutView()
-        .Layer()
-        ->GraphicsLayerBacking()
-        ->GetPaintController();
+    return GetDocument().View()->GetPaintControllerForTesting();
   }
 
   void SetUp() override {
@@ -47,23 +46,29 @@ class PaintControllerPaintTestBase : public RenderingTest {
         ->GetScrollingBackgroundDisplayItemClient();
   }
 
-  void UpdateAllLifecyclePhasesExceptPaint() {
+  void UpdateAllLifecyclePhasesExceptPaint(bool update_cull_rects = true) {
     GetDocument().View()->UpdateAllLifecyclePhasesExceptPaint(
         DocumentUpdateReason::kTest);
-    // Run CullRectUpdater to ease testing of cull rects and repaint flags of
-    // PaintLayers on cull rect change.
-    if (RuntimeEnabledFeatures::CullRectUpdateEnabled())
-      CullRectUpdater(*GetLayoutView().Layer()).Update();
+    if (update_cull_rects) {
+      // Run CullRectUpdater to ease testing of cull rects and repaint flags of
+      // PaintLayers on cull rect change.
+      UpdateCullRects();
+    }
+  }
+
+  void UpdateCullRects() {
+    DCHECK_EQ(GetDocument().Lifecycle().GetState(),
+              DocumentLifecycle::kPrePaintClean);
+    CullRectUpdater(*GetLayoutView().Layer()).Update();
   }
 
   void PaintContents(const gfx::Rect& interest_rect) {
-    GetDocument().View()->PaintContentsForTest(CullRect(interest_rect));
+    GetDocument().View()->PaintForTest(CullRect(interest_rect));
   }
 
   void InvalidateAll() {
     RootPaintController().InvalidateAllForTesting();
-    if (RuntimeEnabledFeatures::CompositeAfterPaintEnabled())
-      GetLayoutView().Layer()->SetNeedsRepaint();
+    GetLayoutView().Layer()->SetNeedsRepaint();
   }
 
   bool ClientCacheIsValid(const DisplayItemClient& client) {
@@ -115,10 +120,15 @@ class PaintControllerPaintTestBase : public RenderingTest {
       begin_index++;
     }
     while (end_index > begin_index &&
-           IsNotContentType(chunks[end_index - 1].id.type))
+           IsNotContentType(chunks[end_index - 1].id.type)) {
       end_index--;
-    return PaintChunkSubset(RootPaintController().GetPaintArtifactShared(),
-                            begin_index, end_index);
+    }
+    auto artifact = RootPaintController().GetPaintArtifactShared();
+    PaintChunkSubset subset(artifact, chunks[begin_index]);
+    for (wtf_size_t i = begin_index + 1; i < end_index; i++) {
+      subset.Merge(PaintChunkSubset(artifact, chunks[i]));
+    }
+    return subset;
   }
 };
 
@@ -130,7 +140,9 @@ class PaintControllerPaintTest : public PaintTestConfigurations,
 };
 
 // Shorter names for frequently used display item types in core/ tests.
-const DisplayItem::Type kNonScrollingBackgroundChunkType =
+const DisplayItem::Type kBackgroundChunkType =
+    DisplayItem::PaintPhaseToDrawingType(PaintPhase::kBlockBackground);
+const DisplayItem::Type kHitTestChunkType =
     DisplayItem::PaintPhaseToDrawingType(PaintPhase::kSelfBlockBackgroundOnly);
 const DisplayItem::Type kScrollingBackgroundChunkType =
     DisplayItem::PaintPhaseToClipType(PaintPhase::kSelfBlockBackgroundOnly);

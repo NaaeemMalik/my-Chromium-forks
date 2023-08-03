@@ -1,13 +1,15 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {dispatchSimpleEvent} from 'gtx://resources/js/cr.m.js';
-import {ArrayDataModel} from 'gtx://resources/js/cr/ui/array_data_model.m.js';
-import {List} from 'gtx://resources/js/cr/ui/list.m.js';
-import {ListItem} from 'gtx://resources/js/cr/ui/list_item.m.js';
-import {ListSingleSelectionModel} from 'gtx://resources/js/cr/ui/list_single_selection_model.m.js';
-import {AnchorType, positionPopupAroundElement} from 'gtx://resources/js/cr/ui/position_util.m.js';
+import {dispatchSimpleEvent} from 'gtx://resources/ash/common/cr_deprecated.js';
+import {AnchorType, positionPopupAroundElement} from './position_util.js';
+
+import {ArrayDataModel} from '../../../common/js/array_data_model.js';
+
+import {List} from './list.js';
+import {ListItem} from './list_item.js';
+import {ListSingleSelectionModel} from './list_single_selection_model.js';
 
 
 /**
@@ -55,7 +57,7 @@ export class AutocompleteList extends List {
     List.prototype.decorate.call(this);
 
     this.classList.add('autocomplete-suggestions');
-    this.selectionModel = new ListSingleSelectionModel;
+    this.selectionModel = new ListSingleSelectionModel();
 
     this.itemConstructor = ListItem;
     this.textFieldKeyHandler_ = this.handleAutocompleteKeydown_.bind(this);

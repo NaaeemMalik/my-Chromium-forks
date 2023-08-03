@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors. All rights reserved.
+# Copyright 2014 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -74,6 +74,21 @@ if (is_android) {
   generate_jni("ui_events_devices_jni_headers") {
     sources = [ "../../android/java/src/org/chromium/ui/events/devices/InputDeviceObserver.java" ]
   }
+}
+
+source_set("unittests") {
+  testonly = true
+
+  sources = [
+    "input_device_unittest.cc",
+    "touchscreen_device_unittest.cc",
+  ]
+
+  deps = [
+    ":devices",
+    "//base",
+    "//base/test:test_support",
+  ]
 }
 
 source_set("test_support") {

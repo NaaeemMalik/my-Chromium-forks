@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,9 +26,8 @@ class AutofillSnackbarControllerImpl : public AutofillSnackbarController {
 
   // Show the snackbar.
   void Show();
-  void SetViewForTesting(AutofillSnackbarView* view);
 
-  // AutofillSnackbarController implementation.
+  // AutofillSnackbarController:
   void OnActionClicked() override;
   void OnDismissed() override;
   std::u16string GetMessageText() const override;
@@ -41,6 +40,7 @@ class AutofillSnackbarControllerImpl : public AutofillSnackbarController {
   void Dismiss();
 
   raw_ptr<content::WebContents> web_contents_;
+
   raw_ptr<AutofillSnackbarView> autofill_snackbar_view_ = nullptr;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -34,7 +34,7 @@ InkDropEventHandler::~InkDropEventHandler() = default;
 
 void InkDropEventHandler::AnimateToState(InkDropState state,
                                          const ui::LocatedEvent* event) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // On Windows, don't initiate ink-drops for touch/gesture events.
   // Additionally, certain event states should dismiss existing ink-drop
   // animations. If the state is already other than HIDDEN, presumably from
@@ -48,7 +48,7 @@ void InkDropEventHandler::AnimateToState(InkDropState state,
   }
 #endif
   last_ripple_triggering_event_.reset(
-      event ? ui::Event::Clone(*event).release()->AsLocatedEvent() : nullptr);
+      event ? event->Clone().release()->AsLocatedEvent() : nullptr);
 
   // If no ink drop exists and we are not transitioning to a visible ink drop
   // state the transition have no visual effect. The call to GetInkDrop() will

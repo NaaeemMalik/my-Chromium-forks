@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -75,8 +75,10 @@ struct V8ReturnValue {
 };
 
 // V8 handle types
-template <typename CallbackInfo, typename S>
-void V8SetReturnValue(const CallbackInfo& info, const v8::Local<S> value) {
+template <typename CallbackInfo, typename S, typename... ExtraArgs>
+void V8SetReturnValue(const CallbackInfo& info,
+                      const v8::Local<S> value,
+                      ExtraArgs... extra_args) {
   info.GetReturnValue().Set(value);
 }
 
@@ -285,7 +287,8 @@ void V8SetReturnValue(const CallbackInfo& info,
                                                wrappable))
     return;
   V8ReturnValue::SetWrapper(
-      info, wrappable, V8ReturnValue::CreationContext(info)->CreationContext());
+      info, wrappable,
+      V8ReturnValue::CreationContext(info)->GetCreationContextChecked());
 }
 
 template <typename CallbackInfo>
@@ -298,7 +301,8 @@ void V8SetReturnValue(const CallbackInfo& info,
                                                wrappable))
     return;
   V8ReturnValue::SetWrapper(
-      info, wrappable, V8ReturnValue::CreationContext(info)->CreationContext());
+      info, wrappable,
+      V8ReturnValue::CreationContext(info)->GetCreationContextChecked());
 }
 
 template <typename CallbackInfo>
@@ -314,7 +318,8 @@ void V8SetReturnValue(const CallbackInfo& info,
     return;
   }
   V8ReturnValue::SetWrapper(
-      info, wrappable, V8ReturnValue::CreationContext(info)->CreationContext());
+      info, wrappable,
+      V8ReturnValue::CreationContext(info)->GetCreationContextChecked());
 }
 
 template <typename CallbackInfo>
@@ -328,7 +333,8 @@ void V8SetReturnValue(const CallbackInfo& info,
     return;
   }
   V8ReturnValue::SetWrapper(
-      info, wrappable, V8ReturnValue::CreationContext(info)->CreationContext());
+      info, wrappable,
+      V8ReturnValue::CreationContext(info)->GetCreationContextChecked());
 }
 
 template <typename CallbackInfo>

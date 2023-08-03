@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,8 @@
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 #include "chromeos/crosapi/mojom/crosapi.mojom.h"
 #include "chromeos/crosapi/mojom/test_controller.mojom-test-utils.h"
-#include "chromeos/lacros/lacros_service.h"
 #include "chromeos/lacros/lacros_test_helper.h"
+#include "chromeos/startup/browser_init_params.h"
 #endif
 
 namespace {
@@ -48,7 +48,7 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTestChromeOS, RestrictSigninProfile) {
 
   EXPECT_EQ(Browser::CreationStatus::kErrorProfileUnsuitable,
             Browser::GetCreationStatusForProfile(
-                chromeos::ProfileHelper::GetSigninProfile()));
+                ash::ProfileHelper::GetSigninProfile()));
 }
 
 // Verify that page navigation is blocked in locked fullscreen mode.
@@ -97,9 +97,8 @@ class BrowserGuestSessionNavigatorTest : public BrowserNavigatorTest {
  protected:
   void SetUpCommandLine(base::CommandLine* command_line) override {
     base::CommandLine command_line_copy = *command_line;
-    command_line_copy.AppendSwitchASCII(chromeos::switches::kLoginProfile,
-                                        "user");
-    command_line_copy.AppendSwitch(chromeos::switches::kGuestSession);
+    command_line_copy.AppendSwitchASCII(ash::switches::kLoginProfile, "user");
+    command_line_copy.AppendSwitch(ash::switches::kGuestSession);
     ash::GetOffTheRecordCommandLine(GetGoogleURL(), command_line_copy,
                                     command_line);
   }
@@ -205,16 +204,18 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTestChromeOS, OsSchemeRedirectFail) {
   params.path_behavior = NavigateParams::IGNORE_AND_NAVIGATE;
   Navigate(&params);
 
-  // A new 404 page should be shown in the browser.
+  // A new blocked page should be shown in the browser.
   EXPECT_EQ(browser(), params.browser);
   EXPECT_EQ(2, browser()->tab_strip_model()->count());
-  EXPECT_EQ(GURL("chrome://foobar"),
+  EXPECT_EQ(GURL(content::kBlockedURL),
             browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
 }
 
+// TODO(https://crbug.com/1417034): Test consistently fails on bots.
 // Verifies that the navigation of an os:// scheme page is opening an app on
 // the ash side and does not produce a navigation on the Lacros side.
-IN_PROC_BROWSER_TEST_F(BrowserNavigatorTestChromeOS, OsSchemeRedirectSucceed) {
+IN_PROC_BROWSER_TEST_F(BrowserNavigatorTestChromeOS,
+                       DISABLED_OsSchemeRedirectSucceed) {
   if (chromeos::LacrosService::Get()->GetInterfaceVersion(
           crosapi::mojom::TestController::Uuid_) <
       static_cast<int>(crosapi::mojom::TestController::MethodMinVersions::
@@ -234,11 +235,10 @@ IN_PROC_BROWSER_TEST_F(BrowserNavigatorTestChromeOS, OsSchemeRedirectSucceed) {
   EXPECT_EQ(0u, number);
 
   // First we make sure that the GURL we are interested in is in our allow list.
-  chromeos::LacrosService* lacros_service = chromeos::LacrosService::Get();
   auto init_params = crosapi::mojom::BrowserInitParams::New();
   init_params->accepted_internal_ash_urls =
       std::vector<GURL>{GURL(chrome::kOsUIFlagsURL)};
-  lacros_service->SetInitParamsForTests(std::move(init_params));
+  chromeos::BrowserInitParams::SetInitParamsForTests(std::move(init_params));
 
   EXPECT_EQ(1u, chrome::GetTotalBrowserCount());
   EXPECT_EQ(1, browser()->tab_strip_model()->count());

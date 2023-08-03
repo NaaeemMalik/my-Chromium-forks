@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,16 @@
 
 #include <string>
 
-#include "ui/accessibility/ax_export.h"
+#include "base/component_export.h"
 
 namespace ui {
 
-class AX_EXPORT AXApiType {
+class COMPONENT_EXPORT(AX_PLATFORM) AXApiType {
  public:
   // Inspect types for all platforms.
   enum TypeConstant {
-    kAndroid,          // For the platform specific Android tree (internal).
+    kNone,
+    kAndroid,
     kAndroidExternal,  // For the Java-side "external" Android tree.
     kBlink,
     kFuchsia,
@@ -25,10 +26,11 @@ class AX_EXPORT AXApiType {
     kWinUIA,
   };
 
-  // Inspect type.
-  class AX_EXPORT Type final {
+  // Type represents a platform-specific accessibility API.
+  class COMPONENT_EXPORT(AX_PLATFORM) Type final {
    public:
     Type(TypeConstant type) : type_(type) {}
+
     ~Type() = default;
 
     Type(const Type&) = default;
@@ -40,6 +42,9 @@ class AX_EXPORT AXApiType {
    private:
     TypeConstant type_;
   };
+
+  // Conversion from string to AXApiType::Type.
+  static Type From(std::string& type_str);
 };
 
 }  // namespace ui

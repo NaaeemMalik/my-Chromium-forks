@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
+import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -42,6 +43,7 @@ import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.base.GoogleServiceAuthError;
 import org.chromium.components.signin.base.GoogleServiceAuthError.State;
 import org.chromium.components.signin.identitymanager.IdentityManager;
+import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.components.signin.test.util.FakeAccountManagerFacade;
 import org.chromium.content_public.browser.LoadUrlParams;
 
@@ -49,6 +51,7 @@ import org.chromium.content_public.browser.LoadUrlParams;
  * This class tests the {@link WebSigninAccountPickerDelegate}.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@LooperMode(LooperMode.Mode.LEGACY)
 public class WebSigninAccountPickerDelegateTest {
     private static final String CONTINUE_URL = "https://test-continue-url.com";
     private static final String TEST_EMAIL = "test.account@gmail.com";
@@ -120,7 +123,8 @@ public class WebSigninAccountPickerDelegateTest {
                 .create(eq(mProfileMock), eq(mCoreAccountInfo),
                         mWebSigninBridgeListenerCaptor.capture());
         calledInOrder.verify(mSigninManagerMock)
-                .signin(eq(AccountUtils.createAccountFromName(TEST_EMAIL)), any());
+                .signin(eq(AccountUtils.createAccountFromName(TEST_EMAIL)),
+                        eq(SigninAccessPoint.WEB_SIGNIN), any());
         mWebSigninBridgeListenerCaptor.getValue().onSigninSucceeded();
         verify(mTabMock).loadUrl(mLoadUrlParamsCaptor.capture());
         LoadUrlParams loadUrlParams = mLoadUrlParamsCaptor.getValue();
@@ -130,12 +134,13 @@ public class WebSigninAccountPickerDelegateTest {
     @Test
     public void testSignInAborted() {
         doAnswer(invocation -> {
-            SigninManager.SignInCallback callback = invocation.getArgument(1);
+            SigninManager.SignInCallback callback = invocation.getArgument(2);
             callback.onSignInAborted();
             return null;
         })
                 .when(mSigninManagerMock)
-                .signin(eq(AccountUtils.createAccountFromName(TEST_EMAIL)), any());
+                .signin(eq(AccountUtils.createAccountFromName(TEST_EMAIL)),
+                        eq(SigninAccessPoint.WEB_SIGNIN), any());
         mDelegate.signIn(TEST_EMAIL, error -> {});
         verify(mWebSigninBridgeMock).destroy();
     }
@@ -156,7 +161,8 @@ public class WebSigninAccountPickerDelegateTest {
         calledInOrder.verify(mWebSigninBridgeFactoryMock)
                 .create(eq(mProfileMock), eq(mCoreAccountInfo), any());
         calledInOrder.verify(mSigninManagerMock)
-                .signin(eq(AccountUtils.createAccountFromName(TEST_EMAIL)), any());
+                .signin(eq(AccountUtils.createAccountFromName(TEST_EMAIL)),
+                        eq(SigninAccessPoint.WEB_SIGNIN), any());
     }
 
     @Test

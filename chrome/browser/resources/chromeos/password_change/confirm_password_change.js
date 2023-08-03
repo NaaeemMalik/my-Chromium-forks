@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,17 +15,18 @@
 // TODO(https://crbug.com/930109): Add logic to show only some of the passwords
 // fields if some of the passwords were successfully scraped.
 
-import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
-import {Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
-import {WebUIListenerBehavior} from 'gtx://resources/js/web_ui_listener_behavior.m.js';
-import 'gtx://confirm-password-change/strings.js';
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
-import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://confirm-password-change/strings.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.js';
+import 'gtx://resources/cr_elements/cr_shared_vars.css.js';
 import 'gtx://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
+
+import {sendWithPromise} from 'gtx://resources/ash/common/cr.m.js';
+import {I18nBehavior} from 'gtx://resources/ash/common/i18n_behavior.js';
+import {loadTimeData} from 'gtx://resources/ash/common/load_time_data.m.js';
+import {WebUIListenerBehavior} from 'gtx://resources/ash/common/web_ui_listener_behavior.js';
+import {Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /** @enum{number} */
 const ValidationErrorType = {
@@ -107,10 +108,11 @@ Polymer({
   /** @private */
   onShowSpinnerChanged_() {
     // Dialog is on top, spinner is underneath, so showing dialog hides spinner.
-    if (this.showSpinner_)
+    if (this.showSpinner_) {
       this.$.dialog.close();
-    else
+    } else {
       this.$.dialog.showModal();
+    }
   },
 
   /** @private */

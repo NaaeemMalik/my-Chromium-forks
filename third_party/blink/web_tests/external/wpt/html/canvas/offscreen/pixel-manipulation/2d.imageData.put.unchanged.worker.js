@@ -13,8 +13,8 @@ var t_fail = t.step_func(function(reason) {
 });
 t.step(function() {
 
-var offscreenCanvas = new OffscreenCanvas(100, 50);
-var ctx = offscreenCanvas.getContext('2d');
+var canvas = new OffscreenCanvas(100, 50);
+var ctx = canvas.getContext('2d');
 
 var i = 0;
 for (var y = 0; y < 16; ++y) {
@@ -27,7 +27,9 @@ var imgdata1 = ctx.getImageData(0.1, 0.2, 15.8, 15.9);
 var olddata = [];
 for (var i = 0; i < imgdata1.data.length; ++i)
     olddata[i] = imgdata1.data[i];
+
 ctx.putImageData(imgdata1, 0.1, 0.2);
+
 var imgdata2 = ctx.getImageData(0.1, 0.2, 15.8, 15.9);
 for (var i = 0; i < imgdata2.data.length; ++i) {
     _assertSame(olddata[i], imgdata2.data[i], "olddata[\""+(i)+"\"]", "imgdata2.data[\""+(i)+"\"]");

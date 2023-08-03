@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/icons.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/icons.html.js';
 import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import './strings.m.js';
 
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
-import {isRTL} from 'gtx://resources/js/util.m.js';
+import {assert} from 'gtx://resources/ash/common/assert.js';
+import {I18nBehavior} from 'gtx://resources/ash/common/i18n_behavior.js';
+import {isRTL} from 'gtx://resources/ash/common/util.js';
 import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /** @enum {string} */
@@ -86,7 +86,7 @@ Polymer({
     this.assertButtonType_(buttonType);
 
     // Disable the border if necessary.
-    let cssClassses = newOobeStyleEnabled ? 'no-border button-radius' : '';
+    const cssClassses = newOobeStyleEnabled ? 'no-border button-radius' : '';
 
     if (buttonType === ButtonTypes.BACK) {
       return cssClassses;
@@ -162,6 +162,6 @@ Polymer({
       this.fire('go-action');
       return;
     }
-  }
+  },
 
 });

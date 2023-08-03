@@ -1,16 +1,17 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {CustomElement} from 'gtx://resources/js/custom_element.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.js';
 
+import {getTemplate} from './tab_group.html.js';
 import {TabGroupVisualData} from './tab_strip.mojom-webui.js';
 import {TabsApiProxy, TabsApiProxyImpl} from './tabs_api_proxy.js';
 
 export class TabGroupElement extends CustomElement {
-  static get template() {
-    return `{__html_template__}`;
+  static override get template() {
+    return getTemplate();
   }
 
   private tabsApi_: TabsApiProxy;
@@ -22,7 +23,7 @@ export class TabGroupElement extends CustomElement {
 
     this.tabsApi_ = TabsApiProxyImpl.getInstance();
 
-    this.chip_ = this.$('#chip') as HTMLElement;
+    this.chip_ = this.$<HTMLElement>('#chip')!;
     this.chip_.addEventListener('click', () => this.onClickChip_());
     this.chip_.addEventListener(
         'keydown', e => this.onKeydownChip_(/** @type {!KeyboardEvent} */ (e)));
@@ -43,23 +44,23 @@ export class TabGroupElement extends CustomElement {
   }
 
   getDragImage(): HTMLElement {
-    return this.$('#dragImage') as HTMLElement;
+    return this.$<HTMLElement>('#dragImage')!;
   }
 
   getDragImageCenter(): HTMLElement {
     // Since the drag handle is #dragHandle, the drag image should be
     // centered relatively to it.
-    return this.$('#dragHandle') as HTMLElement;
+    return this.$<HTMLElement>('#dragHandle')!;
   }
 
   private onClickChip_() {
-    if (!this.dataset.groupId) {
+    if (!this.dataset['groupId']) {
       return;
     }
 
     const boundingBox = this.$('#chip')!.getBoundingClientRect();
     this.tabsApi_.showEditDialogForGroup(
-        this.dataset.groupId, boundingBox.left, boundingBox.top,
+        this.dataset['groupId'], boundingBox.left, boundingBox.top,
         boundingBox.width, boundingBox.height);
   }
 
@@ -96,7 +97,7 @@ export class TabGroupElement extends CustomElement {
   }
 
   updateVisuals(visualData: TabGroupVisualData) {
-    (this.$('#title') as HTMLElement).innerText = visualData.title;
+    this.$<HTMLElement>('#title')!.innerText = visualData.title;
     this.style.setProperty('--tabstrip-tab-group-color-rgb', visualData.color);
     this.style.setProperty(
         '--tabstrip-tab-group-text-color-rgb', visualData.textColor);

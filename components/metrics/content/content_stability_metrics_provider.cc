@@ -1,10 +1,11 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/metrics/content/content_stability_metrics_provider.h"
 
 #include "base/check.h"
+#include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "build/build_config.h"
 #include "components/metrics/content/extensions_helper.h"
@@ -17,7 +18,7 @@
 #include "content/public/common/process_type.h"
 #include "ppapi/buildflags/buildflags.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/crash/content/browser/crash_metrics_reporter_android.h"
 #endif
 
@@ -35,14 +36,12 @@ ContentStabilityMetricsProvider::ContentStabilityMetricsProvider(
                  content::NotificationService::AllSources());
   registrar_.Add(this, content::NOTIFICATION_RENDER_WIDGET_HOST_HANG,
                  content::NotificationService::AllSources());
-  registrar_.Add(this, content::NOTIFICATION_RENDERER_PROCESS_CREATED,
-                 content::NotificationService::AllSources());
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   auto* crash_manager = crash_reporter::CrashMetricsReporter::GetInstance();
   DCHECK(crash_manager);
   scoped_observation_.Observe(crash_manager);
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 ContentStabilityMetricsProvider::~ContentStabilityMetricsProvider() {
@@ -54,6 +53,7 @@ void ContentStabilityMetricsProvider::OnRecordingEnabled() {}
 
 void ContentStabilityMetricsProvider::OnRecordingDisabled() {}
 
+#if BUILDFLAG(IS_ANDROID)
 void ContentStabilityMetricsProvider::ProvideStabilityMetrics(
     SystemProfileProto* system_profile_proto) {
   helper_.ProvideStabilityMetrics(system_profile_proto);
@@ -61,6 +61,14 @@ void ContentStabilityMetricsProvider::ProvideStabilityMetrics(
 
 void ContentStabilityMetricsProvider::ClearSavedStabilityMetrics() {
   helper_.ClearSavedStabilityMetrics();
+}
+#endif  // BUILDFLAG(IS_ANDROID)
+
+void ContentStabilityMetricsProvider::OnRenderProcessHostCreated(
+    content::RenderProcessHost* host) {
+  bool was_extension_process =
+      extensions_helper_ && extensions_helper_->IsExtensionProcess(host);
+  helper_.LogRendererLaunched(was_extension_process);
 }
 
 void ContentStabilityMetricsProvider::Observe(
@@ -73,6 +81,9 @@ void ContentStabilityMetricsProvider::Observe(
       break;
 
     case content::NOTIFICATION_RENDERER_PROCESS_CLOSED: {
+      // On Android, the renderer crashes are recorded in
+      // `OnCrashDumpProcessed`.
+#if !BUILDFLAG(IS_ANDROID)
       content::ChildProcessTerminationInfo* process_info =
           content::Details<content::ChildProcessTerminationInfo>(details).ptr();
       bool was_extension_process =
@@ -81,19 +92,11 @@ void ContentStabilityMetricsProvider::Observe(
               content::Source<content::RenderProcessHost>(source).ptr());
       helper_.LogRendererCrash(was_extension_process, process_info->status,
                                process_info->exit_code);
+#endif  // !BUILDFLAG(IS_ANDROID)
       break;
     }
 
-    case content::NOTIFICATION_RENDER_WIDGET_HOST_HANG:
-      helper_.LogRendererHang();
-      break;
-
-    case content::NOTIFICATION_RENDERER_PROCESS_CREATED: {
-      bool was_extension_process =
-          extensions_helper_ &&
-          extensions_helper_->IsExtensionProcess(
-              content::Source<content::RenderProcessHost>(source).ptr());
-      helper_.LogRendererLaunched(was_extension_process);
+    case content::NOTIFICATION_RENDER_WIDGET_HOST_HANG: {
       break;
     }
 
@@ -107,18 +110,8 @@ void ContentStabilityMetricsProvider::BrowserChildProcessCrashed(
     const content::ChildProcessData& data,
     const content::ChildProcessTerminationInfo& info) {
   DCHECK(!data.metrics_name.empty());
-#if BUILDFLAG(ENABLE_PLUGINS)
-  // Exclude plugin crashes from the count below because we report them via
-  // a separate UMA metric.
-  if (data.process_type == content::PROCESS_TYPE_PPAPI_PLUGIN ||
-      data.process_type == content::PROCESS_TYPE_PPAPI_BROKER) {
-    return;
-  }
-#endif
-
   if (data.process_type == content::PROCESS_TYPE_UTILITY)
     helper_.BrowserUtilityProcessCrashed(data.metrics_name, info.exit_code);
-  helper_.BrowserChildProcessCrashed();
 }
 
 void ContentStabilityMetricsProvider::BrowserChildProcessLaunchedAndConnected(
@@ -128,7 +121,21 @@ void ContentStabilityMetricsProvider::BrowserChildProcessLaunchedAndConnected(
     helper_.BrowserUtilityProcessLaunched(data.metrics_name);
 }
 
-#if defined(OS_ANDROID)
+void ContentStabilityMetricsProvider::BrowserChildProcessLaunchFailed(
+    const content::ChildProcessData& data,
+    const content::ChildProcessTerminationInfo& info) {
+  DCHECK(!data.metrics_name.empty());
+  DCHECK_EQ(info.status, base::TERMINATION_STATUS_LAUNCH_FAILED);
+  if (data.process_type == content::PROCESS_TYPE_UTILITY)
+    helper_.BrowserUtilityProcessLaunchFailed(data.metrics_name, info.exit_code
+#if BUILDFLAG(IS_WIN)
+                                              ,
+                                              info.last_error
+#endif
+    );
+}
+
+#if BUILDFLAG(IS_ANDROID)
 void ContentStabilityMetricsProvider::OnCrashDumpProcessed(
     int rph_id,
     const crash_reporter::CrashMetricsReporter::ReportedCrashTypeSet&
@@ -142,6 +149,6 @@ void ContentStabilityMetricsProvider::OnCrashDumpProcessed(
     helper_.IncreaseGpuCrashCount();
   }
 }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 }  // namespace metrics

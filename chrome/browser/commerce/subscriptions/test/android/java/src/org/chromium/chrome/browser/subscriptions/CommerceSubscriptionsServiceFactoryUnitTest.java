@@ -1,15 +1,14 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.subscriptions;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 
 import androidx.test.filters.SmallTest;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -18,18 +17,18 @@ import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.JniMocker;
+import org.chromium.chrome.browser.commerce.ShoppingServiceFactory;
 import org.chromium.chrome.browser.endpoint_fetcher.EndpointFetcher;
 import org.chromium.chrome.browser.endpoint_fetcher.EndpointFetcherJni;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.profiles.ProfileManager;
+import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.test.util.browser.Features;
-import org.chromium.content_public.browser.BrowserContextHandle;
+import org.chromium.components.commerce.core.ShoppingService;
+
 /**
  * Unit tests for {@link CommerceSubscriptionsServiceFactory}.
  */
@@ -49,30 +48,23 @@ public class CommerceSubscriptionsServiceFactoryUnitTest {
     private Profile mProfileTwo;
 
     @Mock
-    private CommerceSubscriptionsStorage.Natives mCommerceSubscriptionsStorageJni;
+    EndpointFetcher.Natives mEndpointFetcherJniMock;
 
     @Mock
-    EndpointFetcher.Natives mEndpointFetcherJniMock;
+    ShoppingService mShoppingService;
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
         doReturn(false).when(mProfileOne).isOffTheRecord();
         doReturn(false).when(mProfileTwo).isOffTheRecord();
-        mMocker.mock(CommerceSubscriptionsStorageJni.TEST_HOOKS, mCommerceSubscriptionsStorageJni);
         mMocker.mock(EndpointFetcherJni.TEST_HOOKS, mEndpointFetcherJniMock);
+        ShoppingServiceFactory.setShoppingServiceForTesting(mShoppingService);
+    }
 
-        doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) {
-                CommerceSubscriptionsStorage storage =
-                        (CommerceSubscriptionsStorage) invocation.getArguments()[0];
-                storage.setNativeCommerceSubscriptionDBForTesting((long) 123);
-                return null;
-            }
-        })
-                .when(mCommerceSubscriptionsStorageJni)
-                .init(any(CommerceSubscriptionsStorage.class), any(BrowserContextHandle.class));
+    @After
+    public void tearDown() {
+        IdentityServicesProvider.setInstanceForTests(null);
     }
 
     @Test
@@ -94,18 +86,5 @@ public class CommerceSubscriptionsServiceFactoryUnitTest {
 
         Profile.setLastUsedProfileForTesting(mProfileTwo);
         Assert.assertEquals(regularProfileTwoService, factory.getForLastUsedProfile());
-    }
-
-    @Test
-    @SmallTest
-    public void testServiceDestroyedWhenProfileIsDestroyed() {
-        CommerceSubscriptionsServiceFactory factory = new CommerceSubscriptionsServiceFactory();
-        Profile.setLastUsedProfileForTesting(mProfileOne);
-        CommerceSubscriptionsService service = factory.getForLastUsedProfile();
-        Assert.assertEquals(
-                1, CommerceSubscriptionsServiceFactory.sProfileToSubscriptionsService.size());
-        ProfileManager.onProfileDestroyed(mProfileOne);
-        Assert.assertTrue(
-                CommerceSubscriptionsServiceFactory.sProfileToSubscriptionsService.isEmpty());
     }
 }

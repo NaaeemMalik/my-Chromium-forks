@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,11 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/types/optional_util.h"
 #include "base/values.h"
 #include "content/public/common/url_constants.h"
 #include "extensions/common/api/content_scripts.h"
+#include "extensions/common/api/extension_types.h"
 #include "extensions/common/error_utils.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_features.h"
@@ -29,6 +31,7 @@
 #include "extensions/common/url_pattern.h"
 #include "extensions/common/url_pattern_set.h"
 #include "extensions/common/utils/content_script_utils.h"
+#include "extensions/common/utils/extension_types_utils.h"
 #include "extensions/strings/grit/extensions_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
@@ -68,7 +71,7 @@ std::unique_ptr<UserScript> CreateUserScript(
   auto result = std::make_unique<UserScript>();
 
   // run_at
-  if (content_script.run_at != content_scripts_api::RUN_AT_NONE) {
+  if (content_script.run_at != content_scripts_api::RunAt::kNone) {
     result->set_run_location(
         script_parsing::ConvertManifestRunLocation(content_script.run_at));
   }
@@ -77,47 +80,85 @@ std::unique_ptr<UserScript> CreateUserScript(
   if (content_script.all_frames)
     result->set_match_all_frames(*content_script.all_frames);
 
-  // match_origin_as_fallback
-  bool has_match_origin_as_fallback = false;
+  // match_origin_as_fallback and match_about_blank.
+  // Note: `match_about_blank` is ignored if `match_origin_as_fallback` was
+  // specified. `match_origin_as_fallback` can only be specified for extensions
+  // running manifest version 3 or higher. `match_about_blank` can be specified
+  // by any extensions (and is used by MV3+ extensions for compatibility).
+  absl::optional<MatchOriginAsFallbackBehavior> match_origin_as_fallback;
+
   if (content_script.match_origin_as_fallback &&
       base::FeatureList::IsEnabled(
           extensions_features::kContentScriptsMatchOriginAsFallback)) {
-    has_match_origin_as_fallback = true;
-    result->set_match_origin_as_fallback(
-        *content_script.match_origin_as_fallback
-            ? MatchOriginAsFallbackBehavior::kAlways
-            : MatchOriginAsFallbackBehavior::kNever);
+    if (extension->manifest_version() >= 3) {
+      match_origin_as_fallback = *content_script.match_origin_as_fallback
+                                     ? MatchOriginAsFallbackBehavior::kAlways
+                                     : MatchOriginAsFallbackBehavior::kNever;
+    } else {
+      extension->AddInstallWarning(
+          InstallWarning(errors::kMatchOriginAsFallbackRestrictedToMV3,
+                         ContentScriptsKeys::kContentScripts));
+    }
   }
 
-  // match_about_blank
-  // Note: match_about_blank is ignored if |match_origin_as_fallback| was
-  // specified.
-  if (!has_match_origin_as_fallback && content_script.match_about_blank) {
-    result->set_match_origin_as_fallback(
+  if (!match_origin_as_fallback && content_script.match_about_blank) {
+    match_origin_as_fallback =
         *content_script.match_about_blank
             ? MatchOriginAsFallbackBehavior::kMatchForAboutSchemeAndClimbTree
-            : MatchOriginAsFallbackBehavior::kNever);
+            : MatchOriginAsFallbackBehavior::kNever;
   }
 
   bool wants_file_access = false;
   if (!script_parsing::ParseMatchPatterns(
-          content_script.matches, content_script.exclude_matches.get(),
-          definition_index, extension->creation_flags(),
-          can_execute_script_everywhere, valid_schemes,
-          all_urls_includes_chrome_urls, result.get(), error,
+          content_script.matches,
+          base::OptionalToPtr(content_script.exclude_matches), definition_index,
+          extension->creation_flags(), can_execute_script_everywhere,
+          valid_schemes, all_urls_includes_chrome_urls, result.get(), error,
           &wants_file_access)) {
     return nullptr;
+  }
+
+  if (match_origin_as_fallback) {
+    // If the extension is using `match_origin_as_fallback`, we require the
+    // pattern to match all paths. This is because origins don't have a path;
+    // thus, if an extension specified `"match_origin_as_fallback": true` for
+    // a pattern of `"https://google.com/maps/*"`, this script would also run
+    // on about:blank, data:, etc frames from https://google.com (because in
+    // both cases, the precursor origin is https://google.com).
+    if (match_origin_as_fallback == MatchOriginAsFallbackBehavior::kAlways) {
+      for (const auto& pattern : result->url_patterns()) {
+        if (pattern.path() != "/*") {
+          *error =
+              base::ASCIIToUTF16(errors::kMatchOriginAsFallbackCantHavePaths);
+          return nullptr;
+        }
+      }
+    }
+
+    result->set_match_origin_as_fallback(*match_origin_as_fallback);
   }
 
   if (wants_file_access)
     extension->set_wants_file_access(true);
 
-  ParseGlobs(content_script.include_globs.get(),
-             content_script.exclude_globs.get(), result.get());
+  ParseGlobs(base::OptionalToPtr(content_script.include_globs),
+             base::OptionalToPtr(content_script.exclude_globs), result.get());
+
+  // Parse execution world. This should only be possible for MV3.
+  if (content_script.world != api::extension_types::ExecutionWorld::kNone) {
+    if (extension->manifest_version() >= 3) {
+      result->set_execution_world(ConvertExecutionWorld(content_script.world));
+    } else {
+      extension->AddInstallWarning(
+          InstallWarning(errors::kExecutionWorldRestrictedToMV3,
+                         ContentScriptsKeys::kContentScripts));
+    }
+  }
 
   if (!script_parsing::ParseFileSources(
-          extension, content_script.js.get(), content_script.css.get(),
-          definition_index, result.get(), error)) {
+          extension, base::OptionalToPtr(content_script.js),
+          base::OptionalToPtr(content_script.css), definition_index,
+          result.get(), error)) {
     return nullptr;
   }
 
@@ -133,9 +174,9 @@ static base::LazyInstance<EmptyUserScriptList>::DestructorAtExit
 
 }  // namespace
 
-ContentScriptsInfo::ContentScriptsInfo() {}
+ContentScriptsInfo::ContentScriptsInfo() = default;
 
-ContentScriptsInfo::~ContentScriptsInfo() {}
+ContentScriptsInfo::~ContentScriptsInfo() = default;
 
 // static
 const UserScriptList& ContentScriptsInfo::GetContentScripts(
@@ -169,9 +210,9 @@ URLPatternSet ContentScriptsInfo::GetScriptableHosts(
   return scriptable_hosts;
 }
 
-ContentScriptsHandler::ContentScriptsHandler() {}
+ContentScriptsHandler::ContentScriptsHandler() = default;
 
-ContentScriptsHandler::~ContentScriptsHandler() {}
+ContentScriptsHandler::~ContentScriptsHandler() = default;
 
 base::span<const char* const> ContentScriptsHandler::Keys() const {
   static constexpr const char* kKeys[] = {ContentScriptsKeys::kContentScripts};
@@ -181,7 +222,7 @@ base::span<const char* const> ContentScriptsHandler::Keys() const {
 bool ContentScriptsHandler::Parse(Extension* extension, std::u16string* error) {
   ContentScriptsKeys manifest_keys;
   if (!ContentScriptsKeys::ParseFromDictionary(
-          extension->manifest()->available_values(), &manifest_keys, error)) {
+          extension->manifest()->available_values(), manifest_keys, *error)) {
     return false;
   }
 
@@ -227,7 +268,7 @@ bool ContentScriptsHandler::Validate(
   // and are UTF-8 encoded.
   return script_parsing::ValidateFileSources(
       ContentScriptsInfo::GetContentScripts(extension),
-      script_parsing::GetSymlinkPolicy(extension), error);
+      script_parsing::GetSymlinkPolicy(extension), error, warnings);
 }
 
 }  // namespace extensions

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ class CONTENT_EXPORT RenderFrameMetadataProvider {
     // to pass in Viz.
     virtual void OnLocalSurfaceIdChanged(
         const cc::RenderFrameMetadata& metadata) = 0;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     virtual void OnRootScrollOffsetChanged(
         const gfx::PointF& root_scroll_offset) {}
 #endif

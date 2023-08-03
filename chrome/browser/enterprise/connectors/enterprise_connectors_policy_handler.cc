@@ -1,9 +1,12 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/enterprise/connectors/enterprise_connectors_policy_handler.h"
 
+#include "base/values.h"
+#include "chrome/browser/enterprise/connectors/connectors_prefs.h"
+#include "chrome/browser/enterprise/connectors/service_provider_config.h"
 #include "components/policy/core/browser/policy_error_map.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_types.h"
@@ -64,7 +67,7 @@ void EnterpriseConnectorsPolicyHandler::ApplyPolicySettings(
   if (!policy)
     return;
 
-  const base::Value* value = policy->value();
+  const base::Value* value = policy->value_unsafe();
   if (value) {
     prefs->SetValue(pref_path_, value->Clone());
 

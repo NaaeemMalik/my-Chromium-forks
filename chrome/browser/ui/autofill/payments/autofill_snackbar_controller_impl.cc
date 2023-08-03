@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #include "chrome/browser/ui/autofill/payments/autofill_snackbar_controller_impl.h"
@@ -24,26 +24,17 @@ AutofillSnackbarControllerImpl::~AutofillSnackbarControllerImpl() {
 }
 
 void AutofillSnackbarControllerImpl::Show() {
-  if (!autofill_snackbar_view_) {
-    autofill_snackbar_view_ = AutofillSnackbarView::Create(this);
+  if (autofill_snackbar_view_) {
+    // A snackbar is already showing. Ignore the new request.
+    return;
   }
+  autofill_snackbar_view_ = AutofillSnackbarView::Create(this);
   autofill_snackbar_view_->Show();
   base::UmaHistogramBoolean("Autofill.Snackbar.VirtualCard.Shown", true);
 }
 
-void AutofillSnackbarControllerImpl::Dismiss() {
-  if (!autofill_snackbar_view_)
-    return;
-  autofill_snackbar_view_->Dismiss();
-}
-
-void AutofillSnackbarControllerImpl::SetViewForTesting(
-    AutofillSnackbarView* view) {
-  autofill_snackbar_view_ = view;
-}
-
 void AutofillSnackbarControllerImpl::OnActionClicked() {
-  ManualFillingControllerImpl::GetOrCreate(web_contents_)
+  ManualFillingControllerImpl::GetOrCreate(GetWebContents())
       ->ShowAccessorySheetTab(autofill::AccessoryTabType::CREDIT_CARDS);
   base::UmaHistogramBoolean("Autofill.Snackbar.VirtualCard.ActionClicked",
                             true);
@@ -65,6 +56,14 @@ std::u16string AutofillSnackbarControllerImpl::GetActionButtonText() const {
 
 content::WebContents* AutofillSnackbarControllerImpl::GetWebContents() const {
   return web_contents_;
+}
+
+void AutofillSnackbarControllerImpl::Dismiss() {
+  if (!autofill_snackbar_view_) {
+    return;
+  }
+
+  autofill_snackbar_view_->Dismiss();
 }
 
 }  // namespace autofill

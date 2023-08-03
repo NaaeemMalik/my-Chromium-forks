@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,19 @@
 #include <algorithm>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/field_trial.h"
+#include "base/observer_list.h"
 #include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/thread_restrictions.h"
 #include "base/time/clock.h"
 #include "base/time/default_clock.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
+#include "build/build_config.h"
 #include "components/browsing_data/core/browsing_data_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_pattern.h"
@@ -37,7 +40,7 @@
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/site_engagement/content/android/site_engagement_service_android.h"
 #endif
 
@@ -115,7 +118,6 @@ mojom::SiteEngagementDetails GetDetailsImpl(base::Clock* clock,
 }
 
 std::vector<mojom::SiteEngagementDetails> GetAllDetailsImpl(
-    browsing_data::TimePeriod time_period,
     base::Clock* clock,
     HostContentSettingsMap* map) {
   std::set<GURL> origins = GetEngagementOriginsFromContentSettings(map);
@@ -123,19 +125,10 @@ std::vector<mojom::SiteEngagementDetails> GetAllDetailsImpl(
   std::vector<mojom::SiteEngagementDetails> details;
   details.reserve(origins.size());
 
-  auto begin_time = browsing_data::CalculateBeginDeleteTime(time_period);
-  auto end_time = browsing_data::CalculateEndDeleteTime(time_period);
-
   for (const GURL& origin : origins) {
     if (!origin.is_valid())
       continue;
-
-    auto score = CreateEngagementScoreImpl(clock, origin, map);
-    auto last_engagement_time = score.last_engagement_time();
-    if (begin_time > last_engagement_time || end_time < last_engagement_time)
-      continue;
-
-    details.push_back(score.GetDetails());
+    details.push_back(GetDetailsImpl(clock, origin, map));
   }
 
   return details;
@@ -220,8 +213,32 @@ SiteEngagementService::GetAllDetailsInBackground(
     base::Time now,
     scoped_refptr<HostContentSettingsMap> map) {
   StoppedClock clock(now);
-  return GetAllDetailsImpl(browsing_data::TimePeriod::ALL_TIME, &clock,
-                           map.get());
+  base::AssertLongCPUWorkAllowed();
+  return GetAllDetailsImpl(&clock, map.get());
+}
+
+// static
+bool SiteEngagementService::IsEngagementAtLeast(
+    double score,
+    blink::mojom::EngagementLevel level) {
+  DCHECK_LT(SiteEngagementScore::GetMediumEngagementBoundary(),
+            SiteEngagementScore::GetHighEngagementBoundary());
+  switch (level) {
+    case blink::mojom::EngagementLevel::NONE:
+      return true;
+    case blink::mojom::EngagementLevel::MINIMAL:
+      return score > 0;
+    case blink::mojom::EngagementLevel::LOW:
+      return score >= 1;
+    case blink::mojom::EngagementLevel::MEDIUM:
+      return score >= SiteEngagementScore::GetMediumEngagementBoundary();
+    case blink::mojom::EngagementLevel::HIGH:
+      return score >= SiteEngagementScore::GetHighEngagementBoundary();
+    case blink::mojom::EngagementLevel::MAX:
+      return score == SiteEngagementScore::kMaxPoints;
+  }
+  NOTREACHED();
+  return false;
 }
 
 SiteEngagementService::SiteEngagementService(content::BrowserContext* context)
@@ -255,20 +272,8 @@ std::vector<mojom::SiteEngagementDetails> SiteEngagementService::GetAllDetails()
     const {
   if (IsLastEngagementStale())
     CleanupEngagementScores(true);
-
   return GetAllDetailsImpl(
-      browsing_data::TimePeriod::ALL_TIME, clock_,
-      permissions::PermissionsClient::Get()->GetSettingsMap(browser_context_));
-}
-
-std::vector<mojom::SiteEngagementDetails>
-SiteEngagementService::GetAllDetailsEngagedInTimePeriod(
-    browsing_data::TimePeriod time_period) const {
-  if (IsLastEngagementStale())
-    CleanupEngagementScores(true);
-
-  return GetAllDetailsImpl(
-      time_period, clock_,
+      clock_,
       permissions::PermissionsClient::Get()->GetSettingsMap(browser_context_));
 }
 
@@ -286,30 +291,6 @@ void SiteEngagementService::HandleNotificationInteraction(const GURL& url) {
 bool SiteEngagementService::IsBootstrapped() const {
   return GetTotalEngagementPoints() >=
          SiteEngagementScore::GetBootstrapPoints();
-}
-
-bool SiteEngagementService::IsEngagementAtLeast(
-    const GURL& url,
-    blink::mojom::EngagementLevel level) const {
-  DCHECK_LT(SiteEngagementScore::GetMediumEngagementBoundary(),
-            SiteEngagementScore::GetHighEngagementBoundary());
-  double score = GetScore(url);
-  switch (level) {
-    case blink::mojom::EngagementLevel::NONE:
-      return true;
-    case blink::mojom::EngagementLevel::MINIMAL:
-      return score > 0;
-    case blink::mojom::EngagementLevel::LOW:
-      return score >= 1;
-    case blink::mojom::EngagementLevel::MEDIUM:
-      return score >= SiteEngagementScore::GetMediumEngagementBoundary();
-    case blink::mojom::EngagementLevel::HIGH:
-      return score >= SiteEngagementScore::GetHighEngagementBoundary();
-    case blink::mojom::EngagementLevel::MAX:
-      return score == SiteEngagementScore::kMaxPoints;
-  }
-  NOTREACHED();
-  return false;
 }
 
 void SiteEngagementService::AddObserver(SiteEngagementObserver* observer) {
@@ -378,7 +359,7 @@ void SiteEngagementService::AddPointsForTesting(const GURL& url,
   AddPoints(url, points);
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 SiteEngagementServiceAndroid* SiteEngagementService::GetAndroidService() const {
   return android_service_.get();
 }
@@ -482,7 +463,7 @@ void SiteEngagementService::CleanupEngagementScores(
 
     // This origin has a score of 0. Wipe it from content settings.
     settings_map->SetWebsiteSettingDefaultScope(
-        origin, GURL(), ContentSettingsType::SITE_ENGAGEMENT, nullptr);
+        origin, GURL(), ContentSettingsType::SITE_ENGAGEMENT, base::Value());
   }
 
   // Set the last engagement time to be consistent with the scores. This will
@@ -555,8 +536,6 @@ void SiteEngagementService::RecordMetrics(
       GetMedianEngagementFromSortedDetails(details));
   SiteEngagementMetrics::RecordEngagementScores(details);
 
-  SiteEngagementMetrics::RecordOriginsWithMaxDailyEngagement(
-      OriginsWithMaxDailyEngagement());
   SiteEngagementMetrics::RecordOriginsWithMaxEngagement(
       origins_with_max_engagement);
 }
@@ -683,24 +662,6 @@ SiteEngagementScore SiteEngagementService::CreateEngagementScore(
   return CreateEngagementScoreImpl(
       clock_, origin,
       permissions::PermissionsClient::Get()->GetSettingsMap(browser_context_));
-}
-
-int SiteEngagementService::OriginsWithMaxDailyEngagement() const {
-  int total_origins = 0;
-
-  // We cannot call GetScoreMap as we need the score objects, not raw scores.
-  for (const auto& site : GetContentSettingsFromBrowserContext(
-           browser_context_, ContentSettingsType::SITE_ENGAGEMENT)) {
-    GURL origin(site.primary_pattern.ToString());
-
-    if (!origin.is_valid())
-      continue;
-
-    if (CreateEngagementScore(origin).MaxPointsPerDayAdded())
-      ++total_origins;
-  }
-
-  return total_origins;
 }
 
 }  // namespace site_engagement

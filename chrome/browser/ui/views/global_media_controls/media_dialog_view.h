@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,6 +26,7 @@ class WebContents;
 namespace global_media_controls {
 class MediaItemUIListView;
 class MediaItemUIView;
+class MediaItemUIFooter;
 }  // namespace global_media_controls
 
 namespace views {
@@ -36,6 +37,7 @@ class ToggleButton;
 class MediaDialogViewObserver;
 class MediaNotificationService;
 class Profile;
+class MediaItemUIDeviceSelectorView;
 
 // Dialog that shows media controls that control the active media session.
 class MediaDialogView : public views::BubbleDialogDelegateView,
@@ -48,17 +50,23 @@ class MediaDialogView : public views::BubbleDialogDelegateView,
   MediaDialogView(const MediaDialogView&) = delete;
   MediaDialogView& operator=(const MediaDialogView&) = delete;
 
-  static views::Widget* ShowDialog(
-      views::View* anchor_view,
-      MediaNotificationService* service,
-      Profile* profile,
-      global_media_controls::GlobalMediaControlsEntryPoint entry_point);
-  static views::Widget* ShowDialogForPresentationRequest(
-      views::View* anchor_view,
+  static views::Widget* ShowDialogFromToolbar(views::View* anchor_view,
+                                              MediaNotificationService* service,
+                                              Profile* profile);
+  static views::Widget* ShowDialogCentered(
+      const gfx::Rect& bounds,
       MediaNotificationService* service,
       Profile* profile,
       content::WebContents* contents,
       global_media_controls::GlobalMediaControlsEntryPoint entry_point);
+  static views::Widget* ShowDialog(
+      views::View* anchor_view,
+      views::BubbleBorder::Arrow anchor_position,
+      MediaNotificationService* service,
+      Profile* profile,
+      content::WebContents* contents,
+      global_media_controls::GlobalMediaControlsEntryPoint entry_point);
+
   static void HideDialog();
   static bool IsShowing();
 
@@ -69,6 +77,9 @@ class MediaDialogView : public views::BubbleDialogDelegateView,
       const std::string& id,
       base::WeakPtr<media_message_center::MediaNotificationItem> item) override;
   void HideMediaItem(const std::string& id) override;
+  void RefreshMediaItem(
+      const std::string& id,
+      base::WeakPtr<media_message_center::MediaNotificationItem> item) override;
   void HideMediaDialog() override;
   void Focus() override;
 
@@ -95,8 +106,11 @@ class MediaDialogView : public views::BubbleDialogDelegateView,
 
  private:
   friend class MediaDialogViewBrowserTest;
+  friend class MediaDialogViewWithRemotePlaybackTest;
+
   MediaDialogView(
       views::View* anchor_view,
+      views::BubbleBorder::Arrow anchor_position,
       MediaNotificationService* service,
       Profile* profile,
       content::WebContents* contents,
@@ -120,10 +134,18 @@ class MediaDialogView : public views::BubbleDialogDelegateView,
   void UpdateBubbleSize();
 
   // SodaInstaller::Observer overrides:
-  void OnSodaInstalled() override;
-  void OnSodaError() override;
-  void OnSodaProgress(int combined_progress) override;
+  void OnSodaInstalled(speech::LanguageCode language_code) override;
+  void OnSodaInstallError(speech::LanguageCode language_code,
+                          speech::SodaInstaller::ErrorCode error_code) override;
+  void OnSodaProgress(speech::LanguageCode language_code,
+                      int progress) override;
 
+  void SetLiveCaptionTitle(const std::u16string& new_text);
+
+  std::unique_ptr<global_media_controls::MediaItemUIFooter> BuildFooterView(
+      const std::string& id,
+      base::WeakPtr<media_message_center::MediaNotificationItem> item,
+      MediaItemUIDeviceSelectorView* device_selector_view);
   std::unique_ptr<global_media_controls::MediaItemUIView> BuildMediaItemUIView(
       const std::string& id,
       base::WeakPtr<media_message_center::MediaNotificationItem> item);
@@ -148,8 +170,8 @@ class MediaDialogView : public views::BubbleDialogDelegateView,
   // It stores the WebContents* from which a MediaRouterDialogControllerViews
   // opened the dialog for a presentation request. It is nullptr if the dialog
   // is opened from the toolbar.
-  const raw_ptr<content::WebContents> web_contents_for_presentation_request_ =
-      nullptr;
+  const raw_ptr<content::WebContents, DanglingUntriaged>
+      web_contents_for_presentation_request_ = nullptr;
   const global_media_controls::GlobalMediaControlsEntryPoint entry_point_;
 };
 

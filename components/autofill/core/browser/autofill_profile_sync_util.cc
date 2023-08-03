@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/autofill/core/browser/autofill_profile_sync_util.h"
 
-#include "base/guid.h"
+#include "base/uuid.h"
 // TODO(crbug.com/904390): Remove when the investigation is over.
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_util.h"
@@ -18,7 +18,8 @@
 #include "components/autofill/core/browser/geo/country_names.h"
 #include "components/autofill/core/browser/proto/autofill_sync.pb.h"
 #include "components/autofill/core/browser/webdata/autofill_table.h"
-#include "components/sync/engine/entity_data.h"
+#include "components/autofill/core/common/autofill_features.h"
+#include "components/sync/protocol/entity_data.h"
 
 using autofill::data_util::TruncateUTF8;
 using base::UTF16ToUTF8;
@@ -27,8 +28,6 @@ using sync_pb::AutofillProfileSpecifics;
 using syncer::EntityData;
 
 namespace autofill {
-
-using structured_address::VerificationStatus;
 
 namespace {
 
@@ -76,7 +75,7 @@ ConvertProfileToSpecificsVerificationStatus(VerificationStatus profile_status) {
 
 bool IsAutofillProfileSpecificsValid(
     const AutofillProfileSpecifics& specifics) {
-  return base::IsValidGUID(specifics.guid());
+  return base::Uuid::ParseCaseInsensitive(specifics.guid()).is_valid();
 }
 
 }  // namespace
@@ -84,7 +83,14 @@ bool IsAutofillProfileSpecificsValid(
 std::unique_ptr<EntityData> CreateEntityDataFromAutofillProfile(
     const AutofillProfile& entry) {
   // Validity of the guid is guaranteed by the database layer.
-  DCHECK(base::IsValidGUID(entry.guid()));
+  DCHECK(base::Uuid::ParseCaseInsensitive(entry.guid()).is_valid());
+
+  // Profiles fall into two categories, kLocalOrSyncable and kAccount.
+  // kLocalOrSyncable profiles are synced through the AutofillProfileSyncBridge,
+  // while kAccount profiles are synced through the ContactInfoSyncBridge. Make
+  // sure that syncing a profile through the wrong sync bridge fails early.
+  if (entry.source() != AutofillProfile::Source::kLocalOrSyncable)
+    return nullptr;
 
   auto entity_data = std::make_unique<EntityData>();
   entity_data->name = entry.guid();
@@ -103,10 +109,6 @@ std::unique_ptr<EntityData> CreateEntityDataFromAutofillProfile(
   specifics->set_use_date(entry.use_date().ToTimeT());
   specifics->set_address_home_language_code(
       TruncateUTF8(entry.language_code()));
-  specifics->set_validity_state_bitfield(
-      entry.GetClientValidityBitfieldValue());
-  specifics->set_is_client_validity_states_updated(
-      entry.is_client_validity_states_updated());
 
   // Set name-related values.
   specifics->add_name_honorific(
@@ -239,6 +241,11 @@ std::unique_ptr<EntityData> CreateEntityDataFromAutofillProfile(
       ConvertProfileToSpecificsVerificationStatus(
           entry.GetVerificationStatus(ADDRESS_HOME_HOUSE_NUMBER)));
 
+  // Set birthdate-related values.
+  specifics->set_birthdate_day(entry.GetRawInfoAsInt(BIRTHDATE_DAY));
+  specifics->set_birthdate_month(entry.GetRawInfoAsInt(BIRTHDATE_MONTH));
+  specifics->set_birthdate_year(entry.GetRawInfoAsInt(BIRTHDATE_4_DIGIT_YEAR));
+
   return entity_data;
 }
 
@@ -247,16 +254,15 @@ std::unique_ptr<AutofillProfile> CreateAutofillProfileFromSpecifics(
   if (!IsAutofillProfileSpecificsValid(specifics)) {
     return nullptr;
   }
-  std::unique_ptr<AutofillProfile> profile =
-      std::make_unique<AutofillProfile>(specifics.guid(), specifics.origin());
+  std::unique_ptr<AutofillProfile> profile = std::make_unique<AutofillProfile>(
+      specifics.guid(), specifics.origin(),
+      AutofillProfile::Source::kLocalOrSyncable);
 
   // Set info that has a default value (and does not distinguish whether it is
   // set or not).
   profile->set_use_count(specifics.use_count());
   profile->set_use_date(base::Time::FromTimeT(specifics.use_date()));
   profile->set_language_code(specifics.address_home_language_code());
-  profile->SetClientValidityFromBitfieldValue(
-      specifics.validity_state_bitfield());
 
   // Set the profile label if it exists.
   if (specifics.has_profile_label())
@@ -463,9 +469,10 @@ std::unique_ptr<AutofillProfile> CreateAutofillProfileFromSpecifics(
       ConvertSpecificsToProfileVerificationStatus(
           specifics.address_home_subpremise_name_status()));
 
-  // This has to be the last one, otherwise setting the raw info may change it.
-  profile->set_is_client_validity_states_updated(
-      specifics.is_client_validity_states_updated());
+  // Set birthdate-related fields.
+  profile->SetRawInfoAsInt(BIRTHDATE_DAY, specifics.birthdate_day());
+  profile->SetRawInfoAsInt(BIRTHDATE_MONTH, specifics.birthdate_month());
+  profile->SetRawInfoAsInt(BIRTHDATE_4_DIGIT_YEAR, specifics.birthdate_year());
 
   // The profile may be in a legacy state. By calling |FinalizeAfterImport()|
   // * The profile is migrated if the name structure is in legacy state.
@@ -481,7 +488,7 @@ std::unique_ptr<AutofillProfile> CreateAutofillProfileFromSpecifics(
 
 std::string GetStorageKeyFromAutofillProfile(const AutofillProfile& entry) {
   // Validity of the guid is guaranteed by the database layer.
-  DCHECK(base::IsValidGUID(entry.guid()));
+  DCHECK(base::Uuid::ParseCaseInsensitive(entry.guid()).is_valid());
   return entry.guid();
 }
 

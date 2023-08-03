@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ASH_ARC_OPTIN_ARC_OPTIN_PREFERENCE_HANDLER_H_
 #define CHROME_BROWSER_ASH_ARC_OPTIN_ARC_OPTIN_PREFERENCE_HANDLER_H_
 
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/settings/stats_reporting_controller.h"
 #include "components/prefs/pref_change_registrar.h"
 
@@ -51,8 +52,8 @@ class ArcOptInPreferenceHandler {
   void SendLocationServicesMode();
 
   // Unowned pointers.
-  ArcOptInPreferenceHandlerObserver* const observer_;
-  PrefService* const pref_service_;
+  const raw_ptr<ArcOptInPreferenceHandlerObserver, ExperimentalAsh> observer_;
+  const raw_ptr<PrefService, ExperimentalAsh> pref_service_;
 
   // Used to track metrics preference.
   PrefChangeRegistrar pref_local_change_registrar_;

@@ -1,17 +1,18 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sharing/click_to_call/click_to_call_utils.h"
 
-#include <algorithm>
 #include <cctype>
 
+#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sharing/click_to_call/phone_number_regex.h"
+#include "chrome/browser/sharing/features.h"
 #include "chrome/browser/sharing/sharing_service.h"
 #include "chrome/browser/sharing/sharing_service_factory.h"
 #include "chrome/common/pref_names.h"
@@ -35,10 +36,14 @@ constexpr int kSelectionTextMaxLength = 30;
 constexpr int kSelectionTextMaxDigits = 15;
 
 bool IsClickToCallEnabled(content::BrowserContext* browser_context) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // We don't support sending phone numbers from Android.
   return false;
-#else   // defined(OS_ANDROID)
+#else   // BUILDFLAG(IS_ANDROID)
+  if (!base::FeatureList::IsEnabled(kClickToCall)) {
+    return false;
+  }
+
   // Check Chrome enterprise policy for Click to Call.
   Profile* profile = Profile::FromBrowserContext(browser_context);
   if (profile && !profile->GetPrefs()->GetBoolean(prefs::kClickToCallEnabled))
@@ -47,7 +52,7 @@ bool IsClickToCallEnabled(content::BrowserContext* browser_context) {
   SharingService* sharing_service =
       SharingServiceFactory::GetForBrowserContext(browser_context);
   return sharing_service != nullptr;
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 // Returns the first possible phone number in |selection_text| given the
@@ -91,8 +96,10 @@ absl::optional<std::string> ExtractPhoneNumberForClickToCall(
   if (selection_text.size() > kSelectionTextMaxLength)
     return absl::nullopt;
 
-  int digits = std::count_if(selection_text.begin(), selection_text.end(),
-                             [](char c) { return std::isdigit(c); });
+  // See https://en.cppreference.com/w/cpp/string/byte/isdigit for why this uses
+  // unsigned char.
+  int digits = base::ranges::count_if(
+      selection_text, [](unsigned char c) { return std::isdigit(c); });
   if (digits > kSelectionTextMaxDigits)
     return absl::nullopt;
 
@@ -108,7 +115,7 @@ bool IsUrlSafeForClickToCall(const GURL& url) {
   std::string unescaped = GetUnescapedURLContent(url);
   // We don't allow any number that contains any of these characters as they
   // might be used to create USSD codes.
-  return !unescaped.empty() &&
-         std::none_of(unescaped.begin(), unescaped.end(),
-                      [](char c) { return c == '#' || c == '*' || c == '%'; });
+  return !unescaped.empty() && base::ranges::none_of(unescaped, [](char c) {
+    return c == '#' || c == '*' || c == '%';
+  });
 }

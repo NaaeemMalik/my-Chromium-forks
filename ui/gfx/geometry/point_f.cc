@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,18 @@
 
 #include "base/check.h"
 #include "base/strings/stringprintf.h"
+#include "base/trace_event/typed_macros.h"
 #include "build/build_config.h"
 
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
 #include <CoreGraphics/CoreGraphics.h>
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
 #include <ApplicationServices/ApplicationServices.h>
 #endif
 
 namespace gfx {
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 PointF::PointF(const CGPoint& p) : PointF(p.x, p.y) {}
 CGPoint PointF::ToCGPoint() const {
   return CGPointMake(x(), y());
@@ -46,6 +47,12 @@ bool PointF::IsWithinDistance(const PointF& rhs,
 
 std::string PointF::ToString() const {
   return base::StringPrintf("%g,%g", x(), y());
+}
+
+void PointF::WriteIntoTrace(perfetto::TracedValue ctx) const {
+  perfetto::TracedDictionary dict = std::move(ctx).WriteDictionary();
+  dict.Add("x", x());
+  dict.Add("y", y());
 }
 
 PointF ScalePoint(const PointF& p, float x_scale, float y_scale) {

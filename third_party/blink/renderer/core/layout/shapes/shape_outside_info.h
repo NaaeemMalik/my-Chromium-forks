@@ -35,16 +35,14 @@
 #include "base/memory/ptr_util.h"
 #include "third_party/blink/renderer/core/layout/shapes/shape.h"
 #include "third_party/blink/renderer/core/style/shape_value.h"
-#include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/geometry/layout_size.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "ui/gfx/geometry/rect_f.h"
 
 namespace blink {
 
 class LayoutBox;
-class LineLayoutBlockFlow;
-class FloatingObject;
 struct PhysicalRect;
 
 class ShapeOutsideDeltas final {
@@ -105,12 +103,6 @@ class ShapeOutsideInfo final : public GarbageCollected<ShapeOutsideInfo> {
     return ComputedShape().ShapeMarginLogicalBoundingBox().MaxY() +
            LogicalTopOffset();
   }
-
-  ShapeOutsideDeltas ComputeDeltasForContainingBlockLine(
-      const LineLayoutBlockFlow&,
-      const FloatingObject&,
-      LayoutUnit line_top,
-      LayoutUnit line_height);
 
   static ShapeOutsideInfo& EnsureInfo(const LayoutBox& key) {
     InfoMap& info_map = ShapeOutsideInfo::GetInfoMap();

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@
 #include "ui/gfx/buffer_types.h"
 #include "ui/gfx/geometry/mojom/geometry_mojom_traits.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/windows_types.h"
 #endif
 
@@ -35,12 +35,12 @@ struct GPU_EXPORT
     return input.device_id;
   }
 
-#if defined(OS_WIN) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
   static uint32_t revision(const gpu::GPUInfo::GPUDevice& input) {
     return input.revision;
   }
 #endif
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   static uint32_t sub_sys_id(const gpu::GPUInfo::GPUDevice& input) {
     return input.sub_sys_id;
   }
@@ -48,7 +48,7 @@ struct GPU_EXPORT
   static const CHROME_LUID luid(const gpu::GPUInfo::GPUDevice& input) {
     return input.luid;
   }
-#endif  // OS_WIN
+#endif  // BUILDFLAG(IS_WIN)
 
   static bool active(const gpu::GPUInfo::GPUDevice& input) {
     return input.active;
@@ -77,6 +77,11 @@ struct GPU_EXPORT
   static int cuda_compute_capability_major(
       const gpu::GPUInfo::GPUDevice& input) {
     return input.cuda_compute_capability_major;
+  }
+
+  static gl::GpuPreference gpu_preference(
+      const gpu::GPUInfo::GPUDevice& input) {
+    return input.gpu_preference;
   }
 };
 
@@ -216,7 +221,7 @@ struct GPU_EXPORT
   }
 };
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 template <>
 struct GPU_EXPORT EnumTraits<gpu::mojom::OverlaySupport, gpu::OverlaySupport> {
   static gpu::mojom::OverlaySupport ToMojom(gpu::OverlaySupport support);
@@ -303,6 +308,10 @@ struct GPU_EXPORT StructTraits<gpu::mojom::GpuInfoDataView, gpu::GPUInfo> {
     return input.machine_model_version;
   }
 
+  static const std::string& display_type(const gpu::GPUInfo& input) {
+    return input.display_type;
+  }
+
   static const std::string& gl_version(const gpu::GPUInfo& input) {
     return input.gl_version;
   }
@@ -335,8 +344,9 @@ struct GPU_EXPORT StructTraits<gpu::mojom::GpuInfoDataView, gpu::GPUInfo> {
     return input.gl_reset_notification_strategy;
   }
 
-  static bool software_rendering(const gpu::GPUInfo& input) {
-    return input.software_rendering;
+  static const gl::GLImplementationParts gl_implementation_parts(
+      const gpu::GPUInfo& input) {
+    return input.gl_implementation_parts;
   }
 
   static const std::string& direct_rendering_version(
@@ -358,13 +368,13 @@ struct GPU_EXPORT StructTraits<gpu::mojom::GpuInfoDataView, gpu::GPUInfo> {
     return input.can_support_threaded_texture_mailbox;
   }
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   static uint32_t macos_specific_texture_target(const gpu::GPUInfo& input) {
     return input.macos_specific_texture_target;
   }
-#endif  // OS_MAC
+#endif  // BUILDFLAG(IS_MAC)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   static const gpu::DxDiagNode& dx_diagnostics(const gpu::GPUInfo& input) {
     return input.dx_diagnostics;
   }
@@ -380,16 +390,14 @@ struct GPU_EXPORT StructTraits<gpu::mojom::GpuInfoDataView, gpu::GPUInfo> {
   static const gpu::OverlayInfo& overlay_info(const gpu::GPUInfo& input) {
     return input.overlay_info;
   }
-#endif
 
-  static const gpu::VideoDecodeAcceleratorCapabilities&
-  video_decode_accelerator_capabilities(const gpu::GPUInfo& input) {
-    return input.video_decode_accelerator_capabilities;
+  static bool shared_image_d3d(const gpu::GPUInfo& input) {
+    return input.shared_image_d3d;
   }
-
+#endif
   static const gpu::VideoDecodeAcceleratorSupportedProfiles&
-  video_decoder_capabilities(const gpu::GPUInfo& input) {
-    return input.video_decoder_capabilities;
+  video_decode_accelerator_supported_profiles(const gpu::GPUInfo& input) {
+    return input.video_decode_accelerator_supported_profiles;
   }
 
   static std::vector<gpu::VideoEncodeAcceleratorSupportedProfile>
@@ -406,10 +414,6 @@ struct GPU_EXPORT StructTraits<gpu::mojom::GpuInfoDataView, gpu::GPUInfo> {
     return input.image_decode_accelerator_supported_profiles;
   }
 
-  static bool oop_rasterization_supported(const gpu::GPUInfo& input) {
-    return input.oop_rasterization_supported;
-  }
-
   static bool subpixel_font_rendering(const gpu::GPUInfo& input) {
     return input.subpixel_font_rendering;
   }
@@ -419,7 +423,7 @@ struct GPU_EXPORT StructTraits<gpu::mojom::GpuInfoDataView, gpu::GPUInfo> {
   }
 
 #if BUILDFLAG(ENABLE_VULKAN)
-  static const absl::optional<gpu::VulkanInfo> vulkan_info(
+  static const absl::optional<gpu::VulkanInfo>& vulkan_info(
       const gpu::GPUInfo& input) {
     return input.vulkan_info;
   }

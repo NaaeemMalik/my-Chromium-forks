@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@ import 'gtx://resources/js/ios/web_ui.js';
 // </if>
 
 import 'gtx://resources/js/jstemplate_compiled.js';
-import {addWebUIListener} from 'gtx://resources/js/cr.m.js';
-import {$} from 'gtx://resources/js/util.m.js';
+
+import {addWebUiListener} from 'gtx://resources/js/cr.js';
+import {$} from 'gtx://resources/js/util_ts.js';
 
 const initialize = function() {
   $('submit-update').addEventListener('click', function(event) {
@@ -32,10 +33,10 @@ const initialize = function() {
     }
   });
 
-  addWebUIListener('receive-source-info', state => {
+  addWebUiListener('receive-source-info', state => {
     jstProcess(new JsEvalContext(state), $('sources'));
   });
-  addWebUIListener('receive-sites', sites => {
+  addWebUiListener('receive-sites', sites => {
     jstProcess(new JsEvalContext(sites), $('sites'));
   });
   chrome.send('registerForEvents');

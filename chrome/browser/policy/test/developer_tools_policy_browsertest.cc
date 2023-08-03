@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/policy_constants.h"
@@ -33,27 +34,27 @@ void WaitForExtensionsDevModeControlsVisibility(
     const char* dev_controls_accessor_js,
     const char* dev_controls_visibility_check_js,
     bool expected_visible) {
-  bool done = false;
-  ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
+  ASSERT_TRUE(content::ExecJs(
       contents,
       base::StringPrintf(
           "var screenElement = %s;"
-          "function SendReplyIfAsExpected() {"
-          "  var is_visible = %s;"
-          "  if (is_visible != %s)"
-          "    return false;"
-          "  observer.disconnect();"
-          "  domAutomationController.send(true);"
-          "  return true;"
-          "}"
-          "var observer = new MutationObserver(SendReplyIfAsExpected);"
-          "if (!SendReplyIfAsExpected()) {"
-          "  var options = { 'attributes': true };"
-          "  observer.observe(screenElement, options);"
-          "}",
+          "new Promise(resolve => {"
+          "  function SendReplyIfAsExpected() {"
+          "    var is_visible = %s;"
+          "    if (is_visible != %s)"
+          "      return false;"
+          "    observer.disconnect();"
+          "    resolve(true);"
+          "    return true;"
+          "  }"
+          "  var observer = new MutationObserver(SendReplyIfAsExpected);"
+          "  if (!SendReplyIfAsExpected()) {"
+          "    var options = { 'attributes': true };"
+          "    observer.observe(screenElement, options);"
+          "  }"
+          "});",
           dev_controls_accessor_js, dev_controls_visibility_check_js,
-          (expected_visible ? "true" : "false")),
-      &done));
+          (expected_visible ? "true" : "false"))));
 }
 
 }  // namespace
@@ -117,6 +118,55 @@ IN_PROC_BROWSER_TEST_F(PolicyTest,
   EXPECT_FALSE(DevToolsWindow::GetInstanceForInspectedWebContents(contents));
 }
 
+// Test for https://b/263040629
+IN_PROC_BROWSER_TEST_F(PolicyTest, AvailabilityWins) {
+  // DeveloperToolsDisabled is true, but DeveloperToolsAvailability wins.
+  PolicyMap policies;
+  policies.Set(key::kDeveloperToolsAvailability, POLICY_LEVEL_MANDATORY,
+               POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
+               base::Value(1 /* DeveloperToolsAllowed */), nullptr);
+  policies.Set(key::kDeveloperToolsDisabled, POLICY_LEVEL_MANDATORY,
+               POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD, base::Value(true),
+               nullptr);
+  UpdateProviderPolicy(policies);
+
+  EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_DEV_TOOLS));
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  DevToolsWindow* devtools_window =
+      DevToolsWindow::GetInstanceForInspectedWebContents(contents);
+  EXPECT_TRUE(devtools_window);
+
+  // Clearing DeveloperToolsAvailability leaves behind
+  // DeveloperToolsDisabled, so the DevTools window gets closed.
+  content::WebContentsDestroyedWatcher close_observer(
+      DevToolsWindowTesting::Get(devtools_window)->main_web_contents());
+  policies.Erase(key::kDeveloperToolsAvailability);
+  UpdateProviderPolicy(policies);
+  // wait for devtools close
+  close_observer.Wait();
+  // The existing devtools window should have closed.
+  EXPECT_FALSE(DevToolsWindow::GetInstanceForInspectedWebContents(contents));
+  // And it's not possible to open it again.
+  EXPECT_FALSE(chrome::ExecuteCommand(browser(), IDC_DEV_TOOLS));
+  EXPECT_FALSE(DevToolsWindow::GetInstanceForInspectedWebContents(contents));
+}
+
+IN_PROC_BROWSER_TEST_F(PolicyTest,
+                       ViewSourceDisabledByDeveloperToolsAvailability) {
+  // Verifies that entry points to ViewSource can be disabled by setting the
+  // DeveloperToolsAvailability policy.
+
+  // Disable devtools via policy.
+  PolicyMap policies;
+  policies.Set(key::kDeveloperToolsAvailability, POLICY_LEVEL_MANDATORY,
+               POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
+               base::Value(2 /* DeveloperToolsDisallowed */), nullptr);
+  UpdateProviderPolicy(policies);
+  // Verify that it's not possible to ViewSource.
+  EXPECT_FALSE(chrome::ExecuteCommand(browser(), IDC_VIEW_SOURCE));
+}
+
 IN_PROC_BROWSER_TEST_F(PolicyTest, DeveloperToolsDisabledExtensionsDevMode) {
   // Verifies that when DeveloperToolsDisabled policy is set, the "dev mode"
   // in chrome://extensions is actively turned off and the checkbox
@@ -175,14 +225,9 @@ IN_PROC_BROWSER_TEST_F(PolicyTest, DeveloperToolsDisabledExtensionsDevMode) {
                                              false);
 
   // ... and checkbox is disabled
-  bool is_toggle_dev_mode_checkbox_disabled = false;
-  EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
-      contents,
-      base::StringPrintf(
-          "domAutomationController.send(%s.hasAttribute('disabled'))",
-          toggle_dev_mode_accessor_js),
-      &is_toggle_dev_mode_checkbox_disabled));
-  EXPECT_TRUE(is_toggle_dev_mode_checkbox_disabled);
+  EXPECT_EQ(true, content::EvalJs(contents, base::StringPrintf(
+                                                "%s.hasAttribute('disabled')",
+                                                toggle_dev_mode_accessor_js)));
 }
 
 }  // namespace policy

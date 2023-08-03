@@ -1,17 +1,17 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// This file provides a builders for DictionaryValue and ListValue.  These
-// aren't specific to extensions and could move up to base/ if there's interest
-// from other sub-projects.
+// This file provides a builders for base::Value::Dict and base::Value::List.
+// These aren't specific to extensions and could move up to base/ if there's
+// interest from other sub-projects.
 //
 // The pattern is to write:
 //
-//  std::unique_ptr<BuiltType> result(FooBuilder()
-//                               .Set(args)
-//                               .Set(args)
-//                               .Build());
+//  base::Value::[Dict|List] result([Dictionary|List]Builder()
+//      .Set(args)
+//      .Set(args)
+//      .Build());
 //
 // The Build() method invalidates its builder, and returns ownership of the
 // built value.
@@ -32,18 +32,38 @@
 
 namespace extensions {
 
+// DEPRECATED: Building a dictionary can now directly be performed on
+// `base::Value::Dict`, and `ToJSON()` can be replaced by calling `WriteJson()`:
+//
+// std::string result =
+//     base::WriteJson(
+//         base::Value::Dict()
+//             .Set("key-1", "first value")
+//             .Set("key-2", 2)
+//             .Set("key-3", true)
+//             .Set("nested-dictionary", base::Value::Dict()
+//                                           .Set("nested-key-1", "value")
+//                                           .Set("nested-key-2", true))
+//             .Set("nested-list", base::Value::List()
+//                                     .Append("nested-list-value")
+//                                     .Append(5)
+//                                     .Append(true))).value();
+//
 class DictionaryBuilder {
  public:
   DictionaryBuilder();
-  explicit DictionaryBuilder(const base::DictionaryValue& init);
+  explicit DictionaryBuilder(const base::Value::Dict& init);
 
   DictionaryBuilder(const DictionaryBuilder&) = delete;
   DictionaryBuilder& operator=(const DictionaryBuilder&) = delete;
 
   ~DictionaryBuilder();
 
-  // Can only be called once, after which it's invalid to use the builder.
-  std::unique_ptr<base::DictionaryValue> Build() { return std::move(dict_); }
+  base::Value::Dict Build() {
+    base::Value::Dict result = std::move(dict_);
+    dict_ = base::Value::Dict();
+    return result;
+  }
 
   // Immediately serializes the current state to JSON. Can be called as many
   // times as you like.
@@ -51,25 +71,24 @@ class DictionaryBuilder {
 
   template <typename T>
   DictionaryBuilder& Set(base::StringPiece key, T in_value) {
-    dict_->SetKey(key, base::Value(in_value));
-    return *this;
-  }
-
-  // NOTE(devlin): This overload is really just for passing
-  // std::unique_ptr<base::[SomeTypeOf]Value>, but the argument resolution
-  // would require us to define a template specialization for each of the value
-  // types. Just define this; it will fail to compile if <T> is anything but
-  // a base::Value (or one of its subclasses).
-  template <typename T>
-  DictionaryBuilder& Set(base::StringPiece key, std::unique_ptr<T> in_value) {
-    dict_->SetKey(key, std::move(*in_value));
+    dict_.Set(key, std::move(in_value));
     return *this;
   }
 
  private:
-  std::unique_ptr<base::DictionaryValue> dict_;
+  base::Value::Dict dict_;
 };
 
+// DEPRECATED: Building a list can now directly be performed on
+// `base::Value::List`, and `ToJSON()` can be replaced by calling `WriteJson()`:
+//
+// std::string result =
+//     base::WriteJson(
+//       base::Value::List()
+//           .Append("nested-list-value")
+//           .Append(5)
+//           .Append(true)).value();
+//
 class ListBuilder {
  public:
   ListBuilder();
@@ -79,12 +98,15 @@ class ListBuilder {
 
   ~ListBuilder();
 
-  // Can only be called once, after which it's invalid to use the builder.
-  std::unique_ptr<base::ListValue> Build() { return std::move(list_); }
+  base::Value::List Build() {
+    base::Value::List result = std::move(list_);
+    list_ = base::Value::List();
+    return result;
+  }
 
   template <typename T>
   ListBuilder& Append(T in_value) {
-    list_->Append(in_value);
+    list_.Append(std::move(in_value));
     return *this;
   }
 
@@ -92,20 +114,14 @@ class ListBuilder {
   // But if it's good enough for the STL, it's good enough for this class.
   template <typename InputIt>
   ListBuilder& Append(InputIt first, InputIt last) {
-    for (; first != last; ++first)
-      list_->Append(*first);
-    return *this;
-  }
-
-  // See note on DictionaryBuilder::Set().
-  template <typename T>
-  ListBuilder& Append(std::unique_ptr<T> in_value) {
-    list_->Append(std::move(*in_value));
+    for (; first != last; ++first) {
+      list_.Append(*first);
+    }
     return *this;
   }
 
  private:
-  std::unique_ptr<base::ListValue> list_;
+  base::Value::List list_;
 };
 
 }  // namespace extensions

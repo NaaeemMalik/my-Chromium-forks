@@ -1,11 +1,10 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.share;
 
-import android.support.test.InstrumentationRegistry;
-
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
@@ -15,14 +14,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.Callback;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.MetricsUtils.HistogramDelta;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegateImpl.ShareSheetDelegate;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
@@ -103,11 +105,11 @@ public class ShareDelegateImplIntegrationTest {
             String pageUrl, String expectedShareUrl, @CanonicalURLResult int expectedUrlResult)
             throws IllegalArgumentException, TimeoutException {
         mActivityTestRule.loadUrl(pageUrl);
-        HistogramDelta urlResultDelta = new HistogramDelta(
+        var urlResultHistogram = HistogramWatcher.newSingleRecordWatcher(
                 ShareDelegateImpl.CANONICAL_URL_RESULT_HISTOGRAM, expectedUrlResult);
         ShareParams params = triggerShare();
         Assert.assertTrue(params.getTextAndUrl().contains(expectedShareUrl));
-        Assert.assertEquals(1, urlResultDelta.getDelta());
+        urlResultHistogram.assertExpected();
     }
 
     private ShareParams triggerShare() throws TimeoutException {
@@ -119,8 +121,9 @@ public class ShareDelegateImplIntegrationTest {
                 void share(ShareParams params, ChromeShareExtras chromeShareParams,
                         BottomSheetController controller,
                         ActivityLifecycleDispatcher lifecycleDispatcher, Supplier<Tab> tabProvider,
-                        Callback<Tab> printCallback, int shareOrigin, boolean syncState,
-                        long shareStartTime, boolean sharingHubEnabled) {
+                        Supplier<TabModelSelector> tabModelSelectorProvider,
+                        Supplier<Profile> profileSupplier, Callback<Tab> printCallback,
+                        int shareOrigin, long shareStartTime, boolean sharingHubEnabled) {
                     paramsRef.set(params);
                     helper.notifyCalled();
                 }
@@ -130,7 +133,9 @@ public class ShareDelegateImplIntegrationTest {
                                           .getRootUiCoordinatorForTesting()
                                           .getBottomSheetController(),
                     mActivityTestRule.getActivity().getLifecycleDispatcher(),
-                    mActivityTestRule.getActivity().getActivityTabProvider(), delegate, false)
+                    mActivityTestRule.getActivity().getActivityTabProvider(),
+                    mActivityTestRule.getActivity().getTabModelSelectorSupplier(),
+                    new ObservableSupplierImpl<>(), delegate, false)
                     .share(mActivityTestRule.getActivity().getActivityTab(), false,
                             /*shareOrigin=*/0);
         });

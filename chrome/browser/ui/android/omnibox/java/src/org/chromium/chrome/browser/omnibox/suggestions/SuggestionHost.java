@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,11 +30,28 @@ public interface SuggestionHost {
 
     /**
      * Triggered when the user long presses the omnibox suggestion.
+     * Deletes the entire AutocompleteMatch. Execution of this method implies removal of the
+     * AutocompleteMatch.
      *
      * @param suggestion Long-pressed Suggestion.
+     * @param titleText The title to display in the delete dialog.
      * @param position The position of the suggestion on the list.
      */
-    void onSuggestionLongClicked(@NonNull AutocompleteMatch suggestion, int position);
+    void onDeleteMatch(
+            @NonNull AutocompleteMatch suggestion, @NonNull String titleText, int position);
+
+    /**
+     * Triggered when the user long presses the omnibox suggestion element (eg. tile).
+     * Performs partial deletion of an AutocompleteMatch, focusing on the supplied element.
+     * Execution of this method does not imply removal of the AutocompleteMatch.
+     *
+     * @param suggestion Long-pressed Suggestion.
+     * @param titleText The title to display in the delete dialog.
+     * @param position The position of the suggestion on the list.
+     * @param element Element of the suggestion to be deleted.
+     */
+    void onDeleteMatchElement(@NonNull AutocompleteMatch suggestion, @NonNull String titleText,
+            int position, int element);
 
     /**
      * Triggered when the user selects a switch to tab action.
@@ -45,17 +62,14 @@ public interface SuggestionHost {
     void onSwitchToTab(@NonNull AutocompleteMatch suggestion, int position);
 
     /**
-     * Toggle expanded state of suggestion items belonging to specific group.
-     *
-     * @param groupId ID of Suggestion Group whose visibility changed.
-     * @param isCollapsed True if group should appear collapsed, otherwise false.
-     */
-    void setGroupCollapsedState(int groupId, boolean isCollapsed);
-
-    /**
      * Update the content of the Omnibox without triggering the Navigation.
      *
      * @param text The text to be displayed in the Omnibox.
      */
     void setOmniboxEditingText(@NonNull String text);
+
+    /**
+     * Clear focus, close the suggestions list and complete the interaction with the Omnibox.
+     */
+    void finishInteraction();
 }

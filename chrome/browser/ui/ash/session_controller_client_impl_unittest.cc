@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,26 +8,27 @@
 #include <string>
 #include <vector>
 
-#include "ash/components/login/session/session_termination_manager.h"
 #include "ash/constants/ash_pref_names.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "chrome/browser/ash/crosapi/fake_browser_manager.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/ash/login/users/multi_profile_user_controller.h"
-#include "chrome/browser/ash/policy/networking/policy_cert_service.h"
-#include "chrome/browser/ash/policy/networking/policy_cert_service_factory.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#include "chrome/browser/policy/networking/policy_cert_service.h"
+#include "chrome/browser/policy/networking/policy_cert_service_factory.h"
 #include "chrome/browser/ui/ash/assistant/assistant_browser_delegate_impl.h"
 #include "chrome/browser/ui/ash/test_session_controller.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
-#include "chromeos/login/login_state/login_state.h"
+#include "chromeos/ash/components/login/login_state/login_state.h"
+#include "chromeos/ash/components/login/session/session_termination_manager.h"
 #include "components/account_id/account_id.h"
 #include "components/prefs/pref_service.h"
 #include "components/session_manager/core/session_manager.h"
@@ -80,8 +81,7 @@ class TestChromeUserManager : public ash::FakeChromeUserManager {
     // depends on prefs::kAllowScreenLock.
     user_manager::UserList unlock_users;
     for (user_manager::User* user : users_) {
-      Profile* user_profile =
-          chromeos::ProfileHelper::Get()->GetProfileByUser(user);
+      Profile* user_profile = ash::ProfileHelper::Get()->GetProfileByUser(user);
       // Skip if user has a profile and kAllowScreenLock is set to false.
       if (user_profile &&
           !user_profile->GetPrefs()->GetBoolean(ash::prefs::kAllowScreenLock)) {
@@ -111,12 +111,12 @@ class SessionControllerClientImplTest : public testing::Test {
 
   void SetUp() override {
     testing::Test::SetUp();
-    chromeos::LoginState::Initialize();
+    ash::LoginState::Initialize();
 
     // Initialize the UserManager singleton.
     user_manager_ = new TestChromeUserManager;
     user_manager_enabler_ = std::make_unique<user_manager::ScopedUserManager>(
-        base::WrapUnique(user_manager_));
+        base::WrapUnique(user_manager_.get()));
     // Initialize AssistantBrowserDelegate singleton.
     assistant_delegate_ = std::make_unique<AssistantBrowserDelegateImpl>();
 
@@ -125,7 +125,7 @@ class SessionControllerClientImplTest : public testing::Test {
     ASSERT_TRUE(profile_manager_->SetUp());
 
     cros_settings_test_helper_ =
-        std::make_unique<chromeos::ScopedCrosSettingsTestHelper>();
+        std::make_unique<ash::ScopedCrosSettingsTestHelper>();
   }
 
   void TearDown() override {
@@ -142,7 +142,7 @@ class SessionControllerClientImplTest : public testing::Test {
     // PolicyCertService::Shutdown()).
     base::RunLoop().RunUntilIdle();
 
-    chromeos::LoginState::Shutdown();
+    ash::LoginState::Shutdown();
     testing::Test::TearDown();
   }
 
@@ -151,11 +151,7 @@ class SessionControllerClientImplTest : public testing::Test {
     const user_manager::User* user =
         is_child ? user_manager()->AddChildUser(account_id)
                  : user_manager()->AddUser(account_id);
-    session_manager_.CreateSession(
-        account_id,
-        chromeos::ProfileHelper::GetUserIdHashByUserIdForTesting(
-            account_id.GetUserEmail()),
-        is_child);
+    session_manager_.CreateSession(account_id, user->username_hash(), is_child);
 
     // Simulate that user profile is loaded.
     CreateTestingProfile(user);
@@ -191,8 +187,7 @@ class SessionControllerClientImplTest : public testing::Test {
     TestingProfile* profile =
         profile_manager_->CreateTestingProfile(account_id.GetUserEmail());
     profile->set_profile_name(account_id.GetUserEmail());
-    chromeos::ProfileHelper::Get()->SetUserToProfileMappingForTesting(user,
-                                                                      profile);
+    ash::ProfileHelper::Get()->SetUserToProfileMappingForTesting(user, profile);
     return profile;
   }
 
@@ -209,10 +204,9 @@ class SessionControllerClientImplTest : public testing::Test {
   std::unique_ptr<user_manager::ScopedUserManager> user_manager_enabler_;
 
   // Owned by |user_manager_enabler_|.
-  TestChromeUserManager* user_manager_ = nullptr;
+  raw_ptr<TestChromeUserManager, ExperimentalAsh> user_manager_ = nullptr;
 
-  std::unique_ptr<chromeos::ScopedCrosSettingsTestHelper>
-      cros_settings_test_helper_;
+  std::unique_ptr<ash::ScopedCrosSettingsTestHelper> cros_settings_test_helper_;
 };
 
 // Make sure that cycling one user does not cause any harm.
@@ -282,11 +276,11 @@ TEST_F(SessionControllerClientImplTest, MultiProfileDisallowedByUserPolicy) {
   EXPECT_EQ(ash::AddUserSessionPolicy::ALLOWED,
             SessionControllerClientImpl::GetAddUserSessionPolicy());
 
-  browser_manager_->set_is_running(true);
+  browser_manager_->StartRunning();
   EXPECT_EQ(ash::AddUserSessionPolicy::ERROR_LACROS_RUNNING,
             SessionControllerClientImpl::GetAddUserSessionPolicy());
 
-  browser_manager_->set_is_running(false);
+  browser_manager_->StopRunning();
   EXPECT_EQ(ash::AddUserSessionPolicy::ALLOWED,
             SessionControllerClientImpl::GetAddUserSessionPolicy());
 
@@ -459,11 +453,7 @@ TEST_F(SessionControllerClientImplTest, SendUserSession) {
       AccountId::FromUserEmailGaiaId("user@test.com", "5555555555"));
   const user_manager::User* user = user_manager()->AddUser(account_id);
   CreateTestingProfile(user);
-  session_manager_.CreateSession(
-      account_id,
-      chromeos::ProfileHelper::GetUserIdHashByUserIdForTesting(
-          account_id.GetUserEmail()),
-      false);
+  session_manager_.CreateSession(account_id, user->username_hash(), false);
   session_manager_.SetSessionState(SessionState::ACTIVE);
 
   // User session was sent.
@@ -514,11 +504,7 @@ TEST_F(SessionControllerClientImplTest, UserPrefsChange) {
   const AccountId account_id(
       AccountId::FromUserEmailGaiaId("user@test.com", "5555555555"));
   const user_manager::User* user = user_manager()->AddUser(account_id);
-  session_manager_.CreateSession(
-      account_id,
-      chromeos::ProfileHelper::GetUserIdHashByUserIdForTesting(
-          account_id.GetUserEmail()),
-      false);
+  session_manager_.CreateSession(account_id, user->username_hash(), false);
 
   // Simulate the notification that the profile is ready.
   TestingProfile* const user_profile = CreateTestingProfile(user);

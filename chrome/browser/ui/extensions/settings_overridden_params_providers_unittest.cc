@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/browser/extensions/extension_web_ui.h"
 #include "chrome/browser/extensions/extension_web_ui_override_registrar.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/search_test_utils.h"
@@ -43,7 +44,7 @@ class SettingsOverriddenParamsProvidersUnitTest
   // Adds a new extension that overrides the NTP.
   const extensions::Extension* AddExtensionControllingNewTab(
       const char* name = "ntp override") {
-    std::unique_ptr<base::Value> chrome_url_overrides =
+    base::Value::Dict chrome_url_overrides =
         extensions::DictionaryBuilder().Set("newtab", "newtab.html").Build();
     scoped_refptr<const extensions::Extension> extension =
         extensions::ExtensionBuilder(name)

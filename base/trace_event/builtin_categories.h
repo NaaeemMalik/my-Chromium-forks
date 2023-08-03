@@ -1,12 +1,14 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_TRACE_EVENT_BUILTIN_CATEGORIES_H_
 #define BASE_TRACE_EVENT_BUILTIN_CATEGORIES_H_
 
+#include <cstddef>
+#include <iterator>
+
 #include "base/base_export.h"
-#include "base/cxx17_backports.h"
 #include "base/trace_event/common/trace_event_common.h"
 #include "base/tracing_buildflags.h"
 #include "build/build_config.h"
@@ -66,6 +68,7 @@
   X("compositor")                                                        \
   X("content")                                                           \
   X("content_capture")                                                   \
+  X("delegated_ink_trails")                                              \
   X("device")                                                            \
   X("devtools")                                                          \
   X("devtools.contrast")                                                 \
@@ -79,17 +82,22 @@
   X("DXVA_Decoding")                                                     \
   X("evdev")                                                             \
   X("event")                                                             \
+  X("event_latency")                                                     \
   X("exo")                                                               \
   X("extensions")                                                        \
   X("explore_sites")                                                     \
   X("FileSystem")                                                        \
   X("file_system_provider")                                              \
+  X("fledge")                                                            \
   X("fonts")                                                             \
   X("GAMEPAD")                                                           \
   X("gpu")                                                               \
   X("gpu.angle")                                                         \
+  X("gpu.angle.texture_metrics")                                         \
   X("gpu.capture")                                                       \
   X("headless")                                                          \
+  /* Traces for //components/history. */                                 \
+  X("history")                                                           \
   X("hwoverlays")                                                        \
   X("identity")                                                          \
   X("ime")                                                               \
@@ -119,6 +127,7 @@
   X("offline_pages")                                                     \
   X("omnibox")                                                           \
   X("oobe")                                                              \
+  X("openscreen")                                                        \
   X("ozone")                                                             \
   X("partition_alloc")                                                   \
   X("passwords")                                                         \
@@ -136,11 +145,13 @@
   X("renderer")                                                          \
   X("renderer_host")                                                     \
   X("renderer.scheduler")                                                \
+  X("resources")                                                         \
   X("RLZ")                                                               \
   X("ServiceWorker")                                                     \
   X("SiteEngagement")                                                    \
   X("safe_browsing")                                                     \
   X("scheduler")                                                         \
+  X("scheduler.long_tasks")                                              \
   X("screenlock_monitor")                                                \
   X("segmentation_platform")                                             \
   X("sequence_manager")                                                  \
@@ -168,28 +179,36 @@
   X("views.frame")                                                       \
   X("viz")                                                               \
   X("vk")                                                                \
+  X("wakeup.flow")                                                       \
   X("wayland")                                                           \
   X("webaudio")                                                          \
+  X("webengine.fidl")                                                    \
   X("weblayer")                                                          \
   X("WebCore")                                                           \
   X("webrtc")                                                            \
+  X("webrtc_stats")                                                      \
   X("xr")                                                                \
   X(TRACE_DISABLED_BY_DEFAULT("android_view_hierarchy"))                 \
   X(TRACE_DISABLED_BY_DEFAULT("animation-worklet"))                      \
   X(TRACE_DISABLED_BY_DEFAULT("audio"))                                  \
+  X(TRACE_DISABLED_BY_DEFAULT("audio.latency"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("audio-worklet"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("base"))                                   \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug"))                            \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug.display_lock"))               \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug.layout"))                     \
+  X(TRACE_DISABLED_BY_DEFAULT("blink.debug.layout.scrollbars"))          \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug.layout.trees"))               \
   X(TRACE_DISABLED_BY_DEFAULT("blink.feature_usage"))                    \
   X(TRACE_DISABLED_BY_DEFAULT("blink.image_decoding"))                   \
   X(TRACE_DISABLED_BY_DEFAULT("blink.invalidation"))                     \
+  X(TRACE_DISABLED_BY_DEFAULT("identifiability"))                        \
+  X(TRACE_DISABLED_BY_DEFAULT("identifiability.high_entropy_api"))       \
   X(TRACE_DISABLED_BY_DEFAULT("cc"))                                     \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug"))                               \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.cdp-perf"))                      \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.display_items"))                 \
+  X(TRACE_DISABLED_BY_DEFAULT("cc.debug.lcd_text"))                      \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.picture"))                       \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.scheduler"))                     \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.scheduler.frames"))              \
@@ -205,6 +224,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("devtools.timeline.invalidationTracking")) \
   X(TRACE_DISABLED_BY_DEFAULT("devtools.timeline.layers"))               \
   X(TRACE_DISABLED_BY_DEFAULT("devtools.timeline.picture"))              \
+  X(TRACE_DISABLED_BY_DEFAULT("devtools.timeline.stack"))                \
   X(TRACE_DISABLED_BY_DEFAULT("file"))                                   \
   X(TRACE_DISABLED_BY_DEFAULT("fonts"))                                  \
   X(TRACE_DISABLED_BY_DEFAULT("gpu_cmd_queue"))                          \
@@ -230,7 +250,6 @@
   X(TRACE_DISABLED_BY_DEFAULT("power"))                                  \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler"))                     \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler.debug"))               \
-  X(TRACE_DISABLED_BY_DEFAULT("sandbox"))                                \
   X(TRACE_DISABLED_BY_DEFAULT("sequence_manager"))                       \
   X(TRACE_DISABLED_BY_DEFAULT("sequence_manager.debug"))                 \
   X(TRACE_DISABLED_BY_DEFAULT("sequence_manager.verbose_snapshots"))     \
@@ -248,6 +267,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("v8.gc"))                                  \
   X(TRACE_DISABLED_BY_DEFAULT("v8.gc_stats"))                            \
   X(TRACE_DISABLED_BY_DEFAULT("v8.ic_stats"))                            \
+  X(TRACE_DISABLED_BY_DEFAULT("v8.inspector"))                           \
   X(TRACE_DISABLED_BY_DEFAULT("v8.runtime"))                             \
   X(TRACE_DISABLED_BY_DEFAULT("v8.runtime_stats"))                       \
   X(TRACE_DISABLED_BY_DEFAULT("v8.runtime_stats_sampling"))              \
@@ -265,6 +285,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("viz.surface_lifetime"))                   \
   X(TRACE_DISABLED_BY_DEFAULT("viz.triangles"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("webaudio.audionode"))                     \
+  X(TRACE_DISABLED_BY_DEFAULT("webgpu"))                                 \
   X(TRACE_DISABLED_BY_DEFAULT("webrtc"))                                 \
   X(TRACE_DISABLED_BY_DEFAULT("worker.scheduler"))                       \
   X(TRACE_DISABLED_BY_DEFAULT("xr.debug"))
@@ -294,7 +315,7 @@
   X("browser,startup")                                                        \
   X("category1,category2")                                                    \
   X("cc,benchmark")                                                           \
-  X("cc,benchmark,input")                                                     \
+  X("cc,benchmark,input,event_latency")                                       \
   X("cc,benchmark," TRACE_DISABLED_BY_DEFAULT("devtools.timeline.frame"))     \
   X("cc,input")                                                               \
   X("cc,raf_investigation")                                                   \
@@ -315,6 +336,8 @@
   X("inc,inc2")                                                               \
   X("input,benchmark")                                                        \
   X("input,benchmark,devtools.timeline")                                      \
+  X("input,benchmark,devtools.timeline,latencyInfo")                          \
+  X("input,benchmark,latencyInfo")                                            \
   X("input,latency")                                                          \
   X("input,rail")                                                             \
   X("input,views")                                                            \
@@ -331,11 +354,15 @@
   X("renderer,webkit")                                                        \
   X("renderer_host,navigation")                                               \
   X("renderer_host," TRACE_DISABLED_BY_DEFAULT("viz.surface_id_flow"))        \
+  X("scheduler,devtools.timeline,loading")                                    \
   X("shutdown,viz")                                                           \
   X("startup,benchmark,rail")                                                 \
   X("startup,rail")                                                           \
+  X("toplevel,Java")                                                          \
+  X("toplevel,viz")                                                           \
   X("ui,input")                                                               \
   X("ui,latency")                                                             \
+  X("ui,toplevel")                                                            \
   X("v8," TRACE_DISABLED_BY_DEFAULT("v8.compile"))                            \
   X("v8,devtools.timeline")                                                   \
   X("v8,devtools.timeline," TRACE_DISABLED_BY_DEFAULT("v8.compile"))          \
@@ -345,7 +372,9 @@
       "viz.quads") "," TRACE_DISABLED_BY_DEFAULT("devtools.timeline.layers")) \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.display_items") "," \
       TRACE_DISABLED_BY_DEFAULT("cc.debug.picture") "," \
-      TRACE_DISABLED_BY_DEFAULT("devtools.timeline.picture"))
+      TRACE_DISABLED_BY_DEFAULT("devtools.timeline.picture"))                 \
+  X(TRACE_DISABLED_BY_DEFAULT("v8.inspector") "," TRACE_DISABLED_BY_DEFAULT(  \
+      "v8.stack_trace"))
 
 #define INTERNAL_TRACE_INIT_CATEGORY_NAME(name) name,
 
@@ -368,9 +397,12 @@ PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES("cat",
 
 // Define a Perfetto TrackEvent data source using the list of categories defined
 // above. See https://perfetto.dev/docs/instrumentation/track-events.
-PERFETTO_DEFINE_CATEGORIES(
+PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
+    base,
+    BASE_EXPORT,
     INTERNAL_TRACE_LIST_BUILTIN_CATEGORIES(INTERNAL_CATEGORY)
         INTERNAL_TRACE_LIST_BUILTIN_CATEGORY_GROUPS(INTERNAL_CATEGORY_GROUP));
+PERFETTO_USE_CATEGORIES_FROM_NAMESPACE(base);
 
 #undef INTERNAL_CATEGORY
 #undef INTERNAL_CATEGORY_GROUP
@@ -415,9 +447,7 @@ class BASE_EXPORT BuiltinCategories {
   }
 
   // Returns the amount of built-in categories in the registry.
-  static constexpr size_t Size() {
-    return base::size(kBuiltinCategories);
-  }
+  static constexpr size_t Size() { return std::size(kBuiltinCategories); }
 
   // Where in the builtin category list to start when populating the
   // about://tracing UI.
@@ -430,7 +460,7 @@ class BASE_EXPORT BuiltinCategories {
   // All trace categories are checked against this. A static_assert is triggered
   // if at least one category fails this check.
   static constexpr bool IsAllowedCategory(const char* category) {
-#if defined(OS_WIN) && defined(COMPONENT_BUILD)
+#if BUILDFLAG(IS_WIN) && defined(COMPONENT_BUILD)
     return true;
 #else
     return IsBuiltinCategory(category) ||
@@ -521,13 +551,13 @@ class BASE_EXPORT BuiltinCategories {
   // Returns whether |category| is used only for testing.
   static constexpr bool IsCategoryForTesting(const char* category) {
     return IsStringInArray(category, kCategoriesForTesting,
-                           base::size(kCategoriesForTesting));
+                           std::size(kCategoriesForTesting));
   }
 
   // Returns whether |category| is registered in the builtin list.
   static constexpr bool IsBuiltinCategory(const char* category) {
     return IsStringInArray(category, kBuiltinCategories,
-                           base::size(kBuiltinCategories));
+                           std::size(kBuiltinCategories));
   }
 };
 

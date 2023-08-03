@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,9 +36,11 @@ std::unique_ptr<LoginHandler> LoginHandler::Create(
 void BookmarkEditor::Show(gfx::NativeWindow parent_window,
                           Profile* profile,
                           const EditDetails& details,
-                          Configuration configuration) {
+                          Configuration configuration,
+                          OnSaveCallback on_save_callback) {
   auto editor = std::make_unique<BookmarkEditorView>(
-      profile, details.parent_node, details, configuration);
+      profile, details.parent_node, details, configuration,
+      std::move(on_save_callback));
   editor->Show(parent_window);
   editor.release();  // BookmarkEditorView is self-deleting
 }
@@ -49,7 +51,7 @@ void ChromeDevicePermissionsPrompt::ShowDialog() {
 
 namespace chrome {
 
-#if !defined(OS_MAC)
+#if !BUILDFLAG(IS_MAC)
 task_manager::TaskManagerTableModel* ShowTaskManager(Browser* browser) {
   return task_manager::TaskManagerView::Show(browser);
 }

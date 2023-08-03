@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,9 +50,10 @@ std::vector<blink::mojom::FileChooserFileInfoPtr> RemoveSymlinks(
 
 FileChooserImpl::FileSelectListenerImpl::~FileSelectListenerImpl() {
 #if DCHECK_IS_ON()
-  DCHECK(was_file_select_listener_function_called_)
-      << "Must call either FileSelectListener::FileSelected() or "
-         "FileSelectListener::FileSelectionCanceled()";
+  if (!was_file_select_listener_function_called_) {
+    LOG(ERROR) << "Must call either FileSelectListener::FileSelected() or "
+                  "FileSelectListener::FileSelectionCanceled()";
+  }
   // TODO(avi): Turn on the DCHECK on the following line. This cannot yet be
   // done because I can't say for sure that I know who all the callers who bind
   // blink::mojom::FileChooser are. https://crbug.com/1054811

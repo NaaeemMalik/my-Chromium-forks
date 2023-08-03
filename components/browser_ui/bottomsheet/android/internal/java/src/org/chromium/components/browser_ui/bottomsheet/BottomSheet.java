@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,10 +30,10 @@ import org.chromium.base.task.TaskTraits;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent.HeightMode;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
-import org.chromium.components.browser_ui.bottomsheet.internal.R;
 import org.chromium.components.browser_ui.widget.animation.CancelAwareAnimatorListener;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.LocalizationUtils;
+import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.util.AccessibilityUtil;
 
 /**
@@ -192,12 +192,6 @@ class BottomSheet extends FrameLayout
         }
     }
 
-    /**
-     * The instance passed to the current content that is allowed to
-     * change the sheet offset.
-     */
-    private Callback<Integer> mOffsetController;
-
     @Override
     public boolean shouldGestureMoveSheet(MotionEvent initialEvent, MotionEvent currentEvent) {
         // If the sheet is scrolling off-screen or in the process of hiding, gestures should not
@@ -252,7 +246,7 @@ class BottomSheet extends FrameLayout
     }
 
     /** @param accessibilityUtil A mechanism for testing whether accessibility is enabled. */
-    void setAccssibilityUtil(AccessibilityUtil accessibilityUtil) {
+    void setAccessibilityUtil(AccessibilityUtil accessibilityUtil) {
         mAccessibilityUtil = accessibilityUtil;
     }
 
@@ -297,6 +291,14 @@ class BottomSheet extends FrameLayout
         return true;
     }
 
+    @Override
+    public boolean onHoverEvent(MotionEvent event) {
+        // https://crbug.com/1297267 Consume hover events to prevent talkback from reading items
+        // behind the bottom sheet, in particular when the client has its own scrim lifecycle.
+        super.onHoverEvent(event);
+        return true;
+    }
+
     /**
      * Adds layout change listeners to the views that the bottom sheet depends on. Namely the
      * heights of the root view and control container are important as they are used in many of the
@@ -335,8 +337,14 @@ class BottomSheet extends FrameLayout
                 mContainerHeight = bottom - top;
 
                 if (previousWidth != mContainerWidth || previousHeight != mContainerHeight) {
-                    if (mCurrentState == SheetState.HALF && !isHalfStateEnabled()) {
-                        setSheetState(SheetState.FULL, false);
+                    if (!isHalfStateEnabled()) {
+                        if (mCurrentState == SheetState.HALF) {
+                            setSheetState(SheetState.FULL, false);
+                        } else if (mCurrentState == SheetState.SCROLLING
+                                && mTargetState == SheetState.HALF) {
+                            // Let the animation resume to the full height.
+                            mTargetState = SheetState.FULL;
+                        }
                     }
                     invalidateContentDesiredHeight();
                     sizeAndPositionSheetInParent();
@@ -424,7 +432,9 @@ class BottomSheet extends FrameLayout
         // Trigger a relayout on window focus to correct any positioning issues when leaving Chrome
         // previously.  This is required as a layout is not triggered when coming back to Chrome
         // with the keyboard previously shown.
-        if (hasWindowFocus) requestLayout();
+        if (hasWindowFocus) {
+            ViewUtils.requestLayout(this, "BottomSheet.onWindowFocusChagned");
+        }
     }
 
     @Override
@@ -454,7 +464,8 @@ class BottomSheet extends FrameLayout
 
     @Override
     public boolean isTouchEventInToolbar(MotionEvent event) {
-        mToolbarHolder.getLocationInWindow(mCachedLocation);
+        mToolbarHolder.getLocationOnScreen(mCachedLocation);
+
         // This check only tests for collision for the Y component since the sheet is the full width
         // of the screen. We only care if the touch event is above the bottom of the toolbar since
         // we won't receive an event if the touch is outside the sheet.
@@ -521,12 +532,7 @@ class BottomSheet extends FrameLayout
 
         // Remove this as listener from previous content layout and size changes.
         if (mSheetContent != null) {
-            mSheetContent.setContentSizeListener(null);
             mSheetContent.getContentView().removeOnLayoutChangeListener(this);
-            if (mOffsetController != null) {
-                mSheetContent.setOffsetController(null);
-                mOffsetController = null;
-            }
         }
 
         if (content != null && getParent() == null) {
@@ -917,7 +923,8 @@ class BottomSheet extends FrameLayout
         // Setting state to SCROLLING is not a valid operation. This can happen only when
         // we're already in the scrolling state. Make it no-op.
         if (state == SheetState.SCROLLING) {
-            assert mCurrentState == SheetState.SCROLLING && isRunningSettleAnimation();
+            // TODO(mdjones): The isRunningSettleAnimation should hold but currently doesn't.
+            assert mCurrentState == SheetState.SCROLLING; // && isRunningSettleAnimation();
             return;
         }
 
@@ -926,7 +933,9 @@ class BottomSheet extends FrameLayout
         cancelAnimation();
         mTargetState = state;
 
-        if (animate && state != mCurrentState) {
+        if (animate
+                && (state != mCurrentState
+                        || mCurrentOffsetPx != getSheetHeightForState(mTargetState))) {
             createSettleAnimation(state, reason);
         } else {
             setSheetOffsetFromBottom(getSheetHeightForState(state), reason);
@@ -1069,7 +1078,7 @@ class BottomSheet extends FrameLayout
         getLayoutParams().width = maxSheetWidth;
         setTranslationX((LocalizationUtils.isLayoutRtl() ? -1 : 1)
                 * (mContainerWidth - maxSheetWidth) / 2f);
-        requestLayout();
+        ViewUtils.requestLayout(this, "BottomSheet.sizeAndPositionSheetInParent");
     }
 
     private void ensureContentDesiredHeightIsComputed() {
@@ -1253,34 +1262,16 @@ class BottomSheet extends FrameLayout
     protected void onSheetContentChanged(@Nullable final BottomSheetContent content) {
         mSheetContent = content;
 
-        if (content != null) {
-            if (isFullHeightWrapContent()) {
-                // Listen for layout/size changes.
-                if (!content.setContentSizeListener(this::onContentSizeChanged)) {
-                    content.getContentView().addOnLayoutChangeListener(this);
-                }
+        if (content != null && isFullHeightWrapContent()) {
+            // Listen for layout/size changes.
+            content.getContentView().addOnLayoutChangeListener(this);
 
-                invalidateContentDesiredHeight();
-                ensureContentIsWrapped(/* animate= */ true);
+            invalidateContentDesiredHeight();
+            ensureContentIsWrapped(/* animate= */ true);
 
-                // HALF state is forbidden when wrapping the content.
-                if (mCurrentState == SheetState.HALF) {
-                    setSheetState(SheetState.FULL, /* animate= */ true);
-                }
-            }
-            if (content.contentControlsOffset()) {
-                mOffsetController = new Callback<Integer>() {
-                    @Override
-                    public void onResult(Integer offsetPx) {
-                        if (this != mOffsetController) return;
-
-                        cancelAnimation();
-                        setSheetOffsetFromBottom(
-                                MathUtils.clamp(offsetPx, 0, (int) getMaxOffsetPx()),
-                                StateChangeReason.NONE, /* reportOpenClosed=*/false);
-                    }
-                };
-                content.setOffsetController(mOffsetController);
+            // HALF state is forbidden when wrapping the content.
+            if (mCurrentState == SheetState.HALF) {
+                setSheetState(SheetState.FULL, /* animate= */ true);
             }
         }
 
@@ -1301,28 +1292,6 @@ class BottomSheet extends FrameLayout
         mContentWidth = right - left;
         invalidateContentDesiredHeight();
         ensureContentIsWrapped(/* animate= */ true);
-    }
-
-    /**
-     * Called when the sheet content size changed.
-     */
-    private void onContentSizeChanged(int width, int height, int oldWidth, int oldHeight) {
-        boolean heightChanged = mContentDesiredHeight != height;
-        boolean widthChanged = mContentWidth != width;
-
-        // onContentSizeChanged() is sometimes called when there's no size change, because of
-        // animations running in the content. Ignore these calls.
-        if (!heightChanged && !widthChanged) return;
-
-        mContentDesiredHeight = height;
-        mContentWidth = width;
-
-        if (heightChanged && mCurrentState == SheetState.SCROLLING) {
-            endAnimations();
-            return;
-        }
-
-        ensureContentIsWrapped(/* animate= */ false);
     }
 
     private void ensureContentIsWrapped(boolean animate) {

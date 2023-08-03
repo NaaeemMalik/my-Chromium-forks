@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,7 @@
 #include "ui/events/event.h"
 #include "ui/events/event_handler.h"
 
-namespace arc {
-namespace input_overlay {
+namespace arc::input_overlay {
 namespace test {
 
 // EventCapturer captures events of different types for unit tests.
@@ -28,17 +27,21 @@ class EventCapturer : public ui::EventHandler {
   std::vector<std::unique_ptr<ui::TouchEvent>>& touch_events() {
     return touch_events_;
   }
+  std::vector<std::unique_ptr<ui::MouseEvent>>& mouse_events() {
+    return mouse_events_;
+  }
 
  private:
   // EventHandler overrides:
   void OnKeyEvent(ui::KeyEvent* event) override;
   void OnTouchEvent(ui::TouchEvent* event) override;
+  void OnMouseEvent(ui::MouseEvent* event) override;
 
   std::vector<std::unique_ptr<ui::KeyEvent>> key_events_;
   std::vector<std::unique_ptr<ui::TouchEvent>> touch_events_;
+  std::vector<std::unique_ptr<ui::MouseEvent>> mouse_events_;
 };
 }  // namespace test
-}  // namespace input_overlay
-}  // namespace arc
+}  // namespace arc::input_overlay
 
 #endif  // CHROME_BROWSER_ASH_ARC_INPUT_OVERLAY_TEST_EVENT_CAPTURER_H_

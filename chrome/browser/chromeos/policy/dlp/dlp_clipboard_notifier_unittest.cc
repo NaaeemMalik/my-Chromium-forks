@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 #include <memory>
 #include <string>
 
-#include "base/stl_util.h"
+#include "base/functional/callback_helpers.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/mock_callback.h"
+#include "base/types/optional_util.h"
 #include "chrome/browser/chromeos/policy/dlp/clipboard_bubble.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_clipboard_bubble_constants.h"
 #include "chrome/grit/generated_resources.h"
@@ -26,7 +27,10 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
-#include "url/origin.h"
+
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/constants/notifier_catalogs.h"
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace policy {
 
@@ -53,7 +57,7 @@ std::unique_ptr<content::WebContents> CreateTestWebContents(
 
 ui::DataTransferEndpoint CreateEndpoint(ui::EndpointType type) {
   if (type == ui::EndpointType::kUrl)
-    return ui::DataTransferEndpoint(url::Origin::Create(GURL(kExampleUrl)));
+    return ui::DataTransferEndpoint((GURL(kExampleUrl)));
   else
     return ui::DataTransferEndpoint(type);
 }
@@ -72,16 +76,31 @@ class MockDlpClipboardNotifier : public DlpClipboardNotifier {
                     base::RepeatingCallback<void(views::Widget*)> proceed_cb,
                     base::RepeatingCallback<void(views::Widget*)> cancel_cb));
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-  MOCK_CONST_METHOD2(ShowToast,
-                     void(const std::string& id, const std::u16string& text));
+  MOCK_CONST_METHOD3(ShowToast,
+                     void(const std::string& id,
+                          ash::ToastCatalogName catalog_name,
+                          const std::u16string& text));
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   MOCK_METHOD2(CloseWidget,
-               void(views::Widget* widget, views::Widget::ClosedReason reason));
+               void(MayBeDangling<views::Widget> widget,
+                    views::Widget::ClosedReason reason));
+
+  void SetPasteCallback(base::OnceCallback<void(bool)> paste_cb) override {
+    paste_cb_ = std::move(paste_cb);
+  }
+
+  void RunPasteCallback() override {
+    DCHECK(paste_cb_);
+    std::move(paste_cb_).Run(true);
+  }
 
   using DlpClipboardNotifier::BlinkProceedPressed;
   using DlpClipboardNotifier::CancelWarningPressed;
   using DlpClipboardNotifier::ProceedPressed;
   using DlpClipboardNotifier::ResetUserWarnSelection;
+
+ private:
+  base::OnceCallback<void(bool)> paste_cb_;
 };
 
 }  // namespace
@@ -98,7 +117,7 @@ class ClipboardBubbleTestWithParam
 
 TEST_P(ClipboardBubbleTestWithParam, BlockBubble) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  ui::DataTransferEndpoint data_src(url::Origin::Create(GURL(kExampleUrl)));
+  ui::DataTransferEndpoint data_src((GURL(kExampleUrl)));
   absl::optional<ui::DataTransferEndpoint> data_dst;
   auto param = GetParam();
   if (param.has_value())
@@ -106,13 +125,12 @@ TEST_P(ClipboardBubbleTestWithParam, BlockBubble) {
 
   EXPECT_CALL(notifier, ShowBlockBubble);
 
-  notifier.NotifyBlockedAction(&data_src, base::OptionalOrNullptr(data_dst));
+  notifier.NotifyBlockedAction(&data_src, base::OptionalToPtr(data_dst));
 }
 
 TEST_P(ClipboardBubbleTestWithParam, WarnBubble) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
-  ui::DataTransferEndpoint data_src(origin);
+  ui::DataTransferEndpoint data_src((GURL(kExampleUrl)));
   absl::optional<ui::DataTransferEndpoint> data_dst;
   auto param = GetParam();
   if (param.has_value())
@@ -122,7 +140,8 @@ TEST_P(ClipboardBubbleTestWithParam, WarnBubble) {
                                     views::Widget::ClosedReason::kUnspecified));
   EXPECT_CALL(notifier, ShowWarningBubble);
 
-  notifier.WarnOnPaste(&data_src, base::OptionalOrNullptr(data_dst));
+  notifier.WarnOnPaste(&data_src, base::OptionalToPtr(data_dst),
+                       base::DoNothing());
 }
 
 INSTANTIATE_TEST_SUITE_P(DlpClipboardNotifierTest,
@@ -154,7 +173,7 @@ TEST_P(ClipboardBubbleButtonsTestWithParam, ProceedPressed) {
               CloseWidget(testing::_,
                           views::Widget::ClosedReason::kAcceptButtonClicked));
 
-  notifier.ProceedPressed(data_dst, nullptr);
+  notifier.ProceedPressed(data_dst, base::DoNothing(), nullptr);
 
   EXPECT_TRUE(notifier.DidUserApproveDst(&data_dst));
 }
@@ -195,9 +214,9 @@ class DlpClipboardNotifierTest : public testing::Test {
 
 TEST_F(DlpClipboardNotifierTest, BlinkWarn) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
-  ui::DataTransferEndpoint data_src(origin);
-  ui::DataTransferEndpoint data_dst(origin);
+  GURL url = GURL(kExampleUrl);
+  ui::DataTransferEndpoint data_src(url);
+  ui::DataTransferEndpoint data_dst(url);
 
   EXPECT_CALL(notifier, CloseWidget(testing::_,
                                     views::Widget::ClosedReason::kUnspecified));
@@ -221,12 +240,9 @@ TEST_F(DlpClipboardNotifierTest, BlinkWarn) {
 
 TEST_F(DlpClipboardNotifierTest, BlinkProceedSavedHistory) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  const ui::DataTransferEndpoint url_dst1(
-      url::Origin::Create(GURL(kExampleUrl)));
-  const ui::DataTransferEndpoint url_dst2(
-      url::Origin::Create(GURL(kExample2Url)));
-  const ui::DataTransferEndpoint url_dst3(
-      url::Origin::Create(GURL(kExample3Url)));
+  const ui::DataTransferEndpoint url_dst1((GURL(kExampleUrl)));
+  const ui::DataTransferEndpoint url_dst2((GURL(kExample2Url)));
+  const ui::DataTransferEndpoint url_dst3((GURL(kExample3Url)));
 
   ::testing::StrictMock<base::MockOnceCallback<void(bool)>> callback;
 
@@ -235,15 +251,15 @@ TEST_F(DlpClipboardNotifierTest, BlinkProceedSavedHistory) {
                           views::Widget::ClosedReason::kAcceptButtonClicked))
       .Times(3);
 
-  notifier.SetBlinkPasteCallbackForTesting(callback.Get());
+  notifier.SetPasteCallback(callback.Get());
   EXPECT_CALL(callback, Run(true));
   notifier.BlinkProceedPressed(url_dst1, nullptr);
 
-  notifier.SetBlinkPasteCallbackForTesting(callback.Get());
+  notifier.SetPasteCallback(callback.Get());
   EXPECT_CALL(callback, Run(true));
   notifier.BlinkProceedPressed(url_dst2, nullptr);
 
-  notifier.SetBlinkPasteCallbackForTesting(callback.Get());
+  notifier.SetPasteCallback(callback.Get());
   EXPECT_CALL(callback, Run(true));
   notifier.BlinkProceedPressed(url_dst3, nullptr);
 
@@ -262,8 +278,7 @@ TEST_F(DlpClipboardNotifierTest, BlinkProceedSavedHistory) {
 
 TEST_F(DlpClipboardNotifierTest, ProceedSavedHistory) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  const ui::DataTransferEndpoint url_dst(
-      url::Origin::Create(GURL(kExampleUrl)));
+  const ui::DataTransferEndpoint url_dst((GURL(kExampleUrl)));
   const ui::DataTransferEndpoint default_dst(ui::EndpointType::kDefault);
 
   EXPECT_CALL(notifier,
@@ -271,8 +286,8 @@ TEST_F(DlpClipboardNotifierTest, ProceedSavedHistory) {
                           views::Widget::ClosedReason::kAcceptButtonClicked))
       .Times(2);
 
-  notifier.ProceedPressed(url_dst, nullptr);
-  notifier.ProceedPressed(default_dst, nullptr);
+  notifier.ProceedPressed(url_dst, base::DoNothing(), nullptr);
+  notifier.ProceedPressed(default_dst, base::DoNothing(), nullptr);
 
   EXPECT_TRUE(notifier.DidUserApproveDst(&url_dst));
   EXPECT_TRUE(notifier.DidUserApproveDst(&default_dst));
@@ -294,8 +309,8 @@ TEST_F(DlpClipboardNotifierTest, ProceedSavedHistoryVMs) {
                           views::Widget::ClosedReason::kAcceptButtonClicked))
       .Times(2);
 
-  notifier.ProceedPressed(arc_dst, nullptr);
-  notifier.ProceedPressed(crostini_dst, nullptr);
+  notifier.ProceedPressed(arc_dst, base::DoNothing(), nullptr);
+  notifier.ProceedPressed(crostini_dst, base::DoNothing(), nullptr);
 
   EXPECT_TRUE(notifier.DidUserApproveDst(&arc_dst));
   EXPECT_TRUE(notifier.DidUserApproveDst(&crostini_dst));
@@ -309,8 +324,7 @@ TEST_F(DlpClipboardNotifierTest, ProceedSavedHistoryVMs) {
 
 TEST_F(DlpClipboardNotifierTest, CancelSavedHistory) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  const ui::DataTransferEndpoint url_dst(
-      url::Origin::Create(GURL(kExampleUrl)));
+  const ui::DataTransferEndpoint url_dst((GURL(kExampleUrl)));
   const ui::DataTransferEndpoint default_dst(ui::EndpointType::kDefault);
 
   EXPECT_CALL(notifier,
@@ -368,35 +382,40 @@ class ToastTestWithParam : public ::testing::TestWithParam<ToastTest> {
 
 TEST_P(ToastTestWithParam, BlockToast) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
-  ui::DataTransferEndpoint data_src(origin);
+  GURL url = GURL(kExampleUrl);
+  ui::DataTransferEndpoint data_src(url);
   ui::DataTransferEndpoint data_dst(GetParam().dst_type);
 
   std::u16string expected_toast_str = l10n_util::GetStringFUTF16(
       IDS_POLICY_DLP_CLIPBOARD_BLOCKED_ON_COPY_VM,
-      base::UTF8ToUTF16(origin.host()),
+      base::UTF8ToUTF16(url.host()),
       l10n_util::GetStringUTF16(GetParam().expected_dst_name_id));
 
-  EXPECT_CALL(notifier, ShowToast(testing::_, expected_toast_str));
+  EXPECT_CALL(
+      notifier,
+      ShowToast(testing::_, ash::ToastCatalogName::kClipboardBlockedAction,
+                expected_toast_str));
 
   notifier.NotifyBlockedAction(&data_src, &data_dst);
 }
 
 TEST_P(ToastTestWithParam, WarnToast) {
   ::testing::StrictMock<MockDlpClipboardNotifier> notifier;
-  url::Origin origin = url::Origin::Create(GURL(kExampleUrl));
-  ui::DataTransferEndpoint data_src(origin);
+  GURL url = GURL(kExampleUrl);
+  ui::DataTransferEndpoint data_src(url);
   ui::DataTransferEndpoint data_dst(GetParam().dst_type);
 
   std::u16string expected_toast_str = l10n_util::GetStringFUTF16(
       IDS_POLICY_DLP_CLIPBOARD_WARN_ON_COPY_VM,
       l10n_util::GetStringUTF16(GetParam().expected_dst_name_id));
 
-  EXPECT_CALL(notifier, ShowToast(testing::_, expected_toast_str));
+  EXPECT_CALL(notifier, ShowToast(testing::_,
+                                  ash::ToastCatalogName::kClipboardWarnOnPaste,
+                                  expected_toast_str));
 
   EXPECT_CALL(notifier, CloseWidget(testing::_,
                                     views::Widget::ClosedReason::kUnspecified));
-  notifier.WarnOnPaste(&data_src, &data_dst);
+  notifier.WarnOnPaste(&data_src, &data_dst, base::DoNothing());
 }
 
 INSTANTIATE_TEST_SUITE_P(

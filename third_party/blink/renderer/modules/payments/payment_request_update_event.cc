@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -63,11 +63,11 @@ void PaymentRequestUpdateEvent::updateWith(ScriptState* script_state,
   wait_for_update_ = true;
 
   promise.Then(
-      MakeGarbageCollected<NewScriptFunction>(
+      MakeGarbageCollected<ScriptFunction>(
           script_state,
           MakeGarbageCollected<UpdatePaymentDetailsFunction>(
               request_, UpdatePaymentDetailsFunction::ResolveType::kFulfill)),
-      MakeGarbageCollected<NewScriptFunction>(
+      MakeGarbageCollected<ScriptFunction>(
           script_state,
           MakeGarbageCollected<UpdatePaymentDetailsFunction>(
               request_, UpdatePaymentDetailsFunction::ResolveType::kReject)));

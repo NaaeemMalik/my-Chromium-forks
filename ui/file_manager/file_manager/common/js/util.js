@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,17 +8,16 @@
  * which allows finer-grained control over introducing dependencies.
  */
 
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {decorate} from 'gtx://resources/js/cr/ui.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
-import {queryRequiredElement} from 'gtx://resources/js/util.m.js';
+import {assert, assertInstanceof} from 'gtx://resources/ash/common/assert.js';
+import {loadTimeData} from 'gtx://resources/ash/common/load_time_data.m.js';
 
-import {promisify} from '../../common/js/api.js';
 import {EntryLocation} from '../../externs/entry_location.js';
 import {FakeEntry, FilesAppEntry} from '../../externs/files_app_entry_interfaces.js';
 import {VolumeInfo} from '../../externs/volume_info.js';
 import {VolumeManager} from '../../externs/volume_manager.js';
 
+import {promisify} from './api.js';
+import {createDOMError} from './dom_utils.js';
 import {EntryList} from './files_app_entry_types.js';
 import {VolumeManagerCommon} from './volume_manager_types.js';
 
@@ -98,111 +97,6 @@ util.FileError = {
   ENCODING_ERR: 'EncodingError',
 };
 Object.freeze(util.FileError);
-
-/**
- * @param {string} str String to escape.
- * @return {string} Escaped string.
- */
-util.htmlEscape = str => {
-  return str.replace(/[<>&]/g, entity => {
-    switch (entity) {
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '&':
-        return '&amp;';
-    }
-  });
-};
-
-/**
- * @param {string} str String to unescape.
- * @return {string} Unescaped string.
- */
-util.htmlUnescape = str => {
-  return str.replace(/&(lt|gt|amp);/g, entity => {
-    switch (entity) {
-      case '&lt;':
-        return '<';
-      case '&gt;':
-        return '>';
-      case '&amp;':
-        return '&';
-    }
-  });
-};
-
-/**
- * Renames the entry to newName.
- * @param {Entry} entry The entry to be renamed.
- * @param {string} newName The new name.
- * @param {function(Entry)} successCallback Callback invoked when the rename
- *     is successfully done.
- * @param {function(DOMError)} errorCallback Callback invoked when an error
- *     is found.
- */
-util.rename = (entry, newName, successCallback, errorCallback) => {
-  entry.getParent(parentEntry => {
-    const parent = /** @type {!DirectoryEntry} */ (parentEntry);
-
-    // Before moving, we need to check if there is an existing entry at
-    // parent/newName, since moveTo will overwrite it.
-    // Note that this way has some timing issue. After existing check,
-    // a new entry may be create on background. However, there is no way not to
-    // overwrite the existing file, unfortunately. The risk should be low,
-    // assuming the unsafe period is very short.
-    (entry.isFile ? parent.getFile : parent.getDirectory)
-        .call(
-            parent, newName, {create: false},
-            entry => {
-              // The entry with the name already exists.
-              errorCallback(
-                  util.createDOMError(util.FileError.PATH_EXISTS_ERR));
-            },
-            error => {
-              if (error.name != util.FileError.NOT_FOUND_ERR) {
-                // Unexpected error is found.
-                errorCallback(error);
-                return;
-              }
-
-              // No existing entry is found.
-              entry.moveTo(parent, newName, successCallback, errorCallback);
-            });
-  }, errorCallback);
-};
-
-/**
- * Converts DOMError of util.rename to error message.
- * @param {DOMError} error
- * @param {!Entry} entry
- * @param {string} newName
- * @return {string}
- */
-util.getRenameErrorMessage = (error, entry, newName) => {
-  if (error &&
-      (error.name == util.FileError.PATH_EXISTS_ERR ||
-       error.name == util.FileError.TYPE_MISMATCH_ERR)) {
-    // Check the existing entry is file or not.
-    // 1) If the entry is a file:
-    //   a) If we get PATH_EXISTS_ERR, a file exists.
-    //   b) If we get TYPE_MISMATCH_ERR, a directory exists.
-    // 2) If the entry is a directory:
-    //   a) If we get PATH_EXISTS_ERR, a directory exists.
-    //   b) If we get TYPE_MISMATCH_ERR, a file exists.
-    return strf(
-        (entry.isFile && error.name == util.FileError.PATH_EXISTS_ERR) ||
-                (!entry.isFile &&
-                 error.name == util.FileError.TYPE_MISMATCH_ERR) ?
-            'FILE_ALREADY_EXISTS' :
-            'DIRECTORY_ALREADY_EXISTS',
-        newName);
-  }
-
-  return strf(
-      'ERROR_RENAMING', entry.name, util.getFileErrorString(error.name));
-};
 
 /**
  * Remove a file or a directory.
@@ -289,41 +183,6 @@ util.bytesToString = (bytes, addedPrecision = 0) => {
 };
 
 /**
- * Returns a string '[Ctrl-][Alt-][Shift-][Meta-]' depending on the event
- * modifiers. Convenient for writing out conditions in keyboard handlers.
- *
- * @param {Event} event The keyboard event.
- * @return {string} Modifiers.
- */
-util.getKeyModifiers = event => {
-  return (event.ctrlKey ? 'Ctrl-' : '') + (event.altKey ? 'Alt-' : '') +
-      (event.shiftKey ? 'Shift-' : '') + (event.metaKey ? 'Meta-' : '');
-};
-
-/**
- * @typedef {?{
- *   scaleX: number,
- *   scaleY: number,
- *   rotate90: number
- * }}
- */
-util.Transform;
-
-/**
- * @param {Element} element Element to transform.
- * @param {util.Transform} transform Transform object,
- *                           contains scaleX, scaleY and rotate90 properties.
- */
-util.applyTransform = (element, transform) => {
-  // The order of rotate and scale matters.
-  element.style.transform = transform ?
-      'rotate(' + transform.rotate90 * 90 + 'deg)' +
-          'scaleX(' + transform.scaleX + ') ' +
-          'scaleY(' + transform.scaleY + ') ' :
-      '';
-};
-
-/**
  * Extracts path from filesystem: URL.
  * @param {?string=} url Filesystem URL.
  * @return {?string} The path if it can be parsed, null if it cannot.
@@ -340,37 +199,6 @@ util.extractFilePath = url => {
 };
 
 /**
- * A shortcut function to create a child element with given tag and class.
- *
- * @param {!HTMLElement} parent Parent element.
- * @param {string=} opt_className Class name.
- * @param {string=} opt_tag Element tag, DIV is omitted.
- * @return {!HTMLElement} Newly created element.
- */
-util.createChild = (parent, opt_className, opt_tag) => {
-  const child = parent.ownerDocument.createElement(opt_tag || 'div');
-  if (opt_className) {
-    child.className = opt_className;
-  }
-  parent.appendChild(child);
-  return /** @type {!HTMLElement} */ (child);
-};
-
-/**
- * Obtains the element that should exist, decorates it with given type, and
- * returns it.
- * @param {string} query Query for the element.
- * @param {function(new: T, ...)} type Type used to decorate.
- * @template T
- * @return {!T} Decorated element.
- */
-util.queryDecoratedElement = (query, type) => {
-  const element = queryRequiredElement(query);
-  decorate(element, type);
-  return element;
-};
-
-/**
  * Returns a translated string.
  *
  * Wrapper function to make dealing with translated strings more concise.
@@ -383,7 +211,7 @@ export function str(id) {
   try {
     return loadTimeData.getString(id);
   } catch (e) {
-    console.warn('Failed to get string for ', id);
+    console.warn('Failed to get string for', id);
     return id;
   }
 }
@@ -414,65 +242,6 @@ util.runningInBrowser = () => {
 };
 
 /**
- * Adds an isFocused method to the current window object.
- */
-util.addIsFocusedMethod = () => {
-  let focused = true;
-
-  window.addEventListener('focus', () => {
-    focused = true;
-  });
-
-  window.addEventListener('blur', () => {
-    focused = false;
-  });
-
-  /**
-   * @return {boolean} True if focused.
-   */
-  window.isFocused = () => {
-    return focused;
-  };
-};
-
-/**
- * Checks, if the Files app's window is in a full screen mode.
- *
- * @param {chrome.app.window.AppWindow} appWindow App window to be maximized.
- * @return {boolean} True if the full screen mode is enabled.
- */
-util.isFullScreen = appWindow => {
-  if (appWindow) {
-    return appWindow.isFullscreen();
-  } else {
-    console.error(
-        'App window not passed. Unable to check status of the full screen ' +
-        'mode.');
-    return false;
-  }
-};
-
-/**
- * Toggles the full screen mode.
- *
- * @param {chrome.app.window.AppWindow} appWindow App window to be maximized.
- * @param {boolean} enabled True for enabling, false for disabling.
- */
-util.toggleFullScreen = (appWindow, enabled) => {
-  if (appWindow) {
-    if (enabled) {
-      appWindow.fullscreen();
-    } else {
-      appWindow.restore();
-    }
-    return;
-  }
-
-  console.error(
-      'App window not passed. Unable to toggle the full screen mode.');
-};
-
-/**
  * The type of a file operation.
  * @enum {string}
  * @const
@@ -482,6 +251,7 @@ util.FileOperationType = {
   DELETE: 'DELETE',
   MOVE: 'MOVE',
   RESTORE: 'RESTORE',
+  RESTORE_TO_DESTINATION: 'RESTORE_TO_DESTINATION',
   ZIP: 'ZIP',
 };
 Object.freeze(util.FileOperationType);
@@ -570,7 +340,7 @@ util.isSharedDriveEntry = entry => {
 
 /**
  * Extracts Shared Drive name from entry path.
- * @param {(!Entry|!FakeEntry)} entry Entry or a fake entry.
+ * @param {(!Entry|!FakeEntry|!FilesAppEntry)} entry Entry or a fake entry.
  * @return {string} The name of Shared Drive. Empty string if |entry| is not
  *     under Shared Drives.
  */
@@ -591,10 +361,7 @@ util.getTeamDriveName = entry => {
  * @return {boolean}
  */
 util.isRecentRootType = rootType => {
-  return rootType == VolumeManagerCommon.RootType.RECENT ||
-      rootType == VolumeManagerCommon.RootType.RECENT_AUDIO ||
-      rootType == VolumeManagerCommon.RootType.RECENT_IMAGES ||
-      rootType == VolumeManagerCommon.RootType.RECENT_VIDEOS;
+  return rootType == VolumeManagerCommon.RootType.RECENT;
 };
 
 /**
@@ -637,13 +404,21 @@ util.isComputersEntry = entry => {
 };
 
 /**
+ * Returns true if the given root type is Trash.
+ * @param {VolumeManagerCommon.RootType|null} rootType
+ * @returns {boolean}
+ */
+util.isTrashRootType = rootType => {
+  return rootType == VolumeManagerCommon.RootType.TRASH;
+};
+
+/**
  * Returns true if the given entry is the root folder of Trash.
  * @param {!Entry|!FilesAppEntry} entry Entry or a fake entry.
  * @returns {boolean}
  */
 util.isTrashRoot = entry => {
-  return entry.fullPath === '/' &&
-      entry.rootType == VolumeManagerCommon.RootType.TRASH;
+  return entry.fullPath === '/' && util.isTrashRootType(entry.rootType);
 };
 
 /**
@@ -652,65 +427,9 @@ util.isTrashRoot = entry => {
  * @returns {boolean}
  */
 util.isTrashEntry = entry => {
-  return entry.fullPath !== '/' &&
-      entry.rootType == VolumeManagerCommon.RootType.TRASH;
+  return entry.fullPath !== '/' && util.isTrashRootType(entry.rootType);
 };
 
-/**
- * Creates an instance of UserDOMError subtype of DOMError because DOMError is
- * deprecated and its Closure extern is wrong, doesn't have the constructor
- * with 2 arguments. This DOMError looks like a FileError except that it does
- * not have the deprecated FileError.code member.
- *
- * @param {string} name Error name for the file error.
- * @param {string=} opt_message optional message.
- * @return {DOMError} DOMError instance
- */
-util.createDOMError = (name, opt_message) => {
-  return new util.UserDOMError(name, opt_message);
-};
-
-/**
- * Creates a DOMError-like object to be used in place of returning file errors.
- */
-util.UserDOMError = class UserDOMError extends DOMError {
-  /**
-   * @param {string} name Error name for the file error.
-   * @param {string=} opt_message Optional message for this error.
-   * @suppress {checkTypes} Closure externs for DOMError doesn't have
-   * constructor with 2 args.
-   */
-  constructor(name, opt_message) {
-    super(name, opt_message);
-
-    /**
-     * @type {string}
-     * @private
-     */
-    this.name_ = name;
-
-    /**
-     * @type {string}
-     * @private
-     */
-    this.message_ = opt_message || '';
-    Object.freeze(this);
-  }
-
-  /**
-   * @return {string} File error name.
-   */
-  get name() {
-    return this.name_;
-  }
-
-  /**
-   * @return {string} Error message.
-   */
-  get message() {
-    return this.message_;
-  }
-};
 
 /**
  * Compares two entries.
@@ -953,23 +672,23 @@ util.isDescendantEntry = (ancestorEntry, childEntry) => {
 
 /**
  * The last URL with visitURL().
- *
- * @type {string}
- * @private
+ * @private {string}
  */
-util.lastVisitedURL;
+let lastVisitedURL;
 
 /**
  * Visit the URL.
  *
- * If the browser is opening, the url is opened in a new tag, otherwise the url
+ * If the browser is opening, the url is opened in a new tab, otherwise the url
  * is opened in a new window.
  *
  * @param {!string} url URL to visit.
  */
 util.visitURL = url => {
-  util.lastVisitedURL = url;
-  window.open(url);
+  lastVisitedURL = url;
+  // openURL opens URLs in the primary browser (ash vs lacros) as opposed to
+  // window.open which always opens URLs in ash-chrome.
+  chrome.fileManagerPrivate.openURL(url);
 };
 
 /**
@@ -978,7 +697,7 @@ util.visitURL = url => {
  * @return {string} The last URL visited.
  */
 util.getLastVisitedURL = () => {
-  return util.lastVisitedURL;
+  return lastVisitedURL;
 };
 
 /**
@@ -997,8 +716,8 @@ util.getCurrentLocaleOrDefault = () => {
  */
 util.entriesToURLs = entries => {
   return entries.map(entry => {
-    // When building background.js, cachedUrl is not refered other than here.
-    // Thus closure compiler raises an error if we refer the property like
+    // When building file_manager_base.js, cachedUrl is not referred other than
+    // here. Thus closure compiler raises an error if we refer the property like
     // entry.cachedUrl.
     return entry['cachedUrl'] || entry.toURL();
   });
@@ -1051,7 +770,7 @@ util.URLsToEntries = (urls, opt_callback) => {
           opt_callback(result.entries, result.failureUrls);
         })
         .catch(error => {
-          console.error(
+          console.warn(
               'util.URLsToEntries is failed.',
               error.stack ? error.stack : error);
         });
@@ -1136,11 +855,11 @@ util.getRootTypeLabel = locationInfo => {
       return str('DRIVE_MY_DRIVE_LABEL');
     case VolumeManagerCommon.RootType.SHARED_DRIVE:
     // |locationInfo| points to either the root directory of an individual Team
-    // Drive or subdirectory under it, but not the Shared Drives grand
-    // directory. Every Shared Drive and its subdirectories always have
+    // Drive or sub-directory under it, but not the Shared Drives grand
+    // directory. Every Shared Drive and its sub-directories always have
     // individual names (locationInfo.hasFixedLabel is false). So
-    // getRootTypeLabel() is only used by LocationLine.show() to display the
-    // ancestor name in the location line like this:
+    // getRootTypeLabel() is used by PathComponent.computeComponentsFromEntry()
+    // to display the ancestor name in the breadcrumb like this:
     //   Shared Drives > ABC Shared Drive > Folder1
     //   ^^^^^^^^^^^
     // By this reason, we return the label of the Shared Drives grand root here.
@@ -1159,12 +878,6 @@ util.getRootTypeLabel = locationInfo => {
       return str('DRIVE_DIRECTORY_LABEL');
     case VolumeManagerCommon.RootType.RECENT:
       return str('RECENT_ROOT_LABEL');
-    case VolumeManagerCommon.RootType.RECENT_AUDIO:
-      return str('MEDIA_VIEW_AUDIO_ROOT_LABEL');
-    case VolumeManagerCommon.RootType.RECENT_IMAGES:
-      return str('MEDIA_VIEW_IMAGES_ROOT_LABEL');
-    case VolumeManagerCommon.RootType.RECENT_VIDEOS:
-      return str('MEDIA_VIEW_VIDEOS_ROOT_LABEL');
     case VolumeManagerCommon.RootType.CROSTINI:
       return str('LINUX_FILES_ROOT_LABEL');
     case VolumeManagerCommon.RootType.MY_FILES:
@@ -1182,6 +895,8 @@ util.getRootTypeLabel = locationInfo => {
           return str('MEDIA_VIEW_VIDEOS_ROOT_LABEL');
         case VolumeManagerCommon.MediaViewRootType.AUDIO:
           return str('MEDIA_VIEW_AUDIO_ROOT_LABEL');
+        case VolumeManagerCommon.MediaViewRootType.DOCUMENTS:
+          return str('MEDIA_VIEW_DOCUMENTS_ROOT_LABEL');
       }
       console.error('Unsupported media view root type: ' + mediaViewRootType);
       return locationInfo.volumeInfo.label;
@@ -1192,6 +907,7 @@ util.getRootTypeLabel = locationInfo => {
     case VolumeManagerCommon.RootType.ANDROID_FILES:
     case VolumeManagerCommon.RootType.DOCUMENTS_PROVIDER:
     case VolumeManagerCommon.RootType.SMB:
+    case VolumeManagerCommon.RootType.GUEST_OS:
       return locationInfo.volumeInfo.label;
     default:
       console.error('Unsupported root type: ' + locationInfo.rootType);
@@ -1240,6 +956,7 @@ util.getEntryLabel = (locationInfo, entry) => {
  *  - "My Files"/{Downloads,PvmDefault,Camera} directories, or
  *  - "Play Files"/{<any-directory>,DCIM/Camera} directories, or
  *  - "Linux Files" root "/" directory
+ *  - "Guest OS" root "/" directory
  *
  * which cannot be modified such as deleted/cut or renamed.
  *
@@ -1316,118 +1033,11 @@ util.isNonModifiable = (volumeManager, entry) => {
     return entry.fullPath === '/';
   }
 
+  if (volumeType === VolumeManagerCommon.RootType.GUEST_OS) {
+    return entry.fullPath === '/';
+  }
+
   return false;
-};
-
-/**
- * Checks if the specified set of allowed effects contains the given effect.
- * See: http://www.w3.org/TR/html5/editing.html#the-datatransfer-interface
- *
- * @param {string} effectAllowed The string denoting the set of allowed effects.
- * @param {string} dropEffect The effect to be checked.
- * @return {boolean} True if |dropEffect| is included in |effectAllowed|.
- */
-util.isDropEffectAllowed = (effectAllowed, dropEffect) => {
-  return effectAllowed === 'all' ||
-      effectAllowed.toLowerCase().indexOf(dropEffect) !== -1;
-};
-
-/**
- * Verifies the user entered name for file or folder to be created or
- * renamed to. Name restrictions must correspond to File API restrictions
- * (see DOMFilePath::isValidPath). Curernt WebKit implementation is
- * out of date (spec is
- * http://dev.w3.org/2009/dap/file-system/file-dir-sys.html, 8.3) and going to
- * be fixed. Shows message box if the name is invalid.
- *
- * It also verifies if the name length is in the limit of the filesystem.
- *
- * @param {!DirectoryEntry} parentEntry The entry of the parent directory.
- * @param {string} name New file or folder name.
- * @param {boolean} filterHiddenOn Whether to report the hidden file name error
- *     or not.
- * @return {Promise} Promise fulfilled on success, or rejected with the error
- *     message.
- */
-util.validateFileName = (parentEntry, name, filterHiddenOn) => {
-  const testResult = /[\/\\\<\>\:\?\*\"\|]/.exec(name);
-  let msg;
-  if (testResult) {
-    return Promise.reject(strf('ERROR_INVALID_CHARACTER', testResult[0]));
-  } else if (/^\s*$/i.test(name)) {
-    return Promise.reject(str('ERROR_WHITESPACE_NAME'));
-  } else if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(name)) {
-    return Promise.reject(str('ERROR_RESERVED_NAME'));
-  } else if (filterHiddenOn && /\.crdownload$/i.test(name)) {
-    return Promise.reject(str('ERROR_RESERVED_NAME'));
-  } else if (filterHiddenOn && name[0] == '.') {
-    return Promise.reject(str('ERROR_HIDDEN_NAME'));
-  }
-
-  return new Promise((fulfill, reject) => {
-    chrome.fileManagerPrivate.validatePathNameLength(
-        parentEntry, name, valid => {
-          if (valid) {
-            fulfill(null);
-          } else {
-            reject(str('ERROR_LONG_NAME'));
-          }
-        });
-  });
-};
-
-/**
- * Verifies the user entered name for external drive to be
- * renamed to. Name restrictions must correspond to the target filesystem
- * restrictions.
- *
- * It also verifies that name length is in the limits of the filesystem.
- *
- * @param {string} name New external drive name.
- * @param {!VolumeManagerCommon.FileSystemType} fileSystem
- * @return {Promise} Promise fulfilled on success, or rejected with the error
- *     message.
- */
-util.validateExternalDriveName = (name, fileSystem) => {
-  // Verify if entered name for external drive respects restrictions provided by
-  // the target filesystem
-
-  const nameLength = name.length;
-  const lengthLimit = VolumeManagerCommon.FileSystemTypeVolumeNameLengthLimit;
-
-  // Verify length for the target file system type
-  if (lengthLimit.hasOwnProperty(fileSystem) &&
-      nameLength > lengthLimit[fileSystem]) {
-    return Promise.reject(
-        strf('ERROR_EXTERNAL_DRIVE_LONG_NAME', lengthLimit[fileSystem]));
-  }
-
-  // Checks if the name contains only alphanumeric characters or allowed special
-  // characters. This needs to stay in sync with cros-disks/filesystem_label.cc
-  // on the ChromeOS side.
-  const validCharRegex = /[a-zA-Z0-9 \!\#\$\%\&\(\)\-\@\^\_\`\{\}\~]/;
-  for (let i = 0; i < nameLength; i++) {
-    if (!validCharRegex.test(name[i])) {
-      return Promise.reject(
-          strf('ERROR_EXTERNAL_DRIVE_INVALID_CHARACTER', name[i]));
-    }
-  }
-
-  return Promise.resolve();
-};
-
-/**
- * Adds a foreground listener to the background page components.
- * The listener will be removed when the foreground window is closed.
- * @param {!EventTarget} target
- * @param {string} type
- * @param {Function} handler
- */
-util.addEventListenerToBackgroundComponent = (target, type, handler) => {
-  target.addEventListener(type, handler);
-  window.addEventListener('pagehide', () => {
-    target.removeEventListener(type, handler);
-  });
 };
 
 /**
@@ -1435,7 +1045,7 @@ util.addEventListenerToBackgroundComponent = (target, type, handler) => {
  */
 util.checkAPIError = () => {
   if (chrome.runtime.lastError) {
-    console.error(chrome.runtime.lastError.message);
+    console.warn(chrome.runtime.lastError.message);
   }
 };
 
@@ -1460,9 +1070,10 @@ util.delay = ms => {
  */
 util.timeoutPromise = (promise, ms, opt_message) => {
   return Promise.race([
-    promise, util.delay(ms).then(() => {
+    promise,
+    util.delay(ms).then(() => {
       throw new Error(opt_message || 'Operation timed out.');
-    })
+    }),
   ]);
 };
 
@@ -1475,19 +1086,78 @@ util.isCopyImageEnabled = () => {
 };
 
 /**
- * Returns true if filters in Recents view is enabled.
- * @return {boolean}
+ * Whether the Files app integration with DLP (Data Loss Prevention) is enabled.
+ * @returns {boolean}
  */
-util.isRecentsFilterEnabled = () => {
-  return loadTimeData.getBoolean('FILTERS_IN_RECENTS_ENABLED');
+util.isDlpEnabled = () => {
+  return loadTimeData.valueExists('DLP_ENABLED') &&
+      loadTimeData.getBoolean('DLP_ENABLED');
 };
 
 /**
- * Returns true if Files SWA feature flag is enabled.
+ * Whether the Files app Experimental flag is enabled.
+ * @returns {boolean}
+ */
+util.isFilesAppExperimental = () => {
+  return loadTimeData.valueExists('FILES_APP_EXPERIMENTAL') &&
+      loadTimeData.getBoolean('FILES_APP_EXPERIMENTAL');
+};
+
+/**
+ * Returns true if the conflict dialog is enabled.
  * @return {boolean}
  */
-util.isSwaEnabled = () => {
-  return loadTimeData.getBoolean('FILES_SWA');
+util.isFilesConflictDialogEnabled = () => {
+  return loadTimeData.getBoolean('FILES_CONFLICT_DIALOG');
+};
+
+/**
+ * Returns true if FuseBoxDebug flag is enabled.
+ * @return {boolean}
+ */
+util.isFuseBoxDebugEnabled = () => {
+  return loadTimeData.isInitialized() &&
+      loadTimeData.valueExists('FUSEBOX_DEBUG') &&
+      loadTimeData.getBoolean('FUSEBOX_DEBUG');
+};
+
+/**
+ * Returns true if GuestOsFiles flag is enabled.
+ * @return {boolean}
+ */
+util.isGuestOsEnabled = () => {
+  return loadTimeData.getBoolean('GUEST_OS');
+};
+
+/**
+ * Returns true if Jelly flag is enabled.
+ * @return {boolean}
+ */
+util.isJellyEnabled = () => {
+  return loadTimeData.getBoolean('JELLY');
+};
+
+/**
+ * Returns true if DriveFsMirroring flag is enabled.
+ * @return {boolean}
+ */
+util.isMirrorSyncEnabled = () => {
+  return loadTimeData.isInitialized() &&
+      loadTimeData.valueExists('DRIVEFS_MIRRORING') &&
+      loadTimeData.getBoolean('DRIVEFS_MIRRORING');
+};
+
+/**
+ * Returns true if search v2 feature flag is enabled.
+ * @return {boolean}
+ */
+util.isSearchV2Enabled = () => {
+  return loadTimeData.getBoolean('FILES_SEARCH_V2');
+};
+
+util.isGoogleOneOfferFilesBannerEligibleAndEnabled = () => {
+  return loadTimeData.getBoolean(
+      'ELIGIBLE_AND_ENABLED_GOOGLE_ONE_OFFER_FILES_BANNER');
 };
 
 /**
@@ -1499,27 +1169,39 @@ util.isSinglePartitionFormatEnabled = () => {
 };
 
 /**
- * Returns true if  flag is enabled.
- * @return {boolean}
+ * Returns true if FilesTrash feature flag is enabled.
+ * @returns {boolean}
  */
-util.isVideoPlayerJsModulesEnabled = () => {
-  return loadTimeData.getBoolean('VIDEO_PLAYER_JS_MODULES_ENABLED');
+util.isTrashEnabled = () => {
+  return loadTimeData.valueExists('FILES_TRASH_ENABLED') &&
+      loadTimeData.getBoolean('FILES_TRASH_ENABLED');
 };
 
 /**
- * Returns true if FilesBannerFramework flag is enabled.
- * @return {boolean}
+ * Returns true if InlineSyncStatus feature flag is enabled.
+ * @returns {boolean}
  */
-util.isBannerFrameworkEnabled = () => {
-  return loadTimeData.getBoolean('FILES_BANNER_FRAMEWORK');
+util.isInlineSyncStatusEnabled = () => {
+  return loadTimeData.valueExists('INLINE_SYNC_STATUS') &&
+      loadTimeData.getBoolean('INLINE_SYNC_STATUS');
 };
 
 /**
- * Returns true if FilesExtractArchive flag is enabled.
+ * Returns true if FilesDriveShortcuts flag is enabled.
  * @return {boolean}
  */
-util.isExtractArchiveEnabled = () => {
-  return loadTimeData.getBoolean('EXTRACT_ARCHIVE');
+util.isDriveShortcutsEnabled = () => {
+  return loadTimeData.isInitialized() &&
+      loadTimeData.valueExists('DRIVE_SHORTCUTS') &&
+      loadTimeData.getBoolean('DRIVE_SHORTCUTS');
+};
+
+/**
+ * Returns whether the DriveFsBulkPinning feature flag is enabled.
+ * @returns {boolean}
+ */
+util.isDriveFsBulkPinningEnabled = () => {
+  return loadTimeData.getBoolean('DRIVE_FS_BULK_PINNING');
 };
 
 /**
@@ -1546,7 +1228,7 @@ util.readEntriesRecursively =
       const maybeRunCallback = () => {
         if (numRunningTasks === 0) {
           if (shouldStop()) {
-            errorCallback(util.createDOMError(util.FileError.ABORT_ERR));
+            errorCallback(createDOMError(util.FileError.ABORT_ERR));
           } else if (error) {
             errorCallback(error);
           } else {
@@ -1625,12 +1307,6 @@ util.doIfPrimaryContext = async (callback) => {
     callback();
     return true;
   }
-  if (!window.isSWA) {
-    if (!chrome.extension.inIncognitoContext) {
-      callback();
-      return true;
-    }
-  }
   return false;
 };
 
@@ -1693,6 +1369,12 @@ util.unwrapEntry = entry => {
 util.isArcUsbStorageUIEnabled = () => {
   return loadTimeData.valueExists('ARC_USB_STORAGE_UI_ENABLED') &&
       loadTimeData.getBoolean('ARC_USB_STORAGE_UI_ENABLED');
+};
+
+/** @return {boolean} */
+util.isArcVmEnabled = () => {
+  return loadTimeData.valueExists('ARC_VM_ENABLED') &&
+      loadTimeData.getBoolean('ARC_VM_ENABLED');
 };
 
 /** @return {boolean} */
@@ -1765,35 +1447,6 @@ util.isSameVolume = (entries, volumeManager) => {
 };
 
 /**
- * Sets line clamp properties on elements to limit element's text to specified
- * number of lines and add ellipsis.
- *
- * @param {!Element} element Element to clamp.
- * @param {string} lines Maximum number of lines in element.
- * @return {!Element}
- */
-util.setClampLine = (element, lines) => {
-  element.style.overflow = 'hidden';
-  element.style.textOverflow = 'ellipsis';
-  element.style.webkitBoxOrient = 'vertical';
-  element.style.display = '-webkit-box';
-  element.style.webkitLineClamp = lines;
-
-  return element;
-};
-
-/**
- * Returns true if the element's content has overflowed.
- *
- * @param {!Element} element The element to check.
- * @returns {boolean}
- */
-util.hasOverflow = (element) => {
-  return element.clientWidth < element.scrollWidth ||
-      element.clientHeight < element.scrollHeight;
-};
-
-/**
  * Returns the Files app modal dialog used to embed any files app dialog
  * that derives from cr.ui.dialogs.
  *
@@ -1809,11 +1462,6 @@ util.getFilesAppModalDialogInstance = () => {
   }
 
   return /** @type {!HTMLDialogElement} */ (dialogElement);
-};
-
-util.isDriveDssPinEnabled = () => {
-  return loadTimeData.valueExists('DRIVE_DSS_PIN_ENABLED') &&
-      loadTimeData.getBoolean('DRIVE_DSS_PIN_ENABLED');
 };
 
 /**
@@ -1851,4 +1499,57 @@ util.isInGuestMode = async () => {
   return profiles.length > 0 && profiles[0].profileId === '$guest';
 };
 
-export {util};
+/**
+ * Get the locale based week start from the load time data.
+ * @returns {number}
+ */
+util.getLocaleBasedWeekStart = () => {
+  return loadTimeData.valueExists('WEEK_START_FROM') ?
+      loadTimeData.getInteger('WEEK_START_FROM') :
+      0;
+};
+
+/**
+ * Returns a boolean indicating whether the volume is a GuestOs volume. And
+ * ANDROID_FILES type volume can also be a GuestOs volume if ARCVM is enabled.
+ * @param {VolumeManagerCommon.VolumeType} type
+ * @return {boolean}
+ */
+util.isGuestOs = type => {
+  return type === VolumeManagerCommon.VolumeType.GUEST_OS ||
+      (type === VolumeManagerCommon.VolumeType.ANDROID_FILES &&
+       util.isArcVmEnabled());
+};
+
+/**
+ * A kind of error that represents user electing to cancel an operation. We use
+ * this specialization to differentiate between system errors and errors
+ * generated through legitimate user actions.
+ */
+class UserCanceledError extends Error {}
+
+/**
+ * Returns whether the given value is null or undefined.
+ * @param {*} value
+ * @returns {boolean}
+ */
+util.isNullOrUndefined = (value) => value === null || value === undefined;
+
+/**
+ * @param {?VolumeInfo} volumeInfo
+ * @return {boolean}
+ */
+util.isOneDrive = (volumeInfo) => {
+  if (
+      // App built manually from internal git, used for the early dogfood.
+      volumeInfo?.providerId === 'ajdgmkbkgifbokednjgbmieaemeighkg' ||
+      // App built manually from internal repo.
+      volumeInfo?.providerId === 'gcpjnalmmghdoadafjgomdlghfnllceo' ||
+      // App from official internal repo.
+      volumeInfo?.providerId === 'gnnndjlaomemikopnjhhnoombakkkkdg') {
+    return true;
+  }
+  return false;
+};
+
+export {util, UserCanceledError};

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,11 @@
 #include <string>
 
 #include "ash/constants/ash_paths.h"
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
@@ -20,7 +21,6 @@
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/policy/extension_force_install_mixin.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/common/chrome_paths.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/browser_context.h"
@@ -130,7 +130,7 @@ class ExtensionInstallErrorObserver final {
            crx_installer->extension()->id() == extension_id_;
   }
 
-  const Profile* const profile_;
+  const raw_ptr<const Profile, ExperimentalAsh> profile_;
   const std::string extension_id_;
   content::WindowedNotificationObserver notification_observer_;
 };
@@ -179,7 +179,7 @@ class ExtensionUpdateAvailabilityObserver final
   void OnChromeUpdateAvailable() override {}
 
  private:
-  Profile* const profile_;
+  const raw_ptr<Profile, ExperimentalAsh> profile_;
   const std::string extension_id_;
   const base::Version awaited_version_;
   base::RunLoop run_loop_;
@@ -434,7 +434,7 @@ class SigninProfileExtensionsPolicyCorruptCacheTest
 
   base::FilePath GetCachedCrxFilePath() const {
     const base::FilePath cache_file_path =
-        base::PathService::CheckedGet(chromeos::DIR_SIGNIN_PROFILE_EXTENSIONS);
+        base::PathService::CheckedGet(ash::DIR_SIGNIN_PROFILE_EXTENSIONS);
     const std::string file_name =
         base::StringPrintf("%s-%s.crx", installed_extension_id_.c_str(),
                            installed_extension_version_.GetString().c_str());

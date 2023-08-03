@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,8 +64,8 @@ void EmbeddedObjectPainter::PaintReplaced(const PaintInfo& paint_info,
     return;
 
   TextRun text_run(layout_embedded_object_.UnavailablePluginReplacementText());
-  FloatSize text_geometry(font.Width(text_run),
-                          font_data->GetFontMetrics().Height());
+  gfx::SizeF text_geometry(font.Width(text_run),
+                           font_data->GetFontMetrics().Height());
 
   PhysicalRect background_rect(
       LayoutUnit(), LayoutUnit(),
@@ -76,17 +76,19 @@ void EmbeddedObjectPainter::PaintReplaced(const PaintInfo& paint_info,
   FloatRoundedRect rounded_background_rect(
       gfx::RectF(ToPixelSnappedRect(background_rect)),
       kReplacementTextRoundedRectRadius);
-  Color color = ScaleAlpha(Color::kWhite, kReplacementTextRoundedRectOpacity);
+  Color color = Color::FromSkColor(
+      ScaleAlpha(SK_ColorWHITE, kReplacementTextRoundedRectOpacity));
   AutoDarkMode auto_dark_mode(
       PaintAutoDarkMode(layout_embedded_object_.StyleRef(),
                         DarkModeFilter::ElementRole::kBackground));
   context.FillRoundedRect(rounded_background_rect, color, auto_dark_mode);
 
-  FloatRect text_rect(gfx::PointF(), text_geometry);
+  gfx::RectF text_rect(gfx::PointF(), text_geometry);
   text_rect.Offset(gfx::PointF(content_rect.Center()) -
                    text_rect.CenterPoint());
   TextRunPaintInfo run_info(text_run);
-  context.SetFillColor(ScaleAlpha(Color::kBlack, kReplacementTextTextOpacity));
+  context.SetFillColor(Color::FromSkColor(
+      ScaleAlpha(SK_ColorBLACK, kReplacementTextTextOpacity)));
   context.DrawBidiText(
       font, run_info,
       text_rect.origin() +

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,13 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/containers/contains.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_forward.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
+#include "base/metrics/histogram_functions.h"
 #include "chromeos/crosapi/mojom/account_manager.mojom.h"
 #include "components/account_manager_core/account.h"
 #include "components/account_manager_core/account_addition_result.h"
@@ -19,6 +22,7 @@
 #include "components/account_manager_core/chromeos/access_token_fetcher.h"
 #include "components/account_manager_core/chromeos/account_manager.h"
 #include "components/account_manager_core/chromeos/account_manager_ui.h"
+#include "google_apis/gaia/google_service_auth_error.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -108,6 +112,7 @@ void AccountManagerMojoService::GetPersistentErrorForAccount(
 }
 
 void AccountManagerMojoService::ShowAddAccountDialog(
+    crosapi::mojom::AccountAdditionOptionsPtr options,
     ShowAddAccountDialogCallback callback) {
   DCHECK(account_manager_ui_);
   if (account_manager_ui_->IsDialogShown()) {
@@ -121,7 +126,9 @@ void AccountManagerMojoService::ShowAddAccountDialog(
   DCHECK(!account_addition_in_progress_);
   account_addition_in_progress_ = true;
   account_addition_callback_ = std::move(callback);
+  auto maybe_options = account_manager::FromMojoAccountAdditionOptions(options);
   account_manager_ui_->ShowAddAccountDialog(
+      maybe_options.value_or(account_manager::AccountAdditionOptions{}),
       base::BindOnce(&AccountManagerMojoService::OnAddAccountDialogClosed,
                      weak_ptr_factory_.GetWeakPtr()));
 }
@@ -133,7 +140,18 @@ void AccountManagerMojoService::ShowReauthAccountDialog(
   if (account_manager_ui_->IsDialogShown())
     return;
 
-  account_manager_ui_->ShowReauthAccountDialog(email, std::move(closure));
+  // `closure` is used by the entity which launched the account
+  // re-authentication flow in the first place to know about the completion of
+  // the flow. The notification that we are going to chain here will inform all
+  // observers of `AccountManagerFacade` (see
+  // `AccountManagerFacade::Observer::OnSigninDialogClosed()`), that the signin
+  // dialog was closed.
+  // As of this writing, this notification is used by `AccountReconcilor` to
+  // force mint cookies.
+  account_manager_ui_->ShowReauthAccountDialog(
+      email, std::move(closure).Then(base::BindOnce(
+                 &AccountManagerMojoService::NotifySigninDialogClosed,
+                 weak_ptr_factory_.GetWeakPtr())));
 }
 
 void AccountManagerMojoService::ShowManageAccountsSettings() {
@@ -158,6 +176,41 @@ void AccountManagerMojoService::CreateAccessTokenFetcher(
       /*receiver=*/pending_remote.InitWithNewPipeAndPassReceiver());
   pending_access_token_requests_.emplace_back(std::move(access_token_fetcher));
   std::move(callback).Run(std::move(pending_remote));
+}
+
+void AccountManagerMojoService::ReportAuthError(
+    mojom::AccountKeyPtr mojo_account_key,
+    mojom::GoogleServiceAuthErrorPtr mojo_error) {
+  absl::optional<account_manager::AccountKey> maybe_account_key =
+      account_manager::FromMojoAccountKey(mojo_account_key);
+  base::UmaHistogramBoolean("AccountManager.ReportAuthError.IsAccountKeyEmpty",
+                            !maybe_account_key.has_value());
+  if (!maybe_account_key) {
+    LOG(ERROR) << "Can't unmarshal account with id: " << mojo_account_key->id
+               << " and type: " << mojo_account_key->account_type;
+    return;
+  }
+
+  absl::optional<GoogleServiceAuthError> maybe_error =
+      account_manager::FromMojoGoogleServiceAuthError(mojo_error);
+  if (!maybe_error) {
+    // Newer version of Lacros may have reported an error that older version of
+    // Ash doesn't understand yet. Ignore such errors.
+    LOG(ERROR) << "Can't unmarshal error with state: " << mojo_error->state;
+    return;
+  }
+
+  const GoogleServiceAuthError& error = maybe_error.value();
+  if (error.IsTransientError()) {
+    // Silently ignore transient errors reported by apps to avoid polluting
+    // other apps' error caches with transient errors like
+    // `GoogleServiceAuthError::CONNECTION_FAILED`.
+    return;
+  }
+
+  account_manager_->GetAccounts(base::BindOnce(
+      &AccountManagerMojoService::MaybeNotifyAuthErrorObservers,
+      weak_ptr_factory_.GetWeakPtr(), maybe_account_key.value(), error));
 }
 
 void AccountManagerMojoService::OnTokenUpserted(
@@ -197,6 +250,7 @@ void AccountManagerMojoService::FinishAddAccount(
   DCHECK(!account_addition_callback_.is_null());
   std::move(account_addition_callback_)
       .Run(ToMojoAccountAdditionResult(result));
+  NotifySigninDialogClosed();
 }
 
 void AccountManagerMojoService::DeletePendingAccessTokenFetchRequest(
@@ -208,6 +262,31 @@ void AccountManagerMojoService::DeletePendingAccessTokenFetchRequest(
           [&request](const std::unique_ptr<AccessTokenFetcher>& pending_request)
               -> bool { return pending_request.get() == request; }),
       pending_access_token_requests_.end());
+}
+
+void AccountManagerMojoService::MaybeNotifyAuthErrorObservers(
+    const account_manager::AccountKey& account_key,
+    const GoogleServiceAuthError& error,
+    const std::vector<account_manager::Account>& known_accounts) {
+  if (!base::Contains(known_accounts, account_key,
+                      [](const account_manager::Account& account) {
+                        return account.key;
+                      })) {
+    // Ignore if the account is not known.
+    return;
+  }
+
+  for (auto& observer : observers_) {
+    observer->OnAuthErrorChanged(
+        account_manager::ToMojoAccountKey(account_key),
+        account_manager::ToMojoGoogleServiceAuthError(error));
+  }
+}
+
+void AccountManagerMojoService::NotifySigninDialogClosed() {
+  for (auto& observer : observers_) {
+    observer->OnSigninDialogClosed();
+  }
 }
 
 void AccountManagerMojoService::FlushMojoForTesting() {

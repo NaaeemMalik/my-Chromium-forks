@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/command_line.h"
+#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "mojo/core/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
@@ -15,13 +16,13 @@
 #include "mojo/public/cpp/platform/platform_handle.h"
 #include "mojo/public/cpp/system/invitation.h"
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 #include "base/files/scoped_file.h"
 #include "base/posix/global_descriptors.h"
 #include "content/public/common/content_descriptors.h"
 #endif
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 #include "base/mac/mach_port_rendezvous.h"
 #endif
 
@@ -29,10 +30,10 @@ namespace {
 
 mojo::IncomingInvitation GetMojoInvitation() {
   mojo::PlatformChannelEndpoint endpoint;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   endpoint = mojo::PlatformChannel::RecoverPassedEndpointFromCommandLine(
       *base::CommandLine::ForCurrentProcess());
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
   auto* client = base::MachPortRendezvousClient::GetInstance();
   if (client) {
     endpoint = mojo::PlatformChannelEndpoint(
@@ -41,7 +42,7 @@ mojo::IncomingInvitation GetMojoInvitation() {
 #else
   endpoint = mojo::PlatformChannelEndpoint(mojo::PlatformHandle(base::ScopedFD(
       base::GlobalDescriptors::GetInstance()->Get(kMojoIPCChannel))));
-#endif  // !defined(OS_WIN)
+#endif  // !BUILDFLAG(IS_WIN)
   DCHECK(endpoint.is_valid());
   return mojo::IncomingInvitation::Accept(std::move(endpoint));
 }

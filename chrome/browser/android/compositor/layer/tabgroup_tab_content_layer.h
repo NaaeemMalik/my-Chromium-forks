@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,10 @@
 #include "ui/android/resources/nine_patch_resource.h"
 #include "ui/gfx/geometry/rect.h"
 
-namespace cc {
+namespace cc::slim {
 class Layer;
 class NinePatchLayer;
-}  // namespace cc
+}  // namespace cc::slim
 
 namespace android {
 
@@ -44,7 +44,7 @@ class TabGroupTabContentLayer : public Layer {
                      const std::vector<int>& tab_ids,
                      float border_inner_shadow_alpha);
 
-  scoped_refptr<cc::Layer> layer() override;
+  scoped_refptr<cc::slim::Layer> layer() override;
 
  protected:
   explicit TabGroupTabContentLayer(TabContentManager* tab_content_manager);
@@ -54,9 +54,9 @@ class TabGroupTabContentLayer : public Layer {
   void setBorderProperties(ui::NinePatchResource* border_inner_shadow_resource,
                            const gfx::Rect& clip,
                            float border_inner_shadow_alpha);
-  scoped_refptr<cc::Layer> layer_;
+  scoped_refptr<cc::slim::Layer> layer_;
   scoped_refptr<ContentLayer> content_;
-  scoped_refptr<cc::NinePatchLayer> front_border_inner_shadow_;
+  scoped_refptr<cc::slim::NinePatchLayer> front_border_inner_shadow_;
 };
 
 }  //  namespace android

@@ -1,13 +1,14 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <array>
 
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/api/desktop_capture/desktop_capture_api.h"
@@ -20,13 +21,14 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "extensions/common/switches.h"
+#include "extensions/test/test_extension_dir.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "third_party/webrtc/modules/desktop_capture/desktop_capture_types.h"
 
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
 #include "ui/ozone/buildflags.h"
-#endif  // OS_LINUX || BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
 
 namespace extensions {
 
@@ -34,6 +36,8 @@ namespace {
 
 using content::DesktopMediaID;
 using content::WebContentsMediaCaptureId;
+using testing::Combine;
+using testing::Values;
 
 class DesktopCaptureApiTest : public ExtensionApiTest {
  public:
@@ -42,8 +46,7 @@ class DesktopCaptureApiTest : public ExtensionApiTest {
         SetPickerFactoryForTests(&picker_factory_);
   }
   ~DesktopCaptureApiTest() override {
-    DesktopCaptureChooseDesktopMediaFunction::
-        SetPickerFactoryForTests(NULL);
+    DesktopCaptureChooseDesktopMediaFunction::SetPickerFactoryForTests(nullptr);
   }
 
   void SetUpOnMainThread() override {
@@ -76,16 +79,16 @@ class DesktopCaptureApiTest : public ExtensionApiTest {
 
 // The build flag OZONE_PLATFORM_WAYLAND is only available on
 // Linux or ChromeOS, so this simplifies the next set of ifdefs.
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
 #if BUILDFLAG(OZONE_PLATFORM_WAYLAND)
 #define OZONE_PLATFORM_WAYLAND
 #endif  // BUILDFLAG(OZONE_PLATFORM_WAYLAND)
-#endif  // OS_LINUX || BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)
 
 // TODO(https://crbug.com/1271673): Crashes on Lacros.
 // TODO(https://crbug.com/1271680): Fails on the linux-wayland-rel bot.
 // TODO(https://crbug.com/1271711): Fails on Mac.
-#if defined(OS_MAC) || defined(OZONE_PLATFORM_WAYLAND) || \
+#if BUILDFLAG(IS_MAC) || defined(OZONE_PLATFORM_WAYLAND) || \
     BUILDFLAG(IS_CHROMEOS_LACROS)
 #define MAYBE_ChooseDesktopMedia DISABLED_ChooseDesktopMedia
 #else
@@ -169,14 +172,14 @@ IN_PROC_BROWSER_TEST_F(DesktopCaptureApiTest, MAYBE_ChooseDesktopMedia) {
      .selected_source = DesktopMediaID(DesktopMediaID::TYPE_SCREEN,
                                        webrtc::kFullDesktopScreenId)},
   };
-  picker_factory_.SetTestFlags(test_flags, base::size(test_flags));
+  picker_factory_.SetTestFlags(test_flags, std::size(test_flags));
   ASSERT_TRUE(RunExtensionTest("desktop_capture")) << message_;
 }
 
 // TODO(https://crbug.com/1271673): Crashes on Lacros.
 // TODO(https://crbug.com/1271680): Fails on the linux-wayland-rel bot.
 // TODO(https://crbug.com/1271711): Fails on Mac.
-#if defined(OS_MAC) || defined(OZONE_PLATFORM_WAYLAND) || \
+#if BUILDFLAG(IS_MAC) || defined(OZONE_PLATFORM_WAYLAND) || \
     BUILDFLAG(IS_CHROMEOS_LACROS)
 #define MAYBE_Delegation DISABLED_Delegation
 #else
@@ -214,7 +217,7 @@ IN_PROC_BROWSER_TEST_F(DesktopCaptureApiTest, MAYBE_Delegation) {
            DesktopMediaID(DesktopMediaID::TYPE_SCREEN, DesktopMediaID::kNullId),
        .cancelled = true},
   };
-  picker_factory_.SetTestFlags(test_flags, base::size(test_flags));
+  picker_factory_.SetTestFlags(test_flags, std::size(test_flags));
 
   bool result;
 
@@ -240,6 +243,152 @@ IN_PROC_BROWSER_TEST_F(DesktopCaptureApiTest, MAYBE_Delegation) {
   web_contents->Close();
   destroyed_watcher.Wait();
   EXPECT_TRUE(test_flags[2].picker_deleted);
+}
+
+// Not specifying a tab defaults to the extension's background page.
+// Service worker-based extensions don't have one, so they must specify
+// a tab. This is a regression test for crbug.com/1271590.
+IN_PROC_BROWSER_TEST_F(DesktopCaptureApiTest, ServiceWorkerMustSpecifyTab) {
+  static constexpr char kManifest[] =
+      R"({
+           "name": "Desktop Capture",
+           "manifest_version": 3,
+           "version": "0.1",
+           "background": { "service_worker": "worker.js" },
+           "permissions": ["desktopCapture"]
+         })";
+
+  static constexpr char kWorker[] =
+      R"(chrome.test.runTests([
+           function noTabIdSpecified() {
+             chrome.desktopCapture.chooseDesktopMedia(
+               ["screen", "window"],
+               function(id) {
+                 chrome.test.assertLastError(
+                     'A target tab is required when called from a service ' +
+                     'worker context.');
+                 chrome.test.succeed();
+             });
+        }]))";
+
+  TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("worker.js"), kWorker);
+
+  ASSERT_TRUE(RunExtensionTest(test_dir.UnpackedPath(), {}, {})) << message_;
+}
+
+class DesktopCaptureApiMediaPickerOptionsBaseTest
+    : public DesktopCaptureApiTest {
+ public:
+  DesktopCaptureApiMediaPickerOptionsBaseTest() {
+    DesktopCaptureChooseDesktopMediaFunction::SetPickerFactoryForTests(
+        &picker_factory_);
+  }
+
+  void FromServiceWorker(const std::string& options);
+
+  ~DesktopCaptureApiMediaPickerOptionsBaseTest() override = default;
+};
+
+void DesktopCaptureApiMediaPickerOptionsBaseTest::FromServiceWorker(
+    const std::string& options) {
+  static constexpr char kManifest[] =
+      R"({
+           "name": "Desktop Capture",
+           "manifest_version": 3,
+           "version": "0.1",
+           "background": { "service_worker": "worker.js" },
+           "permissions": ["desktopCapture", "tabs"]
+         })";
+
+  const std::string worker = base::StringPrintf(
+      R"(chrome.test.runTests([
+           function tabIdSpecified() {
+             chrome.tabs.query({}, function(tabs) {
+               chrome.test.assertTrue(tabs.length == 1);
+               chrome.desktopCapture.chooseDesktopMedia(
+                 ["tab"], tabs[0],
+                 %s
+                 function(id) {
+                   chrome.test.assertEq("string", typeof id);
+                   chrome.test.assertTrue(id != "");
+                   chrome.test.succeed();
+                 });
+             });
+        }]))",
+      options.c_str());
+
+  TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("worker.js"), worker);
+
+  // Open a tab to capture.
+  embedded_test_server()->ServeFilesFromDirectory(GetTestResourcesParentDir());
+  ASSERT_TRUE(StartEmbeddedTestServer());
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), GetURLForPath("localhost", "/test_file.html")));
+
+  FakeDesktopMediaPickerFactory::TestFlags test_flags[] = {
+      {.expect_tabs = true,
+       .selected_source = MakeFakeWebContentsMediaId(true)},
+  };
+  picker_factory_.SetTestFlags(test_flags, std::size(test_flags));
+
+  ASSERT_TRUE(RunExtensionTest(test_dir.UnpackedPath(), {}, {})) << message_;
+}
+
+class DesktopCaptureApiMediaPickerWithOptionsTest
+    : public DesktopCaptureApiMediaPickerOptionsBaseTest,
+      public testing::WithParamInterface<
+          std::tuple<std::string, std::string, std::string>> {
+ public:
+  static std::string ParseParams(
+      const std::tuple<std::string, std::string, std::string>& params) {
+    std::vector<std::string> options;
+
+    if (!std::get<0>(params).empty()) {
+      options.push_back("systemAudio: \"" + std::get<0>(params) + "\"");
+    }
+
+    if (!std::get<1>(params).empty()) {
+      options.push_back("selfBrowserSurface: \"" + std::get<1>(params) + "\"");
+    }
+
+    if (!std::get<2>(params).empty()) {
+      options.push_back("suppressLocalAudioPlaybackIntended: " +
+                        std::get<2>(params));
+    }
+
+    return "{" + base::JoinString(options, ", ") + "},";
+  }
+
+  ~DesktopCaptureApiMediaPickerWithOptionsTest() override = default;
+};
+
+INSTANTIATE_TEST_SUITE_P(_,
+                         DesktopCaptureApiMediaPickerWithOptionsTest,
+                         Combine(/*systemAudio*/
+                                 Values("", "exclude", "include"),
+                                 /*selfBrowserSurface*/
+                                 Values("", "exclude", "include"),
+                                 /*suppressLocalAudioPlaybackIntended*/
+                                 Values("", "false", "true")));
+
+IN_PROC_BROWSER_TEST_P(DesktopCaptureApiMediaPickerWithOptionsTest,
+                       FromServiceWorker) {
+  FromServiceWorker(ParseParams(GetParam()));
+}
+
+class DesktopCaptureApiMediaPickerWithoutOptionsTest
+    : public DesktopCaptureApiMediaPickerOptionsBaseTest {
+ public:
+  ~DesktopCaptureApiMediaPickerWithoutOptionsTest() override = default;
+};
+
+IN_PROC_BROWSER_TEST_F(DesktopCaptureApiMediaPickerWithoutOptionsTest,
+                       FromServiceWorker) {
+  FromServiceWorker("");
 }
 
 }  // namespace extensions

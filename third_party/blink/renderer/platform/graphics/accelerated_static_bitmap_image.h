@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,7 +64,22 @@ class PLATFORM_EXPORT AcceleratedStaticBitmapImage final
       base::WeakPtr<WebGraphicsContext3DProviderWrapper>,
       base::PlatformThreadRef context_thread_ref,
       scoped_refptr<base::SingleThreadTaskRunner> context_task_runner,
-      viz::ReleaseCallback release_callback);
+      viz::ReleaseCallback release_callback,
+      bool supports_display_compositing,
+      bool is_overlay_candidate);
+
+  // Creates an image wrapping an external mailbox.
+  // The mailbox may come from a different context,
+  // potentially from a different process.
+  // This takes ownership of the mailbox.
+  static scoped_refptr<AcceleratedStaticBitmapImage> CreateFromExternalMailbox(
+      const gpu::MailboxHolder& mailbox_holder,
+      uint32_t usage,
+      const SkImageInfo& sk_image_info,
+      bool is_origin_top_left,
+      bool supports_display_compositing,
+      bool is_overlay_candidate,
+      base::OnceCallback<void(const gpu::SyncToken&)> release_callback);
 
   bool CurrentFrameKnownToBeOpaque() override;
   bool IsTextureBacked() const override { return true; }
@@ -95,6 +110,9 @@ class PLATFORM_EXPORT AcceleratedStaticBitmapImage final
   bool CopyToResourceProvider(
       CanvasResourceProvider* resource_provider) override;
 
+  bool CopyToResourceProvider(CanvasResourceProvider* resource_provider,
+                              const gfx::Rect& copy_rect) override;
+
   // To be called on sender thread before performing a transfer to a different
   // thread.
   void Transfer() final;
@@ -113,12 +131,16 @@ class PLATFORM_EXPORT AcceleratedStaticBitmapImage final
   // sync token before accessing this mailbox.
   gpu::MailboxHolder GetMailboxHolder() const final;
   bool IsOriginTopLeft() const final { return is_origin_top_left_; }
-
-  SkColorType GetSkColorType() const override {
-    return sk_image_info_.colorType();
+  bool SupportsDisplayCompositing() const final {
+    return supports_display_compositing_;
   }
+  bool IsOverlayCandidate() const final { return is_overlay_candidate_; }
 
   PaintImage PaintImageForCurrentFrame() override;
+
+  SkImageInfo GetSkImageInfo() const override;
+
+  uint32_t GetUsage() const override;
 
  private:
   struct ReleaseContext {
@@ -136,6 +158,8 @@ class PLATFORM_EXPORT AcceleratedStaticBitmapImage final
       const SkImageInfo& sk_image_info,
       GLenum texture_target,
       bool is_origin_top_left,
+      bool supports_display_compositing,
+      bool is_overlay_candidate,
       const ImageOrientation& orientation,
       base::WeakPtr<WebGraphicsContext3DProviderWrapper>,
       base::PlatformThreadRef context_thread_ref,
@@ -145,12 +169,12 @@ class PLATFORM_EXPORT AcceleratedStaticBitmapImage final
   void CreateImageFromMailboxIfNeeded();
   void InitializeTextureBacking(GLuint shared_image_texture_id);
 
-  gfx::Size SizeInternal() const override;
-
   const gpu::Mailbox mailbox_;
   const SkImageInfo sk_image_info_;
   const GLenum texture_target_;
-  const bool is_origin_top_left_;
+  const bool is_origin_top_left_ : 1;
+  const bool supports_display_compositing_ : 1;
+  const bool is_overlay_candidate_ : 1;
 
   base::WeakPtr<WebGraphicsContext3DProviderWrapper> context_provider_wrapper_;
   scoped_refptr<MailboxRef> mailbox_ref_;

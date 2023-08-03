@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,12 @@
 #include "net/http/http_status_code.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace {
+
+namespace mojom = ::chromeos::network_diagnostics::mojom;
 
 const int kNoProblemDelayMs = 100;
 const int kHighLatencyDelayMs = 550;
@@ -123,4 +125,4 @@ TEST_F(ArcHttpRoutineTest, TestVeryHighLatency) {
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

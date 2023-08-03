@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,10 @@ SecurityInformationView::SecurityInformationView(int side_margin) {
       views::DISTANCE_RELATED_LABEL_HORIZONTAL);
   auto hover_button_insets = layout_provider->GetInsetsMetric(
       ChromeInsetsMetric::INSETS_PAGE_INFO_HOVER_BUTTON);
-
+  // TODO(olesiamarukhno): Unify the column width through all views in the
+  // page info (RichHoverButton, PermissionSelectorRow, ChosenObjectView,
+  // SecurityInformationView). Currently, it isn't same everywhere and it
+  // causes label text next to icon not to be aligned by 1 or 2px.
   views::TableLayout* layout =
       SetLayoutManager(std::make_unique<views::TableLayout>());
   layout->AddPaddingColumn(views::TableLayout::kFixedSize, side_margin)
@@ -54,6 +57,14 @@ SecurityInformationView::SecurityInformationView(int side_margin) {
       views::style::CONTEXT_DIALOG_BODY_TEXT);
   security_summary_label_->SetID(
       PageInfoViewFactory::VIEW_ID_PAGE_INFO_SECURITY_SUMMARY_LABEL);
+  // The label defaults to a single line, which would force the dialog wider;
+  // instead give it a width that's the minimum we want it to have.  Then the
+  // TableLayout will stretch it back out into any additional space available.
+  const int min_label_width =
+      PageInfoViewFactory::kMinBubbleWidth - side_margin * 2 -
+      PageInfoViewFactory::GetConnectionSecureIcon().Size().width() -
+      icon_label_spacing;
+  security_summary_label_->SizeToFit(min_label_width);
 
   auto start_secondary_row = [=]() {
     layout->AddRows(1, views::TableLayout::kFixedSize);
@@ -66,13 +77,7 @@ SecurityInformationView::SecurityInformationView(int side_margin) {
   security_details_label_->SetID(
       PageInfoViewFactory::VIEW_ID_PAGE_INFO_SECURITY_DETAILS_LABEL);
   security_details_label_->SetDefaultTextStyle(views::style::STYLE_SECONDARY);
-  // The label defaults to a single line, which would force the dialog wider;
-  // instead give it a width that's the minimum we want it to have.  Then the
-  // TableLayout will stretch it back out into any additional space available.
-  security_details_label_->SizeToFit(
-      PageInfoViewFactory::kMinBubbleWidth - side_margin * 2 -
-      PageInfoViewFactory::GetConnectionSecureIcon().Size().width() -
-      icon_label_spacing);
+  security_details_label_->SizeToFit(min_label_width);
 
   start_secondary_row();
   reset_decisions_label_container_ =
@@ -151,7 +156,6 @@ void SecurityInformationView::AddResetDecisionsLabel(
   views::StyledLabel::RangeStyleInfo link_style =
       views::StyledLabel::RangeStyleInfo::CreateForLink(
           reset_decisions_callback);
-  link_style.disable_line_wrapping = false;
 
   reset_cert_decisions_label->AddStyleRange(link_range, link_style);
   // Adjust this label's width to the width of the label above.
@@ -161,8 +165,8 @@ void SecurityInformationView::AddResetDecisionsLabel(
   const int between_paragraphs_distance =
       ChromeLayoutProvider::Get()->GetDistanceMetric(
           views::DISTANCE_RELATED_CONTROL_VERTICAL);
-  reset_decisions_label_container_->SetBorder(
-      views::CreateEmptyBorder(between_paragraphs_distance, 0, 0, 0));
+  reset_decisions_label_container_->SetBorder(views::CreateEmptyBorder(
+      gfx::Insets::TLBR(between_paragraphs_distance, 0, 0, 0)));
 
   InvalidateLayout();
 }
@@ -193,8 +197,7 @@ void SecurityInformationView::AddPasswordReuseButtons(
       change_password_template = IDS_PAGE_INFO_PROTECT_ACCOUNT_BUTTON;
       break;
     default:
-      NOTREACHED();
-      break;
+      NOTREACHED_NORETURN();
   }
 
   std::unique_ptr<views::MdTextButton> change_password_button;
@@ -222,7 +225,7 @@ void SecurityInformationView::AddPasswordReuseButtons(
   layout->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kStart);
   password_reuse_button_container_->SetLayoutManager(std::move(layout));
 
-#if defined(OS_WIN) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS_ASH)
   if (change_password_button) {
     password_reuse_button_container_->AddChildView(
         std::move(change_password_button));
@@ -240,7 +243,7 @@ void SecurityInformationView::AddPasswordReuseButtons(
 
   // Add padding at the top.
   password_reuse_button_container_->SetBorder(
-      views::CreateEmptyBorder(8, 0, 0, 0));
+      views::CreateEmptyBorder(gfx::Insets::TLBR(8, 0, 0, 0)));
 
   InvalidateLayout();
 }

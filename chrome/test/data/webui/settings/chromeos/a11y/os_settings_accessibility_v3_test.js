@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ OSSettingsAccessibilityV3Test.axeOptions = {
     'color-contrast': {enabled: false},
     // The HTML language attribute isn't set by the test_loader.html dummy file.
     'html-has-lang': {enabled: false},
-  }
+  },
 };
 
 // Default accessibility audit options. Specify in test definition to use.

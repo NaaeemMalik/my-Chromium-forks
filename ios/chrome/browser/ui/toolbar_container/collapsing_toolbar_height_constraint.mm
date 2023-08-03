@@ -1,16 +1,15 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/toolbar_container/collapsing_toolbar_height_constraint.h"
 
-#include <algorithm>
+#import <algorithm>
 
-#include "base/check.h"
-#include "base/cxx17_backports.h"
+#import "base/check.h"
 #import "ios/chrome/browser/ui/toolbar_container/collapsing_toolbar_height_constraint_delegate.h"
 #import "ios/chrome/browser/ui/toolbar_container/toolbar_collapsing.h"
-#include "ios/chrome/browser/ui/util/ui_util.h"
+#import "ios/chrome/common/ui/util/ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -101,7 +100,7 @@ using toolbar_container::HeightRange;
 }
 
 - (void)setProgress:(CGFloat)progress {
-  progress = base::clamp(progress, kMinProgress, kMaxProgress);
+  progress = std::clamp(progress, kMinProgress, kMaxProgress);
   if (AreCGFloatsEqual(_progress, progress))
     return;
   _progress = progress;
@@ -121,7 +120,7 @@ using toolbar_container::HeightRange;
 #pragma mark - Public
 
 - (CGFloat)toolbarHeightForProgress:(CGFloat)progress {
-  progress = base::clamp(progress, kMinProgress, kMaxProgress);
+  progress = std::clamp(progress, kMinProgress, kMaxProgress);
   CGFloat base = self.collapsedToolbarHeight;
   CGFloat range = self.expandedToolbarHeight - self.collapsedToolbarHeight;
   if (self.collapsesAdditionalHeight) {

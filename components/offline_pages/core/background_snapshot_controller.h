@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -75,8 +75,8 @@ class BackgroundSnapshotController {
   // The Client calls this when renovations have completed.
   void RenovationsCompleted();
 
-  // Invoked from WebContentObserver::DocumentOnLoadCompletedInMainFrame
-  void DocumentOnLoadCompletedInMainFrame();
+  // Invoked from WebContentObserver::DocumentOnLoadCompletedInPrimaryMainFrame
+  void DocumentOnLoadCompletedInPrimaryMainFrame();
 
   int64_t GetDelayAfterDocumentOnLoadCompletedForTest();
   int64_t GetDelayAfterRenovationsCompletedForTest();

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/renderer/bindings/core/v8/idl_types_base.h"
 #include "third_party/blink/renderer/bindings/core/v8/native_value_traits.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/heap/heap_traits.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -20,6 +19,7 @@
 
 namespace blink {
 
+class BigInt;
 class EventListener;
 class ScriptPromise;
 class ScriptValue;
@@ -32,6 +32,9 @@ struct IDLAny final : public IDLBaseHelper<ScriptValue> {};
 
 // boolean
 struct IDLBoolean final : public IDLBaseHelper<bool> {};
+
+// bigint
+struct IDLBigint final : public IDLBaseHelper<BigInt> {};
 
 // Integer types
 
@@ -236,6 +239,14 @@ struct IDLEventHandler final : public IDLBaseHelper<EventListener*> {};
 struct IDLOnBeforeUnloadEventHandler final
     : public IDLBaseHelper<EventListener*> {};
 struct IDLOnErrorEventHandler final : public IDLBaseHelper<EventListener*> {};
+
+// [BufferSourceTypeNoSizeLimit]
+template <typename T>
+struct IDLBufferSourceTypeNoSizeLimit {};
+
+// [AllowResizable]
+template <typename T>
+struct IDLAllowResizable {};
 
 // IDL optional types
 //

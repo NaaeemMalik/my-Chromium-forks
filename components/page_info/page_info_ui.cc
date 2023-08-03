@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,16 @@
 
 #include "base/command_line.h"
 #include "base/containers/span.h"
-#include "base/cxx17_backports.h"
 #include "base/feature_list.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/page_info/core/features.h"
+#include "components/page_info/page_info.h"
 #include "components/page_info/page_info_ui_delegate.h"
 #include "components/permissions/features.h"
+#include "components/permissions/permission_decision_auto_blocker.h"
 #include "components/permissions/permission_manager.h"
 #include "components/permissions/permission_result.h"
 #include "components/permissions/permission_util.h"
@@ -29,7 +30,7 @@
 #include "services/device/public/cpp/device_features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/resources/android/theme_resources.h"
 #else
 #include "ui/gfx/color_palette.h"
@@ -54,7 +55,7 @@ const int kPermissionButtonTextIDPolicyManaged[] = {
     IDS_PAGE_INFO_PERMISSION_ASK_BY_POLICY,
     kInvalidResourceID,
     kInvalidResourceID};
-static_assert(base::size(kPermissionButtonTextIDPolicyManaged) ==
+static_assert(std::size(kPermissionButtonTextIDPolicyManaged) ==
                   CONTENT_SETTING_NUM_SETTINGS,
               "kPermissionButtonTextIDPolicyManaged array size is incorrect");
 
@@ -67,7 +68,7 @@ const int kPermissionButtonTextIDExtensionManaged[] = {
     IDS_PAGE_INFO_PERMISSION_ASK_BY_EXTENSION,
     kInvalidResourceID,
     kInvalidResourceID};
-static_assert(base::size(kPermissionButtonTextIDExtensionManaged) ==
+static_assert(std::size(kPermissionButtonTextIDExtensionManaged) ==
                   CONTENT_SETTING_NUM_SETTINGS,
               "kPermissionButtonTextIDExtensionManaged array size is "
               "incorrect");
@@ -81,7 +82,7 @@ const int kPermissionButtonTextIDUserManaged[] = {
     IDS_PAGE_INFO_BUTTON_TEXT_ASK_BY_USER,
     kInvalidResourceID,
     IDS_PAGE_INFO_BUTTON_TEXT_DETECT_IMPORTANT_CONTENT_BY_USER};
-static_assert(base::size(kPermissionButtonTextIDUserManaged) ==
+static_assert(std::size(kPermissionButtonTextIDUserManaged) ==
                   CONTENT_SETTING_NUM_SETTINGS,
               "kPermissionButtonTextIDUserManaged array size is incorrect");
 
@@ -94,11 +95,11 @@ const int kPermissionButtonTextIDDefaultSetting[] = {
     IDS_PAGE_INFO_BUTTON_TEXT_ASK_BY_DEFAULT,
     kInvalidResourceID,
     IDS_PAGE_INFO_BUTTON_TEXT_DETECT_IMPORTANT_CONTENT_BY_DEFAULT};
-static_assert(base::size(kPermissionButtonTextIDDefaultSetting) ==
+static_assert(std::size(kPermissionButtonTextIDDefaultSetting) ==
                   CONTENT_SETTING_NUM_SETTINGS,
               "kPermissionButtonTextIDDefaultSetting array size is incorrect");
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 // The resource IDs for the strings that are displayed on the sound permission
 // button if the sound permission setting is managed by the user.
 const int kSoundPermissionButtonTextIDUserManaged[] = {
@@ -109,7 +110,7 @@ const int kSoundPermissionButtonTextIDUserManaged[] = {
     kInvalidResourceID,
     kInvalidResourceID};
 static_assert(
-    base::size(kSoundPermissionButtonTextIDUserManaged) ==
+    std::size(kSoundPermissionButtonTextIDUserManaged) ==
         CONTENT_SETTING_NUM_SETTINGS,
     "kSoundPermissionButtonTextIDUserManaged array size is incorrect");
 
@@ -124,7 +125,7 @@ const int kSoundPermissionButtonTextIDDefaultSetting[] = {
     kInvalidResourceID,
     kInvalidResourceID};
 static_assert(
-    base::size(kSoundPermissionButtonTextIDDefaultSetting) ==
+    std::size(kSoundPermissionButtonTextIDDefaultSetting) ==
         CONTENT_SETTING_NUM_SETTINGS,
     "kSoundPermissionButtonTextIDDefaultSetting array size is incorrect");
 #endif
@@ -154,7 +155,7 @@ base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
     {ContentSettingsType::BACKGROUND_SYNC,
      IDS_SITE_SETTINGS_TYPE_BACKGROUND_SYNC,
      IDS_SITE_SETTINGS_TYPE_BACKGROUND_SYNC_MID_SENTENCE},
-#if defined(OS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH) || defined(OS_WIN)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
     {ContentSettingsType::PROTECTED_MEDIA_IDENTIFIER,
      IDS_SITE_SETTINGS_TYPE_PROTECTED_MEDIA_ID,
      IDS_SITE_SETTINGS_TYPE_PROTECTED_MEDIA_ID_MID_SENTENCE},
@@ -192,14 +193,17 @@ base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
     {ContentSettingsType::CAMERA_PAN_TILT_ZOOM,
      IDS_SITE_SETTINGS_TYPE_CAMERA_PAN_TILT_ZOOM,
      IDS_SITE_SETTINGS_TYPE_CAMERA_PAN_TILT_ZOOM_MID_SENTENCE},
+    {ContentSettingsType::FEDERATED_IDENTITY_API,
+     IDS_SITE_SETTINGS_TYPE_FEDERATED_IDENTITY_API,
+     IDS_SITE_SETTINGS_TYPE_FEDERATED_IDENTITY_API_MID_SENTENCE},
     {ContentSettingsType::IDLE_DETECTION, IDS_SITE_SETTINGS_TYPE_IDLE_DETECTION,
      IDS_SITE_SETTINGS_TYPE_IDLE_DETECTION_MID_SENTENCE},
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     // Page Info Permissions that are not defined in Android.
     {ContentSettingsType::FILE_SYSTEM_WRITE_GUARD,
      IDS_SITE_SETTINGS_TYPE_FILE_SYSTEM_ACCESS_WRITE,
      IDS_SITE_SETTINGS_TYPE_FILE_SYSTEM_ACCESS_WRITE_MID_SENTENCE},
-    {ContentSettingsType::FONT_ACCESS, IDS_SITE_SETTINGS_TYPE_FONT_ACCESS,
+    {ContentSettingsType::LOCAL_FONTS, IDS_SITE_SETTINGS_TYPE_FONT_ACCESS,
      IDS_SITE_SETTINGS_TYPE_FONT_ACCESS_MID_SENTENCE},
     {ContentSettingsType::HID_GUARD, IDS_SITE_SETTINGS_TYPE_HID_DEVICES,
      IDS_SITE_SETTINGS_TYPE_HID_DEVICES_MID_SENTENCE},
@@ -207,9 +211,9 @@ base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
      IDS_SITE_SETTINGS_TYPE_IMAGES_MID_SENTENCE},
     {ContentSettingsType::SERIAL_GUARD, IDS_SITE_SETTINGS_TYPE_SERIAL_PORTS,
      IDS_SITE_SETTINGS_TYPE_SERIAL_PORTS_MID_SENTENCE},
-    {ContentSettingsType::WINDOW_PLACEMENT,
-     IDS_SITE_SETTINGS_TYPE_WINDOW_PLACEMENT,
-     IDS_SITE_SETTINGS_TYPE_WINDOW_PLACEMENT_MID_SENTENCE},
+    {ContentSettingsType::WINDOW_MANAGEMENT,
+     IDS_SITE_SETTINGS_TYPE_WINDOW_MANAGEMENT,
+     IDS_SITE_SETTINGS_TYPE_WINDOW_MANAGEMENT_MID_SENTENCE},
 #endif
   };
   return kPermissionUIInfo;
@@ -239,18 +243,11 @@ CreateSecurityDescriptionForSafetyTip(
       std::make_unique<PageInfoUI::SecurityDescription>();
   security_description->summary_style = PageInfoUI::SecuritySummaryColor::RED;
 
-  if (safety_tip_status == security_state::SafetyTipStatus::kBadReputation ||
-      safety_tip_status ==
-          security_state::SafetyTipStatus::kBadReputationIgnored) {
-    security_description->summary = l10n_util::GetStringUTF16(
-        IDS_PAGE_INFO_SAFETY_TIP_BAD_REPUTATION_TITLE);
-  } else {
-    const std::u16string safe_host =
-        security_interstitials::common_string_util::GetFormattedHostName(
-            safe_url);
-    security_description->summary = l10n_util::GetStringFUTF16(
-        IDS_PAGE_INFO_SAFETY_TIP_LOOKALIKE_TITLE, safe_host);
-  }
+  const std::u16string safe_host =
+      security_interstitials::common_string_util::GetFormattedHostName(
+          safe_url);
+  security_description->summary = l10n_util::GetStringFUTF16(
+      IDS_PAGE_INFO_SAFETY_TIP_LOOKALIKE_TITLE, safe_host);
   security_description->details =
       l10n_util::GetStringUTF16(IDS_PAGE_INFO_SAFETY_TIP_DESCRIPTION);
   security_description->type = PageInfoUI::SecurityDescriptionType::SAFETY_TIP;
@@ -327,10 +324,10 @@ std::u16string GetPermissionAskStateString(ContentSettingsType type) {
     case ContentSettingsType::AR:
       message_id = IDS_PAGE_INFO_STATE_TEXT_AR_ASK;
       break;
-    case ContentSettingsType::WINDOW_PLACEMENT:
-      message_id = IDS_PAGE_INFO_STATE_TEXT_WINDOW_PLACEMENT_ASK;
+    case ContentSettingsType::WINDOW_MANAGEMENT:
+      message_id = IDS_PAGE_INFO_STATE_TEXT_WINDOW_MANAGEMENT_ASK;
       break;
-    case ContentSettingsType::FONT_ACCESS:
+    case ContentSettingsType::LOCAL_FONTS:
       message_id = IDS_PAGE_INFO_STATE_TEXT_FONT_ACCESS_ASK;
       break;
     case ContentSettingsType::IDLE_DETECTION:
@@ -368,6 +365,15 @@ std::u16string GetPermissionAskStateString(ContentSettingsType type) {
 
 PageInfoUI::CookieInfo::CookieInfo() : allowed(-1), blocked(-1) {}
 
+PageInfoUI::CookiesNewInfo::CookiesNewInfo() = default;
+
+PageInfoUI::CookiesNewInfo::~CookiesNewInfo() = default;
+
+PageInfoUI::CookiesFpsInfo::CookiesFpsInfo(const std::u16string& owner_name)
+    : owner_name(owner_name) {}
+
+PageInfoUI::CookiesFpsInfo::~CookiesFpsInfo() = default;
+
 PageInfoUI::ChosenObjectInfo::ChosenObjectInfo(
     const PageInfo::ChooserUIInfo& ui_info,
     std::unique_ptr<permissions::ObjectPermissionContextBase::Object>
@@ -388,6 +394,13 @@ PageInfoUI::IdentityInfo::~IdentityInfo() = default;
 
 PageInfoUI::PageFeatureInfo::PageFeatureInfo()
     : is_vr_presentation_in_headset(false) {}
+
+bool PageInfoUI::AdPersonalizationInfo::is_empty() const {
+  return !has_joined_user_to_interest_group && accessed_topics.empty();
+}
+
+PageInfoUI::AdPersonalizationInfo::AdPersonalizationInfo() = default;
+PageInfoUI::AdPersonalizationInfo::~AdPersonalizationInfo() = default;
 
 std::unique_ptr<PageInfoUI::SecurityDescription>
 PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
@@ -439,6 +452,16 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
                                        IDS_PAGE_INFO_BILLING_SUMMARY,
                                        IDS_PAGE_INFO_BILLING_DETAILS,
                                        SecurityDescriptionType::SAFE_BROWSING);
+    case PageInfo::SAFE_BROWSING_STATUS_MANAGED_POLICY_WARN:
+      return CreateSecurityDescription(SecuritySummaryColor::RED,
+                                       IDS_PAGE_INFO_ENTERPRISE_WARN_SUMMARY,
+                                       IDS_PAGE_INFO_ENTERPRISE_WARN_DETAILS,
+                                       SecurityDescriptionType::SAFE_BROWSING);
+    case PageInfo::SAFE_BROWSING_STATUS_MANAGED_POLICY_BLOCK:
+      return CreateSecurityDescription(SecuritySummaryColor::RED,
+                                       IDS_PAGE_INFO_ENTERPRISE_WARN_SUMMARY,
+                                       IDS_PAGE_INFO_ENTERPRISE_WARN_DETAILS,
+                                       SecurityDescriptionType::SAFE_BROWSING);
   }
 
   std::unique_ptr<SecurityDescription> safety_tip_security_desc =
@@ -448,7 +471,7 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
   }
 
   switch (identity_info.identity_status) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     case PageInfo::SITE_IDENTITY_STATUS_INTERNAL_PAGE:
       return CreateSecurityDescription(SecuritySummaryColor::GREEN, 0,
                                        IDS_PAGE_INFO_INTERNAL_PAGE,
@@ -493,10 +516,11 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
       // Internal pages on desktop have their own UI implementations which
       // should never call this function.
       NOTREACHED();
-      FALLTHROUGH;
+      [[fallthrough]];
     case PageInfo::SITE_IDENTITY_STATUS_EV_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_ADMIN_PROVIDED_CERT:
+    case PageInfo::SITE_IDENTITY_STATUS_ISOLATED_WEB_APP:
       switch (identity_info.connection_status) {
         case PageInfo::SITE_CONNECTION_STATUS_INSECURE_ACTIVE_SUBRESOURCE:
           return CreateSecurityDescription(SecuritySummaryColor::RED,
@@ -585,7 +609,7 @@ std::u16string PageInfoUI::PermissionActionToUIString(
   switch (source) {
     case content_settings::SETTING_SOURCE_USER:
       if (setting == CONTENT_SETTING_DEFAULT) {
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
         if (type == ContentSettingsType::SOUND) {
           // If the block autoplay enabled preference is enabled and the
           // sound default setting is ALLOW, we will return a custom string
@@ -604,10 +628,10 @@ std::u16string PageInfoUI::PermissionActionToUIString(
         button_text_ids = kPermissionButtonTextIDDefaultSetting;
         break;
       }
-      FALLTHROUGH;
+      [[fallthrough]];
     case content_settings::SETTING_SOURCE_POLICY:
     case content_settings::SETTING_SOURCE_EXTENSION:
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
       if (type == ContentSettingsType::SOUND) {
         button_text_ids = kSoundPermissionButtonTextIDUserManaged;
         break;
@@ -642,7 +666,7 @@ std::u16string PageInfoUI::PermissionStateToUIString(
       permission.type, permission.setting, permission.default_setting);
   switch (effective_setting) {
     case CONTENT_SETTING_ALLOW:
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
       if (permission.type == ContentSettingsType::SOUND &&
           delegate->IsBlockAutoPlayEnabled() &&
           permission.setting == CONTENT_SETTING_DEFAULT) {
@@ -652,7 +676,7 @@ std::u16string PageInfoUI::PermissionStateToUIString(
 #endif
       if (permission.setting == CONTENT_SETTING_DEFAULT) {
         message_id = IDS_PAGE_INFO_STATE_TEXT_ALLOWED_BY_DEFAULT;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
       } else if (permission.is_one_time) {
         DCHECK_EQ(permission.source, content_settings::SETTING_SOURCE_USER);
         DCHECK(permissions::PermissionUtil::CanPermissionBeAllowedOnce(
@@ -667,7 +691,7 @@ std::u16string PageInfoUI::PermissionStateToUIString(
       break;
     case CONTENT_SETTING_BLOCK:
       if (permission.setting == CONTENT_SETTING_DEFAULT) {
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
         if (permission.type == ContentSettingsType::SOUND) {
           message_id = IDS_PAGE_INFO_BUTTON_TEXT_MUTED_BY_DEFAULT;
           break;
@@ -675,7 +699,7 @@ std::u16string PageInfoUI::PermissionStateToUIString(
 #endif
         message_id = IDS_PAGE_INFO_STATE_TEXT_NOT_ALLOWED_BY_DEFAULT;
       } else {
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
         if (permission.type == ContentSettingsType::SOUND) {
           message_id = IDS_PAGE_INFO_STATE_TEXT_MUTED;
           break;
@@ -740,9 +764,23 @@ std::u16string PageInfoUI::PermissionAutoBlockedToUIString(
   // TODO(crbug.com/1063023): PageInfo::PermissionInfo should be modified
   // to contain all needed information regarding Automatically Blocked flag.
   if (permission.setting == CONTENT_SETTING_BLOCK &&
-      permissions::PermissionUtil::IsPermission(permission.type)) {
-    permissions::PermissionResult permission_result =
-        delegate->GetPermissionStatus(permission.type);
+      permissions::PermissionDecisionAutoBlocker::IsEnabledForContentSetting(
+          permission.type)) {
+    permissions::PermissionResult permission_result(
+        CONTENT_SETTING_DEFAULT,
+        permissions::PermissionStatusSource::UNSPECIFIED);
+    if (permissions::PermissionUtil::IsPermission(permission.type)) {
+      blink::PermissionType permission_type =
+          permissions::PermissionUtil::ContentSettingTypeToPermissionType(
+              permission.type);
+      permission_result = delegate->GetPermissionResult(permission_type);
+    } else if (permission.type == ContentSettingsType::FEDERATED_IDENTITY_API) {
+      absl::optional<permissions::PermissionResult> embargo_result =
+          delegate->GetEmbargoResult(permission.type);
+      if (embargo_result)
+        permission_result = *embargo_result;
+    }
+
     switch (permission_result.source) {
       case permissions::PermissionStatusSource::MULTIPLE_DISMISSALS:
         message_id = IDS_PAGE_INFO_PERMISSION_AUTOMATICALLY_BLOCKED;
@@ -760,33 +798,6 @@ std::u16string PageInfoUI::PermissionAutoBlockedToUIString(
 }
 
 // static
-std::u16string PageInfoUI::PermissionDecisionReasonToUIString(
-    PageInfoUiDelegate* delegate,
-    const PageInfo::PermissionInfo& permission) {
-  ContentSetting effective_setting = GetEffectiveSetting(
-      permission.type, permission.setting, permission.default_setting);
-  int message_id = kInvalidResourceID;
-  switch (permission.source) {
-    case content_settings::SettingSource::SETTING_SOURCE_POLICY:
-      message_id = kPermissionButtonTextIDPolicyManaged[effective_setting];
-      break;
-    case content_settings::SettingSource::SETTING_SOURCE_EXTENSION:
-      message_id = kPermissionButtonTextIDExtensionManaged[effective_setting];
-      break;
-    default:
-      break;
-  }
-
-  auto auto_block_text = PermissionAutoBlockedToUIString(delegate, permission);
-  if (!auto_block_text.empty())
-    return auto_block_text;
-
-  if (message_id == kInvalidResourceID)
-    return std::u16string();
-  return l10n_util::GetStringUTF16(message_id);
-}
-
-// static
 void PageInfoUI::ToggleBetweenAllowAndBlock(
     PageInfo::PermissionInfo& permission) {
   auto opposite_to_block_setting =
@@ -796,11 +807,7 @@ void PageInfoUI::ToggleBetweenAllowAndBlock(
   switch (permission.setting) {
     case CONTENT_SETTING_ALLOW:
       DCHECK_EQ(opposite_to_block_setting, CONTENT_SETTING_ALLOW);
-      if (permission.is_one_time) {
-        permission.setting = CONTENT_SETTING_DEFAULT;
-      } else {
-        SetTargetContentSetting(permission, CONTENT_SETTING_BLOCK);
-      }
+      SetTargetContentSetting(permission, CONTENT_SETTING_BLOCK);
       permission.is_one_time = false;
       break;
     case CONTENT_SETTING_BLOCK:
@@ -881,7 +888,7 @@ SkColor PageInfoUI::GetSecondaryTextColor() {
   return SK_ColorGRAY;
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 // static
 int PageInfoUI::GetIdentityIconID(PageInfo::SiteIdentityStatus status) {
   switch (status) {
@@ -889,6 +896,7 @@ int PageInfoUI::GetIdentityIconID(PageInfo::SiteIdentityStatus status) {
     case PageInfo::SITE_IDENTITY_STATUS_INTERNAL_PAGE:
     case PageInfo::SITE_IDENTITY_STATUS_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_EV_CERT:
+    case PageInfo::SITE_IDENTITY_STATUS_ISOLATED_WEB_APP:
       return IDR_PAGEINFO_GOOD;
     case PageInfo::SITE_IDENTITY_STATUS_NO_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_ERROR:
@@ -906,6 +914,7 @@ int PageInfoUI::GetConnectionIconID(PageInfo::SiteConnectionStatus status) {
     case PageInfo::SITE_CONNECTION_STATUS_UNKNOWN:
     case PageInfo::SITE_CONNECTION_STATUS_INTERNAL_PAGE:
     case PageInfo::SITE_CONNECTION_STATUS_ENCRYPTED:
+    case PageInfo::SITE_CONNECTION_STATUS_ISOLATED_WEB_APP:
       return IDR_PAGEINFO_GOOD;
     case PageInfo::SITE_CONNECTION_STATUS_INSECURE_PASSIVE_SUBRESOURCE:
     case PageInfo::SITE_CONNECTION_STATUS_INSECURE_FORM_ACTION:
@@ -924,6 +933,7 @@ int PageInfoUI::GetIdentityIconColorID(PageInfo::SiteIdentityStatus status) {
     case PageInfo::SITE_IDENTITY_STATUS_INTERNAL_PAGE:
     case PageInfo::SITE_IDENTITY_STATUS_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_EV_CERT:
+    case PageInfo::SITE_IDENTITY_STATUS_ISOLATED_WEB_APP:
       return IDR_PAGEINFO_GOOD_COLOR;
     case PageInfo::SITE_IDENTITY_STATUS_ADMIN_PROVIDED_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_NO_CERT:
@@ -941,6 +951,7 @@ int PageInfoUI::GetConnectionIconColorID(
     case PageInfo::SITE_CONNECTION_STATUS_UNKNOWN:
     case PageInfo::SITE_CONNECTION_STATUS_INTERNAL_PAGE:
     case PageInfo::SITE_CONNECTION_STATUS_ENCRYPTED:
+    case PageInfo::SITE_CONNECTION_STATUS_ISOLATED_WEB_APP:
       return IDR_PAGEINFO_GOOD_COLOR;
     case PageInfo::SITE_CONNECTION_STATUS_INSECURE_PASSIVE_SUBRESOURCE:
     case PageInfo::SITE_CONNECTION_STATUS_INSECURE_FORM_ACTION:
@@ -953,7 +964,7 @@ int PageInfoUI::GetConnectionIconColorID(
   return 0;
 }
 
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 // static
 bool PageInfoUI::ContentSettingsTypeInPageInfo(ContentSettingsType type) {
@@ -969,18 +980,10 @@ std::unique_ptr<PageInfoUI::SecurityDescription>
 PageInfoUI::CreateSafetyTipSecurityDescription(
     const security_state::SafetyTipInfo& info) {
   switch (info.status) {
-    case security_state::SafetyTipStatus::kBadReputation:
-    case security_state::SafetyTipStatus::kBadReputationIgnored:
     case security_state::SafetyTipStatus::kLookalike:
     case security_state::SafetyTipStatus::kLookalikeIgnored:
       return CreateSecurityDescriptionForSafetyTip(info.status, info.safe_url);
 
-    case security_state::SafetyTipStatus::kBadKeyword:
-      // Keyword safety tips are only used to collect metrics for now and are
-      // not visible to the user, so don't affect Page Info.
-      break;
-
-    case security_state::SafetyTipStatus::kDigitalAssetLinkMatch:
     case security_state::SafetyTipStatus::kNone:
     case security_state::SafetyTipStatus::kUnknown:
       break;

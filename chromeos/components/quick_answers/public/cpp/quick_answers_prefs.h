@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 class PrefRegistrySimple;
 
-namespace ash {
 namespace quick_answers {
 namespace prefs {
 
@@ -29,7 +28,7 @@ extern const char kQuickAnswersEnabled[];
 extern const char kQuickAnswersConsentStatus[];
 extern const char kQuickAnswersDefinitionEnabled[];
 extern const char kQuickAnswersTranslationEnabled[];
-extern const char kQuickAnswersUnitConverstionEnabled[];
+extern const char kQuickAnswersUnitConversionEnabled[];
 extern const char kQuickAnswersNoticeImpressionCount[];
 extern const char kQuickAnswersNoticeImpressionDuration[];
 
@@ -38,6 +37,5 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
 }  // namespace prefs
 }  // namespace quick_answers
-}  // namespace ash
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_PUBLIC_CPP_QUICK_ANSWERS_PREFS_H_

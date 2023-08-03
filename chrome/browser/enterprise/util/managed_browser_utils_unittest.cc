@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -120,33 +120,32 @@ class AutoSelectCertificateTest : public testing::Test {
         {client_1_, client_2_});
   }
 
-  void SetPolicyValueInContentSettings(
-      const std::vector<base::Value>& filters) {
+  void SetPolicyValueInContentSettings(base::Value::List filters) {
     HostContentSettingsMap* m =
         HostContentSettingsMapFactory::GetForProfile(profile());
 
-    std::unique_ptr<base::DictionaryValue> root =
-        std::make_unique<base::DictionaryValue>();
-    root->SetKey("filters", base::Value(std::move(filters)));
+    base::Value::Dict root;
+    root.Set("filters", std::move(filters));
 
     m->SetWebsiteSettingDefaultScope(
         GURL(kRequestingUrl), GURL(),
-        ContentSettingsType::AUTO_SELECT_CERTIFICATE, std::move(root));
+        ContentSettingsType::AUTO_SELECT_CERTIFICATE,
+        base::Value(std::move(root)));
   }
 
   base::Value CreateFilterValue(const std::string& issuer,
                                 const std::string& subject) {
     EXPECT_FALSE(issuer.empty() && subject.empty());
 
-    base::Value filter(base::Value::Type::DICTIONARY);
+    base::Value filter(base::Value::Type::DICT);
     if (!issuer.empty()) {
-      base::Value issuer_value(base::Value::Type::DICTIONARY);
+      base::Value issuer_value(base::Value::Type::DICT);
       issuer_value.SetStringKey("CN", issuer);
       filter.SetKey("ISSUER", std::move(issuer_value));
     }
 
     if (!subject.empty()) {
-      base::Value subject_value(base::Value::Type::DICTIONARY);
+      base::Value subject_value(base::Value::Type::DICT);
       subject_value.SetStringKey("CN", subject);
       filter.SetKey("SUBJECT", std::move(subject_value));
     }
@@ -189,10 +188,10 @@ TEST_F(AutoSelectCertificateTest,
   net::ClientCertIdentityList client_certs_list = GetDefaultClientCertList();
 
   // client_1.pem has "B CA" as its issuer, so set up filters to select it
-  std::vector<base::Value> filters;
-  filters.push_back(CreateFilterValue("B CA", ""));
+  base::Value::List filters;
+  filters.Append(CreateFilterValue("B CA", ""));
 
-  SetPolicyValueInContentSettings(filters);
+  SetPolicyValueInContentSettings(std::move(filters));
 
   net::ClientCertIdentityList matching_certs_list, nonmatching_certs_list;
   chrome::enterprise_util::AutoSelectCertificates(
@@ -209,10 +208,10 @@ TEST_F(AutoSelectCertificateTest,
   net::ClientCertIdentityList client_certs_list = GetDefaultClientCertList();
 
   // client_2.pem has "E CA" as its issuer, so set up filters to select it
-  std::vector<base::Value> filters;
-  filters.push_back(CreateFilterValue("E CA", ""));
+  base::Value::List filters;
+  filters.Append(CreateFilterValue("E CA", ""));
 
-  SetPolicyValueInContentSettings(filters);
+  SetPolicyValueInContentSettings(std::move(filters));
 
   net::ClientCertIdentityList matching_certs_list, nonmatching_certs_list;
 
@@ -231,10 +230,10 @@ TEST_F(AutoSelectCertificateTest,
 
   // client_1.pem has "Client Cert A" as its subject, so set up filters to
   // select it
-  std::vector<base::Value> filters;
-  filters.push_back(CreateFilterValue("", "Client Cert A"));
+  base::Value::List filters;
+  filters.Append(CreateFilterValue("", "Client Cert A"));
 
-  SetPolicyValueInContentSettings(filters);
+  SetPolicyValueInContentSettings(std::move(filters));
 
   net::ClientCertIdentityList matching_certs_list, nonmatching_certs_list;
 
@@ -253,10 +252,10 @@ TEST_F(AutoSelectCertificateTest,
 
   // client_2.pem has "Client Cert D" as its subject, so set up filters to
   // select it
-  std::vector<base::Value> filters;
-  filters.push_back(CreateFilterValue("", "Client Cert D"));
+  base::Value::List filters;
+  filters.Append(CreateFilterValue("", "Client Cert D"));
 
-  SetPolicyValueInContentSettings(filters);
+  SetPolicyValueInContentSettings(std::move(filters));
 
   net::ClientCertIdentityList matching_certs_list, nonmatching_certs_list;
 
@@ -272,10 +271,10 @@ TEST_F(AutoSelectCertificateTest, IssuerNotMatchingDoesntSelectCerts) {
   GURL requesting_url(kRequestingUrl);
   net::ClientCertIdentityList client_certs_list = GetDefaultClientCertList();
 
-  std::vector<base::Value> filters;
-  filters.push_back(CreateFilterValue("Bad Issuer", "Client Cert D"));
+  base::Value::List filters;
+  filters.Append(CreateFilterValue("Bad Issuer", "Client Cert D"));
 
-  SetPolicyValueInContentSettings(filters);
+  SetPolicyValueInContentSettings(std::move(filters));
 
   net::ClientCertIdentityList matching_certs_list, nonmatching_certs_list;
 
@@ -292,10 +291,10 @@ TEST_F(AutoSelectCertificateTest, SubjectNotMatchingDoesntSelectCerts) {
   GURL requesting_url(kRequestingUrl);
   net::ClientCertIdentityList client_certs_list = GetDefaultClientCertList();
 
-  std::vector<base::Value> filters;
-  filters.push_back(CreateFilterValue("E CA", "Bad Subject"));
+  base::Value::List filters;
+  filters.Append(CreateFilterValue("E CA", "Bad Subject"));
 
-  SetPolicyValueInContentSettings(filters);
+  SetPolicyValueInContentSettings(std::move(filters));
 
   net::ClientCertIdentityList matching_certs_list, nonmatching_certs_list;
 
@@ -312,10 +311,10 @@ TEST_F(AutoSelectCertificateTest, MatchingCertOnDifferentUrlDoesntSelectCerts) {
   GURL requesting_url("http://other.domain.example.com");
   net::ClientCertIdentityList client_certs_list = GetDefaultClientCertList();
 
-  std::vector<base::Value> filters;
-  filters.push_back(CreateFilterValue("E CA", ""));
+  base::Value::List filters;
+  filters.Append(CreateFilterValue("E CA", ""));
 
-  SetPolicyValueInContentSettings(filters);
+  SetPolicyValueInContentSettings(std::move(filters));
 
   net::ClientCertIdentityList matching_certs_list, nonmatching_certs_list;
   chrome::enterprise_util::AutoSelectCertificates(

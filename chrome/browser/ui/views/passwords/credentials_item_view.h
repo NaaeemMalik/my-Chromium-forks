@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,6 +42,7 @@ class CredentialsItemView : public AccountAvatarFetcherDelegate,
                       const std::u16string& lower_text,
                       const password_manager::PasswordForm* form,
                       network::mojom::URLLoaderFactory* loader_factory,
+                      const url::Origin& initiator,
                       int upper_text_style = views::style::STYLE_PRIMARY,
                       int lower_text_style = views::style::STYLE_SECONDARY);
   CredentialsItemView(const CredentialsItemView&) = delete;

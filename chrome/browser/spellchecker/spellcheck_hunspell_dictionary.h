@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -134,7 +134,7 @@ class SpellcheckHunspellDictionary
   // Attempt to download the dictionary.
   void DownloadDictionary(GURL url);
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Figures out the location for the dictionary, verifies its contents, and
   // opens it.
   static DictionaryFile OpenDictionaryFile(base::TaskRunner* task_runner,

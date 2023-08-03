@@ -1,12 +1,12 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // clang-format off
-import {ChooserType, ContentSetting, ContentSettingsTypes, DefaultContentSetting, OriginInfo, RawChooserException, RawSiteException, SiteGroup, SiteSettingSource} from 'chrome://settings/lazy_load.js';
+import {ChooserException, ChooserType, ContentSetting, ContentSettingProvider, ContentSettingsTypes, DefaultContentSetting, OriginInfo, PaperTooltipElement, RawChooserException, RawSiteException, SiteException, SiteGroup, SiteSettingSource} from 'chrome://settings/lazy_load.js';
 import {Route, Router} from 'chrome://settings/settings.js';
+import {assertEquals} from 'chrome://webui-test/chai_assert.js';
 // clang-format on
-
 
 /**
  * Helper to create an object containing a ContentSettingsType key to array or
@@ -32,7 +32,7 @@ export function createDefaultContentSetting(
   return Object.assign(
       {
         setting: ContentSetting.ASK,
-        source: SiteSettingSource.PREFERENCE,
+        source: ContentSettingProvider.PREFERENCE,
       },
       override || {});
 }
@@ -85,11 +85,11 @@ export function createRawChooserException(
  * In the real (non-test) code, this data comes from the C++ handler.
  * Only used for tests.
  */
-export type SiteSettingsPref = {
-  defaults: {[key in ContentSettingsTypes]: DefaultContentSetting},
-  exceptions: {[key in ContentSettingsTypes]: RawSiteException[]},
-  chooserExceptions: {[key in ContentSettingsTypes]: RawChooserException[]},
-};
+export interface SiteSettingsPref {
+  defaults: {[key in ContentSettingsTypes]: DefaultContentSetting};
+  exceptions: {[key in ContentSettingsTypes]: RawSiteException[]};
+  chooserExceptions: {[key in ContentSettingsTypes]: RawChooserException[]};
+}
 
 /**
  * Helper to create a mock SiteSettingsPref.
@@ -119,6 +119,7 @@ export function createSiteSettingsPrefs(
     defaults[ContentSettingsTypes[type as keyof typeof ContentSettingsTypes]] =
         createDefaultContentSetting({});
   }
+  defaults[ContentSettingsTypes.ANTI_ABUSE].setting = ContentSetting.ALLOW;
   defaults[ContentSettingsTypes.COOKIES].setting = ContentSetting.ALLOW;
   defaults[ContentSettingsTypes.IMAGES].setting = ContentSetting.ALLOW;
   defaults[ContentSettingsTypes.JAVASCRIPT].setting = ContentSetting.ALLOW;
@@ -174,6 +175,7 @@ export function createSiteGroup(
       originList.map((origin) => createOriginInfo(origin, {usage: mockUsage}));
   return {
     etldPlus1: eTLDPlus1Name,
+    displayName: eTLDPlus1Name,
     origins: originInfoList,
     numCookies: 0,
     hasInstalledPWA: false,
@@ -190,6 +192,7 @@ export function createOriginInfo(
         numCookies: 0,
         hasPermissionSettings: false,
         isInstalled: false,
+        isPartitioned: false,
       },
       override || {});
 }
@@ -208,6 +211,8 @@ export function getContentSettingsTypeFromChooserType(chooserType: ChooserType):
       return ContentSettingsTypes.SERIAL_PORTS;
     case ChooserType.USB_DEVICES:
       return ContentSettingsTypes.USB_DEVICES;
+    case ChooserType.BLUETOOTH_DEVICES:
+      return ContentSettingsTypes.BLUETOOTH_DEVICES;
     default:
       return null;
   }
@@ -222,4 +227,62 @@ export function setupPopstateListener() {
             (routerInstance.getRoutes() as {BASIC: Route}).BASIC,
         new URLSearchParams(window.location.search), true);
   });
+}
+
+/**
+ * Helper to assert that a paper-tooltip element is visually hidden but still
+ * accessible by screen readers.
+ */
+export function assertTooltipIsHidden(tooltip: PaperTooltipElement) {
+  const tooltipStyle = window.getComputedStyle(tooltip);
+  assertEquals('rect(0px, 0px, 0px, 0px)', tooltipStyle.clip);
+  assertEquals('1px', tooltipStyle.height);
+  assertEquals('1px', tooltipStyle.width);
+  assertEquals('hidden', tooltipStyle.overflow);
+}
+
+/**
+ * Helper to create a mock SiteException.
+ * @param origin The origin to use for this SiteException.
+ * @param override An object with a subset of the properties of
+ *     SiteException. Properties defined in |override| will overwrite the
+ *     defaults in this function's return value.
+ */
+export function createSiteException(
+    origin: string, override?: Partial<SiteException>): SiteException {
+  return Object.assign(
+      {
+        category: ContentSettingsTypes.USB_DEVICES,
+        embeddingOrigin: origin,
+        incognito: false,
+        origin: origin,
+        displayName: origin,
+        setting: ContentSetting.DEFAULT,
+        settingDetail: null,
+        enforcement: null,
+        controlledBy: chrome.settingsPrivate.ControlledBy.PRIMARY_USER,
+        isEmbargoed: false,
+      },
+      override || {});
+}
+
+/**
+ * Helper to create a mock ChooserException.
+ * @param chooserType The chooser exception type.
+ * @param sites A list of SiteExceptions corresponding to the chooser exception.
+ * @param override An object with a subset of the properties of
+ *     ChooserException. Properties defined in |override| will overwrite
+ *     the defaults in this function's return value.
+ */
+export function createChooserException(
+    chooserType: ChooserType, sites: SiteException[],
+    override?: Partial<ChooserException>): ChooserException {
+  return Object.assign(
+      {
+        chooserType: chooserType,
+        displayName: '',
+        object: {},
+        sites: sites,
+      },
+      override || {});
 }

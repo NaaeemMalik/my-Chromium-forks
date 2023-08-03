@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,9 +67,9 @@ class SyncSessionsWebContentsRouter : public LocalSessionEventRouter,
   syncer::SyncableService::StartSyncFlare flare_;
   raw_ptr<LocalSessionEventHandler> handler_ = nullptr;
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<BrowserListRouterHelper> browser_list_helper_;
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 };
 
 }  // namespace sync_sessions

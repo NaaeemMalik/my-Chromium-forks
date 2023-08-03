@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,6 +53,9 @@ class CORE_EXPORT MediaCustomControlsFullscreenDetector final
       const gfx::Size& video_size,
       const gfx::Size& viewport_size,
       const gfx::Size& intersection_size);
+
+  void UpdateDominantAndFullscreenStatus(bool is_dominant_visible_content,
+                                         bool is_effectively_fullscreen);
 
   // `video_element_` owns |this|.
   Member<HTMLVideoElement> video_element_;

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "base/callback_forward.h"
+#include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -56,6 +57,11 @@ class ProfileAttributesStorage
   // Register cache related preferences in Local State.
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
+  // Return the keys for all the profiles; exposed as a static method so that
+  // it can be called very early in Chrome initialization.
+  static base::flat_set<std::string> GetAllProfilesKeys(
+      PrefService* local_prefs);
+
   // Adds a new profile with `params` to the attributes storage.
   // `params.profile_path` must be a valid path within the user data directory
   // that hasn't been registered with this `ProfileAttributesStorage` before.
@@ -79,7 +85,7 @@ class ProfileAttributesStorage
 
   // Returns all non-Guest profile attributes sorted by local profile name.
   std::vector<ProfileAttributesEntry*>
-  GetAllProfilesAttributesSortedByLocalProfilName() const;
+  GetAllProfilesAttributesSortedByLocalProfileName() const;
 
   // Returns a ProfileAttributesEntry with the data for the profile at |path|
   // if the operation is successful. Returns |nullptr| otherwise.
@@ -105,7 +111,7 @@ class ProfileAttributesStorage
   bool IsDefaultProfileName(const std::u16string& name,
                             bool include_check_for_legacy_profile_name) const;
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Records statistics about a profile `entry` that is being deleted. If the
   // profile has opened browser window(s) in the moment of deletion, this
   // function must be called before these windows get closed.
@@ -175,6 +181,10 @@ class ProfileAttributesStorage
       const base::FilePath& profile_path) const;
   void NotifyProfileUserManagementAcceptanceChanged(
       const base::FilePath& profile_path) const;
+  void NotifyProfileManagementEnrollmentTokenChanged(
+      const base::FilePath& profile_path) const;
+  void NotifyProfileManagementIdChanged(
+      const base::FilePath& profile_path) const;
 
   // Returns a pref dictionary key of a profile at `profile_path`.
   std::string StorageKeyFromProfilePath(
@@ -217,20 +227,20 @@ class ProfileAttributesStorage
   // Download and high-res avatars used by the profiles.
   void DownloadAvatars();
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Loads GAIA pictures (if any) for all profiles registered in the storage and
   // puts them in memory cache.
   void LoadGAIAPictureIfNeeded();
 #endif
 
-#if !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
   // Migrate any legacy profile names ("First user", "Default Profile") to
   // new style default names ("Person 1"). Rename any duplicates of "Person n"
   // i.e. Two or more profiles with the profile name "Person 1" would be
   // recomputed to "Person 1" and "Person 2".
   void MigrateLegacyProfileNamesAndRecomputeIfNeeded();
   static void SetLegacyProfileMigrationForTesting(bool value);
-#endif  // !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
 
   // Called when the picture given by |key| has been loaded from disk and
   // decoded into |image|.
@@ -291,10 +301,10 @@ class ProfileAttributesStorage
 
   const base::FilePath user_data_dir_;
 
-#if !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
   // PersistentRepeatingTimer for periodically logging profile metrics.
   std::unique_ptr<signin::PersistentRepeatingTimer> repeating_timer_;
-#endif  // !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
 };
 
 #endif  // CHROME_BROWSER_PROFILES_PROFILE_ATTRIBUTES_STORAGE_H_

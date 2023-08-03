@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,10 @@
 
 #include "ash/components/arc/mojom/nearby_share.mojom.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
 #include "chrome/browser/ash/arc/nearby_share/share_info_file_stream_adapter.h"
 #include "content/public/browser/browser_thread.h"
 
@@ -173,13 +176,16 @@ class ShareInfoFileHandler
   bool file_sharing_started_ = false;
 
   // Unowned pointer to profile.
-  Profile* const profile_;
+  const raw_ptr<Profile, ExperimentalAsh> profile_;
 
   // Runner for tasks that may require disk IO.
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   // Timeout timer for asynchronous file streaming tasks.
   base::OneShotTimer file_streaming_timer_;
+
+  // Time when the file streaming is started.
+  base::TimeTicks file_streaming_started_;
 
   // Note: This should remain the last member so it'll be destroyed and
   // invalidate its weak pointers before any other members are destroyed.

@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <cmath>
 #include <string>
 
-#include "base/bind.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
@@ -46,7 +46,7 @@ void DelayBasedTimeSource::SetActive(bool active) {
   if (active_) {
     PostNextTickTask(Now());
   } else {
-    timer_.AbandonAndStop();
+    timer_.Stop();
     last_tick_time_ = base::TimeTicks();
     next_tick_time_ = base::TimeTicks();
   }
@@ -157,7 +157,8 @@ void DelayBasedTimeSource::PostNextTickTask(base::TimeTicks now) {
       next_tick_time_ += interval_;
     DCHECK_GT(next_tick_time_, now);
   }
-  timer_.Start(FROM_HERE, next_tick_time_ - now, tick_closure_);
+  timer_.Start(FROM_HERE, next_tick_time_, tick_closure_,
+               base::subtle::DelayPolicy::kPrecise);
 }
 
 std::string DelayBasedTimeSource::TypeString() const {

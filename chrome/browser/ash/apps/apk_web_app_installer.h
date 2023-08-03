@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,17 @@
 #include <vector>
 
 #include "ash/components/arc/mojom/app.mojom.h"
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/web_applications/web_app_id.h"
-#include "chrome/browser/web_applications/web_application_info.h"
+#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 class GURL;
 class Profile;
 
-namespace web_app {
+namespace webapps {
 enum class InstallResultCode;
 }
 
@@ -32,7 +33,7 @@ class ApkWebAppInstaller {
       const web_app::AppId&,
       const bool is_web_only_twa,
       const absl::optional<std::string> sha256_fingerprint,
-      web_app::InstallResultCode)>;
+      webapps::InstallResultCode)>;
 
   // Do nothing class purely for the purpose of allowing us to specify
   // a WeakPtr<Owner> member as a proxy for a profile lifetime observer.
@@ -47,6 +48,7 @@ class ApkWebAppInstaller {
   // with either the id of the installed web app if installation was successful,
   // or an empty id if not.
   static void Install(Profile* profile,
+                      const std::string& package_name,
                       arc::mojom::WebAppInfoPtr web_app_info,
                       arc::mojom::RawIconPngDataPtr icon,
                       InstallFinishCallback callback,
@@ -60,17 +62,18 @@ class ApkWebAppInstaller {
   virtual ~ApkWebAppInstaller();
 
   // Starts the installation flow by decoding icon data.
-  void Start(arc::mojom::WebAppInfoPtr web_app_info,
+  void Start(const std::string& package_name,
+             arc::mojom::WebAppInfoPtr web_app_info,
              arc::mojom::RawIconPngDataPtr icon);
 
   // Calls |callback_| with |id|, and deletes this object. Virtual for testing.
   virtual void CompleteInstallation(const web_app::AppId& id,
-                                    web_app::InstallResultCode code);
+                                    webapps::InstallResultCode code);
 
   // Callback method for installation completed response.
   void OnWebAppCreated(const GURL& start_url,
                        const web_app::AppId& app_id,
-                       web_app::InstallResultCode code);
+                       webapps::InstallResultCode code);
 
   // Callback method for data_decoder::DecodeImage.
   void OnImageDecoded(const SkBitmap& decoded_image);
@@ -78,20 +81,24 @@ class ApkWebAppInstaller {
   // Run the installation. Virtual for testing.
   virtual void DoInstall();
 
-  bool has_web_app_info() const { return web_app_info_ != nullptr; }
-  const WebApplicationInfo& web_app_info() const { return *web_app_info_; }
+  bool has_web_app_install_info() const {
+    return web_app_install_info_ != nullptr;
+  }
+  const WebAppInstallInfo& web_app_install_info() const {
+    return *web_app_install_info_;
+  }
 
  private:
   // If |weak_owner_| is ever invalidated while this class is working,
   // installation will be aborted. |weak_owner_|'s lifetime must be equal to or
   // shorter than that of |profile_|.
-  Profile* profile_;
+  raw_ptr<Profile, ExperimentalAsh> profile_;
   bool is_web_only_twa_;
   absl::optional<std::string> sha256_fingerprint_;
   InstallFinishCallback callback_;
   base::WeakPtr<Owner> weak_owner_;
 
-  std::unique_ptr<WebApplicationInfo> web_app_info_;
+  std::unique_ptr<WebAppInstallInfo> web_app_install_info_;
 };
 
 }  // namespace ash

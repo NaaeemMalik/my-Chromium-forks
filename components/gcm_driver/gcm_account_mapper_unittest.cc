@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/test/simple_test_clock.h"
 #include "base/time/time.h"
 #include "components/gcm_driver/fake_gcm_driver.h"
@@ -280,11 +280,11 @@ class GCMAccountMapperTest : public testing::Test {
 };
 
 GCMAccountMapperTest::GCMAccountMapperTest()
-    : kAccountId("acc_id"),
-      kAccountId1("acc_id1"),
-      kAccountId2("acc_id2"),
-      kAccountId3("acc_id3"),
-      kAccountId4("acc_id4") {
+    : kAccountId(CoreAccountId::FromGaiaId("acc_id")),
+      kAccountId1(CoreAccountId::FromGaiaId("acc_id1")),
+      kAccountId2(CoreAccountId::FromGaiaId("acc_id2")),
+      kAccountId3(CoreAccountId::FromGaiaId("acc_id3")),
+      kAccountId4(CoreAccountId::FromGaiaId("acc_id4")) {
   Restart();
 }
 

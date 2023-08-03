@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,20 +9,6 @@
 using device::mojom::blink::SensorType;
 
 namespace blink {
-
-namespace {
-
-// Even though the underlying value has changed, for ALS we provide readouts to
-// JS to the nearest 50 Lux.
-constexpr int kAlsRoundingThreshold = 50;
-
-// Decrease precision of ALS readouts.
-// Round off to the nearest kAlsRoundingThreshold.
-double RoundIlluminance(double value) {
-  return kAlsRoundingThreshold * std::round(value / kAlsRoundingThreshold);
-}
-
-}  // namespace
 
 // static
 AmbientLightSensor* AmbientLightSensor::Create(
@@ -51,7 +37,7 @@ AmbientLightSensor::AmbientLightSensor(ExecutionContext* execution_context,
 
 absl::optional<double> AmbientLightSensor::illuminance() const {
   if (hasReading())
-    return RoundIlluminance(GetReading().als.value);
+    return GetReading().als.value;
   return absl::nullopt;
 }
 

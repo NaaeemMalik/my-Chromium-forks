@@ -1,10 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.h"
 
 #include "base/memory/raw_ptr.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/search_engines/template_url_service_factory_test_util.h"
@@ -66,8 +67,6 @@ class ClearBrowsingDataHandlerUnitTest : public testing::Test {
 };
 
 void ClearBrowsingDataHandlerUnitTest::SetUp() {
-  feature_list_.InitWithFeatures({features::kSearchHistoryLink}, {});
-
   TestingProfile::Builder builder;
   profile_ = builder.Build();
 
@@ -109,16 +108,16 @@ void ClearBrowsingDataHandlerUnitTest::VerifySearchHistoryWebUIUpdate(
     const std::string* event = data.arg1()->GetIfString();
     if (!event || *event != "update-sync-state")
       continue;
-    const base::DictionaryValue* dictionary = nullptr;
-    if (!data.arg2()->GetAsDictionary(&dictionary)) {
+    const base::Value::Dict* arg2_dict = data.arg2()->GetIfDict();
+    if (!arg2_dict) {
       continue;
     }
-    ASSERT_THAT(dictionary->FindBoolKey("isNonGoogleDse"),
+    ASSERT_THAT(arg2_dict->FindBool("isNonGoogleDse"),
                 Optional(expected_is_non_google_dse));
     if (expected_is_non_google_dse) {
-      std::u16string actual_non_google_search_history_string;
-      dictionary->GetString("nonGoogleSearchHistoryString",
-                            &actual_non_google_search_history_string);
+      std::u16string actual_non_google_search_history_string =
+          base::UTF8ToUTF16(
+              *arg2_dict->FindString("nonGoogleSearchHistoryString"));
       ASSERT_EQ(expected_non_google_search_history_string,
                 actual_non_google_search_history_string);
     }

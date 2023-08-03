@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -45,6 +45,10 @@ namespace gfx {
 class Size;
 }  // namespace gfx
 
+namespace ui::mojom {
+enum class VirtualKeyboardMode;
+}  // namespace ui::mojom
+
 namespace content {
 
 class NavigationEntry;
@@ -65,6 +69,7 @@ struct LoadCommittedDetails;
 struct MediaPlayerId;
 struct PrunedDetails;
 struct Referrer;
+struct TrustTokenAccessDetails;
 
 // Note: before adding a new `WebContentsObserver` subclass, consider if simpler
 // helpers will suffice:
@@ -73,6 +78,12 @@ struct Referrer;
 //   use `DocumentUserData` instead.
 // - Mojo interface implementations that have a 1 RenderFrameHost to many
 //   instances relationship can often use `DocumentService` instead.
+// - `base::WeakPtr<WebContents>` and `WeakDocumentPtr` can be used instead of
+//   manually clearing raw ptrs using observer methods like
+//   `WebContentsDestroyed` or `RenderFrameDeleted`. Similarly, don't create a
+//   `WebContentsObserver` just to be able to check for a null
+//   `WebContentsObserver::web_contents()`. Use a `base::WeakPtr<WebContents>`
+//   instead.
 //
 // These helpers can help avoid memory safety bugs, such as retaining a pointer
 // to a deleted RenderFrameHost, or other security issues, such as origin
@@ -92,7 +103,7 @@ struct Referrer;
 // Usually, observers should only care about the current RenderViewHost as
 // returned by GetRenderViewHost().
 //
-// TODO(creis, jochen): Hide the fact that there are several RenderViewHosts
+// TODO(creis): Hide the fact that there are several RenderViewHosts
 // from the WebContentsObserver API. http://crbug.com/173325
 class CONTENT_EXPORT WebContentsObserver {
  public:
@@ -209,8 +220,8 @@ class CONTENT_EXPORT WebContentsObserver {
   virtual void OnCaptureHandleConfigUpdate(
       const blink::mojom::CaptureHandleConfig& config) {}
 
-  // This method is invoked when the RenderView of the current RenderViewHost
-  // is ready, e.g. because we recreated it after a crash.
+  // This method is invoked when the `blink::WebView` of the current
+  // RenderViewHost is ready, e.g. because we recreated it after a crash.
   virtual void RenderViewReady() {}
 
   // This method is invoked when a RenderViewHost of the WebContents is
@@ -248,14 +259,18 @@ class CONTENT_EXPORT WebContentsObserver {
 
   // Navigation ----------------------------------------------------------------
 
-  // Called when a navigation started in the WebContents. |navigation_handle|
-  // is unique to a specific navigation. The same |navigation_handle| will be
-  // provided on subsequent calls to DidRedirectNavigation, DidFinishNavigation,
-  // and ReadyToCommitNavigation when related to this navigation. Observers
-  // should clear any references to |navigation_handle| in DidFinishNavigation,
-  // just before it is destroyed.
+  // Called when a new navigation starts in the WebContents, WITHOUT
+  // guaranteeing that the navigation will either commit or lead to a new
+  // document. Consider whether listening to PrimaryPageChanged or
+  // DidFinishNavigation is a better fit, and see the IMPORTANT NOTES below.
   //
-  // NOTES:
+  // `navigation_handle` is unique to a specific navigation. The same
+  // `navigation_handle` will be provided on subsequent calls to
+  // DidRedirectNavigation, DidFinishNavigation, and ReadyToCommitNavigation
+  // when related to this navigation. Observers should clear any references to
+  // `navigation_handle` in DidFinishNavigation, just before it is destroyed.
+  //
+  // IMPORTANT NOTES:
   // - Starting a navigation doesn't affect which document is shown, or
   // (in many cases) which URL is displayed in the omnibox. Most effects of the
   // navigation only occur at DidFinishNavigation, if it commits. Feature code
@@ -272,13 +287,18 @@ class CONTENT_EXPORT WebContentsObserver {
   // navigations or pushState/replaceState, which will not result in a document
   // change. To filter these out, use NavigationHandle::IsSameDocument.
   //
-  // - There can be more than one navigation can be ongoing in the same frame at
-  // the same time (including the main frame). Each will get its own
+  // - There can be more than one navigation ongoing in the same frame at the
+  // same time (including the main frame). Each will get its own
   // NavigationHandle.
   //
   // - There is no guarantee that DidFinishNavigation will be called
   // for any particular navigation before DidStartNavigation is called on the
   // next.
+  //
+  // TODO(creis, mcnee): Consider renaming this method to better indicate its
+  // semantics (e.g. DidStartNavigationAttempt).
+  //
+  // WARNING: Please read the above IMPORTANT NOTES for correct usage.
   virtual void DidStartNavigation(NavigationHandle* navigation_handle) {}
 
   // Called when a navigation encountered a server redirect.
@@ -352,20 +372,53 @@ class CONTENT_EXPORT WebContentsObserver {
   // (nothing loaded) to 1.0 (page fully loaded).
   virtual void LoadProgressChanged(double progress) {}
 
-  // This method is invoked once the window.document object of the main frame
-  // was created. Since the WebContents could be hosting more than one main
-  // frame (e.g. prerendered page), the |render_frame_host| represents the frame
-  // where the event happened.
-  virtual void DocumentAvailableInMainFrame(
-      RenderFrameHost* render_frame_host) {}
+  // This method is invoked once the window.document element of the primary main
+  // frame's current document (i.e., |render_frame_host|) is ready. This happens
+  // when the document's main HTML resource has finished parsing. Here
+  // document element refers to DOMDocument, which is different from browser
+  // implementation of blink::Document in DocumentUserData/DocumentService which
+  // are typically created when navigation commits.
+  //
+  // Note that PrimaryMainDocumentElementAvailable should be used when the
+  // observers which send IPCs to the renderer want to ensure that
+  // window.document is non-null. For for the comment cases like observing
+  // primary document/URL changes in the omnibox due to navigation
+  // WebContentsObserver::PrimaryPageChanged should be used and to observe fully
+  // loaded signal WebContentsObserver::DidFinishLoad can be used.
+  //
+  // This event is dispatched once in the document's lifetime, which means it's
+  // not dispatched after navigation that restores a Back/Forward Cache page.
+  // For prerendering, this signal is dispatched when the main document element
+  // is available and the document is shown to the user (i.e., after the
+  // activation).
+  virtual void PrimaryMainDocumentElementAvailable() {}
 
-  // This method is invoked once the onload handler of the main frame has
-  // completed. Since the WebContents could be hosting more than one main frame,
-  // the |render_frame_host| represents the frame where the event happened.
-  // Prefer using WebContents::IsDocumentOnLoadCompletedInMainFrame instead
-  // of saving this state in your component.
-  virtual void DocumentOnLoadCompletedInMainFrame(
-      RenderFrameHost* render_frame_host) {}
+  // This method is invoked once the onload handler of the primary main frame's
+  // current document (i.e., |render_frame_host|) has completed. This happens
+  // when the primary main document has finished running onload events after
+  // loading all content (images, scripts, etc). Prefer using
+  // WebContents::IsDocumentOnLoadCompletedInPrimaryMainFrame instead of saving
+  // this state in your component.
+  //
+  // For prerendering we dispatch DocumentOnLoadCompletedInPrimaryMainFrame on
+  // activation whereas for BackForwardCache restores we don't dispatch
+  // DocumentOnLoadCompletedInPrimaryMainFrame.
+  //
+  // DocumentOnLoadCompletedInPrimaryMainFrame is typically used by the
+  // embedders to perform actions on a loaded page, for example showing load
+  // completion bubbles, injecting scripts which take page snapshots. Note,
+  // however, that some web pages might still be loading (i.e. if they
+  // dynamically inject content).
+  virtual void DocumentOnLoadCompletedInPrimaryMainFrame() {}
+
+  // This method is invoked when we have received a response from the
+  // renderer in response to a dom automation controller action.
+  // For example, `window.domAutomationController.send(foo())` sends the
+  // result of foo() here.
+  // |json_string| is a string with the response which came from a specific
+  // |render_frame_host|.
+  virtual void DomOperationResponse(RenderFrameHost* render_frame_host,
+                                    const std::string& json_string) {}
 
   // This method is invoked when the document in the given frame finished
   // loading. At this point, scripts marked as defer were executed, and
@@ -417,6 +470,19 @@ class CONTENT_EXPORT WebContentsObserver {
   // it will be attributed to the RenderFrameHost created by the navigation.
   virtual void OnCookiesAccessed(NavigationHandle* navigation_handle,
                                  const CookieAccessDetails& details) {}
+
+  // Called when document accesses a Trust Token (via document.hasTrustToken or
+  // issuing a network request).
+  // Trust Token accesses for a dedicated worker are attributed to the
+  // RenderFrameHost which created it.
+  virtual void OnTrustTokensAccessed(RenderFrameHost* render_frame_host,
+                                     const TrustTokenAccessDetails& details) {}
+
+  // Called when a network request issued by the navigation accesses a Trust
+  // Token. If a notification is received after the navigation has committed, it
+  // will be attributed to the RenderFrameHost created by the navigation.
+  virtual void OnTrustTokensAccessed(NavigationHandle* navigation_handle,
+                                     const TrustTokenAccessDetails& details) {}
 
   // This method is invoked when a new non-pending navigation entry is created.
   // This corresponds to one NavigationController entry being created
@@ -520,9 +586,7 @@ class CONTENT_EXPORT WebContentsObserver {
   virtual void FrameSizeChanged(RenderFrameHost* render_frame_host,
                                 const gfx::Size& frame_size) {}
 
-  // This method is invoked when the title of the WebContents is set. Note that
-  // |entry| may be null if the web page whose title changed has not yet had a
-  // NavigationEntry assigned to it.
+  // This method is invoked when the title of the WebContents is set.
   virtual void TitleWasSet(NavigationEntry* entry) {}
 
   // These methods are invoked when a Pepper plugin instance is created/deleted
@@ -532,6 +596,13 @@ class CONTENT_EXPORT WebContentsObserver {
 
   // This method is called when the viewport fit of a WebContents changes.
   virtual void ViewportFitChanged(blink::mojom::ViewportFit value) {}
+
+  // This method is called when the virtual keyboard mode of a WebContents
+  // changes. This can happen as a result of the
+  // `navigator.virtualKeyboard.overlaysContent` API or the virtual-keyboard key
+  // in the viewport meta tag.
+  virtual void VirtualKeyboardModeChanged(ui::mojom::VirtualKeyboardMode mode) {
+  }
 
   // Notification that a plugin has crashed.
   // |plugin_pid| is the process ID identifying the plugin process. Note that
@@ -588,7 +659,7 @@ class CONTENT_EXPORT WebContentsObserver {
   // the renderer process. If the instance is created after the page is loaded,
   // it is recommended to call WebContents::GetFaviconURLs() to get the current
   // list as this callback will not be executed unless there is an update.
-  // `render_frame_host` is the main render frame host for the primary page.
+  // `render_frame_host` is the main RenderFrameHost for the primary page.
   virtual void DidUpdateFaviconURL(
       RenderFrameHost* render_frame_host,
       const std::vector<blink::mojom::FaviconURLPtr>& candidates) {}
@@ -601,6 +672,10 @@ class CONTENT_EXPORT WebContentsObserver {
 
   // Called when the audio state of an individual frame changes.
   virtual void OnFrameAudioStateChanged(RenderFrameHost* rfh, bool audible) {}
+
+  // Called when the connected to USB device state changes.
+  virtual void OnIsConnectedToUsbDeviceChanged(
+      bool is_connected_to_usb_device) {}
 
   // Called when the connected to Bluetooth device state changes.
   virtual void OnIsConnectedToBluetoothDeviceChanged(
@@ -635,9 +710,7 @@ class CONTENT_EXPORT WebContentsObserver {
 
   // Invoked when the beforeunload handler fires. |proceed| is set to true if
   // the beforeunload can safely proceed, otherwise it should be interrupted.
-  // The time is from the renderer process.
-  virtual void BeforeUnloadFired(bool proceed,
-                                 const base::TimeTicks& proceed_time) {}
+  virtual void BeforeUnloadFired(bool proceed) {}
 
   // Invoked when a user cancels a before unload dialog.
   virtual void BeforeUnloadDialogCancelled() {}
@@ -744,7 +817,8 @@ class CONTENT_EXPORT WebContentsObserver {
   // or when the manifest URL changes (possibly to nothing). It is not invoked
   // when a document with no manifest loads. During document load, if the
   // document has both a manifest and a favicon, DidUpdateWebManifestURL() will
-  // be invoked before DidUpdateFaviconURL().
+  // be invoked before DidUpdateFaviconURL(). `target_frame` is the main render
+  // frame host for the primary page.
   virtual void DidUpdateWebManifestURL(RenderFrameHost* target_frame,
                                        const GURL& manifest_url) {}
 
@@ -766,6 +840,19 @@ class CONTENT_EXPORT WebContentsObserver {
   virtual void OnServiceWorkerAccessed(NavigationHandle* navigation_handle,
                                        const GURL& scope,
                                        AllowServiceWorkerResult allowed) {}
+
+  // Called when this WebContents is about to be discarded, and replaced with
+  // the new, empty `new_contents`. This is an opportunity to transfer to the
+  // new WebContents any data that should persist across the discard process.
+  // Because the point of tab discarding is to free up memory, careful
+  // consideration should be given to transferring data over to the new
+  // WebContents. Large amounts of data or data that can be recreated easily
+  // shouldn't be transferred, unless its existence is necessary for a feature
+  // to work. This will be invoked right after `new_contents` is created, but
+  // before its `WasDiscarded` is set to true and before it's attached to a tab
+  // strip.
+  virtual void AboutToBeDiscarded(WebContents* new_contents) {}
+
   WebContents* web_contents() const;
 
  protected:
@@ -788,7 +875,7 @@ class CONTENT_EXPORT WebContentsObserver {
 
   void ResetWebContents();
 
-  raw_ptr<WebContents> web_contents_ = nullptr;
+  raw_ptr<WebContents, DanglingUntriaged> web_contents_ = nullptr;
 };
 
 }  // namespace content

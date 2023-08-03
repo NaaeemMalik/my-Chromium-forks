@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,9 @@ using typed_urls_helper::GetTypedUrlsFromClient;
 
 const char kSanityHistoryUrl[] = "http://www.sanity-history.google.com";
 
+// TODO(crbug.com/1365291): Evaluate which of these tests should be kept after
+// kSyncEnableHistoryDataType is enabled and HISTORY has replaced TYPED_URLS.
+
 class SingleClientTypedUrlsSyncTest : public SyncTest {
  public:
   SingleClientTypedUrlsSyncTest() : SyncTest(SINGLE_CLIENT) {}
@@ -26,7 +29,7 @@ class SingleClientTypedUrlsSyncTest : public SyncTest {
   bool UseVerifier() override {
 // These tests are running on Android, but it has no multiple profile support,
 // so verifier needs to be disabled.
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     return false;
 #else
     // TODO(crbug.com/1137779): rewrite tests to not use verifier.
@@ -36,7 +39,7 @@ class SingleClientTypedUrlsSyncTest : public SyncTest {
 };
 
 // Flaky on android: https://crbug.com/1159479
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_Sanity DISABLED_Sanity
 #else
 #define MAYBE_Sanity Sanity
@@ -60,7 +63,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientTypedUrlsSyncTest, MAYBE_Sanity) {
 }
 
 // Flaky on android: https://crbug.com/1159479
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_TwoVisits DISABLED_TwoVisits
 #else
 #define MAYBE_TwoVisits TwoVisits
@@ -86,7 +89,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientTypedUrlsSyncTest, MAYBE_TwoVisits) {
 }
 
 // Flaky on android: https://crbug.com/1159479
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_DeleteTyped DISABLED_DeleteTyped
 #else
 #define MAYBE_DeleteTyped DeleteTyped
@@ -119,7 +122,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientTypedUrlsSyncTest, MAYBE_DeleteTyped) {
 }
 
 // Flaky on android: https://crbug.com/1159479
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_DeleteNonTyped DISABLED_DeleteNonTyped
 #else
 #define MAYBE_DeleteNonTyped DeleteNonTyped

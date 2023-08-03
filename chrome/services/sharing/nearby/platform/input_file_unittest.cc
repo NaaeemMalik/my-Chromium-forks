@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
 
-namespace location {
 namespace nearby {
 namespace chrome {
 
@@ -102,17 +101,17 @@ TEST_F(InputFileTest, TestRead_Valid) {
 }
 
 // TODO(crbug.com/1126971): Fix these tests from crashing on Windows.
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 TEST_F(InputFileTest, TestRead_Valid_ChunkLargerThanFileSize) {
   VerifyRead(kTestDataSize * 2);
 }
 
 TEST_F(InputFileTest, TestRead_Valid_LargeFileSize) {
-  // 100MB. 1GB does pass, but tcmalloc complains about a large alloc.
+  // 100MB
   CreateValidInputFile(kTestDataSize * 100);
   VerifyRead(kChunkSize);
 }
-#endif  // !defined(OS_WIN)
+#endif  // !BUILDFLAG(IS_WIN)
 
 TEST_F(InputFileTest, TestRead_Invalid) {
   CreateInvalidInputFile();
@@ -142,4 +141,3 @@ TEST_F(InputFileTest, TestExtractUnderlyingFile_Invalid) {
 
 }  // namespace chrome
 }  // namespace nearby
-}  // namespace location

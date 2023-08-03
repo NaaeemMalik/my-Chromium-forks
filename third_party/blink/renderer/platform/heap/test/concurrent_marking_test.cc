@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -288,21 +288,6 @@ void PopFromCollection() {
   }
   driver.FinishGC();
 }
-
-#define TEST_VECTOR_COLLECTION(name, type)                                \
-  TEST_F(ConcurrentMarkingTest, AddTo##name) { AddToCollection<type>(); } \
-  TEST_F(ConcurrentMarkingTest, RemoveFromBeginningOf##name) {            \
-    RemoveFromBeginningOfCollection<type>();                              \
-  }                                                                       \
-  TEST_F(ConcurrentMarkingTest, RemoveFromMiddleOf##name) {               \
-    RemoveFromMiddleOfCollection<type>();                                 \
-  }                                                                       \
-  TEST_F(ConcurrentMarkingTest, RemoveFromEndOf##name) {                  \
-    RemoveFromEndOfCollection<type>();                                    \
-  }                                                                       \
-  TEST_F(ConcurrentMarkingTest, Clear##name) { ClearCollection<type>(); } \
-  TEST_F(ConcurrentMarkingTest, Swap##name) { SwapCollections<type>(); }  \
-  TEST_F(ConcurrentMarkingTest, PopFrom##name) { PopFromCollection<type>(); }
 
 template <typename T, wtf_size_t inlineCapacity>
 struct MethodAdapter<HeapVector<T, inlineCapacity>>

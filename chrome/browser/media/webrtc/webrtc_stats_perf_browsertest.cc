@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -279,13 +279,6 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(
     WebRtcStatsPerfBrowserTest,
-    MANUAL_RunsAudioAndVideoCallCollectingMetrics_AudioCodec_ISAC) {
-  base::ScopedAllowBlockingForTesting allow_blocking;
-  RunsAudioAndVideoCallCollectingMetricsWithAudioCodec("ISAC");
-}
-
-IN_PROC_BROWSER_TEST_F(
-    WebRtcStatsPerfBrowserTest,
     MANUAL_RunsAudioAndVideoCallCollectingMetrics_AudioCodec_G722) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   RunsAudioAndVideoCallCollectingMetricsWithAudioCodec("G722");
@@ -320,7 +313,7 @@ IN_PROC_BROWSER_TEST_F(
 }
 
 // TODO(crbug.com/1241344): test fails on some mac bots.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_MANUAL_RunsAudioAndVideoCallCollectingMetrics_VideoCodec_VP9Profile2 \
   DISABLED_MANUAL_RunsAudioAndVideoCallCollectingMetrics_VideoCodec_VP9Profile2
 #else

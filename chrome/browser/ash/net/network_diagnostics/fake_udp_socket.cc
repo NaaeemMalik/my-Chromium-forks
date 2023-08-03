@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "net/base/ip_endpoint.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace {}  // namespace
@@ -122,4 +122,4 @@ void FakeUdpSocket::BindRemote(
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <map>
 #include <string>
 
-#include "base/callback.h"
-#include "base/compiler_specific.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "build/build_config.h"
 #include "content/public/common/page_type.h"
 #include "ui/gfx/native_widget_types.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace base {
 class FilePath;
@@ -77,16 +77,16 @@ GURL GetTestUrl(const char* dir, const char* file);
 // version below which also takes the expected commit URL.  If the navigation
 // will not result in a commit, such as a download or a 204 response, use
 // NavigateToURLAndExpectNoCommit() instead.
-WARN_UNUSED_RESULT bool NavigateToURL(Shell* window, const GURL& url);
+[[nodiscard]] bool NavigateToURL(Shell* window, const GURL& url);
 
 // Same as above, but takes in an additional URL, |expected_commit_url|, to
 // which the navigation should eventually commit.  This is useful for cases
 // like redirects, where navigation starts on one URL but ends up committing a
 // different URL.  This function will return true if navigating to |url|
 // results in a successful commit to |expected_commit_url|.
-WARN_UNUSED_RESULT bool NavigateToURL(Shell* window,
-                                      const GURL& url,
-                                      const GURL& expected_commit_url);
+[[nodiscard]] bool NavigateToURL(Shell* window,
+                                 const GURL& url,
+                                 const GURL& expected_commit_url);
 
 // Navigates |window| to |url|, blocking until the given number of navigations
 // finishes. If |ignore_uncommitted_navigations| is true, then an aborted
@@ -100,8 +100,8 @@ void NavigateToURLBlockUntilNavigationsComplete(
 // Navigates |window| to |url|, blocks until the navigation finishes, and
 // checks that the navigation did not commit (e.g., due to a crash or
 // download).
-WARN_UNUSED_RESULT bool NavigateToURLAndExpectNoCommit(Shell* window,
-                                                       const GURL& url);
+[[nodiscard]] bool NavigateToURLAndExpectNoCommit(Shell* window,
+                                                  const GURL& url);
 
 // Reloads |window|, blocking until the given number of navigations finishes.
 void ReloadBlockUntilNavigationsComplete(Shell* window,
@@ -166,11 +166,11 @@ class ShellAddedObserver {
  private:
   void ShellCreated(Shell* shell);
 
-  raw_ptr<Shell> shell_ = nullptr;
+  raw_ptr<Shell, DanglingUntriaged> shell_ = nullptr;
   std::unique_ptr<base::RunLoop> runner_;
 };
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 // An observer of the RenderWidgetHostViewCocoa which is the NSView
 // corresponding to the page.
 class RenderWidgetHostViewCocoaObserver {
@@ -220,7 +220,7 @@ class RenderWidgetHostViewCocoaObserver {
       rwhvcocoa_swizzlers_;
   static std::map<WebContents*, RenderWidgetHostViewCocoaObserver*> observers_;
 
-  WebContents* const web_contents_;
+  const raw_ptr<WebContents> web_contents_;
 };
 
 void SetWindowBounds(gfx::NativeWindow window, const gfx::Rect& bounds);
@@ -259,12 +259,19 @@ void IsolateOriginsForTesting(
     WebContents* web_contents,
     std::vector<std::string> hostnames_to_isolate);
 
-#if defined(OS_WIN)
+// Same as above, but takes full origins as input.  In particular, this version
+// doesn't assume HTTP, so it can be used for also isolating HTTPS origins.
+void IsolateOriginsForTesting(
+    net::test_server::EmbeddedTestServer* embedded_test_server,
+    WebContents* web_contents,
+    std::vector<url::Origin> origins_to_isolate);
+
+#if BUILDFLAG(IS_WIN)
 
 void SetMockCursorPositionForTesting(WebContents* web_contents,
                                      const gfx::Point& position);
 
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 }  // namespace content
 

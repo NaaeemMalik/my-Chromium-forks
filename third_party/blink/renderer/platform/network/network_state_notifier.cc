@@ -27,11 +27,15 @@
 
 #include <memory>
 
+#include "base/synchronization/lock.h"
+#include "base/task/single_thread_task_runner.h"
 #include "net/nqe/effective_connection_type.h"
 #include "net/nqe/network_quality_estimator_params.h"
+#include "services/network/public/cpp/client_hints.h"
 #include "third_party/blink/public/common/client_hints/client_hints.h"
 #include "third_party/blink/public/mojom/webpreferences/web_preferences.mojom-blink.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
+#include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
@@ -116,7 +120,7 @@ void NetworkStateNotifier::SetOnLine(bool on_line) {
   DCHECK(IsMainThread());
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     state_.on_line_initialized = true;
     state_.on_line = on_line;
   }
@@ -127,7 +131,7 @@ void NetworkStateNotifier::SetWebConnection(WebConnectionType type,
   DCHECK(IsMainThread());
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     state_.connection_initialized = true;
     state_.type = type;
     state_.max_bandwidth_mbps = max_bandwidth_mbps;
@@ -141,7 +145,7 @@ void NetworkStateNotifier::SetNetworkQuality(WebEffectiveConnectionType type,
   DCHECK(IsMainThread());
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
 
     state_.effective_type = type;
     state_.http_rtt = absl::nullopt;
@@ -168,7 +172,7 @@ void NetworkStateNotifier::SetNetworkQualityWebHoldback(
     return;
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
 
     state_.network_quality_web_holdback = type;
   }
@@ -187,7 +191,7 @@ void NetworkStateNotifier::SetSaveDataEnabled(bool enabled) {
   DCHECK(IsMainThread());
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     state_.save_data = enabled;
   }
 }
@@ -210,7 +214,7 @@ void NetworkStateNotifier::SetNetworkConnectionInfoOverride(
   DCHECK(IsMainThread());
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     has_override_ = true;
     override_.on_line_initialized = true;
     override_.on_line = on_line;
@@ -252,7 +256,7 @@ void NetworkStateNotifier::SetSaveDataEnabledOverride(bool enabled) {
   DCHECK(IsMainThread());
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     has_override_ = true;
     override_.on_line_initialized = true;
     override_.connection_initialized = true;
@@ -264,7 +268,7 @@ void NetworkStateNotifier::ClearOverride() {
   DCHECK(IsMainThread());
   ScopedNotifier notifier(*this);
   {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     has_override_ = false;
   }
 }
@@ -273,56 +277,57 @@ void NetworkStateNotifier::NotifyObservers(ObserverListMap& map,
                                            ObserverType type,
                                            const NetworkState& state) {
   DCHECK(IsMainThread());
-  MutexLocker locker(mutex_);
+  base::AutoLock locker(lock_);
   for (const auto& entry : map) {
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner = entry.key;
-    PostCrossThreadTask(
-        *task_runner, FROM_HERE,
-        CrossThreadBindOnce(&NetworkStateNotifier::NotifyObserversOnTaskRunner,
-                            CrossThreadUnretained(this),
-                            CrossThreadUnretained(&map), type, task_runner,
-                            state));
+    entry.value->PostTask(
+        FROM_HERE,
+        base::BindOnce(&NetworkStateNotifier::NotifyObserverOnTaskRunner,
+                       base::Unretained(this), base::UnsafeDangling(entry.key),
+                       type, state));
   }
 }
 
-void NetworkStateNotifier::NotifyObserversOnTaskRunner(
-    ObserverListMap* map,
+void NetworkStateNotifier::NotifyObserverOnTaskRunner(
+    MayBeDangling<NetworkStateObserver> observer,
     ObserverType type,
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner,
     const NetworkState& state) {
-  ObserverList* observer_list = LockAndFindObserverList(*map, task_runner);
-
-  // The context could have been removed before the notification task got to
-  // run.
-  if (!observer_list)
-    return;
-
-  DCHECK(task_runner->RunsTasksInCurrentSequence());
-
-  observer_list->iterating = true;
-
-  for (wtf_size_t i = 0; i < observer_list->observers.size(); ++i) {
-    // Observers removed during iteration are zeroed out, skip them.
-    if (!observer_list->observers[i])
-      continue;
-    switch (type) {
-      case ObserverType::kOnLineState:
-        observer_list->observers[i]->OnLineStateChange(state.on_line);
-        continue;
-      case ObserverType::kConnectionType:
-        observer_list->observers[i]->ConnectionChange(
-            state.type, state.max_bandwidth_mbps, state.effective_type,
-            state.http_rtt, state.transport_rtt, state.downlink_throughput_mbps,
-            state.save_data);
-        continue;
+  {
+    base::AutoLock locker(lock_);
+    ObserverListMap& map = GetObserverMapFor(type);
+    // It's safe to pass a MayBeDangling pointer to find().
+    ObserverListMap::iterator it = map.find(observer);
+    if (map.end() == it) {
+      return;
     }
-    NOTREACHED();
+    DCHECK(it->value->RunsTasksInCurrentSequence());
   }
 
-  observer_list->iterating = false;
+  switch (type) {
+    case ObserverType::kOnLineState:
+      observer->OnLineStateChange(state.on_line);
+      return;
+    case ObserverType::kConnectionType:
+      observer->ConnectionChange(
+          state.type, state.max_bandwidth_mbps, state.effective_type,
+          state.http_rtt, state.transport_rtt, state.downlink_throughput_mbps,
+          state.save_data);
+      return;
+    default:
+      NOTREACHED();
+  }
+}
 
-  if (!observer_list->zeroed_observers.IsEmpty())
-    CollectZeroedObservers(*map, observer_list, std::move(task_runner));
+NetworkStateNotifier::ObserverListMap& NetworkStateNotifier::GetObserverMapFor(
+    ObserverType type) {
+  switch (type) {
+    case ObserverType::kConnectionType:
+      return connection_observers_;
+    case ObserverType::kOnLineState:
+      return on_line_state_observers_;
+    default:
+      NOTREACHED();
+      return connection_observers_;
+  }
 }
 
 void NetworkStateNotifier::AddObserverToMap(
@@ -332,94 +337,30 @@ void NetworkStateNotifier::AddObserverToMap(
   DCHECK(task_runner->RunsTasksInCurrentSequence());
   DCHECK(observer);
 
-  MutexLocker locker(mutex_);
+  base::AutoLock locker(lock_);
   ObserverListMap::AddResult result =
-      map.insert(std::move(task_runner), nullptr);
-  if (result.is_new_entry)
-    result.stored_value->value = std::make_unique<ObserverList>();
-
-  DCHECK(result.stored_value->value->observers.Find(observer) == kNotFound);
-  result.stored_value->value->observers.push_back(observer);
+      map.insert(observer, std::move(task_runner));
+  DCHECK(result.is_new_entry);
 }
 
 void NetworkStateNotifier::RemoveObserver(
     ObserverType type,
     NetworkStateObserver* observer,
     scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
-  switch (type) {
-    case ObserverType::kConnectionType:
-      RemoveObserverFromMap(connection_observers_, observer,
-                            std::move(task_runner));
-      break;
-    case ObserverType::kOnLineState:
-      RemoveObserverFromMap(on_line_state_observers_, observer,
-                            std::move(task_runner));
-      break;
-  }
-}
-
-void NetworkStateNotifier::RemoveObserverFromMap(
-    ObserverListMap& map,
-    NetworkStateObserver* observer,
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
   DCHECK(task_runner->RunsTasksInCurrentSequence());
   DCHECK(observer);
 
-  ObserverList* observer_list = LockAndFindObserverList(map, task_runner);
-  if (!observer_list)
-    return;
-
-  Vector<NetworkStateObserver*>& observers = observer_list->observers;
-  wtf_size_t index = observers.Find(observer);
-  if (index != kNotFound) {
-    observers[index] = 0;
-    observer_list->zeroed_observers.push_back(index);
-  }
-
-  if (!observer_list->iterating && !observer_list->zeroed_observers.IsEmpty())
-    CollectZeroedObservers(map, observer_list, std::move(task_runner));
-}
-
-NetworkStateNotifier::ObserverList*
-NetworkStateNotifier::LockAndFindObserverList(
-    ObserverListMap& map,
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
-  MutexLocker locker(mutex_);
-  ObserverListMap::iterator it = map.find(task_runner);
-  return it == map.end() ? nullptr : it->value.get();
-}
-
-void NetworkStateNotifier::CollectZeroedObservers(
-    ObserverListMap& map,
-    ObserverList* list,
-    scoped_refptr<base::SingleThreadTaskRunner> task_runner) {
-  DCHECK(task_runner->RunsTasksInCurrentSequence());
-  DCHECK(!list->iterating);
-
-  // If any observers were removed during the iteration they will have
-  // 0 values, clean them up.
-  std::sort(list->zeroed_observers.begin(), list->zeroed_observers.end());
-  int removed = 0;
-  for (wtf_size_t i = 0; i < list->zeroed_observers.size(); ++i) {
-    int index_to_remove = list->zeroed_observers[i] - removed;
-    DCHECK_EQ(nullptr, list->observers[index_to_remove]);
-    list->observers.EraseAt(index_to_remove);
-    removed += 1;
-  }
-
-  list->zeroed_observers.clear();
-
-  if (list->observers.IsEmpty()) {
-    MutexLocker locker(mutex_);
-    map.erase(task_runner);  // deletes list
-  }
+  ObserverListMap& map = GetObserverMapFor(type);
+  DCHECK_NE(map.end(), map.find(observer));
+  map.erase(observer);
 }
 
 // static
 String NetworkStateNotifier::EffectiveConnectionTypeToString(
     WebEffectiveConnectionType type) {
-  DCHECK_GT(kWebEffectiveConnectionTypeMappingCount, static_cast<size_t>(type));
-  return kWebEffectiveConnectionTypeMapping[static_cast<int>(type)];
+  DCHECK_GT(network::kWebEffectiveConnectionTypeMappingCount,
+            static_cast<size_t>(type));
+  return network::kWebEffectiveConnectionTypeMapping[static_cast<int>(type)];
 }
 
 double NetworkStateNotifier::GetRandomMultiplier(const String& host) const {
@@ -430,7 +371,7 @@ double NetworkStateNotifier::GetRandomMultiplier(const String& host) const {
   if (!host)
     return 1.0;
 
-  unsigned hash = StringHash::GetHash(host) + RandomizationSalt();
+  unsigned hash = WTF::GetHash(host) + RandomizationSalt();
   double random_multiplier = 0.9 + static_cast<double>((hash % 21)) * 0.01;
   DCHECK_LE(0.90, random_multiplier);
   DCHECK_GE(1.10, random_multiplier);
@@ -488,7 +429,7 @@ double NetworkStateNotifier::RoundMbps(
 
 absl::optional<WebEffectiveConnectionType>
 NetworkStateNotifier::GetWebHoldbackEffectiveType() const {
-  MutexLocker locker(mutex_);
+  base::AutoLock locker(lock_);
 
   const NetworkState& state = has_override_ ? override_ : state_;
   // TODO (tbansal): Add a DCHECK to check that |state.on_line_initialized| is
@@ -527,7 +468,7 @@ void NetworkStateNotifier::GetMetricsWithWebHoldback(
     absl::optional<base::TimeDelta>* http_rtt,
     absl::optional<double>* downlink_mbps,
     bool* save_data) const {
-  MutexLocker locker(mutex_);
+  base::AutoLock locker(lock_);
   const NetworkState& state = has_override_ ? override_ : state_;
 
   *type = state.type;

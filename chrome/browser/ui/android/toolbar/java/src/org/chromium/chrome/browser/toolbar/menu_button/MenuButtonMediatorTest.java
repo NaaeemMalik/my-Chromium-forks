@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@ package org.chromium.chrome.browser.toolbar.menu_button;
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 
-import static org.mockito.Mockito.anyObject;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -45,6 +46,7 @@ import java.lang.ref.WeakReference;
  * Unit tests for ToolbarAppMenuManager.
  */
 @RunWith(BaseRobolectricTestRunner.class)
+@LooperMode(LooperMode.Mode.LEGACY)
 public class MenuButtonMediatorTest {
     @Mock
     private BrowserStateBrowserControlsVisibilityDelegate mControlsVisibilityDelegate;
@@ -88,7 +90,7 @@ public class MenuButtonMediatorTest {
                                          new ShowBadgeProperty(false, false))
                                  .with(MenuButtonProperties.THEME,
                                          new ThemeProperty(mThemeColorProvider.getTint(),
-                                                 mThemeColorProvider.useLight()))
+                                                 mThemeColorProvider.getBrandedColorScheme()))
                                  .with(MenuButtonProperties.IS_VISIBLE, true)
                                  .build();
         doReturn(mAppMenuHandler).when(mAppMenuCoordinator).getAppMenuHandler();
@@ -225,6 +227,6 @@ public class MenuButtonMediatorTest {
     public void testKeyboardIsNotDismissedWhenMenuShowsWithNoFocusedViews() {
         doReturn(null).when(mActivity).getCurrentFocus();
         mMenuButtonMediator.onMenuVisibilityChanged(true);
-        verify(mKeyboardDelegate, never()).hideKeyboard(anyObject());
+        verify(mKeyboardDelegate, never()).hideKeyboard(any());
     }
 }

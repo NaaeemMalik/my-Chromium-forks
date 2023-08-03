@@ -1,17 +1,19 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile_window.h"
 
 #include <stddef.h>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/command_line.h"
+#include "base/functional/bind.h"
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/bind.h"
+#include "base/test/test_future.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -100,6 +102,23 @@ class EmptyAcceleratorHandler : public ui::AcceleratorProvider {
   }
 };
 
+class BrowserAddedObserver : public BrowserListObserver {
+ public:
+  explicit BrowserAddedObserver(base::OnceCallback<void(Browser*)> callback)
+      : callback_(std::move(callback)) {
+    CHECK(callback_);
+    BrowserList::AddObserver(this);
+  }
+
+  void OnBrowserAdded(Browser* browser) override {
+    BrowserList::RemoveObserver(this);
+    std::move(callback_).Run(browser);
+  }
+
+ private:
+  base::OnceCallback<void(Browser*)> callback_;
+};
+
 }  // namespace
 
 class ProfileWindowBrowserTest : public InProcessBrowserTest {
@@ -139,14 +158,14 @@ class ProfileWindowCountBrowserTest : public ProfileWindowBrowserTest,
                         : CreateGuestBrowser();
       profile_ = new_browser->profile();
     } else {
-        new_browser = CreateIncognitoBrowser(profile_);
+      new_browser = CreateIncognitoBrowser(profile_);
     }
 
     return new_browser;
   }
 
  private:
-  raw_ptr<Profile> profile_ = nullptr;
+  raw_ptr<Profile, DanglingUntriaged> profile_ = nullptr;
 };
 
 IN_PROC_BROWSER_TEST_P(ProfileWindowCountBrowserTest, CountProfileWindows) {
@@ -171,7 +190,7 @@ IN_PROC_BROWSER_TEST_P(ProfileWindowCountBrowserTest, CountProfileWindows) {
 
 // |OpenDevToolsWindowSync| is slow on Linux Debug and can result in flacky test
 // failure. See (crbug.com/1186994).
-#if defined(OS_LINUX) && !defined(NDEBUG)
+#if BUILDFLAG(IS_LINUX) && !defined(NDEBUG)
 #define MAYBE_DevToolsWindowsNotCounted DISABLED_DevToolsWindowsNotCounted
 #else
 #define MAYBE_DevToolsWindowsNotCounted DevToolsWindowsNotCounted
@@ -296,27 +315,61 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, GuestAppMenuLacksBookmarks) {
   // Verify the normal browser has a bookmark menu.
   AppMenuModel model_normal_profile(&accelerator_handler, browser());
   model_normal_profile.Init();
-  EXPECT_NE(-1, model_normal_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU));
+  EXPECT_TRUE(
+      model_normal_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU).has_value());
 
   // Guest browser has no bookmark menu.
   Browser* guest_browser = CreateGuestBrowser();
   AppMenuModel model_guest_profile(&accelerator_handler, guest_browser);
-  EXPECT_EQ(-1, model_guest_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU));
+  EXPECT_FALSE(
+      model_guest_profile.GetIndexOfCommandId(IDC_BOOKMARKS_MENU).has_value());
 }
 
 IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest, OpenBrowserWindowForProfile) {
   Profile* profile = browser()->profile();
   size_t num_browsers = BrowserList::GetInstance()->size();
-  profiles::OpenBrowserWindowForProfile(
-      ProfileManager::CreateCallback(), true, false, false, profile,
-      Profile::CreateStatus::CREATE_STATUS_INITIALIZED);
-  base::RunLoop().RunUntilIdle();
+  base::test::TestFuture<Browser*> future;
+  profiles::OpenBrowserWindowForProfile(future.GetCallback(), true, false,
+                                        false, profile);
+  ASSERT_TRUE(future.Get());
+  EXPECT_NE(browser(), future.Get());
+  EXPECT_EQ(profile, future.Get()->profile());
   EXPECT_EQ(num_browsers + 1, BrowserList::GetInstance()->size());
   EXPECT_FALSE(ProfilePicker::IsOpen());
 }
 
+// Regression test for https://crbug.com/1433283
+IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest,
+                       OpenTwoBrowserWindowsForProfile) {
+  Profile* profile = browser()->profile();
+  size_t num_browsers = BrowserList::GetInstance()->size();
+  base::test::TestFuture<Browser*> future;
+  profiles::OpenBrowserWindowForProfile(future.GetCallback(), true, false,
+                                        false, profile);
+  CreateBrowser(profile);
+  EXPECT_EQ(profile, future.Get()->profile());
+  EXPECT_EQ(num_browsers + 2, BrowserList::GetInstance()->size());
+  EXPECT_FALSE(ProfilePicker::IsOpen());
+}
+
+IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest,
+                       OpenBrowserWindowForProfileBrowserDestroyed) {
+  Profile* profile = browser()->profile();
+  size_t num_browsers = BrowserList::GetInstance()->size();
+
+  BrowserAddedObserver browser_added_observer(base::BindLambdaForTesting(
+      [this](Browser* browser) { this->CloseBrowserAsynchronously(browser); }));
+
+  base::test::TestFuture<Browser*> future;
+  profiles::OpenBrowserWindowForProfile(future.GetCallback(), true, false,
+                                        false, profile);
+  EXPECT_EQ(nullptr, future.Get());
+  EXPECT_EQ(num_browsers, BrowserList::GetInstance()->size());
+  EXPECT_FALSE(ProfilePicker::IsOpen());
+}
+
 // TODO(crbug.com/935746): Test is flaky on Win and Linux.
-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_WIN)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
 #define MAYBE_OpenBrowserWindowForProfileWithSigninRequired \
   DISABLED_OpenBrowserWindowForProfileWithSigninRequired
 #else
@@ -337,9 +390,8 @@ IN_PROC_BROWSER_TEST_F(ProfileWindowBrowserTest,
   base::RunLoop run_loop;
   ProfilePicker::AddOnProfilePickerOpenedCallbackForTesting(
       run_loop.QuitClosure());
-  profiles::OpenBrowserWindowForProfile(
-      ProfileManager::CreateCallback(), true, false, false, profile,
-      Profile::CreateStatus::CREATE_STATUS_INITIALIZED);
+  profiles::OpenBrowserWindowForProfile(base::OnceCallback<void(Browser*)>(),
+                                        true, false, false, profile);
   run_loop.Run();
   EXPECT_EQ(num_browsers, BrowserList::GetInstance()->size());
   EXPECT_TRUE(ProfilePicker::IsOpen());
@@ -358,7 +410,7 @@ class ProfileWindowWebUIBrowserTest : public WebUIBrowserTest {
  private:
   void SetUpOnMainThread() override {
     WebUIBrowserTest::SetUpOnMainThread();
-    AddLibrary(base::FilePath(
-        FILE_PATH_LITERAL("profile_window_browsertest.js")));
+    AddLibrary(
+        base::FilePath(FILE_PATH_LITERAL("profile_window_browsertest.js")));
   }
 };

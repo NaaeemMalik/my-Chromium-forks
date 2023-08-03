@@ -1,6 +1,6 @@
 #!/usr/bin/env vpython3
 #
-# Copyright 2018 The Chromium Authors. All rights reserved.
+# Copyright 2018 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -225,6 +225,7 @@ class ProguardMapping:
 class MalformedLineException(Exception):
   def __init__(self, message, line_number):
     super().__init__(message)
+    self.message = message
     self.line_number = line_number
 
   def __str__(self):

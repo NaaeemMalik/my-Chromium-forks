@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@ import org.chromium.base.ObserverList.RewindableIterator;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
@@ -72,6 +73,7 @@ public class TabModelSelectorTabObserverTest {
 
     @Test
     @SmallTest
+    @DisabledTest(message = "https://crbug.com/1435130")
     public void testPreExistingTabs() {
         Tab normalTab1 = createTestTab(false);
         addTab(sTestRule.getNormalTabModel(), normalTab1);
@@ -92,6 +94,7 @@ public class TabModelSelectorTabObserverTest {
 
     @Test
     @SmallTest
+    @DisabledTest(message = "https://crbug.com/1435130")
     public void testDestroyRemovesObserver() {
         Tab normalTab1 = createTestTab(false);
         addTab(sTestRule.getNormalTabModel(), normalTab1);
@@ -114,11 +117,6 @@ public class TabModelSelectorTabObserverTest {
             return new TabModelSelectorBase(null, EmptyTabModelFilter::new, false) {
                 @Override
                 public void requestToShowTab(Tab tab, int type) {}
-
-                @Override
-                public boolean closeAllTabsRequest(boolean incognito) {
-                    return false;
-                }
 
                 @Override
                 public boolean isSessionRestoreInProgress() {

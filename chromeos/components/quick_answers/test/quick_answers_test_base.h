@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,8 @@
 #include <memory>
 
 #include "chromeos/components/quick_answers/public/cpp/quick_answers_state.h"
+#include "chromeos/components/quick_answers/test/fake_quick_answers_state.h"
 #include "testing/gtest/include/gtest/gtest.h"
-
-namespace ash {
 
 // Helper class for Quick Answers related tests.
 class QuickAnswersTestBase : public testing::Test {
@@ -26,10 +25,12 @@ class QuickAnswersTestBase : public testing::Test {
   void SetUp() override;
   void TearDown() override;
 
- private:
-  std::unique_ptr<QuickAnswersState> quick_answers_state_;
-};
+  FakeQuickAnswersState* fake_quick_answers_state() {
+    return fake_quick_answers_state_.get();
+  }
 
-}  // namespace ash
+ private:
+  std::unique_ptr<FakeQuickAnswersState> fake_quick_answers_state_;
+};
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_TEST_QUICK_ANSWERS_TEST_BASE_H_

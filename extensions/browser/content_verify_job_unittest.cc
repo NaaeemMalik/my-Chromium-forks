@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/test/bind.h"
@@ -19,7 +19,6 @@
 #include "extensions/browser/content_verifier.h"
 #include "extensions/browser/content_verifier/test_utils.h"
 #include "extensions/browser/extensions_test.h"
-#include "extensions/browser/info_map.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension_paths.h"
 #include "extensions/common/file_util.h"
@@ -63,8 +62,7 @@ void WriteManifest(const base::FilePath& extension_root) {
 
   base::FilePath manifest_path =
       extension_root.Append(base::FilePath(FILE_PATH_LITERAL("manifest.json")));
-  ASSERT_EQ(static_cast<int>(json.size()),
-            base::WriteFile(manifest_path, json.data(), json.size()));
+  ASSERT_TRUE(base::WriteFile(manifest_path, json));
 }
 
 void WriteComputedHashes(
@@ -108,12 +106,10 @@ class ContentVerifyJobUnittest : public ExtensionsTest {
   void SetUp() override {
     ExtensionsTest::SetUp();
 
-    extension_info_map_ = base::MakeRefCounted<InfoMap>();
     auto delegate = std::make_unique<MockContentVerifierDelegate>();
     content_verifier_delegate_ = delegate.get();
     content_verifier_ = base::MakeRefCounted<ContentVerifier>(
         &testing_context_, std::move(delegate));
-    extension_info_map_->SetContentVerifier(content_verifier_.get());
   }
 
   void TearDown() override {
@@ -141,8 +137,8 @@ class ContentVerifyJobUnittest : public ExtensionsTest {
     auto run_content_read_step = [](ContentVerifyJob* verify_job,
                                     std::string* resource_contents) {
       // Simulate serving |resource_contents| from |resource_path|.
-      verify_job->Read(base::data(*resource_contents),
-                       resource_contents->size(), MOJO_RESULT_OK);
+      verify_job->Read(std::data(*resource_contents), resource_contents->size(),
+                       MOJO_RESULT_OK);
       verify_job->Done();
     };
 
@@ -251,7 +247,6 @@ class ContentVerifyJobUnittest : public ExtensionsTest {
                                   base::Unretained(content_verifier_.get())));
   }
 
-  scoped_refptr<InfoMap> extension_info_map_;
   scoped_refptr<ContentVerifier> content_verifier_;
   raw_ptr<MockContentVerifierDelegate> content_verifier_delegate_ =
       nullptr;  // Owned by |content_verifier_|.
@@ -317,8 +312,7 @@ TEST_F(ContentVerifyJobUnittest, DeletedAndMissingFiles) {
 
     base::FilePath full_path = unzipped_path.Append(unexpected_resource_path);
     const std::string kContent("42");
-    EXPECT_EQ(static_cast<int>(kContent.size()),
-              base::WriteFile(full_path, kContent.data(), kContent.size()));
+    EXPECT_TRUE(base::WriteFile(full_path, kContent));
 
     std::string contents;
     base::ReadFileToString(full_path, &contents);
@@ -585,10 +579,8 @@ TEST_F(ContentVerifyJobWithoutSignedHashesUnittest, ComputedHashesLoad) {
 
   {
     // Case where computed_hashes.json is corrupted.
-    ASSERT_EQ(
-        static_cast<int>(kCorruptedContents.size()),
-        base::WriteFile(file_util::GetComputedHashesPath(unzipped_path),
-                        kCorruptedContents.data(), kCorruptedContents.size()));
+    ASSERT_TRUE(base::WriteFile(file_util::GetComputedHashesPath(unzipped_path),
+                                kCorruptedContents));
 
     TestContentVerifySingleJobObserver observer(extension->id(), kResourcePath);
     content_verifier()->ClearCacheForTesting();
@@ -635,16 +627,12 @@ TEST_F(ContentVerifyJobWithoutSignedHashesUnittest, UnverifiedExtension) {
   ASSERT_TRUE(extension);
   base::FilePath unzipped_path = temp_dir.GetPath();
 
-  ASSERT_EQ(static_cast<int>(kOkContents.size()),
-            base::WriteFile(unzipped_path.Append(kResourceOkPath),
-                            kOkContents.data(), kOkContents.size()));
-  ASSERT_EQ(
-      static_cast<int>(kCorruptedContents.size()),
-      base::WriteFile(unzipped_path.Append(kResourceCorruptedPath),
-                      kCorruptedContents.data(), kCorruptedContents.size()));
-  ASSERT_EQ(static_cast<int>(kOkContents.size()),
-            base::WriteFile(unzipped_path.Append(kResourceUnexpectedPath),
-                            kOkContents.data(), kOkContents.size()));
+  ASSERT_TRUE(
+      base::WriteFile(unzipped_path.Append(kResourceOkPath), kOkContents));
+  ASSERT_TRUE(base::WriteFile(unzipped_path.Append(kResourceCorruptedPath),
+                              kCorruptedContents));
+  ASSERT_TRUE(base::WriteFile(unzipped_path.Append(kResourceUnexpectedPath),
+                              kOkContents));
 
   {
     // Sanity check that an unmodified file passes content verification.
@@ -698,9 +686,7 @@ TEST_F(ContentVerifyJobWithoutSignedHashesUnittest, ExtensionWithoutHashes) {
   ASSERT_TRUE(extension);
   base::FilePath unzipped_path = temp_dir.GetPath();
   const std::string kContents = "console.log('Nothing special');";
-  ASSERT_EQ(static_cast<int>(kContents.size()),
-            base::WriteFile(unzipped_path.Append(kResourcePath),
-                            kContents.data(), kContents.size()));
+  ASSERT_TRUE(base::WriteFile(unzipped_path.Append(kResourcePath), kContents));
 
   {
     // Make sure good file passes content verification.

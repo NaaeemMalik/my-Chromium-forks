@@ -35,6 +35,9 @@
 
 #include "base/containers/span.h"
 #include "base/dcheck_is_on.h"
+#include "base/functional/callback_forward.h"
+#include "base/ranges/algorithm.h"
+#include "base/types/optional_util.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "third_party/blink/public/common/messaging/message_port_channel.h"
 #include "third_party/blink/public/common/messaging/message_port_descriptor.h"
@@ -46,10 +49,10 @@
 #include "third_party/blink/renderer/core/streams/readable_stream_transferring_optimizer.h"
 #include "third_party/blink/renderer/core/streams/writable_stream_transferring_optimizer.h"
 #include "third_party/blink/renderer/core/typed_arrays/array_buffer/array_buffer_contents.h"
-#include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/partitions.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
+#include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/thread_safe_ref_counted.h"
 #include "v8/include/v8.h"
@@ -123,6 +126,8 @@ class CORE_EXPORT SerializedScriptValue
   //             support color space information, compression, etc.
   // Version 19: Add DetectedBarcode, DetectedFace, and DetectedText support.
   // Version 20: Remove DetectedBarcode, DetectedFace, and DetectedText support.
+  // Version 21: Add support for trailer data which marks required exposed
+  //             interfaces.
   //
   // The following versions cannot be used, in order to be able to
   // deserialize version 0 SSVs. The class implementation has details.
@@ -135,7 +140,11 @@ class CORE_EXPORT SerializedScriptValue
   //
   // Recent changes are routinely reverted in preparation for branch, and this
   // has been the cause of at least one bug in the past.
-  static constexpr uint32_t kWireFormatVersion = 20;
+  //
+  // WARNING: if you're changing this from version 21, your change will interact
+  // with the fix to https://crbug.com/1341844. Consult bug owner before
+  // proceeding. (After that is settled, remove this paragraph.)
+  static constexpr uint32_t kWireFormatVersion = 21;
 
   // This enumeration specifies whether we're serializing a value for storage;
   // e.g. when writing to IndexedDB. This corresponds to the forStorage flag of
@@ -181,8 +190,7 @@ class CORE_EXPORT SerializedScriptValue
   static scoped_refptr<SerializedScriptValue> Create(const String&);
   static scoped_refptr<SerializedScriptValue> Create(
       scoped_refptr<const SharedBuffer>);
-  static scoped_refptr<SerializedScriptValue> Create(const char* data,
-                                                     size_t length);
+  static scoped_refptr<SerializedScriptValue> Create(base::span<const uint8_t>);
 
   ~SerializedScriptValue();
 
@@ -267,13 +275,6 @@ class CORE_EXPORT SerializedScriptValue
   size_t DataLengthInBytes() const { return data_buffer_size_; }
 
   TransferredWasmModulesArray& WasmModules() { return wasm_modules_; }
-
-  const SecurityOrigin* origin() { return origin_.get(); }
-
-  void set_origin(const SecurityOrigin* origin) {
-    origin_ = origin->IsolatedCopy();
-  }
-
   SharedArrayBufferContentsArray& SharedArrayBuffersContents() {
     return shared_array_buffers_contents_;
   }
@@ -295,18 +296,38 @@ class CORE_EXPORT SerializedScriptValue
 
   StreamArray& GetStreams() { return streams_; }
 
-  bool IsLockedToAgentCluster() const {
-    return !wasm_modules_.IsEmpty() ||
-           !shared_array_buffers_contents_.IsEmpty() ||
-           std::any_of(attachments_.begin(), attachments_.end(),
-                       [](const auto& entry) {
-                         return entry.value->IsLockedToAgentCluster();
-                       });
+  const v8::SharedValueConveyor* MaybeGetSharedValueConveyor() const {
+    return base::OptionalToPtr(shared_value_conveyor_);
   }
+
+  bool IsLockedToAgentCluster() const;
 
   // Returns true after serializing script values that remote origins cannot
   // access.
   bool IsOriginCheckRequired() const;
+
+  // Returns true if it is expected to be possible to deserialize this value in
+  // the provided context. It might not be if, for instance, the value contains
+  // interfaces not exposed in all realms.
+  bool CanDeserializeIn(ExecutionContext*);
+
+  // Testing hook to allow overriding whether a value can be deserialized in a
+  // particular execution context. Callers are responsible for assuring thread
+  // safety, and resetting this after the test.
+  using CanDeserializeInCallback =
+      base::RepeatingCallback<bool(const SerializedScriptValue&,
+                                   ExecutionContext*,
+                                   bool can_deserialize)>;
+  static void OverrideCanDeserializeInForTesting(CanDeserializeInCallback);
+  struct ScopedOverrideCanDeserializeInForTesting {
+    explicit ScopedOverrideCanDeserializeInForTesting(
+        CanDeserializeInCallback callback) {
+      OverrideCanDeserializeInForTesting(std::move(callback));
+    }
+    ~ScopedOverrideCanDeserializeInForTesting() {
+      OverrideCanDeserializeInForTesting({});
+    }
+  };
 
   // Derive from Attachments to define collections of objects to serialize in
   // modules. They can be registered using GetOrCreateAttachment().
@@ -396,16 +417,13 @@ class CORE_EXPORT SerializedScriptValue
 
   // These do not have one-use transferred contents, like the above.
   TransferredWasmModulesArray wasm_modules_;
-  // To count how often WebAssembly modules get transferred cross-origin, we
-  // allow to store the |SecurityOrigin| in the |V8SerializedScriptValue|. The
-  // |SecurityOrigin| has to be set explicitly with |set_origin()|.
-  scoped_refptr<SecurityOrigin> origin_;
   BlobDataHandleMap blob_data_handles_;
   MojoScopedHandleArray mojo_handles_;
   SharedArrayBufferContentsArray shared_array_buffers_contents_;
   FileSystemAccessTokensArray file_system_access_tokens_;
   HashMap<const void* const*, std::unique_ptr<Attachment>> attachments_;
 
+  absl::optional<v8::SharedValueConveyor> shared_value_conveyor_;
   bool has_registered_external_allocation_;
 #if DCHECK_IS_ON()
   bool was_unpacked_ = false;

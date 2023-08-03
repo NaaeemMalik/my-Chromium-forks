@@ -30,8 +30,9 @@
 
 #include "third_party/blink/renderer/bindings/core/v8/local_window_proxy.h"
 
+#include <tuple>
+
 #include "base/debug/dump_without_crashing.h"
-#include "base/ignore_result.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/single_sample_metrics.h"
 #include "third_party/blink/renderer/bindings/core/v8/isolated_world_csp.h"
@@ -55,17 +56,17 @@
 #include "third_party/blink/renderer/core/inspector/inspector_task_runner.h"
 #include "third_party/blink/renderer/core/inspector/main_thread_debugger.h"
 #include "third_party/blink/renderer/core/loader/frame_loader.h"
+#include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/core/script/modulator.h"
 #include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
 #include "third_party/blink/renderer/platform/bindings/extensions_registry.h"
 #include "third_party/blink/renderer/platform/bindings/origin_trial_features.h"
 #include "third_party/blink/renderer/platform/bindings/script_forbidden_scope.h"
+#include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/bindings/v8_dom_activity_logger.h"
 #include "third_party/blink/renderer/platform/bindings/v8_dom_wrapper.h"
 #include "third_party/blink/renderer/platform/bindings/v8_private_property.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
-#include "third_party/blink/renderer/platform/instrumentation/histogram.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/weborigin/reporting_disposition.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
@@ -73,14 +74,6 @@
 #include "v8/include/v8.h"
 
 namespace blink {
-namespace {
-
-base::SingleSampleMetric* g_v8_context_count_logger = nullptr;
-
-}  // namespace
-
-// static
-int LocalWindowProxy::v8_context_count_ = 0;
 
 void LocalWindowProxy::Trace(Visitor* visitor) const {
   visitor->Trace(script_state_);
@@ -114,20 +107,7 @@ void LocalWindowProxy::DisposeContext(Lifecycle next_status,
   // willReleaseScriptContext callback, so all disposing should happen after
   // it returns.
   GetFrame()->Client()->WillReleaseScriptContext(context, world_->GetWorldId());
-
-  // We don't notify context destruction during frame detachment that happens
-  // when we remove the frame from the DOM tree. This allows debug code evaled
-  // from those frames. However, we still want to notify that the context was
-  // destroyed when navigating between documents, because DevTools is designed
-  // to only show what's going on "currently".
-  // Also, delaying such message won't leak memory because
-  // `V8InspectorImpl::contextCollected` is also called when the context for
-  // detached iframe is collected by GC.
-  if (next_status != Lifecycle::kFrameIsDetached &&
-      next_status != Lifecycle::kFrameIsDetachedAndV8MemoryIsPurged) {
-    MainThreadDebugger::Instance()->ContextWillBeDestroyed(script_state_);
-  }
-
+  MainThreadDebugger::Instance()->ContextWillBeDestroyed(script_state_);
   if (next_status == Lifecycle::kV8MemoryIsForciblyPurged ||
       next_status == Lifecycle::kGlobalObjectIsDetached) {
     // Clean up state on the global proxy, which will be reused.
@@ -158,8 +138,9 @@ void LocalWindowProxy::DisposeContext(Lifecycle next_status,
 }
 
 void LocalWindowProxy::Initialize() {
-  TRACE_EVENT1("v8", "LocalWindowProxy::Initialize", "IsMainFrame",
-               GetFrame()->IsMainFrame());
+  TRACE_EVENT2("v8", "LocalWindowProxy::Initialize", "IsMainFrame",
+               GetFrame()->IsMainFrame(), "IsOutermostMainFrame",
+               GetFrame()->IsOutermostMainFrame());
   CHECK(!GetFrame()->IsProvisional());
 
   ScriptForbiddenScope::AllowUserAgentScript allow_script;
@@ -191,6 +172,8 @@ void LocalWindowProxy::Initialize() {
     context->AllowCodeGenerationFromStrings(!csp->ShouldCheckEval());
     context->SetErrorMessageForCodeGenerationFromStrings(
         V8String(GetIsolate(), csp->EvalDisabledErrorMessage()));
+    context->SetErrorMessageForWasmCodeGeneration(
+        V8String(GetIsolate(), csp->WasmEvalDisabledErrorMessage()));
   }
 
   scoped_refptr<const SecurityOrigin> origin;
@@ -206,8 +189,9 @@ void LocalWindowProxy::Initialize() {
   }
 
   {
-    TRACE_EVENT1("v8", "ContextCreatedNotification", "IsMainFrame",
-                 GetFrame()->IsMainFrame());
+    TRACE_EVENT2("v8", "ContextCreatedNotification", "IsMainFrame",
+                 GetFrame()->IsMainFrame(), "IsOutermostMainFrame",
+                 GetFrame()->IsOutermostMainFrame());
     MainThreadDebugger::Instance()->ContextCreated(script_state_, GetFrame(),
                                                    origin.get());
     GetFrame()->Client()->DidCreateScriptContext(context, world_->GetWorldId());
@@ -216,13 +200,15 @@ void LocalWindowProxy::Initialize() {
   InstallConditionalFeatures();
 
   if (World().IsMainWorld()) {
+    probe::DidCreateMainWorldContext(GetFrame());
     GetFrame()->Loader().DispatchDidClearWindowObjectInMainWorld();
   }
 }
 
 void LocalWindowProxy::CreateContext() {
-  TRACE_EVENT1("v8", "LocalWindowProxy::CreateContext", "IsMainFrame",
-               GetFrame()->IsMainFrame());
+  TRACE_EVENT2("v8", "LocalWindowProxy::CreateContext", "IsMainFrame",
+               GetFrame()->IsMainFrame(), "IsOutermostMainFrame",
+               GetFrame()->IsOutermostMainFrame());
 
   // TODO(yukishiino): Remove this CHECK once crbug.com/713699 gets fixed.
   CHECK(IsMainThread());
@@ -230,26 +216,9 @@ void LocalWindowProxy::CreateContext() {
   v8::ExtensionConfiguration extension_configuration =
       ScriptController::ExtensionsFor(GetFrame()->DomWindow());
 
-  ++v8_context_count_;
-  if (!g_v8_context_count_logger) {
-    g_v8_context_count_logger =
-        base::SingleSampleMetricsFactory::Get()
-            ->CreateCustomCountsMetric("Blink.V8.NumberContextsCreatedOfWindow",
-                                       1, 100, 50)
-            .release();
-  }
-  g_v8_context_count_logger->SetSample(v8_context_count_);
-
+  DCHECK(GetFrame()->DomWindow());
   v8::Local<v8::Context> context;
   {
-    DEFINE_STATIC_LOCAL(
-        CustomCountHistogram, main_frame_hist,
-        ("Blink.Binding.CreateV8ContextForMainFrame", 0, 10000000, 50));
-    DEFINE_STATIC_LOCAL(
-        CustomCountHistogram, non_main_frame_hist,
-        ("Blink.Binding.CreateV8ContextForNonMainFrame", 0, 10000000, 50));
-    ScopedUsHistogramTimer timer(
-        GetFrame()->IsMainFrame() ? main_frame_hist : non_main_frame_hist);
     v8::Isolate* isolate = GetIsolate();
     V8PerIsolateData::UseCounterDisabledScope use_counter_disabled(
         V8PerIsolateData::From(isolate));
@@ -270,7 +239,9 @@ void LocalWindowProxy::CreateContext() {
               ->InstanceTemplate();
       CHECK(!global_template.IsEmpty());
       context = v8::Context::New(isolate, &extension_configuration,
-                                 global_template, global_proxy);
+                                 global_template, global_proxy,
+                                 v8::DeserializeInternalFieldsCallback(),
+                                 GetFrame()->DomWindow()->GetMicrotaskQueue());
       VLOG(1) << "A context is created NOT from snapshot";
     }
   }
@@ -280,7 +251,6 @@ void LocalWindowProxy::CreateContext() {
   DidAttachGlobalObject();
 #endif
 
-  DCHECK(GetFrame()->DomWindow());
   script_state_ = MakeGarbageCollected<ScriptState>(context, world_,
                                                     GetFrame()->DomWindow());
 
@@ -291,16 +261,17 @@ void LocalWindowProxy::CreateContext() {
 }
 
 void LocalWindowProxy::InstallConditionalFeatures() {
-  TRACE_EVENT1("v8", "InstallConditionalFeatures", "IsMainFrame",
-               GetFrame()->IsMainFrame());
+  TRACE_EVENT2("v8", "InstallConditionalFeatures", "IsMainFrame",
+               GetFrame()->IsMainFrame(), "IsOutermostMainFrame",
+               GetFrame()->IsOutermostMainFrame());
 
   if (context_was_created_from_snapshot_) {
     V8ContextSnapshot::InstallContextIndependentProps(script_state_);
   }
 
   V8PerContextData* per_context_data = script_state_->PerContextData();
-  ignore_result(
-      per_context_data->ConstructorForType(V8Window::GetWrapperTypeInfo()));
+  std::ignore =
+      per_context_data->ConstructorForType(V8Window::GetWrapperTypeInfo());
   // Inform V8 that origin trial information is now connected with the context,
   // and V8 can extend the context with origin trial features.
   script_state_->GetIsolate()->InstallConditionalFeatures(
@@ -309,8 +280,9 @@ void LocalWindowProxy::InstallConditionalFeatures() {
 }
 
 void LocalWindowProxy::SetupWindowPrototypeChain() {
-  TRACE_EVENT1("v8", "LocalWindowProxy::SetupWindowPrototypeChain",
-               "IsMainFrame", GetFrame()->IsMainFrame());
+  TRACE_EVENT2("v8", "LocalWindowProxy::SetupWindowPrototypeChain",
+               "IsMainFrame", GetFrame()->IsMainFrame(), "IsOutermostMainFrame",
+               GetFrame()->IsOutermostMainFrame());
 
   // Associate the window wrapper object and its prototype chain with the
   // corresponding native DOMWindow object.
@@ -358,8 +330,9 @@ void LocalWindowProxy::SetupWindowPrototypeChain() {
 
 void LocalWindowProxy::UpdateDocumentProperty() {
   DCHECK(world_->IsMainWorld());
-  TRACE_EVENT1("v8", "LocalWindowProxy::UpdateDocumentProperty", "IsMainFrame",
-               GetFrame()->IsMainFrame());
+  TRACE_EVENT2("v8", "LocalWindowProxy::UpdateDocumentProperty", "IsMainFrame",
+               GetFrame()->IsMainFrame(), "IsOutermostMainFrame",
+               GetFrame()->IsOutermostMainFrame());
 
   ScriptState::Scope scope(script_state_);
   v8::Local<v8::Context> context = script_state_->GetContext();

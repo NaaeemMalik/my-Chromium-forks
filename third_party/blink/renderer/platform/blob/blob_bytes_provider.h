@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,8 @@ namespace blink {
 // making up a blob to the browser process, at the request of the blob service.
 //
 // Typical usage of this class creates and calls AppendData on one thread, and
-// then transfers ownership of the class to a different thread where it will be
-// bound to a mojo pipe, such that the various Request* methods are called on a
+// then transfers ownership of the class to a different thread using the `Bind`
+// method. This ensures that the various Request* methods are called on a
 // thread that is allowed to do File IO.
 class PLATFORM_EXPORT BlobBytesProvider : public mojom::blink::BytesProvider {
  public:
@@ -27,9 +27,6 @@ class PLATFORM_EXPORT BlobBytesProvider : public mojom::blink::BytesProvider {
   // data appended to the same item.
   static constexpr size_t kMaxConsolidatedItemSizeInBytes = 15 * 1024;
 
-  // Creates a new instance, and binds it on a new SequencedTaskRunner. The
-  // returned instance should only be considered valid as long as the request
-  // passed in to this method is still known to be valid.
   BlobBytesProvider();
   ~BlobBytesProvider() override;
 
@@ -38,6 +35,11 @@ class PLATFORM_EXPORT BlobBytesProvider : public mojom::blink::BytesProvider {
   static void Bind(
       std::unique_ptr<BlobBytesProvider> provider,
       mojo::PendingReceiver<mojom::blink::BytesProvider> receiver);
+
+  // Binds `provider` to `receiver` on a threadpool task runner, transferring
+  // ownership.
+  static void Bind(std::unique_ptr<BlobBytesProvider> provider,
+                   mojo::PendingReceiver<mojom::blink::BytesProvider> receiver);
 
   // BytesProvider implementation:
   void RequestAsReply(RequestAsReplyCallback) override;
@@ -51,12 +53,16 @@ class PLATFORM_EXPORT BlobBytesProvider : public mojom::blink::BytesProvider {
  private:
   FRIEND_TEST_ALL_PREFIXES(BlobBytesProviderTest, Consolidation);
 
+  static void IncreaseChildProcessRefCount();
+  static void DecreaseChildProcessRefCount();
+
   Vector<scoped_refptr<RawData>> data_ GUARDED_BY_CONTEXT(sequence_checker_);
   // |offsets_| always contains exactly one fewer item than |data_| (except when
   // |data_| itself is empty).
   // offsets_[x] is equal to the sum of data_[i].length for all i <= x.
   Vector<uint64_t> offsets_ GUARDED_BY_CONTEXT(sequence_checker_);
-   SEQUENCE_CHECKER(sequence_checker_);
+
+  SEQUENCE_CHECKER(sequence_checker_);
 };
 
 }  // namespace blink

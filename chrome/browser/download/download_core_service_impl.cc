@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <memory>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/download/chrome_download_manager_delegate.h"
@@ -28,7 +28,7 @@
 #include "chrome/browser/extensions/api/downloads/downloads_api.h"
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/download/android/download_utils.h"
 #endif
 
@@ -81,7 +81,7 @@ DownloadCoreServiceImpl::GetDownloadManagerDelegate() {
   download_ui_ = std::make_unique<DownloadUIController>(
       manager, std::unique_ptr<DownloadUIController::Delegate>());
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   download_shelf_controller_ =
       std::make_unique<DownloadShelfController>(profile_);
 #endif
@@ -92,6 +92,10 @@ DownloadCoreServiceImpl::GetDownloadManagerDelegate() {
   g_browser_process->download_status_updater()->AddManager(manager);
 
   return manager_delegate_.get();
+}
+
+DownloadUIController* DownloadCoreServiceImpl::GetDownloadUIController() {
+  return download_ui_ ? download_ui_.get() : nullptr;
 }
 
 DownloadHistory* DownloadCoreServiceImpl::GetDownloadHistory() {
@@ -149,11 +153,11 @@ void DownloadCoreServiceImpl::SetDownloadHistoryForTesting(
   download_history_ = std::move(download_history);
 }
 
-bool DownloadCoreServiceImpl::IsShelfEnabled() {
-#if defined(OS_ANDROID)
+bool DownloadCoreServiceImpl::IsDownloadUiEnabled() {
+#if BUILDFLAG(IS_ANDROID)
   return true;
 #else
-  return !extension_event_router_ || extension_event_router_->IsShelfEnabled();
+  return !extension_event_router_ || extension_event_router_->IsUiEnabled();
 #endif
 }
 

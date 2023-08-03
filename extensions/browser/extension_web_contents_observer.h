@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
 #include "base/types/pass_key.h"
+#include "components/sessions/core/session_id.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "extensions/browser/extension_function_dispatcher.h"
 #include "extensions/common/mojom/frame.mojom.h"
@@ -20,6 +21,10 @@ namespace content {
 class BrowserContext;
 class RenderFrameHost;
 class WebContents;
+}
+
+namespace sessions {
+class SessionTabHelper;
 }
 
 namespace extensions {
@@ -89,6 +94,17 @@ class ExtensionWebContentsObserver
   // is not live.
   mojom::LocalFrame* GetLocalFrame(content::RenderFrameHost* render_frame_host);
 
+  // Tells the receiver to start listening to window ID changes from the
+  // supplied SessionTabHelper. This method is public to allow the code that
+  // installs new SessionTabHelpers to call it; that in turn is required because
+  // SessionTabHelpers may be created after the corresponding
+  // ExtensionWebContentsObserver has already been initialized.
+  void ListenToWindowIdChangesFrom(sessions::SessionTabHelper* helper);
+
+  ExtensionFrameHost* extension_frame_host_for_testing() {
+    return extension_frame_host_.get();
+  }
+
  protected:
   explicit ExtensionWebContentsObserver(content::WebContents* web_contents);
   ~ExtensionWebContentsObserver() override;
@@ -124,15 +140,11 @@ class ExtensionWebContentsObserver
   void PepperInstanceCreated() override;
   void PepperInstanceDeleted() override;
 
-  // Returns the extension id associated with the given |render_frame_host|, or
-  // the empty string if there is none.
-  std::string GetExtensionIdFromFrame(
-      content::RenderFrameHost* render_frame_host) const;
-
  private:
   using PassKey = base::PassKey<ExtensionWebContentsObserver>;
 
-  friend class ExtensionFrameHostBrowserTest;
+  void OnWindowIdChanged(SessionID id);
+
   // The BrowserContext associated with the WebContents being observed.
   raw_ptr<content::BrowserContext> browser_context_;
 
@@ -143,7 +155,9 @@ class ExtensionWebContentsObserver
 
   std::unique_ptr<ExtensionFrameHost> extension_frame_host_;
 
-  // A map of render frame host to mojo remotes.
+  base::CallbackListSubscription window_id_subscription_;
+
+  // A map of RenderFrameHost to mojo remotes.
   std::map<content::RenderFrameHost*, mojo::AssociatedRemote<mojom::LocalFrame>>
       local_frame_map_;
 };

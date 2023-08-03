@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,13 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/check.h"
 #include "base/command_line.h"
+#include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/notreached.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/threading/platform_thread.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/chromeos_buildflags.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -44,8 +44,8 @@
 #include "ui/ozone/platform/drm/host/drm_window_host.h"
 #include "ui/ozone/platform/drm/host/drm_window_host_manager.h"
 #include "ui/ozone/platform/drm/host/host_drm_device.h"
+#include "ui/ozone/platform/drm/mojom/drm_device.mojom.h"
 #include "ui/ozone/public/gpu_platform_support_host.h"
-#include "ui/ozone/public/mojom/drm_device.mojom.h"
 #include "ui/ozone/public/ozone_platform.h"
 #include "ui/ozone/public/ozone_switches.h"
 #include "ui/ozone/public/platform_screen.h"
@@ -173,12 +173,12 @@ class OzonePlatformDrm : public OzonePlatform {
     return std::make_unique<DrmNativeDisplayDelegate>(display_manager_.get());
   }
   std::unique_ptr<InputMethod> CreateInputMethod(
-      internal::InputMethodDelegate* delegate,
+      ImeKeyEventDispatcher* ime_key_event_dispatcher,
       gfx::AcceleratedWidget) override {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-    return std::make_unique<InputMethodAsh>(delegate);
+    return std::make_unique<ash::InputMethodAsh>(ime_key_event_dispatcher);
 #else
-    return std::make_unique<InputMethodMinimal>(delegate);
+    return std::make_unique<InputMethodMinimal>(ime_key_event_dispatcher);
 #endif
   }
 
@@ -188,7 +188,7 @@ class OzonePlatformDrm : public OzonePlatform {
                                                                    usage);
   }
 
-  void InitializeUI(const InitParams& args) override {
+  bool InitializeUI(const InitParams& args) override {
     // Ozone drm can operate in two modes configured at runtime.
     //   1. single-process mode where host and viz components
     //      communicate via in-process mojo. Single-process mode can be single
@@ -228,6 +228,8 @@ class OzonePlatformDrm : public OzonePlatform {
     cursor_factory_ = std::make_unique<BitmapCursorFactory>();
 
     host_drm_device_->SetDisplayManager(display_manager_.get());
+
+    return true;
   }
 
   void InitializeGPU(const InitParams& args) override {
@@ -237,7 +239,7 @@ class OzonePlatformDrm : public OzonePlatform {
       setenv("MINIGBM_DEBUG", "nocompression", 1);
     }
 
-    gpu_task_runner_ = base::ThreadTaskRunnerHandle::Get();
+    gpu_task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
 
     // NOTE: Can't start the thread here since this is called before sandbox
     // initialization in multi-process Chrome.
@@ -245,6 +247,9 @@ class OzonePlatformDrm : public OzonePlatform {
 
     surface_factory_ =
         std::make_unique<GbmSurfaceFactory>(drm_thread_proxy_.get());
+
+    // Native pixmaps are always available on ozone/drm.
+    host_properties_.supports_native_pixmaps = true;
 
     overlay_manager_ = std::make_unique<DrmOverlayManagerGpu>(
         drm_thread_proxy_.get(),
@@ -272,6 +277,13 @@ class OzonePlatformDrm : public OzonePlatform {
           drm_device.InitWithNewPipeAndPassReceiver());
       drm_device_connector_->ConnectSingleThreaded(std::move(drm_device));
     }
+  }
+
+  void PostCreateMainMessageLoop(base::OnceCallback<void()> shutdown_cb,
+                                 scoped_refptr<base::SingleThreadTaskRunner>
+                                     user_input_task_runner) override {
+    event_factory_ozone_->SetUserInputTaskRunner(
+        std::move(user_input_task_runner));
   }
 
   const PlatformRuntimeProperties& GetPlatformRuntimeProperties() override {

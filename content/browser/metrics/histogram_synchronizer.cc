@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
 #include "base/metrics/histogram_delta_serialization.h"
@@ -48,7 +48,7 @@ class HistogramSynchronizer::RequestContext {
   RequestContext(base::OnceClosure callback, int sequence_number)
       : callback_(std::move(callback)),
         sequence_number_(sequence_number),
-        received_process_group_count_(0),
+        received_process_group_count_(false),
         processes_pending_(0) {}
   ~RequestContext() {}
 

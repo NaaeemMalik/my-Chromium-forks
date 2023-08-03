@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,8 +23,6 @@ class FakePolicyInstance : public mojom::PolicyInstance {
   ~FakePolicyInstance() override;
 
   // mojom::PolicyInstance
-  void InitDeprecated(
-      mojo::PendingRemote<mojom::PolicyHost> host_remote) override;
   void Init(mojo::PendingRemote<mojom::PolicyHost> host_remote,
             InitCallback callback) override;
   void OnPolicyUpdated() override;

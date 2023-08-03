@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,6 +29,11 @@ namespace webapps {
 FORWARD_DECLARE_TEST(AppBannerManagerBrowserTest, WebAppBannerNeedsEngagement);
 }
 
+namespace settings {
+FORWARD_DECLARE_TEST(SiteSettingsHandlerTest,
+                     PopulateNotificationPermissionReviewData);
+}
+
 namespace content {
 class BrowserContext;
 class WebContents;
@@ -48,7 +53,7 @@ enum class EngagementType;
 class SiteEngagementObserver;
 class SiteEngagementScore;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 class SiteEngagementServiceAndroid;
 #endif
 
@@ -128,6 +133,10 @@ class SiteEngagementService : public KeyedService,
       base::Time now,
       scoped_refptr<HostContentSettingsMap> map);
 
+  // Returns whether |score| is at least the given |level| of engagement.
+  static bool IsEngagementAtLeast(double score,
+                                  blink::mojom::EngagementLevel level);
+
   explicit SiteEngagementService(content::BrowserContext* browser_context);
 
   SiteEngagementService(const SiteEngagementService&) = delete;
@@ -146,14 +155,6 @@ class SiteEngagementService : public KeyedService,
   // performance-critical code.
   std::vector<mojom::SiteEngagementDetails> GetAllDetails() const;
 
-  // Return an array of engagement score details for all origins which have
-  // had engagement since the specified time.
-  //
-  // Note that this method is quite expensive, so try to avoid calling it in
-  // performance-critical code.
-  std::vector<mojom::SiteEngagementDetails> GetAllDetailsEngagedInTimePeriod(
-      browsing_data::TimePeriod time_period) const;
-
   // Update the engagement score of |url| for a notification interaction.
   void HandleNotificationInteraction(const GURL& url);
 
@@ -161,10 +162,6 @@ class SiteEngagementService : public KeyedService,
   // decisions. Clients should avoid using engagement in their heuristic until
   // this is true.
   bool IsBootstrapped() const;
-
-  // Returns whether |url| has at least the given |level| of engagement.
-  bool IsEngagementAtLeast(const GURL& url,
-                           blink::mojom::EngagementLevel level) const;
 
   // Resets the base engagement for |url| to |score|, clearing daily limits. Any
   // bonus engagement that |url| has acquired is not affected by this method, so
@@ -191,6 +188,7 @@ class SiteEngagementService : public KeyedService,
  protected:
   // Retrieves the SiteEngagementScore object for |origin|.
   SiteEngagementScore CreateEngagementScore(const GURL& origin) const;
+
   void SetLastEngagementTime(base::Time last_engagement_time) const;
 
   content::BrowserContext* browser_context() { return browser_context_; }
@@ -219,8 +217,10 @@ class SiteEngagementService : public KeyedService,
                            WebAppBannerNeedsEngagement);
   FRIEND_TEST_ALL_PREFIXES(AppBannerSettingsHelperTest, SiteEngagementTrigger);
   FRIEND_TEST_ALL_PREFIXES(HostedAppPWAOnlyTest, EngagementHistogram);
+  FRIEND_TEST_ALL_PREFIXES(settings::SiteSettingsHandlerTest,
+                           PopulateNotificationPermissionReviewData);
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Shim class to expose the service to Java.
   friend class SiteEngagementServiceAndroid;
   SiteEngagementServiceAndroid* GetAndroidService() const;
@@ -298,10 +298,6 @@ class SiteEngagementService : public KeyedService,
   // browser for an extended period of time do not have their engagement decay.
   bool IsLastEngagementStale() const;
 
-  // Returns the number of origins with maximum daily and total engagement
-  // respectively.
-  int OriginsWithMaxDailyEngagement() const;
-
   // Add and remove observers of this service.
   void AddObserver(SiteEngagementObserver* observer);
   void RemoveObserver(SiteEngagementObserver* observer);
@@ -311,7 +307,7 @@ class SiteEngagementService : public KeyedService,
   // The clock used to vend times.
   raw_ptr<base::Clock> clock_;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   std::unique_ptr<SiteEngagementServiceAndroid> android_service_;
 #endif
 

@@ -35,6 +35,7 @@
 #include "media/media_buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_frame.h"
+#include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -52,6 +53,7 @@ class TestImageDecoder : public ImageDecoder {
   TestImageDecoder() : TestImageDecoder(ImageDecoder::kDefaultBitDepth) {}
 
   String FilenameExtension() const override { return ""; }
+  const AtomicString& MimeType() const override { return g_empty_atom; }
 
   Vector<ImageFrame, 1>& FrameBufferCache() { return frame_buffer_cache_; }
 
@@ -302,7 +304,7 @@ TEST(ImageDecoderTest, clearCacheExceptFramePreverveClearExceptFrame) {
   }
 }
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
 
 TEST(ImageDecoderTest, decodedSizeLimitBoundary) {
   constexpr unsigned kWidth = 100;
@@ -356,7 +358,7 @@ TEST(ImageDecoderTest, decodedSizeLimitIsIgnored) {
   EXPECT_FALSE(decoder->Failed());
 }
 
-#endif  // defined(OS_FUCHSIA)
+#endif  // BUILDFLAG(IS_FUCHSIA)
 
 #if BUILDFLAG(ENABLE_AV1_DECODER)
 TEST(ImageDecoderTest, hasSufficientDataToSniffMimeTypeAvif) {

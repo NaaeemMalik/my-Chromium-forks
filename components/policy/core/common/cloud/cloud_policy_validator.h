@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
@@ -22,9 +22,10 @@
 #include "components/policy/core/common/cloud/policy_value_validator.h"
 #include "components/policy/policy_export.h"
 #include "components/policy/proto/cloud_policy.pb.h"
+#include "components/policy/proto/device_management_backend.pb.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if !defined(OS_ANDROID) && !defined(OS_IOS)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 #include "components/policy/proto/chrome_extension_policy.pb.h"
 #endif
 
@@ -52,6 +53,9 @@ namespace policy {
 // RunValidation() can be used to perform validation on the current thread.
 class POLICY_EXPORT CloudPolicyValidatorBase {
  public:
+  using SignatureType =
+      enterprise_management::PolicyFetchRequest::SignatureType;
+
   // Validation result codes. These values are also used for UMA histograms by
   // UserCloudPolicyStoreAsh and must stay stable - new elements should
   // be added at the end before VALIDATION_STATUS_SIZE. Also update the
@@ -121,8 +125,6 @@ class POLICY_EXPORT CloudPolicyValidatorBase {
     // The timestamp is not validated.
     TIMESTAMP_NOT_VALIDATED,
   };
-
-  enum SignatureType { SHA1, SHA256 };
 
   struct POLICY_EXPORT ValidationResult {
     // Validation status.
@@ -442,7 +444,7 @@ class POLICY_EXPORT CloudPolicyValidator final
 using UserCloudPolicyValidator =
     CloudPolicyValidator<enterprise_management::CloudPolicySettings>;
 
-#if !defined(OS_ANDROID) && !defined(OS_IOS)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 using ComponentCloudPolicyValidator =
     CloudPolicyValidator<enterprise_management::ExternalPolicyData>;
 #endif

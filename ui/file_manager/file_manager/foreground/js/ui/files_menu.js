@@ -1,10 +1,10 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assertInstanceof} from 'gtx://resources/js/assert.m.js';
-import {Menu} from 'gtx://resources/js/cr/ui/menu.m.js';
-import {MenuItem} from 'gtx://resources/js/cr/ui/menu_item.m.js';
+import {assertInstanceof} from 'gtx://resources/ash/common/assert.js';
+import {Menu} from './menu.js';
+import {MenuItem} from './menu_item.js';
 
 /**
  * Menu item with ripple animation.
@@ -26,7 +26,16 @@ export class FilesMenuItem extends MenuItem {
     this.iconStart_ = null;
 
     /** @private {?HTMLElement} */
+    this.iconManaged_ = null;
+
+    /** @private {?HTMLElement} */
+    this.iconEnd_ = null;
+
+    /** @private {?HTMLElement} */
     this.ripple_ = null;
+
+    /** @public @type {?chrome.fileManagerPrivate.FileTaskDescriptor} */
+    this.descriptor = null;
 
     throw new Error('Designed to decorate elements');
   }
@@ -58,10 +67,27 @@ export class FilesMenuItem extends MenuItem {
           assertInstanceof(document.createElement('div'), HTMLElement);
       this.iconStart_.classList.add('icon', 'start');
 
+      this.iconManaged_ =
+          assertInstanceof(document.createElement('div'), HTMLElement);
+      this.iconManaged_.classList.add('icon', 'managed');
+
+      this.iconEnd_ =
+          assertInstanceof(document.createElement('div'), HTMLElement);
+      this.iconEnd_.classList.add('icon', 'end');
+      /**
+       * This is hidden by default because most of the menu items require
+       * neither the end icon nor the managed icon, so the component that
+       * plans to use either end icon should explicitly make it visible.
+       */
+      this.setIconEndHidden(true);
+      this.toggleManagedIcon(/*visible=*/ false);
+
       // Override with standard menu item elements.
       this.textContent = '';
       this.appendChild(this.iconStart_);
       this.appendChild(this.label_);
+      this.appendChild(this.iconManaged_);
+      this.appendChild(this.iconEnd_);
     }
 
     this.ripple_ =
@@ -204,5 +230,83 @@ export class FilesMenuItem extends MenuItem {
    */
   set iconStartImage(value) {
     this.iconStart_.setAttribute('style', 'background-image: ' + value);
+  }
+
+  /**
+   * @return {string}
+   */
+  get iconStartFileType() {
+    return this.iconStart_.getAttribute('file-type-icon');
+  }
+
+  /**
+   * @param {string} value
+   */
+  set iconStartFileType(value) {
+    this.iconStart_.setAttribute('file-type-icon', value);
+  }
+
+  /**
+   * Sets or removes the `is-managed` attribute.
+   * @param {boolean} isManaged
+   */
+  toggleIsManagedAttribute(isManaged) {
+    this.toggleAttribute('is-managed', isManaged);
+  }
+
+  /**
+   * Sets the `is-default` attribute.
+   */
+  setIsDefaultAttribute() {
+    this.toggleAttribute('is-default', true);
+  }
+
+  /**
+   * Toggles visibility of the `Managed by Policy` icon.
+   * @param {boolean} visible
+   */
+  toggleManagedIcon(visible) {
+    this.iconManaged_.toggleAttribute('hidden', !visible);
+    this.toggleIsManagedAttribute(visible);
+  }
+
+  /**
+   * @return {string}
+   */
+  get iconEndImage() {
+    return this.iconEnd_.style.backgroundImage;
+  }
+
+  /**
+   * @param {string} value
+   */
+  set iconEndImage(value) {
+    this.iconEnd_.setAttribute('style', 'background-image: ' + value);
+  }
+
+  /**
+   * @return {string}
+   */
+  get iconEndFileType() {
+    return this.iconEnd_.getAttribute('file-type-icon');
+  }
+
+  /**
+   * @param {string} value
+   */
+  set iconEndFileType(value) {
+    this.iconEnd_.setAttribute('file-type-icon', value);
+  }
+
+  removeIconEndFileType() {
+    this.iconEnd_.removeAttribute('file-type-icon');
+  }
+
+  /**
+   *
+   * @param {boolean} isHidden
+   */
+  setIconEndHidden(isHidden) {
+    this.iconEnd_.toggleAttribute('hidden', isHidden);
   }
 }

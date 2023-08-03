@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,89 +23,6 @@ namespace ui {
 
 namespace {
 
-const char kContentProtection[] = "Content Protection";
-const char kHdcpContentType[] = "HDCP Content Type";
-
-const char kPrivacyScreen[] = "privacy-screen";
-
-struct ContentProtectionMapping {
-  const char* name;
-  display::HDCPState state;
-};
-
-struct HdcpContentTypeMapping {
-  const char* name;
-  display::ContentProtectionMethod content_type;
-};
-
-const ContentProtectionMapping kContentProtectionStates[] = {
-    {"Undesired", display::HDCP_STATE_UNDESIRED},
-    {"Desired", display::HDCP_STATE_DESIRED},
-    {"Enabled", display::HDCP_STATE_ENABLED}};
-
-const HdcpContentTypeMapping kHdcpContentTypeStates[] = {
-    {"HDCP Type0", display::CONTENT_PROTECTION_METHOD_HDCP_TYPE_0},
-    {"HDCP Type1", display::CONTENT_PROTECTION_METHOD_HDCP_TYPE_1}};
-
-// Converts |state| to the DRM value associated with the it.
-uint32_t GetContentProtectionValue(drmModePropertyRes* property,
-                                   display::HDCPState state) {
-  std::string name;
-  for (size_t i = 0; i < base::size(kContentProtectionStates); ++i) {
-    if (kContentProtectionStates[i].state == state) {
-      name = kContentProtectionStates[i].name;
-      break;
-    }
-  }
-
-  for (int i = 0; i < property->count_enums; ++i) {
-    if (name == property->enums[i].name)
-      return i;
-  }
-
-  NOTREACHED();
-  return 0;
-}
-
-// Converts |content_type| to the DRM value associated with the it.
-uint32_t GetHdcpContentTypeValue(
-    drmModePropertyRes* property,
-    display::ContentProtectionMethod content_type) {
-  std::string name;
-  for (size_t i = 0; i < base::size(kHdcpContentTypeStates); ++i) {
-    if (kHdcpContentTypeStates[i].content_type == content_type) {
-      name = kHdcpContentTypeStates[i].name;
-      break;
-    }
-  }
-
-  for (int i = 0; i < property->count_enums; ++i) {
-    if (name == property->enums[i].name)
-      return i;
-  }
-
-  NOTREACHED();
-  return 0;
-}
-
-std::string GetEnumNameForProperty(drmModeObjectProperties* property_values,
-                                   drmModePropertyRes* property) {
-  for (uint32_t prop_idx = 0; prop_idx < property_values->count_props;
-       ++prop_idx) {
-    if (property_values->props[prop_idx] != property->prop_id)
-      continue;
-
-    for (int enum_idx = 0; enum_idx < property->count_enums; ++enum_idx) {
-      const drm_mode_property_enum& property_enum = property->enums[enum_idx];
-      if (property_enum.value == property_values->prop_values[prop_idx])
-        return property_enum.name;
-    }
-  }
-
-  NOTREACHED();
-  return std::string();
-}
-
 std::vector<drmModeModeInfo> GetDrmModeVector(drmModeConnector* connector) {
   std::vector<drmModeModeInfo> modes;
   for (int i = 0; i < connector->count_modes; ++i)
@@ -128,8 +45,131 @@ void FillPowerFunctionValues(std::vector<display::GammaRampRGBEntry>* table,
 
 }  // namespace
 
-DrmDisplay::DrmDisplay(const scoped_refptr<DrmDevice>& drm)
-    : drm_(drm), current_color_space_(gfx::ColorSpace::CreateSRGB()) {}
+DrmDisplay::PrivacyScreenProperty::PrivacyScreenProperty(
+    const scoped_refptr<DrmDevice>& drm,
+    drmModeConnector* connector)
+    : drm_(drm), connector_(connector) {
+  privacy_screen_hw_state_ =
+      drm_->GetProperty(connector_, kPrivacyScreenHwStatePropertyName);
+  privacy_screen_sw_state_ =
+      drm_->GetProperty(connector_, kPrivacyScreenSwStatePropertyName);
+
+  if (!privacy_screen_hw_state_ || !privacy_screen_sw_state_) {
+    privacy_screen_hw_state_.reset();
+    privacy_screen_sw_state_.reset();
+
+    property_last_ = display::kPrivacyScreenLegacyStateLast;
+    privacy_screen_legacy_ =
+        drm_->GetProperty(connector_, kPrivacyScreenPropertyNameLegacy);
+  }
+}
+
+DrmDisplay::PrivacyScreenProperty::~PrivacyScreenProperty() = default;
+
+bool DrmDisplay::PrivacyScreenProperty::SetPrivacyScreenProperty(bool enabled) {
+  drmModePropertyRes* property = GetWritePrivacyScreenProperty();
+  if (!property) {
+    LOG(ERROR)
+        << "Privacy screen is not supported but an attempt to set it was made.";
+    return false;
+  }
+
+  const display::PrivacyScreenState state_to_set =
+      enabled ? display::kEnabled : display::kDisabled;
+  if (!drm_->SetProperty(connector_->connector_id, property->prop_id,
+                         GetDrmValueForInternalType(state_to_set, *property,
+                                                    kPrivacyScreenStates))) {
+    LOG(ERROR) << (enabled ? "Enabling" : "Disabling") << " property '"
+               << property->name << "' failed!";
+    return false;
+  }
+
+  return ValidateCurrentStateAgainst(enabled);
+}
+
+display::PrivacyScreenState
+DrmDisplay::PrivacyScreenProperty::GetPrivacyScreenState() const {
+  drmModePropertyRes* property = GetReadPrivacyScreenProperty();
+  if (!property) {
+    LOG(ERROR) << "Privacy screen is not supported but an attempt to read its "
+                  "state was made.";
+    return display::kNotSupported;
+  }
+
+  ScopedDrmObjectPropertyPtr property_values(drm_->GetObjectProperties(
+      connector_->connector_id, DRM_MODE_OBJECT_CONNECTOR));
+  if (!property_values) {
+    PLOG(INFO) << "Properties no longer valid for connector "
+               << connector_->connector_id << ".";
+    return display::kNotSupported;
+  }
+
+  const std::string privacy_screen_state_name =
+      GetEnumNameForProperty(*property, *property_values);
+  const display::PrivacyScreenState* state = GetInternalTypeValueFromDrmEnum(
+      privacy_screen_state_name, kPrivacyScreenStates);
+  return state ? *state : display::kNotSupported;
+}
+
+bool DrmDisplay::PrivacyScreenProperty::ValidateCurrentStateAgainst(
+    bool enabled) const {
+  display::PrivacyScreenState current_state = GetPrivacyScreenState();
+  if (current_state == display::kNotSupported)
+    return false;
+
+  bool currently_on = false;
+  if (current_state == display::kEnabled ||
+      current_state == display::kEnabledLocked) {
+    currently_on = true;
+  }
+  return currently_on == enabled;
+}
+
+drmModePropertyRes*
+DrmDisplay::PrivacyScreenProperty::GetReadPrivacyScreenProperty() const {
+  if (privacy_screen_hw_state_ && privacy_screen_sw_state_)
+    return privacy_screen_hw_state_.get();
+  return privacy_screen_legacy_.get();
+}
+
+drmModePropertyRes*
+DrmDisplay::PrivacyScreenProperty::GetWritePrivacyScreenProperty() const {
+  if (privacy_screen_hw_state_ && privacy_screen_sw_state_)
+    return privacy_screen_sw_state_.get();
+  return privacy_screen_legacy_.get();
+}
+
+DrmDisplay::DrmDisplay(const scoped_refptr<DrmDevice>& drm,
+                       HardwareDisplayControllerInfo* info,
+                       const display::DisplaySnapshot& display_snapshot)
+    : display_id_(display_snapshot.display_id()),
+      base_connector_id_(display_snapshot.base_connector_id()),
+      drm_(drm),
+      crtc_(info->crtc()->crtc_id),
+      connector_(info->ReleaseConnector()) {
+  modes_ = GetDrmModeVector(connector_.get());
+  origin_ = display_snapshot.origin();
+  is_hdr_capable_ = display_snapshot.bits_per_channel() > 8 &&
+                    display_snapshot.color_space().IsHDR();
+  hdr_static_metadata_ = display_snapshot.hdr_static_metadata();
+  current_color_space_ = gfx::ColorSpace::CreateSRGB();
+  privacy_screen_property_ =
+      std::make_unique<PrivacyScreenProperty>(drm_, connector_.get());
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  is_hdr_capable_ =
+      is_hdr_capable_ &&
+      base::FeatureList::IsEnabled(display::features::kUseHDRTransferFunction);
+
+  if (base::FeatureList::IsEnabled(
+          display::features::kEnableExternalDisplayHDR10Mode) &&
+      display_snapshot.color_space() == gfx::ColorSpace::CreateHDR10()) {
+    current_color_space_ = gfx::ColorSpace::CreateHDR10();
+    // More likely it should be end users' choice to turn on the hdr mode or
+    // not. For now we always turn it on.
+    SetHDR10Mode();
+  }
+#endif
+}
 
 DrmDisplay::~DrmDisplay() = default;
 
@@ -138,43 +178,41 @@ uint32_t DrmDisplay::connector() const {
   return connector_->connector_id;
 }
 
-std::unique_ptr<display::DisplaySnapshot> DrmDisplay::Update(
-    HardwareDisplayControllerInfo* info,
-    uint8_t device_index) {
-  std::unique_ptr<display::DisplaySnapshot> params = CreateDisplaySnapshot(
-      info, drm_->get_fd(), drm_->device_path(), device_index, origin_);
-  crtc_ = info->crtc()->crtc_id;
-  // TODO(crbug.com/1119499): consider taking ownership of |info->connector()|
-  connector_ = ScopedDrmConnectorPtr(
-      drm_->GetConnector(info->connector()->connector_id));
-  if (!connector_) {
-    PLOG(ERROR) << "Failed to get connector "
-                << info->connector()->connector_id;
-    return nullptr;
-  }
-  privacy_screen_property_ =
-      drm_->GetProperty(connector_.get(), kPrivacyScreen);
+bool DrmDisplay::SetHdcpKeyProp(const std::string& key) {
+  DCHECK(connector_);
 
-  display_id_ = params->display_id();
-  modes_ = GetDrmModeVector(info->connector());
-  is_hdr_capable_ =
-      params->bits_per_channel() > 8 && params->color_space().IsHDR();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  is_hdr_capable_ =
-      is_hdr_capable_ &&
-      base::FeatureList::IsEnabled(display::features::kUseHDRTransferFunction);
+  TRACE_EVENT1("drm", "DrmDisplay::SetHdcpKeyProp", "connector",
+               connector_->connector_id);
+
+  // The HDCP key is secret, we want to create it as write only so the user
+  // space can't read it back. (i.e. through `modetest`)
+  ScopedDrmPropertyBlob key_blob;
+  // TODO(markyacoub): the flag requires being merged to libdrm then backported
+  // to CrOS. Remove the #if once that happens.
+#if defined(DRM_MODE_CREATE_BLOB_WRITE_ONLY)
+  key_blob = drm_->CreatePropertyBlobWithFlags(key.data(), key.size(),
+                                               DRM_MODE_CREATE_BLOB_WRITE_ONLY);
 #endif
 
-  return params;
+  if (!key_blob) {
+    LOG(ERROR) << "Failed to create HDCP Key property blob";
+    return false;
+  }
+
+  ScopedDrmPropertyPtr hdcp_key_property(
+      drm_->GetProperty(connector_.get(), kContentProtectionKey));
+  DCHECK(hdcp_key_property);
+
+  return drm_->SetProperty(connector_->connector_id, hdcp_key_property->prop_id,
+                           key_blob->id());
 }
 
 // When reading DRM state always check that it's still valid. Any sort of events
 // (such as disconnects) may invalidate the state.
 bool DrmDisplay::GetHDCPState(
-    display::HDCPState* state,
+    display::HDCPState* hdcp_state,
     display::ContentProtectionMethod* protection_method) {
-  if (!connector_)
-    return false;
+  DCHECK(connector_);
 
   TRACE_EVENT1("drm", "DrmDisplay::GetHDCPState", "connector",
                connector_->connector_id);
@@ -192,23 +230,19 @@ bool DrmDisplay::GetHDCPState(
                << connector_->connector_id << ".";
     return false;
   }
-  std::string name =
-      GetEnumNameForProperty(property_values.get(), hdcp_property.get());
-  size_t i;
-  for (i = 0; i < base::size(kContentProtectionStates); ++i) {
-    if (name == kContentProtectionStates[i].name) {
-      *state = kContentProtectionStates[i].state;
-      VLOG(3) << "HDCP state: " << *state << " (" << name << ")";
-      break;
-    }
-  }
 
-  if (i == base::size(kContentProtectionStates)) {
-    LOG(ERROR) << "Unknown content protection value '" << name << "'";
+  const display::HDCPState* hw_hdcp_state =
+      GetDrmPropertyCurrentValueAsInternalType(
+          kContentProtectionStates, *hdcp_property, *property_values);
+  if (hw_hdcp_state) {
+    VLOG(3) << "HDCP state: " << *hw_hdcp_state << ".";
+    *hdcp_state = *hw_hdcp_state;
+  } else {
+    LOG(ERROR) << "Unknown content protection value.";
     return false;
   }
 
-  if (*state == display::HDCP_STATE_UNDESIRED) {
+  if (*hdcp_state == display::HDCP_STATE_UNDESIRED) {
     // ProtectionMethod doesn't matter if we don't have it desired/enabled.
     *protection_method = display::CONTENT_PROTECTION_METHOD_NONE;
     return true;
@@ -223,30 +257,25 @@ bool DrmDisplay::GetHDCPState(
     *protection_method = display::CONTENT_PROTECTION_METHOD_HDCP_TYPE_0;
     return true;
   }
-  name = GetEnumNameForProperty(property_values.get(),
-                                content_type_property.get());
-  for (i = 0; i < base::size(kHdcpContentTypeStates); ++i) {
-    if (name == kHdcpContentTypeStates[i].name) {
-      *protection_method = kHdcpContentTypeStates[i].content_type;
-      VLOG(3) << "Content Protection Method: " << *protection_method << " ("
-              << name << ")";
-      break;
-    }
-  }
 
-  if (i == base::size(kHdcpContentTypeStates)) {
-    LOG(ERROR) << "Unknown HDCP content type value '" << name << "'";
+  const display::ContentProtectionMethod* hw_protection_method =
+      GetDrmPropertyCurrentValueAsInternalType(
+          kHdcpContentTypeStates, *content_type_property, *property_values);
+  if (hw_protection_method) {
+    VLOG(3) << "Content Protection Method: " << *protection_method << ".";
+    *protection_method = *hw_protection_method;
+  } else {
+    LOG(ERROR) << "Unknown HDCP content type value.";
     return false;
   }
+
   return true;
 }
 
 bool DrmDisplay::SetHDCPState(
     display::HDCPState state,
     display::ContentProtectionMethod protection_method) {
-  if (!connector_) {
-    return false;
-  }
+  DCHECK(connector_);
 
   if (protection_method != display::CONTENT_PROTECTION_METHOD_NONE) {
     ScopedDrmPropertyPtr content_type_property(
@@ -260,10 +289,11 @@ bool DrmDisplay::SetHDCPState(
         return false;
       }
       VLOG(3) << "HDCP Content Type not supported, default to Type 0";
-    } else if (!drm_->SetProperty(
-                   connector_->connector_id, content_type_property->prop_id,
-                   GetHdcpContentTypeValue(content_type_property.get(),
-                                           protection_method))) {
+    } else if (!drm_->SetProperty(connector_->connector_id,
+                                  content_type_property->prop_id,
+                                  GetDrmValueForInternalType(
+                                      protection_method, *content_type_property,
+                                      kHdcpContentTypeStates))) {
       // Failed setting HDCP Content Type.
       return false;
     }
@@ -278,7 +308,8 @@ bool DrmDisplay::SetHDCPState(
 
   return drm_->SetProperty(
       connector_->connector_id, hdcp_property->prop_id,
-      GetContentProtectionValue(hdcp_property.get(), state));
+      GetDrmValueForInternalType(state, *hdcp_property,
+                                 kContentProtectionStates));
 }
 
 void DrmDisplay::SetColorMatrix(const std::vector<float>& color_matrix) {
@@ -306,15 +337,75 @@ void DrmDisplay::SetGammaCorrection(
 }
 
 bool DrmDisplay::SetPrivacyScreen(bool enabled) {
-  if (!privacy_screen_property_) {
-    LOG(ERROR) << "'" << kPrivacyScreen << "' property doesn't exist.";
+  return privacy_screen_property_->SetPrivacyScreenProperty(enabled);
+}
+
+bool DrmDisplay::SetHDR10Mode() {
+  DCHECK(connector_);
+  DCHECK(hdr_static_metadata_.has_value());
+  ScopedDrmPropertyPtr color_space_property(
+      drm_->GetProperty(connector_.get(), kColorSpace));
+  if (!color_space_property) {
+    PLOG(INFO) << "'" << kColorSpace << "' property doesn't exist.";
+    return false;
+  }
+  if (!drm_->SetProperty(
+          connector_->connector_id, color_space_property->prop_id,
+          GetEnumValueForName(*drm_, color_space_property->prop_id,
+                              kColorSpaceBT2020RGBEnumName))) {
+    PLOG(INFO) << "Cannot set '" << kColorSpaceBT2020RGBEnumName
+               << "' to 'Colorspace' property.";
+    return false;
+  }
+
+  drm_hdr_output_metadata* hdr_output_metadata =
+      static_cast<drm_hdr_output_metadata*>(
+          malloc(sizeof(drm_hdr_output_metadata)));
+  hdr_output_metadata->metadata_type = 0;
+  hdr_output_metadata->hdmi_metadata_type1.metadata_type = 0;
+  hdr_output_metadata->hdmi_metadata_type1.eotf = 2;  // PQ
+  hdr_output_metadata->hdmi_metadata_type1.max_cll = 0;
+  hdr_output_metadata->hdmi_metadata_type1.max_fall = 0;
+  hdr_output_metadata->hdmi_metadata_type1.max_display_mastering_luminance =
+      hdr_static_metadata_->max;
+  hdr_output_metadata->hdmi_metadata_type1.min_display_mastering_luminance =
+      hdr_static_metadata_->min;
+  gfx::ColorSpace hdr10 = gfx::ColorSpace::CreateHDR10();
+  SkColorSpacePrimaries primaries = hdr10.GetPrimaries();
+  constexpr int kPrimariesFixedPoint = 50000;
+  hdr_output_metadata->hdmi_metadata_type1.display_primaries[0].x =
+      primaries.fRX * kPrimariesFixedPoint;
+  hdr_output_metadata->hdmi_metadata_type1.display_primaries[0].y =
+      primaries.fRY * kPrimariesFixedPoint;
+  hdr_output_metadata->hdmi_metadata_type1.display_primaries[1].x =
+      primaries.fGX * kPrimariesFixedPoint;
+  hdr_output_metadata->hdmi_metadata_type1.display_primaries[1].y =
+      primaries.fGY * kPrimariesFixedPoint;
+  hdr_output_metadata->hdmi_metadata_type1.display_primaries[2].x =
+      primaries.fBX * kPrimariesFixedPoint;
+  hdr_output_metadata->hdmi_metadata_type1.display_primaries[2].y =
+      primaries.fBY * kPrimariesFixedPoint;
+  hdr_output_metadata->hdmi_metadata_type1.white_point.x =
+      primaries.fWX * kPrimariesFixedPoint;
+  hdr_output_metadata->hdmi_metadata_type1.white_point.y =
+      primaries.fWY * kPrimariesFixedPoint;
+
+  ScopedDrmHdrOutputMetadataPtr hdr_output_metadata_blob(hdr_output_metadata);
+
+  ScopedDrmPropertyBlob hdr_output_metadata_property_blob =
+      drm_->CreatePropertyBlob(hdr_output_metadata_blob.get(),
+                               sizeof(drm_hdr_output_metadata));
+  ScopedDrmPropertyPtr hdr_output_metadata_property(
+      drm_->GetProperty(connector_.get(), kHdrOutputMetadata));
+  if (!hdr_output_metadata_property) {
+    PLOG(INFO) << "'" << kHdrOutputMetadata << "' property doesn't exist.";
     return false;
   }
 
   if (!drm_->SetProperty(connector_->connector_id,
-                         privacy_screen_property_->prop_id, enabled)) {
-    LOG(ERROR) << (enabled ? "Enabling" : "Disabling") << " property '"
-               << kPrivacyScreen << "' failed!";
+                         hdr_output_metadata_property->prop_id,
+                         hdr_output_metadata_property_blob->id())) {
+    PLOG(INFO) << "Cannot set '" << kHdrOutputMetadata << "' property.";
     return false;
   }
   return true;

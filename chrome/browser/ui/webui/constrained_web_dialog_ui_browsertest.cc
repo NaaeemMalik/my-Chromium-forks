@@ -1,15 +1,14 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/location.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile.h"
@@ -77,7 +76,7 @@ class ConstrainedWebDialogBrowserTest : public InProcessBrowserTest {
       }
 
       base::RunLoop run_loop;
-      base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
           FROM_HERE, run_loop.QuitClosure(), base::Milliseconds(20));
       run_loop.Run();
     }
@@ -94,7 +93,7 @@ class ConstrainedWebDialogBrowserTest : public InProcessBrowserTest {
 
 // Tests that opening/closing the constrained window won't crash it.
 // Flaky on trusty builder: http://crbug.com/1020490.
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_BasicTest DISABLED_BasicTest
 #else
 #define MAYBE_BasicTest BasicTest
@@ -114,7 +113,7 @@ IN_PROC_BROWSER_TEST_F(ConstrainedWebDialogBrowserTest, MAYBE_BasicTest) {
 }
 
 // TODO(https://crbug.com/1020038): Crashy on Linux
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_ReleaseWebContents DISABLED_ReleaseWebContents
 #else
 #define MAYBE_ReleaseWebContents ReleaseWebContents

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,12 @@
 #include "base/containers/contains.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/values.h"
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_constants.h"
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_event_router.h"
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_event_router_factory.h"
 #include "chrome/browser/extensions/api/tab_groups/tab_groups_util.h"
 #include "chrome/browser/extensions/api/tabs/tabs_constants.h"
-#include "chrome/browser/extensions/extension_function_test_utils.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/sessions/session_tab_helper_factory.h"
@@ -48,28 +48,30 @@ namespace extensions {
 
 namespace {
 
-std::unique_ptr<base::ListValue> RunTabGroupsQueryFunction(
-    Browser* browser,
+base::Value::List RunTabGroupsQueryFunction(
+    content::BrowserContext* browser_context,
     const Extension* extension,
     const std::string& query_info) {
   auto function = base::MakeRefCounted<TabGroupsQueryFunction>();
   function->set_extension(extension);
-  std::unique_ptr<base::Value> value(
-      extension_function_test_utils::RunFunctionAndReturnSingleResult(
-          function.get(), query_info, browser, api_test_utils::NONE));
-  return base::ListValue::From(std::move(value));
+  absl::optional<base::Value> value =
+      api_test_utils::RunFunctionAndReturnSingleResult(
+          function.get(), query_info, browser_context,
+          api_test_utils::FunctionMode::kNone);
+  return std::move(*value).TakeList();
 }
 
-std::unique_ptr<base::DictionaryValue> RunTabGroupsGetFunction(
-    Browser* browser,
+base::Value::Dict RunTabGroupsGetFunction(
+    content::BrowserContext* browser_context,
     const Extension* extension,
     const std::string& args) {
   auto function = base::MakeRefCounted<TabGroupsGetFunction>();
   function->set_extension(extension);
-  std::unique_ptr<base::Value> value(
-      extension_function_test_utils::RunFunctionAndReturnSingleResult(
-          function.get(), args, browser, api_test_utils::NONE));
-  return base::DictionaryValue::From(std::move(value));
+  absl::optional<base::Value> value =
+      api_test_utils::RunFunctionAndReturnSingleResult(
+          function.get(), args, browser_context,
+          api_test_utils::FunctionMode::kNone);
+  return std::move(*value).TakeDict();
 }
 
 // Creates an extension with "tabGroups" permission.
@@ -190,21 +192,18 @@ TEST_F(TabGroupsApiUnitTest, TabStripModelWithNoTabGroupFails) {
                                         /* foreground */ true);
   }
 
-  // create an extension and test that tab group methods fail.
+  // Create an extension and test that the tab group query method skips the
+  // unsupported tab strip without throwing an error.
   scoped_refptr<const Extension> extension = CreateTabGroupsExtension();
 
   const char* kTitleQueryInfo = R"([{"title": "Sample title"}])";
-  auto function = base::MakeRefCounted<TabGroupsQueryFunction>();
-  function->set_extension(extension);
+  base::Value::List groups_list =
+      RunTabGroupsQueryFunction(profile(), extension.get(), kTitleQueryInfo);
 
-  std::string error = extension_function_test_utils::RunFunctionAndReturnError(
-      function.get(), kTitleQueryInfo, browser2.get());
-  EXPECT_EQ(tabs_constants::kTabStripDoesNotSupportTabGroupsError, error);
+  ASSERT_EQ(0u, groups_list.size());
 
   tab_strip_model2->CloseAllTabs();
 }
-// cbld unit_tests && ./out/Default/unit_tests
-// --gtest_filter="*TabStripModelWithNoTabGroupFails*"
 
 // Test that querying groups by title returns the correct groups.
 TEST_F(TabGroupsApiUnitTest, TabGroupsQueryTitle) {
@@ -232,16 +231,14 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsQueryTitle) {
 
   // Query by title and verify results.
   const char* kTitleQueryInfo = R"([{"title": "Sample title"}])";
-  std::unique_ptr<base::ListValue> groups_list(
-      RunTabGroupsQueryFunction(browser(), extension.get(), kTitleQueryInfo));
-  ASSERT_TRUE(groups_list);
-  ASSERT_EQ(1u, groups_list->GetList().size());
+  base::Value::List groups_list =
+      RunTabGroupsQueryFunction(profile(), extension.get(), kTitleQueryInfo);
+  ASSERT_EQ(1u, groups_list.size());
 
-  const base::Value& group_info = groups_list->GetList()[0];
-  ASSERT_EQ(base::Value::Type::DICTIONARY, group_info.type());
-  EXPECT_EQ(
-      tab_groups_util::GetGroupId(group1),
-      group_info.FindKeyOfType("id", base::Value::Type::INTEGER)->GetInt());
+  const base::Value& group_info = groups_list[0];
+  ASSERT_TRUE(group_info.is_dict());
+  EXPECT_EQ(tab_groups_util::GetGroupId(group1),
+            *group_info.GetDict().FindInt("id"));
 }
 
 // Test that querying groups by color returns the correct groups.
@@ -271,16 +268,14 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsQueryColor) {
 
   // Query by color and verify results.
   const char* kColorQueryInfo = R"([{"color": "blue"}])";
-  std::unique_ptr<base::ListValue> groups_list(
-      RunTabGroupsQueryFunction(browser(), extension.get(), kColorQueryInfo));
-  ASSERT_TRUE(groups_list);
-  ASSERT_EQ(1u, groups_list->GetList().size());
+  base::Value::List groups_list =
+      RunTabGroupsQueryFunction(profile(), extension.get(), kColorQueryInfo);
+  ASSERT_EQ(1u, groups_list.size());
 
-  const base::Value& group_info = groups_list->GetList()[0];
-  ASSERT_EQ(base::Value::Type::DICTIONARY, group_info.type());
-  EXPECT_EQ(
-      tab_groups_util::GetGroupId(group3),
-      group_info.FindKeyOfType("id", base::Value::Type::INTEGER)->GetInt());
+  const base::Value& group_info = groups_list[0];
+  ASSERT_EQ(base::Value::Type::DICT, group_info.type());
+  EXPECT_EQ(tab_groups_util::GetGroupId(group3),
+            *group_info.GetDict().FindInt("id"));
 }
 
 // Test that getting a group returns the correct metadata.
@@ -302,16 +297,11 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsGetSuccess) {
   // Use the TabGroupsGetFunction to get the group object.
   constexpr char kFormatArgs[] = R"([%d])";
   const std::string args = base::StringPrintf(kFormatArgs, group_id);
-  std::unique_ptr<base::DictionaryValue> group_info(
-      RunTabGroupsGetFunction(browser(), extension.get(), args));
+  base::Value::Dict group_info =
+      RunTabGroupsGetFunction(profile(), extension.get(), args);
 
-  EXPECT_EQ(
-      group_id,
-      group_info->FindKeyOfType("id", base::Value::Type::INTEGER)->GetInt());
-
-  EXPECT_EQ("Title",
-            group_info->FindKeyOfType("title", base::Value::Type::STRING)
-                ->GetString());
+  EXPECT_EQ(group_id, *group_info.FindInt("id"));
+  EXPECT_EQ("Title", *group_info.FindString("title"));
 }
 
 // Test that tabGroups.get() fails on a nonexistent group.
@@ -322,8 +312,8 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsGetError) {
   // Try to get a non-existent group and expect an error.
   auto function = base::MakeRefCounted<TabGroupsGetFunction>();
   function->set_extension(extension);
-  std::string error = extension_function_test_utils::RunFunctionAndReturnError(
-      function.get(), "[0]", browser(), api_test_utils::NONE);
+  std::string error = api_test_utils::RunFunctionAndReturnError(
+      function.get(), "[0]", profile(), api_test_utils::FunctionMode::kNone);
   EXPECT_EQ(ErrorUtils::FormatErrorMessage(
                 tab_groups_constants::kGroupNotFoundError, "0"),
             error);
@@ -351,8 +341,8 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsUpdateSuccess) {
   constexpr char kFormatArgs[] =
       R"([%d, {"title": "New title", "color": "red"}])";
   const std::string args = base::StringPrintf(kFormatArgs, group_id);
-  ASSERT_TRUE(extension_function_test_utils::RunFunction(
-      function.get(), args, browser(), api_test_utils::NONE));
+  ASSERT_TRUE(api_test_utils::RunFunction(function.get(), args, profile(),
+                                          api_test_utils::FunctionMode::kNone));
 
   // Verify the new group metadata.
   const tab_groups::TabGroupVisualData* new_visual_data =
@@ -370,8 +360,9 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsUpdateError) {
   // Try to update a non-existent group and expect an error.
   auto function = base::MakeRefCounted<TabGroupsUpdateFunction>();
   function->set_extension(extension);
-  std::string error = extension_function_test_utils::RunFunctionAndReturnError(
-      function.get(), "[0, {}]", browser(), api_test_utils::NONE);
+  std::string error = api_test_utils::RunFunctionAndReturnError(
+      function.get(), "[0, {}]", profile(),
+      api_test_utils::FunctionMode::kNone);
   EXPECT_EQ(ErrorUtils::FormatErrorMessage(
                 tab_groups_constants::kGroupNotFoundError, "0"),
             error);
@@ -394,8 +385,8 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsMoveRight) {
   function->set_extension(extension);
   constexpr char kFormatArgs[] = R"([%d, {"index": 2}])";
   const std::string args = base::StringPrintf(kFormatArgs, group_id);
-  ASSERT_TRUE(extension_function_test_utils::RunFunction(
-      function.get(), args, browser(), api_test_utils::NONE));
+  ASSERT_TRUE(api_test_utils::RunFunction(function.get(), args, profile(),
+                                          api_test_utils::FunctionMode::kNone));
 
   EXPECT_EQ(tab_strip_model->GetWebContentsAt(0), web_contents(0));
   EXPECT_EQ(tab_strip_model->GetWebContentsAt(1), web_contents(4));
@@ -426,8 +417,8 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsMoveLeft) {
   function->set_extension(extension);
   constexpr char kFormatArgs[] = R"([%d, {"index": 0}])";
   const std::string args = base::StringPrintf(kFormatArgs, group_id);
-  ASSERT_TRUE(extension_function_test_utils::RunFunction(
-      function.get(), args, browser(), api_test_utils::NONE));
+  ASSERT_TRUE(api_test_utils::RunFunction(function.get(), args, profile(),
+                                          api_test_utils::FunctionMode::kNone));
 
   EXPECT_EQ(tab_strip_model->GetWebContentsAt(0), web_contents(2));
   EXPECT_EQ(tab_strip_model->GetWebContentsAt(1), web_contents(3));
@@ -486,8 +477,8 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsMoveAcrossWindows) {
   constexpr char kFormatArgs[] = R"([%d, {"windowId": %d, "index": 1}])";
   const std::string args =
       base::StringPrintf(kFormatArgs, group_id, window_id2);
-  ASSERT_TRUE(extension_function_test_utils::RunFunction(
-      function.get(), args, browser(), api_test_utils::NONE));
+  ASSERT_TRUE(api_test_utils::RunFunction(function.get(), args, profile(),
+                                          api_test_utils::FunctionMode::kNone));
 
   ASSERT_EQ(kNumTabs2 + kNumTabsMovedAcrossWindows, tab_strip_model2->count());
   EXPECT_EQ(tab_strip_model2->GetWebContentsAt(1), web_contents(2));
@@ -525,8 +516,8 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsMoveToPinnedError) {
   function->set_extension(extension);
   constexpr char kFormatArgs[] = R"([%d, {"index": 1}])";
   const std::string args = base::StringPrintf(kFormatArgs, group_id);
-  std::string error = extension_function_test_utils::RunFunctionAndReturnError(
-      function.get(), args, browser(), api_test_utils::NONE);
+  std::string error = api_test_utils::RunFunctionAndReturnError(
+      function.get(), args, profile(), api_test_utils::FunctionMode::kNone);
   EXPECT_EQ(tab_groups_constants::kCannotMoveGroupIntoMiddleOfPinnedTabsError,
             error);
 }
@@ -549,8 +540,8 @@ TEST_F(TabGroupsApiUnitTest, TabGroupsMoveToOtherGroupError) {
   function->set_extension(extension);
   constexpr char kFormatArgs[] = R"([%d, {"index": 1}])";
   const std::string args = base::StringPrintf(kFormatArgs, group_id);
-  std::string error = extension_function_test_utils::RunFunctionAndReturnError(
-      function.get(), args, browser(), api_test_utils::NONE);
+  std::string error = api_test_utils::RunFunctionAndReturnError(
+      function.get(), args, profile(), api_test_utils::FunctionMode::kNone);
   EXPECT_EQ(tab_groups_constants::kCannotMoveGroupIntoMiddleOfOtherGroupError,
             error);
 }
@@ -633,8 +624,8 @@ TEST_F(TabGroupsApiUnitTest, IsTabStripEditable) {
   {
     auto function = base::MakeRefCounted<TabGroupsMoveFunction>();
     function->set_extension(extension);
-    EXPECT_TRUE(extension_function_test_utils::RunFunction(
-        function.get(), args, browser(), api_test_utils::NONE));
+    EXPECT_TRUE(api_test_utils::RunFunction(
+        function.get(), args, profile(), api_test_utils::FunctionMode::kNone));
   }
 
   // Make tab strip uneditable.
@@ -646,17 +637,17 @@ TEST_F(TabGroupsApiUnitTest, IsTabStripEditable) {
     const char* query_args = R"([{"title": "Sample title"}])";
     auto function = base::MakeRefCounted<TabGroupsQueryFunction>();
     function->set_extension(extension);
-    EXPECT_TRUE(extension_function_test_utils::RunFunction(
-        function.get(), query_args, browser(), api_test_utils::NONE));
+    EXPECT_TRUE(
+        api_test_utils::RunFunction(function.get(), query_args, profile(),
+                                    api_test_utils::FunctionMode::kNone));
   }
 
   // Gracefully cancel group tab drag if tab strip isn't editable.
   {
     auto function = base::MakeRefCounted<TabGroupsMoveFunction>();
     function->set_extension(extension);
-    std::string error =
-        extension_function_test_utils::RunFunctionAndReturnError(
-            function.get(), args, browser());
+    std::string error = api_test_utils::RunFunctionAndReturnError(
+        function.get(), args, profile());
     EXPECT_EQ(tabs_constants::kTabStripNotEditableError, error);
   }
 }

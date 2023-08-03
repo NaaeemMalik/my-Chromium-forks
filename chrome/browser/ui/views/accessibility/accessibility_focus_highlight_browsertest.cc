@@ -1,14 +1,17 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "math.h"
+#include <math.h>
 
 #include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "cc/test/pixel_comparator.h"
 #include "cc/test/pixel_test_utils.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/accessibility/accessibility_focus_highlight.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_paths.h"
@@ -18,6 +21,7 @@
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/public/browser/focused_node_details.h"
+#include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/focus_changed_observer.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -27,7 +31,7 @@
 #include "ui/snapshot/snapshot.h"
 #include "ui/views/widget/widget.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "base/mac/mac_util.h"
 #endif
 
@@ -55,6 +59,11 @@ class AccessibilityFocusHighlightBrowserTest : public InProcessBrowserTest {
     scoped_feature_list_.InitAndEnableFeature(
         features::kAccessibilityFocusHighlight);
     InProcessBrowserTest::SetUp();
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    // Force the CPU backend to use AAA. (https://crbug.com/1421297)
+    command_line->AppendSwitch(switches::kForceSkiaAnalyticAntialiasing);
   }
 
   bool ColorsApproximatelyEqual(SkColor color1, SkColor color2) {
@@ -163,7 +172,9 @@ IN_PROC_BROWSER_TEST_F(AccessibilityFocusHighlightBrowserTest,
   } while (CountPercentPixelsWithColor(image, SkColorSetRGB(204, 255, 255)) <
            90.0f);
 
-  SkColor highlight_color = AccessibilityFocusHighlight::default_color_;
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+  SkColor highlight_color =
+      browser_view->GetColorProvider()->GetColor(kColorFocusHighlightDefault);
 
   // Initially less than 0.05% of the image should be the focus ring's highlight
   // color.
@@ -235,9 +246,12 @@ class ReadbackHolder : public base::RefCountedThreadSafe<ReadbackHolder> {
   std::unique_ptr<base::RunLoop> run_loop_;
 };
 
-const cc::ExactPixelComparator pixel_comparator(/*discard_alpha=*/false);
+const cc::ExactPixelComparator pixel_comparator;
 
-#if defined(OS_MAC) && MAC_OS_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_15
+// Flaky on Lacros: https://crbug.com/1289366
+#if (BUILDFLAG(IS_MAC) &&                                     \
+     MAC_OS_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_15) || \
+    BUILDFLAG(IS_CHROMEOS_LACROS)
 #define MAYBE_FocusAppearance DISABLED_FocusAppearance
 #else
 #define MAYBE_FocusAppearance FocusAppearance
@@ -288,9 +302,9 @@ IN_PROC_BROWSER_TEST_F(AccessibilityFocusHighlightBrowserTest,
 
   std::string screenshot_filename = "focus_highlight_appearance";
   std::string platform_suffix;
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   platform_suffix = "_mac";
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
   platform_suffix = "_win";
 #endif
 

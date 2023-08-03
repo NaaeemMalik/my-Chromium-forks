@@ -1,24 +1,24 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <UIKit/UIKit.h>
 #import <XCTest/XCTest.h>
 
-#include "base/strings/sys_string_conversions.h"
+#import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/ui/settings/content_settings/block_popups_app_interface.h"
-#include "ios/chrome/grit/ios_strings.h"
+#import "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
-#include "ios/chrome/test/earl_grey/scoped_block_popups_pref.h"
+#import "ios/chrome/test/earl_grey/scoped_block_popups_pref.h"
 #import "ios/chrome/test/earl_grey/web_http_server_chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
 #import "ios/web/public/test/http_server/http_server.h"
-#include "ios/web/public/test/http_server/http_server_util.h"
-#include "ui/base/l10n/l10n_util_mac.h"
-#include "url/gurl.h"
+#import "ios/web/public/test/http_server/http_server_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
+#import "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -121,7 +121,7 @@ class ScopedBlockPopupsException {
 
   // Request popup (execute script without using a user gesture) and make sure
   // the popup opened in a new tab.
-  [ChromeEarlGrey executeJavaScript:kOpenPopupScript];
+  [ChromeEarlGrey evaluateJavaScriptForSideEffect:kOpenPopupScript];
   [ChromeEarlGrey waitForMainTabCount:2];
 
   // No infobar should be displayed.
@@ -151,7 +151,7 @@ class ScopedBlockPopupsException {
   // Request popup (execute script without using a user gesture), then make sure
   // it was blocked and an infobar was displayed. The window.open() call is run
   // via async JS, so the infobar may not open immediately.
-  [ChromeEarlGrey executeJavaScript:kOpenPopupScript];
+  [ChromeEarlGrey evaluateJavaScriptForSideEffect:kOpenPopupScript];
 
   BOOL infobarVisible = [[GREYCondition
       conditionWithName:@"Wait for blocked popups infobar to show"
@@ -189,9 +189,9 @@ class ScopedBlockPopupsException {
   // Toggle the switch off via the UI and make sure the exceptions are not
   // visible.
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::SettingsSwitchCell(
+      selectElementWithMatcher:chrome_test_util::TableViewSwitchCell(
                                    @"blockPopupsContentView_switch", YES)]
-      performAction:chrome_test_util::TurnSettingsSwitchOn(NO)];
+      performAction:chrome_test_util::TurnTableViewSwitchOn(NO)];
   [[EarlGrey selectElementWithMatcher:grey_text(base::SysUTF8ToNSString(
                                           allowedPattern))]
       assertWithMatcher:grey_notVisible()];
@@ -206,9 +206,9 @@ class ScopedBlockPopupsException {
 
   // Toggle the switch back on via the UI and make sure the exceptions are now
   // visible.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::SettingsSwitchCell(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::TableViewSwitchCell(
                                           @"blockPopupsContentView_switch", NO)]
-      performAction:chrome_test_util::TurnSettingsSwitchOn(YES)];
+      performAction:chrome_test_util::TurnTableViewSwitchOn(YES)];
   [[EarlGrey selectElementWithMatcher:grey_text(base::SysUTF8ToNSString(
                                           allowedPattern))]
       assertWithMatcher:grey_sufficientlyVisible()];

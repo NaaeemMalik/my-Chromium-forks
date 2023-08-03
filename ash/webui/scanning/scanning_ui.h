@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,18 @@
 #include "ash/webui/common/mojom/accessibility_features.mojom.h"
 #include "ash/webui/scanning/mojom/scanning.mojom-forward.h"
 #include "ash/webui/scanning/scanning_handler.h"
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "ui/webui/mojo_web_ui_controller.h"
+#include "ui/webui/resources/cr_components/color_change_listener/color_change_listener.mojom.h"
 
 namespace content {
 class WebUI;
 }  // namespace content
+
+namespace ui {
+class ColorChangeHandler;
+}
 
 namespace ash {
 
@@ -52,10 +57,17 @@ class ScanningUI : public ui::MojoWebUIController {
   void BindInterface(mojo::PendingReceiver<common::mojom::AccessibilityFeatures>
                          pending_receiver);
 
+  void BindInterface(
+      mojo::PendingReceiver<color_change_listener::mojom::PageHandler>
+          receiver);
+
  private:
   const BindScanServiceCallback bind_pending_receiver_callback_;
 
   std::unique_ptr<AccessibilityFeatures> accessibility_features_;
+  // The color change handler notifies the WebUI when the color provider
+  // changes.
+  std::unique_ptr<ui::ColorChangeHandler> color_provider_handler_;
 
   WEB_UI_CONTROLLER_TYPE_DECL();
 };

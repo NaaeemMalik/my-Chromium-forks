@@ -1,12 +1,14 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/webui/net_export_ui.h"
 
+#include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
+#include "build/build_config.h"
 #include "components/net_log/net_export_file_writer.h"
 #include "components/net_log/net_export_ui_constants.h"
 #include "content/public/browser/browser_context.h"
@@ -18,7 +20,7 @@
 #include "weblayer/browser/system_network_context_manager.h"
 #include "weblayer/grit/weblayer_resources.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/browser_ui/share/android/intent_helper.h"
 #endif
 
@@ -39,30 +41,30 @@ class NetExportMessageHandler
   NetExportMessageHandler(const NetExportMessageHandler&) = delete;
   NetExportMessageHandler& operator=(const NetExportMessageHandler&) = delete;
 
-  ~NetExportMessageHandler() override { file_writer_->StopNetLog(nullptr); }
+  ~NetExportMessageHandler() override { file_writer_->StopNetLog(); }
 
   // content::WebUIMessageHandler implementation.
   void RegisterMessages() override {
-    web_ui()->RegisterDeprecatedMessageCallback(
+    web_ui()->RegisterMessageCallback(
         net_log::kEnableNotifyUIWithStateHandler,
         base::BindRepeating(&NetExportMessageHandler::OnEnableNotifyUIWithState,
                             base::Unretained(this)));
-    web_ui()->RegisterDeprecatedMessageCallback(
+    web_ui()->RegisterMessageCallback(
         net_log::kStartNetLogHandler,
         base::BindRepeating(&NetExportMessageHandler::OnStartNetLog,
                             base::Unretained(this)));
-    web_ui()->RegisterDeprecatedMessageCallback(
+    web_ui()->RegisterMessageCallback(
         net_log::kStopNetLogHandler,
         base::BindRepeating(&NetExportMessageHandler::OnStopNetLog,
                             base::Unretained(this)));
-    web_ui()->RegisterDeprecatedMessageCallback(
+    web_ui()->RegisterMessageCallback(
         net_log::kSendNetLogHandler,
         base::BindRepeating(&NetExportMessageHandler::OnSendNetLog,
                             base::Unretained(this)));
   }
 
   // Messages
-  void OnEnableNotifyUIWithState(const base::ListValue* list) {
+  void OnEnableNotifyUIWithState(const base::Value::List& list) {
     AllowJavascript();
     if (!state_observation_manager_.IsObserving()) {
       state_observation_manager_.Observe(file_writer_.get());
@@ -70,9 +72,7 @@ class NetExportMessageHandler
     NotifyUIWithState(file_writer_->GetState());
   }
 
-  void OnStartNetLog(const base::ListValue* list) {
-    base::Value::ConstListView params = list->GetList();
-
+  void OnStartNetLog(const base::Value::List& params) {
     // Determine the capture mode.
     if (!params.empty() && params[0].is_string()) {
       capture_mode_ = net_log::NetExportFileWriter::CaptureModeFromString(
@@ -86,24 +86,24 @@ class NetExportMessageHandler
     StartNetLog(base::FilePath());
   }
 
-  void OnStopNetLog(const base::ListValue* list) {
-    file_writer_->StopNetLog(nullptr);
+  void OnStopNetLog(const base::Value::List& list) {
+    file_writer_->StopNetLog();
   }
 
-  void OnSendNetLog(const base::ListValue* list) {
+  void OnSendNetLog(const base::Value::List& list) {
     file_writer_->GetFilePathToCompletedLog(
         base::BindOnce(&NetExportMessageHandler::SendEmail));
   }
 
   // net_log::NetExportFileWriter::StateObserver implementation.
-  void OnNewState(const base::DictionaryValue& state) override {
-    NotifyUIWithState(state.CreateDeepCopy());
+  void OnNewState(const base::Value::Dict& state) override {
+    NotifyUIWithState(state);
   }
 
  private:
   // Send NetLog data via email.
   static void SendEmail(const base::FilePath& file_to_send) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     if (file_to_send.empty())
       return;
     std::string email;
@@ -133,8 +133,8 @@ class NetExportMessageHandler
 
   // Fires net-log-info-changed event to update the JavaScript UI in the
   // renderer.
-  void NotifyUIWithState(std::unique_ptr<base::DictionaryValue> state) {
-    FireWebUIListener(net_log::kNetLogInfoChangedEvent, *state);
+  void NotifyUIWithState(const base::Value::Dict& state) {
+    FireWebUIListener(net_log::kNetLogInfoChangedEvent, state);
   }
 
   // Cached pointer to SystemNetworkContextManager's NetExportFileWriter.
@@ -159,14 +159,12 @@ const char kChromeUINetExportHost[] = "net-export";
 NetExportUI::NetExportUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   web_ui->AddMessageHandler(std::make_unique<NetExportMessageHandler>());
 
-  content::WebUIDataSource* source =
-      content::WebUIDataSource::Create(kChromeUINetExportHost);
+  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
+      web_ui->GetWebContents()->GetBrowserContext(), kChromeUINetExportHost);
   source->UseStringsJs();
   source->AddResourcePath(net_log::kNetExportUICSS, IDR_NET_LOG_NET_EXPORT_CSS);
   source->AddResourcePath(net_log::kNetExportUIJS, IDR_NET_LOG_NET_EXPORT_JS);
   source->SetDefaultResource(IDR_NET_LOG_NET_EXPORT_HTML);
-  content::WebUIDataSource::Add(web_ui->GetWebContents()->GetBrowserContext(),
-                                source);
 }
 
 NetExportUI::~NetExportUI() = default;

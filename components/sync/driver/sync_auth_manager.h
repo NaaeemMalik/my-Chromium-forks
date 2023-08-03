@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,13 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/sync/driver/sync_auth_util.h"
 #include "components/sync/driver/sync_token_status.h"
 #include "components/sync/engine/connection_status.h"
 #include "google_apis/gaia/google_service_auth_error.h"
@@ -28,9 +27,15 @@ struct AccessTokenInfo;
 
 namespace syncer {
 
-extern const base::Feature kSyncRetryFirstCanceledTokenFetch;
-
 struct SyncCredentials;
+
+struct SyncAccountInfo {
+  SyncAccountInfo();
+  SyncAccountInfo(const CoreAccountInfo& account_info, bool is_sync_consented);
+
+  CoreAccountInfo account_info;
+  bool is_sync_consented = false;
+};
 
 // SyncAuthManager tracks the account to be used for Sync and its authentication
 // state. Note that this account may or may not be the primary account (as per
@@ -114,6 +119,9 @@ class SyncAuthManager : public signin::IdentityManager::Observer {
       const CoreAccountInfo& account_info) override;
   void OnRefreshTokenRemovedForAccount(
       const CoreAccountId& account_id) override;
+  void OnErrorStateOfRefreshTokenUpdatedForAccount(
+      const CoreAccountInfo& account_info,
+      const GoogleServiceAuthError& error) override;
   void OnRefreshTokensLoaded() override;
 
   // Test-only methods for inspecting/modifying internal state.

@@ -1,14 +1,16 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ASH_BOREALIS_BOREALIS_DISK_MANAGER_IMPL_H_
 #define CHROME_BROWSER_ASH_BOREALIS_BOREALIS_DISK_MANAGER_IMPL_H_
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "chrome/browser/ash/borealis/borealis_context_manager.h"
+#include "chrome/browser/ash/borealis/borealis_context.h"
 #include "chrome/browser/ash/borealis/borealis_disk_manager.h"
+#include "chrome/browser/ash/borealis/borealis_service.h"
 
 namespace borealis {
 // Amount of space, in bytes, that borealis needs to leave free on the host.
@@ -24,7 +26,8 @@ class BorealisDiskManagerImpl : public BorealisDiskManager {
    public:
     FreeSpaceProvider() = default;
     virtual ~FreeSpaceProvider() = default;
-    virtual void Get(base::OnceCallback<void(int64_t)> callback);
+    virtual void Get(
+        base::OnceCallback<void(absl::optional<int64_t>)> callback);
   };
 
   explicit BorealisDiskManagerImpl(const BorealisContext* context);
@@ -109,8 +112,9 @@ class BorealisDiskManagerImpl : public BorealisDiskManager {
       Expected<std::unique_ptr<BorealisSyncDiskSizeResult>,
                Described<BorealisSyncDiskSizeResult>> success_or_error);
 
-  const BorealisContext* const context_;
-  int request_count_;
+  const raw_ptr<const BorealisContext, ExperimentalAsh> context_;
+  const raw_ptr<BorealisService, ExperimentalAsh> service_;
+  int request_count_{0};
   std::unique_ptr<BuildDiskInfo> build_disk_info_transition_;
   std::unique_ptr<ResizeDisk> resize_disk_transition_;
   std::unique_ptr<SyncDisk> sync_disk_transition_;

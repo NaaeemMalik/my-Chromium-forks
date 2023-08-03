@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,14 @@ namespace web_app {
 ServiceWorkerRegistrationWaiter::ServiceWorkerRegistrationWaiter(
     content::BrowserContext* browser_context,
     const GURL& url)
+    : ServiceWorkerRegistrationWaiter(
+          browser_context->GetStoragePartitionForUrl(url),
+          url) {}
+
+ServiceWorkerRegistrationWaiter::ServiceWorkerRegistrationWaiter(
+    content::StoragePartition* storage_partition,
+    const GURL& url)
     : url_(std::move(url)) {
-  content::StoragePartition* storage_partition =
-      browser_context->GetStoragePartitionForUrl(url_);
   DCHECK(storage_partition);
 
   service_worker_context_ = storage_partition->GetServiceWorkerContext();
@@ -27,8 +32,9 @@ ServiceWorkerRegistrationWaiter::~ServiceWorkerRegistrationWaiter() {
     service_worker_context_->RemoveObserver(this);
 }
 
-void ServiceWorkerRegistrationWaiter::AwaitRegistration() {
-  run_loop_.Run();
+void ServiceWorkerRegistrationWaiter::AwaitRegistration(
+    const base::Location& location) {
+  run_loop_.Run(location);
 }
 
 void ServiceWorkerRegistrationWaiter::OnRegistrationCompleted(

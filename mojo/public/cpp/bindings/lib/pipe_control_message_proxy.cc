@@ -1,13 +1,14 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "mojo/public/cpp/bindings/pipe_control_message_proxy.h"
 
 #include <stddef.h>
+
+#include <tuple>
 #include <utility>
 
-#include "base/ignore_result.h"
 #include "mojo/public/cpp/bindings/lib/message_fragment.h"
 #include "mojo/public/cpp/bindings/lib/serialization.h"
 #include "mojo/public/cpp/bindings/message.h"
@@ -45,21 +46,21 @@ void PipeControlMessageProxy::NotifyPeerEndpointClosed(
     const absl::optional<DisconnectReason>& reason) {
   Message message(ConstructPeerEndpointClosedMessage(id, reason));
   message.set_heap_profiler_tag(kMessageTag);
-  ignore_result(receiver_->Accept(&message));
+  std::ignore = receiver_->Accept(&message);
 }
 
 void PipeControlMessageProxy::PausePeerUntilFlushCompletes(PendingFlush flush) {
   auto input = pipe_control::RunOrClosePipeInput::NewPauseUntilFlushCompletes(
       pipe_control::PauseUntilFlushCompletes::New(flush.PassPipe()));
   Message message(ConstructRunOrClosePipeMessage(std::move(input)));
-  ignore_result(receiver_->Accept(&message));
+  std::ignore = receiver_->Accept(&message);
 }
 
 void PipeControlMessageProxy::FlushAsync(AsyncFlusher flusher) {
   auto input = pipe_control::RunOrClosePipeInput::NewFlushAsync(
       pipe_control::FlushAsync::New(flusher.PassPipe()));
   Message message(ConstructRunOrClosePipeMessage(std::move(input)));
-  ignore_result(receiver_->Accept(&message));
+  std::ignore = receiver_->Accept(&message);
 }
 
 // static

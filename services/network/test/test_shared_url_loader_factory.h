@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace net {
-class TestURLRequestContext;
+class URLRequestContext;
 }
 
 namespace network {
@@ -56,7 +56,7 @@ class TestSharedURLLoaderFactory : public SharedURLLoaderFactory {
 
   // Tracks the number of times |CreateLoaderAndStart()| has been called.
   int num_created_loaders_ = 0;
-  std::unique_ptr<net::TestURLRequestContext> url_request_context_;
+  std::unique_ptr<net::URLRequestContext> url_request_context_;
   std::unique_ptr<NetworkContext> network_context_;
   mojo::Remote<mojom::URLLoaderFactory> url_loader_factory_;
 };

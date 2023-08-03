@@ -1,26 +1,31 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ash/components/audio/cras_audio_handler.h"
+#include "ash/public/cpp/test/app_list_test_api.h"
+#include "base/command_line.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/scoped_run_loop_timeout.h"
 #include "base/time/time.h"
 #include "chrome/browser/ui/ash/assistant/assistant_test_mixin.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
-#include "chromeos/assistant/test_support/expect_utils.h"
+#include "chromeos/ash/components/assistant/test_support/expect_utils.h"
+#include "chromeos/ash/components/audio/cras_audio_handler.h"
+#include "chromeos/ash/services/assistant/public/cpp/features.h"
+#include "chromeos/ash/services/assistant/public/cpp/switches.h"
+#include "chromeos/ash/services/assistant/service.h"
 #include "chromeos/dbus/power_manager/backlight.pb.h"
-#include "chromeos/services/assistant/public/cpp/features.h"
-#include "chromeos/services/assistant/service.h"
 #include "content/public/test/browser_test.h"
+#include "sandbox/policy/switches.h"
 
-namespace chromeos {
-namespace assistant {
+namespace ash::assistant {
+
 namespace {
 
-using ::ash::CrasAudioHandler;
+using test::ExpectResult;
 
 // Please remember to set auth token when running in |kProxy| mode.
 constexpr auto kMode = FakeS3Mode::kReplay;
@@ -28,6 +33,12 @@ constexpr auto kMode = FakeS3Mode::kReplay;
 constexpr int kVersion = 1;
 
 constexpr int kStartBrightnessPercent = 50;
+
+inline constexpr char kDlcInstallResultHistogram[] =
+    "Assistant.Libassistant.DlcInstallResult";
+
+inline constexpr char kDlcLoadStatusHistogram[] =
+    "Assistant.Libassistant.DlcLoadStatus";
 
 // Ensures that |value_| is within the range {min_, max_}. If it isn't, this
 // will print a nice error message.
@@ -40,14 +51,24 @@ constexpr int kStartBrightnessPercent = 50;
 
 }  // namespace
 
-using chromeos::assistant::test::ExpectResult;
-
-class AssistantBrowserTest : public MixinBasedInProcessBrowserTest {
+class AssistantBrowserTest : public MixinBasedInProcessBrowserTest,
+                             public testing::WithParamInterface<bool> {
  public:
   AssistantBrowserTest() {
-    // TODO(b/190633242): enable sandbox in browser tests.
-    feature_list_.InitAndDisableFeature(
-        chromeos::assistant::features::kEnableLibAssistantSandbox);
+    // Disable V2 feature because LibAssistant V2 binary does not run on linux
+    // bot.
+    feature_list_.InitAndDisableFeature(features::kEnableLibAssistantV2);
+
+    // Do not log to file in test. Otherwise multiple tests may create/delete
+    // the log file at the same time. See http://crbug.com/1307868.
+    base::CommandLine::ForCurrentProcess()->AppendSwitch(
+        switches::kDisableLibAssistantLogfile);
+
+    // In browser tests, the fake_s3_server uses gRPC framework, which is not
+    // allowed in the sandbox by default. Instead of enabling and setting up the
+    // gRPC policy, we do not enable sandbox in the tests.
+    base::CommandLine::ForCurrentProcess()->AppendSwitch(
+        sandbox::policy::switches::kNoSandbox);
   }
 
   AssistantBrowserTest(const AssistantBrowserTest&) = delete;
@@ -60,6 +81,10 @@ class AssistantBrowserTest : public MixinBasedInProcessBrowserTest {
   void ShowAssistantUi() {
     if (!tester()->IsVisible())
       tester()->PressAssistantKey();
+
+    // Make sure that the app list bubble finished showing.
+    AppListTestApi().WaitForBubbleWindow(
+        /*wait_for_opening_animation=*/false);
   }
 
   void CloseAssistantUi() {
@@ -120,8 +145,11 @@ class AssistantBrowserTest : public MixinBasedInProcessBrowserTest {
         }));
   }
 
+  base::HistogramTester* histogram_tester() { return &histogram_tester_; }
+
  private:
   base::test::ScopedFeatureList feature_list_;
+  base::HistogramTester histogram_tester_;
   AssistantTestMixin tester_{&mixin_host_, this, embedded_test_server(), kMode,
                              kVersion};
 };
@@ -132,12 +160,17 @@ IN_PROC_BROWSER_TEST_F(AssistantBrowserTest,
 
   tester()->PressAssistantKey();
 
+  // Make sure that the app list bubble finished showing (the app list view gets
+  // created asynchronously).
+  AppListTestApi().WaitForBubbleWindow(
+      /*wait_for_opening_animation=*/false);
+
   EXPECT_TRUE(tester()->IsVisible());
+  histogram_tester()->ExpectTotalCount(kDlcInstallResultHistogram, 1);
+  histogram_tester()->ExpectTotalCount(kDlcLoadStatusHistogram, 1);
 }
 
-// TODO(b/184802501): Fix this flaky test.
-IN_PROC_BROWSER_TEST_F(AssistantBrowserTest,
-                       DISABLED_ShouldDisplayTextResponse) {
+IN_PROC_BROWSER_TEST_F(AssistantBrowserTest, ShouldDisplayTextResponse) {
   tester()->StartAssistantAndWaitForReady();
 
   ShowAssistantUi();
@@ -152,9 +185,24 @@ IN_PROC_BROWSER_TEST_F(AssistantBrowserTest,
   });
 }
 
-// Flaky. See https://crbug.com/1196560.
 IN_PROC_BROWSER_TEST_F(AssistantBrowserTest,
-                       DISABLED_ShouldDisplayCardResponse) {
+                       ShouldDisplayTextResponseWithTwoContiniousQueries) {
+  tester()->StartAssistantAndWaitForReady();
+
+  ShowAssistantUi();
+
+  tester()->SendTextQuery("phone");
+  tester()->SendTextQuery("test");
+  tester()->ExpectAnyOfTheseTextResponses({
+      "No one told me there would be a test",
+      "You're coming in loud and clear",
+      "debug OK",
+      "I can assure you, this thing's on",
+      "Is this thing on?",
+  });
+}
+
+IN_PROC_BROWSER_TEST_F(AssistantBrowserTest, ShouldDisplayCardResponse) {
   tester()->StartAssistantAndWaitForReady();
 
   ShowAssistantUi();
@@ -277,5 +325,4 @@ IN_PROC_BROWSER_TEST_F(AssistantBrowserTest,
   CloseAssistantUi();
 }
 
-}  // namespace assistant
-}  // namespace chromeos
+}  // namespace ash::assistant

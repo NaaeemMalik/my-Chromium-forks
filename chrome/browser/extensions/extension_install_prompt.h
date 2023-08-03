@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,18 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
 #include "base/threading/thread_checker.h"
+#include "base/values.h"
 #include "chrome/browser/extensions/install_prompt_permissions.h"
 #include "chrome/common/buildflags.h"
+#include "components/supervised_user/core/common/buildflags.h"
 #include "extensions/common/permissions/permission_message.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/image/image.h"
@@ -28,10 +30,6 @@
 
 class ExtensionInstallPromptShowParams;
 class Profile;
-
-namespace base {
-class DictionaryValue;
-}  // namespace base
 
 namespace content {
 class BrowserContext;
@@ -68,7 +66,7 @@ class ExtensionInstallPrompt {
     REPAIR_PROMPT = 9,
     DELEGATED_PERMISSIONS_PROMPT = 10,
     // DELEGATED_BUNDLE_PERMISSIONS_PROMPT_DEPRECATED = 11,
-    WEBSTORE_WIDGET_PROMPT = 12,
+    // WEBSTORE_WIDGET_PROMPT_DEPRECATED = 12,
     EXTENSION_REQUEST_PROMPT = 13,
     EXTENSION_PENDING_REQUEST_PROMPT = 14,
     NUM_PROMPT_TYPES = 15,
@@ -137,7 +135,10 @@ class ExtensionInstallPrompt {
 #endif  // BUILDFLAG(ENABLE_SUPERVISED_USERS)
 
     bool ShouldShowPermissions() const;
-    bool ShouldDisplayWithholdingUI() const;
+
+    // Returns whether the dialog should withheld permissions if the dialog is
+    // accepted.
+    bool ShouldWithheldPermissionsOnDialogAccept() const;
 
     // Getters for webstore metadata. Only populated when the type is
     // INLINE_INSTALL_PROMPT, EXTERNAL_INSTALL_PROMPT, or REPAIR_PROMPT.
@@ -216,7 +217,7 @@ class ExtensionInstallPrompt {
     bool is_requesting_host_permissions_;
 
     // The extension being installed.
-    raw_ptr<const extensions::Extension> extension_;
+    raw_ptr<const extensions::Extension, DanglingUntriaged> extension_;
 
     std::string delegated_username_;
 
@@ -250,7 +251,7 @@ class ExtensionInstallPrompt {
 
   enum class Result {
     ACCEPTED,
-    ACCEPTED_AND_OPTION_CHECKED,
+    ACCEPTED_WITH_WITHHELD_PERMISSIONS,
     USER_CANCELED,
     ABORTED,
   };
@@ -285,7 +286,7 @@ class ExtensionInstallPrompt {
   // Creates a dummy extension from the |manifest|, replacing the name and
   // description with the localizations if provided.
   static scoped_refptr<extensions::Extension> GetLocalizedExtensionForDisplay(
-      const base::DictionaryValue* manifest,
+      const base::Value::Dict& manifest,
       int flags,  // Extension::InitFromValueFlags
       const std::string& id,
       const std::string& localized_name,

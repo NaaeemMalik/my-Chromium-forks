@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,39 +6,38 @@
 
 #import <UIKit/UIKit.h>
 
-#include <memory>
+#import <memory>
 
-#include "base/bind.h"
-#include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/signin/public/identity_manager/identity_test_environment.h"
-#include "components/signin/public/identity_manager/primary_account_mutator.h"
-#include "components/sync/driver/sync_service.h"
-#include "components/sync/test/model/fake_model_type_controller_delegate.h"
-#include "components/sync_sessions/open_tabs_ui_delegate.h"
-#include "components/sync_sessions/session_sync_service.h"
-#include "components/sync_user_events/global_id_mapper.h"
-#include "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#include "ios/chrome/browser/main/test_browser.h"
-#include "ios/chrome/browser/sessions/ios_chrome_tab_restore_service_factory.h"
+#import "base/functional/bind.h"
+#import "components/signin/public/identity_manager/identity_manager.h"
+#import "components/signin/public/identity_manager/identity_test_environment.h"
+#import "components/signin/public/identity_manager/primary_account_mutator.h"
+#import "components/sync/driver/sync_service.h"
+#import "components/sync/test/fake_model_type_controller_delegate.h"
+#import "components/sync_sessions/open_tabs_ui_delegate.h"
+#import "components/sync_sessions/session_sync_service.h"
+#import "components/sync_user_events/global_id_mapper.h"
+#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/main/test_browser.h"
+#import "ios/chrome/browser/sessions/ios_chrome_tab_restore_service_factory.h"
+#import "ios/chrome/browser/shared/public/commands/application_commands.h"
+#import "ios/chrome/browser/shared/public/commands/browsing_data_commands.h"
+#import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/signin/authentication_service_factory.h"
-#import "ios/chrome/browser/signin/authentication_service_fake.h"
-#include "ios/chrome/browser/sync/session_sync_service_factory.h"
-#include "ios/chrome/browser/sync/sync_setup_service.h"
-#include "ios/chrome/browser/sync/sync_setup_service_factory.h"
-#include "ios/chrome/browser/sync/sync_setup_service_mock.h"
-#include "ios/chrome/browser/ui/commands/application_commands.h"
-#import "ios/chrome/browser/ui/commands/browsing_data_commands.h"
-#include "ios/chrome/browser/ui/commands/command_dispatcher.h"
+#import "ios/chrome/browser/signin/fake_authentication_service_delegate.h"
+#import "ios/chrome/browser/sync/session_sync_service_factory.h"
+#import "ios/chrome/browser/sync/sync_setup_service.h"
+#import "ios/chrome/browser/sync/sync_setup_service_factory.h"
+#import "ios/chrome/browser/sync/sync_setup_service_mock.h"
 #import "ios/chrome/browser/ui/recent_tabs/sessions_sync_user_state.h"
-#import "ios/chrome/browser/web_state_list/fake_web_state_list_delegate.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
-#include "ios/chrome/test/block_cleanup_test.h"
-#include "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
-#include "ios/web/public/test/web_task_environment.h"
-#include "testing/gtest/include/gtest/gtest.h"
+#import "ios/chrome/test/block_cleanup_test.h"
+#import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
+#import "ios/web/public/test/web_task_environment.h"
+#import "testing/gtest/include/gtest/gtest.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
 #import "third_party/ocmock/gtest_support.h"
-#include "url/gurl.h"
+#import "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -111,18 +110,13 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
  public:
   RecentTabsTableCoordinatorTest()
       : no_error_(GoogleServiceAuthError::NONE),
-        fake_controller_delegate_(syncer::SESSIONS),
-        web_state_list_(&web_state_list_delegate_) {}
+        fake_controller_delegate_(syncer::SESSIONS) {}
 
  protected:
   void SetUp() override {
     BlockCleanupTest::SetUp();
 
     TestChromeBrowserState::Builder test_cbs_builder;
-    test_cbs_builder.AddTestingFactory(
-        AuthenticationServiceFactory::GetInstance(),
-        base::BindRepeating(
-            &AuthenticationServiceFake::CreateAuthenticationService));
     test_cbs_builder.AddTestingFactory(
         SyncSetupServiceFactory::GetInstance(),
         base::BindRepeating(&SyncSetupServiceMock::CreateKeyedService));
@@ -135,12 +129,9 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
         IOSChromeTabRestoreServiceFactory::GetDefaultFactory());
     test_cbs_builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        base::BindRepeating(
-            &AuthenticationServiceFake::CreateAuthenticationService));
+        AuthenticationServiceFactory::GetDefaultFactory());
     chrome_browser_state_ = test_cbs_builder.Build();
-
-    browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get(),
-                                             &web_state_list_);
+    browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get());
   }
 
   void TearDown() override {
@@ -165,7 +156,7 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
       // GetPrimaryAccountMutator() returns nullptr on ChromeOS only.
       DCHECK(account_mutator);
       account_mutator->ClearPrimaryAccount(
-          signin_metrics::SIGNOUT_TEST,
+          signin_metrics::ProfileSignout::kTest,
           signin_metrics::SignoutDelete::kIgnoreMetric);
     }
 
@@ -188,8 +179,6 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
         .WillByDefault(Return(syncEnabled));
     ON_CALL(*syncSetupService, IsDataTypePreferred(syncer::PROXY_TABS))
         .WillByDefault(Return(true));
-    ON_CALL(*syncSetupService, GetSyncServiceState())
-        .WillByDefault(Return(SyncSetupService::kNoSyncServiceError));
 
     if (syncCompleted) {
       ON_CALL(*session_sync_service, GetOpenTabsUIDelegate())
@@ -197,6 +186,9 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
       ON_CALL(open_tabs_ui_delegate_, GetAllForeignSessions(_))
           .WillByDefault(Return(hasForeignSessions));
     }
+    AuthenticationServiceFactory::CreateAndInitializeForBrowserState(
+        chrome_browser_state_.get(),
+        std::make_unique<FakeAuthenticationServiceDelegate>());
   }
 
   void CreateController() {
@@ -230,14 +222,12 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
   signin::IdentityTestEnvironment identity_test_env_;
 
   syncer::FakeModelTypeControllerDelegate fake_controller_delegate_;
-  FakeWebStateListDelegate web_state_list_delegate_;
-  WebStateList web_state_list_;
   testing::NiceMock<OpenTabsUIDelegateMock> open_tabs_ui_delegate_;
   testing::NiceMock<GlobalIdMapperMock> global_id_mapper_;
   std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
   std::unique_ptr<Browser> browser_;
 
-  // Must be declared *after* |chrome_browser_state_| so it can outlive it.
+  // Must be declared *after* `chrome_browser_state_` so it can outlive it.
   RecentTabsCoordinator* coordinator_;
   id<ApplicationCommands> mock_application_commands_handler_;
   id<ApplicationSettingsCommands> mock_application_settings_commands_handler_;

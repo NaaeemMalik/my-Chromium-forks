@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ class FilePath;
 // This file declares path keys for the chromeos module.  These can be used with
 // the PathService to access various special directories and files.
 
-namespace chromeos {
+namespace ash {
 
 enum {
   PATH_START = 7000,
@@ -23,6 +23,7 @@ enum {
                            // default app order.
   FILE_MACHINE_INFO,       // Full path to machine hardware info file.
   FILE_VPD,                // Full path to VPD file.
+  FILE_VPD_STATUS,         // Full path to VPD status file.
   FILE_UPTIME,             // Full path to the file via which the kernel
                            // exposes the current device uptime.
   FILE_UPDATE_REBOOT_NEEDED_UPTIME,  // Full path to a file in which Chrome can
@@ -72,28 +73,6 @@ COMPONENT_EXPORT(ASH_CONSTANTS) void RegisterPathProvider();
 COMPONENT_EXPORT(ASH_CONSTANTS)
 void RegisterStubPathOverrides(const base::FilePath& stubs_dir);
 
-}  // namespace chromeos
-
-// TODO(https://crbug.com/1164001): remove when moved to ash.
-namespace ash {
-using ::chromeos::DIR_DEVICE_DISPLAY_PROFILES;
-using ::chromeos::DIR_DEVICE_DISPLAY_PROFILES_VPD;
-using ::chromeos::DIR_DEVICE_EXTENSION_LOCAL_CACHE;
-using ::chromeos::DIR_DEVICE_LOCAL_ACCOUNT_COMPONENT_POLICY;
-using ::chromeos::DIR_DEVICE_LOCAL_ACCOUNT_EXTENSIONS;
-using ::chromeos::DIR_DEVICE_LOCAL_ACCOUNT_EXTERNAL_DATA;
-using ::chromeos::DIR_DEVICE_POLICY_EXTERNAL_DATA;
-using ::chromeos::DIR_PREINSTALLED_COMPONENTS;
-using ::chromeos::DIR_SIGNIN_PROFILE_COMPONENT_POLICY;
-using ::chromeos::DIR_SIGNIN_PROFILE_EXTENSIONS;
-using ::chromeos::FILE_DEFAULT_APP_ORDER;
-using ::chromeos::FILE_MACHINE_INFO;
-using ::chromeos::FILE_STARTUP_CUSTOMIZATION_MANIFEST;
-using ::chromeos::FILE_UPDATE_REBOOT_NEEDED_UPTIME;
-using ::chromeos::FILE_UPTIME;
-using ::chromeos::FILE_VPD;
-using ::chromeos::PATH_END;
-using ::chromeos::PATH_START;
 }  // namespace ash
 
 #endif  // ASH_CONSTANTS_ASH_PATHS_H_

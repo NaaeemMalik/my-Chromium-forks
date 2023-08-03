@@ -5,9 +5,12 @@
 <link rel="stylesheet" href="gtx://resources/css/md_colors.css">
 
 <template>
-  <style include="cr-shared-style">
-    html {
-      background-color: var(--cros-bg-color);
+  <style include="cr-shared-style cros-color-overrides">
+    @media (prefers-color-scheme: dark) {
+      cr-dialog::part(dialog) {
+        background-color: var(--cros-bg-color-elevation-3);
+        background-image: initial;
+      }
     }
   </style>
 </template>

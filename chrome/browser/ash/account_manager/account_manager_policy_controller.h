@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 #define CHROME_BROWSER_ASH_ACCOUNT_MANAGER_ACCOUNT_MANAGER_POLICY_CONTROLLER_H_
 
 #include <memory>
-#include <string>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ash/account_manager/child_account_type_changed_user_data.h"
 #include "components/account_id/account_id.h"
@@ -59,23 +59,15 @@ class AccountManagerPolicyController : public KeyedService {
   // |type_changed| is be set to true.
   void OnChildAccountTypeChanged(bool type_changed);
 
-  // Checks if invalidation version for parental consent in EDU accounts
-  // addition has changed. If so, calls
-  // |InvalidateSecondaryAccountsOnEduConsentChange|.
-  void CheckEduCoexistenceSecondaryAccountsInvalidationVersion();
-
-  // Invalidates all secondary accounts and updates consent text version.
-  void InvalidateSecondaryAccountsOnEduConsentChange(
-      const std::string& new_invalidation_version,
-      const std::vector<::account_manager::Account>& accounts);
-
   // KeyedService implementation.
   void Shutdown() override;
 
   // Non-owning pointers.
-  Profile* const profile_;
-  account_manager::AccountManager* const account_manager_;
-  account_manager::AccountManagerFacade* const account_manager_facade_;
+  const raw_ptr<Profile, ExperimentalAsh> profile_;
+  const raw_ptr<account_manager::AccountManager, ExperimentalAsh>
+      account_manager_;
+  const raw_ptr<account_manager::AccountManagerFacade, ExperimentalAsh>
+      account_manager_facade_;
 
   const AccountId device_account_id_;
 

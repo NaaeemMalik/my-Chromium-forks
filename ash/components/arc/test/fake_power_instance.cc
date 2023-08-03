@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 
 namespace arc {
 
@@ -17,11 +17,6 @@ FakePowerInstance::~FakePowerInstance() = default;
 
 FakePowerInstance::SuspendCallback FakePowerInstance::GetSuspendCallback() {
   return std::move(suspend_callback_);
-}
-
-void FakePowerInstance::InitDeprecated(
-    mojo::PendingRemote<mojom::PowerHost> host_remote) {
-  Init(std::move(host_remote), base::DoNothing());
 }
 
 void FakePowerInstance::Init(mojo::PendingRemote<mojom::PowerHost> host_remote,

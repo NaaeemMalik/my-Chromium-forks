@@ -28,7 +28,7 @@
 #include "third_party/blink/renderer/core/svg/svg_tests.h"
 #include "third_party/blink/renderer/core/svg/svg_unit_types.h"
 #include "third_party/blink/renderer/core/svg/svg_uri_reference.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
@@ -44,8 +44,6 @@ class SVGPatternElement final : public SVGElement,
 
  public:
   explicit SVGPatternElement(Document&);
-
-  void CollectPatternAttributes(PatternAttributes&) const;
 
   AffineTransform LocalCoordinateSpaceTransform(CTMScope) const override;
 
@@ -77,6 +75,7 @@ class SVGPatternElement final : public SVGElement,
   void InvalidatePattern(LayoutInvalidationReasonForTracing);
   void InvalidateDependentPatterns();
 
+  PatternAttributes CollectPatternAttributes() const;
   const SVGPatternElement* ReferencedElement() const;
 
   void Trace(Visitor*) const override;
@@ -97,7 +96,7 @@ class SVGPatternElement final : public SVGElement,
   void BuildPendingResource() override;
   void ClearResourceReferences();
 
-  LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
+  LayoutObject* CreateLayoutObject(const ComputedStyle&) override;
 
   bool SelfHasRelativeLengths() const override;
 

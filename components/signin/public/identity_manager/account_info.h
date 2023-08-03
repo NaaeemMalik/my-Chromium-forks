@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "google_apis/gaia/core_account_id.h"
 #include "ui/gfx/image/image.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/scoped_java_ref.h"
 #endif
 
@@ -25,7 +25,7 @@ extern const char kNoPictureURLFound[];
 
 // Stores the basic information about an account that is always known
 // about the account (from the moment it is added to the system until
-// it is removed). It will unfrequently, if ever, change.
+// it is removed). It will infrequently, if ever, change.
 struct CoreAccountInfo {
   CoreAccountInfo();
   ~CoreAccountInfo();
@@ -87,6 +87,10 @@ struct AccountInfo : public CoreAccountInfo {
   // hosted_domain is still unknown (empty), this information will become
   // available asynchronously.
   static bool IsManaged(const std::string& hosted_domain);
+
+  // Returns true if the account has no hosted domain but is a dasher account.
+  bool IsMemberOfFlexOrg() const;
+
   bool IsManaged() const;
 };
 
@@ -94,7 +98,17 @@ bool operator==(const CoreAccountInfo& l, const CoreAccountInfo& r);
 bool operator!=(const CoreAccountInfo& l, const CoreAccountInfo& r);
 std::ostream& operator<<(std::ostream& os, const CoreAccountInfo& account);
 
-#if defined(OS_ANDROID)
+// Comparing `AccountInfo`s is likely a mistake. You should compare either
+// `CoreAccountId` or `CoreAccountInfo` instead:
+//
+//   AccountInfo l, r;
+//   // if (l == r) {
+//   if (l.account_id == r.account_id) {}
+//
+bool operator==(const AccountInfo& l, const AccountInfo& r) = delete;
+bool operator!=(const AccountInfo& l, const AccountInfo& r) = delete;
+
+#if BUILDFLAG(IS_ANDROID)
 // Constructs a Java CoreAccountInfo from the provided C++ CoreAccountInfo
 base::android::ScopedJavaLocalRef<jobject> ConvertToJavaCoreAccountInfo(
     JNIEnv* env,

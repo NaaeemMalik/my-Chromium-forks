@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,11 +24,11 @@ constexpr char kAlwaysStartWithNoPlayStore[] =
 
 void SetArcAlwaysStartWithoutPlayStoreForTesting() {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      chromeos::switches::kArcStartMode, kAlwaysStartWithNoPlayStore);
+      ash::switches::kArcStartMode, kAlwaysStartWithNoPlayStore);
 }
 
 void SetArcAvailableCommandLineForTesting(base::CommandLine* command_line) {
-  command_line->AppendSwitchASCII(chromeos::switches::kArcAvailability,
+  command_line->AppendSwitchASCII(ash::switches::kArcAvailability,
                                   kAvailabilityOfficiallySupported);
 }
 
@@ -36,10 +36,12 @@ bool GetSystemMemoryInfoForTesting(const std::string& file_name,
                                    base::SystemMemoryInfoKB* mem_info) {
   base::FilePath base_path;
   base::PathService::Get(base::DIR_SOURCE_ROOT, &base_path);
-  const base::FilePath test_path = base_path.Append("components")
+  const base::FilePath test_path = base_path.Append("ash")
+                                       .Append("components")
+                                       .Append("arc")
                                        .Append("test")
                                        .Append("data")
-                                       .Append("arc_mem_profile")
+                                       .Append("mem_profile")
                                        .Append(file_name);
   base::ScopedAllowBlockingForTesting allowBlocking;
   std::string mem_info_data;

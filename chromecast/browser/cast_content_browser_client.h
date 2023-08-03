@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
 #include "build/build_config.h"
@@ -80,7 +81,6 @@ class VideoResolutionPolicy;
 }
 
 namespace shell {
-class AccessibilityServiceImpl;
 class CastBrowserMainParts;
 class CastNetworkContexts;
 
@@ -117,8 +117,7 @@ class CastContentBrowserClient
       media::VideoPlaneController* video_plane_controller,
       CastWindowManager* window_manager,
       CastWebService* web_service,
-      DisplaySettingsManager* display_settings_manager,
-      AccessibilityServiceImpl* accessibility_service);
+      DisplaySettingsManager* display_settings_manager);
 
   virtual media::VideoModeSwitcher* GetVideoModeSwitcher();
 
@@ -146,13 +145,13 @@ class CastContentBrowserClient
   bool OverridesAudioManager() override;
   media::MediaCapsImpl* media_caps();
 
-#if !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
   // Create a BluetoothAdapter for WebBluetooth support.
   // TODO(slan): This further couples the browser to the Cast service. Remove
   // this once the dedicated Bluetooth service has been implemented.
   // (b/76155468)
   virtual scoped_refptr<device::BluetoothAdapterCast> CreateBluetoothAdapter();
-#endif  // !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_FUCHSIA)
 
   // chromecast::metrics::CastMetricsServiceDelegate implementation:
   void SetMetricsClientId(const std::string& client_id) override;
@@ -176,7 +175,7 @@ class CastContentBrowserClient
 
   // content::ContentBrowserClient implementation:
   std::unique_ptr<content::BrowserMainParts> CreateBrowserMainParts(
-      content::MainFunctionParams parameters) override;
+      bool is_integration_test) override;
   void RenderProcessWillLaunch(content::RenderProcessHost* host) override;
   bool IsHandledURL(const GURL& url) override;
   void SiteInstanceGotProcess(content::SiteInstance* site_instance) override;
@@ -187,14 +186,12 @@ class CastContentBrowserClient
   void OverrideWebkitPrefs(content::WebContents* web_contents,
                            blink::web_pref::WebPreferences* prefs) override;
   std::string GetApplicationLocale() override;
-  scoped_refptr<content::QuotaPermissionContext> CreateQuotaPermissionContext()
-      override;
   void AllowCertificateError(
       content::WebContents* web_contents,
       int cert_error,
       const net::SSLInfo& ssl_info,
       const GURL& request_url,
-      bool is_main_frame_request,
+      bool is_primary_main_frame_request,
       bool strict_enforcement,
       base::OnceCallback<void(content::CertificateRequestResultType)> callback)
       override;
@@ -250,6 +247,7 @@ class CastContentBrowserClient
   void RegisterNonNetworkSubresourceURLLoaderFactories(
       int render_process_id,
       int render_frame_id,
+      const absl::optional<url::Origin>& request_initiator_origin,
       NonNetworkURLLoaderFactoryMap* factories) override;
   void OnNetworkServiceCreated(
       network::mojom::NetworkService* network_service) override;
@@ -264,12 +262,17 @@ class CastContentBrowserClient
   bool DoesSiteRequireDedicatedProcess(content::BrowserContext* browser_context,
                                        const GURL& effective_site_url) override;
   bool IsWebUIAllowedToMakeNetworkRequests(const url::Origin& origin) override;
-  // New Mojo bindings should be added to
-  // cast_content_browser_client_receiver_bindings.cc, so that they go through
-  // security review.
-  void BindHostReceiverForRenderer(
-      content::RenderProcessHost* render_process_host,
-      mojo::GenericPendingReceiver receiver) override;
+  bool ShouldAllowInsecureLocalNetworkRequests(
+      content::BrowserContext* browser_context,
+      const url::Origin& origin) override;
+  std::vector<std::unique_ptr<blink::URLLoaderThrottle>>
+  CreateURLLoaderThrottles(
+      const network::ResourceRequest& request,
+      content::BrowserContext* browser_context,
+      const base::RepeatingCallback<content::WebContents*()>& wc_getter,
+      content::NavigationUIData* navigation_ui_data,
+      int frame_tree_node_id) override;
+
   CastFeatureListCreator* GetCastFeatureListCreator() {
     return cast_feature_list_creator_;
   }
@@ -302,6 +305,10 @@ class CastContentBrowserClient
                                bool* mixer_audio_enabled,
                                content::RenderFrameHost* render_frame_host);
 
+  // Returns whether buffering should be used for the CMA Pipeline created for
+  // this runtime instance. May be called from any thread.
+  virtual bool IsBufferingEnabled();
+
  private:
   // Create device cert/key
   virtual scoped_refptr<net::X509Certificate> DeviceCert();
@@ -323,11 +330,11 @@ class CastContentBrowserClient
                               scoped_refptr<net::SSLPrivateKey>)>
           continue_callback);
 
-#if !defined(OS_FUCHSIA)
+#if !BUILDFLAG(IS_FUCHSIA)
   // Returns the crash signal FD corresponding to the current process type.
   int GetCrashSignalFD(const base::CommandLine& command_line);
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Creates a CrashHandlerHost instance for the given process type.
   breakpad::CrashHandlerHostLinux* CreateCrashHandlerHost(
       const std::string& process_type);
@@ -338,8 +345,8 @@ class CastContentBrowserClient
   // Notify renderers of memory pressure (Android renderers register directly
   // with OS for this).
   std::unique_ptr<MemoryPressureControllerImpl> memory_pressure_controller_;
-#endif  // !defined(OS_ANDROID)
-#endif  // !defined(OS_FUCHSIA)
+#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !BUILDFLAG(IS_FUCHSIA)
 
   // CMA thread used by AudioManager, MojoRenderer, and MediaPipelineBackend.
   std::unique_ptr<base::Thread> media_thread_;

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,13 +25,12 @@ LayerTreeHostPixelResourceTest::LayerTreeHostPixelResourceTest(
 
 const char* LayerTreeHostPixelResourceTest::GetRendererSuffix() const {
   switch (renderer_type_) {
-    case viz::RendererType::kGL:
-      return "gl";
     case viz::RendererType::kSkiaGL:
       return "skia_gl";
     case viz::RendererType::kSkiaVk:
-    case viz::RendererType::kSkiaDawn:
       return "skia_vk";
+    case viz::RendererType::kSkiaGraphite:
+      return "skia_graphite";
     case viz::RendererType::kSoftware:
       return "sw";
   }
@@ -57,11 +56,11 @@ LayerTreeHostPixelResourceTest::CreateRasterBufferProvider(
   int max_bytes_per_copy_operation = 1024 * 1024;
   int max_staging_buffer_usage_in_bytes = 32 * 1024 * 1024;
 
-  viz::ResourceFormat gpu_raster_format;
-  viz::ResourceFormat sw_raster_format;
+  viz::SharedImageFormat gpu_raster_format;
+  viz::SharedImageFormat sw_raster_format;
   if (compositor_context_provider) {
     if (host_impl->settings().use_rgba_4444) {
-      gpu_raster_format = sw_raster_format = viz::RGBA_4444;
+      gpu_raster_format = sw_raster_format = viz::SinglePlaneFormat::kRGBA_4444;
     } else {
       gpu_raster_format = viz::PlatformColor::BestSupportedRenderBufferFormat(
           compositor_context_provider->ContextCapabilities());
@@ -77,14 +76,12 @@ LayerTreeHostPixelResourceTest::CreateRasterBufferProvider(
       return std::make_unique<BitmapRasterBufferProvider>(
           host_impl->layer_tree_frame_sink());
     case TestRasterType::kGpu:
-    case TestRasterType::kOop:
       EXPECT_TRUE(compositor_context_provider);
       EXPECT_TRUE(worker_context_provider);
       EXPECT_FALSE(use_software_renderer());
       return std::make_unique<GpuRasterBufferProvider>(
           compositor_context_provider, worker_context_provider, false,
           gpu_raster_format, gfx::Size(), true,
-          /*enable_oop_rasterization=*/raster_type() == TestRasterType::kOop,
           host_impl->GetRasterQueryQueueForTesting());
     case TestRasterType::kZeroCopy:
       EXPECT_TRUE(compositor_context_provider);

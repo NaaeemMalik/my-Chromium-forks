@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,9 @@
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_union_string_trustedhtml_trustedscript_trustedscripturl.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_string_trustedscript.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_stringtreatnullasemptystring_trustedscript.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_union_trustedhtml_trustedscript_trustedscripturl.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
@@ -241,9 +241,8 @@ TrustedTypePolicy* GetDefaultPolicy(const ExecutionContext* execution_context) {
 // and has a number of additional parameters to enable proper error reporting
 // for each case.
 String GetStringFromScriptHelper(
-    String script,
+    const String& script,
     ExecutionContext* context,
-
     // Parameters to customize error messages:
     const char* element_name_for_exception,
     const char* attribute_name_for_exception,
@@ -313,7 +312,7 @@ bool RequireTrustedTypesCheck(const ExecutionContext* execution_context) {
              execution_context);
 }
 
-String TrustedTypesCheckForHTML(String html,
+String TrustedTypesCheckForHTML(const String& html,
                                 const ExecutionContext* execution_context,
                                 ExceptionState& exception_state) {
   bool require_trusted_type = RequireTrustedTypesCheck(execution_context);
@@ -362,7 +361,7 @@ String TrustedTypesCheckForHTML(String html,
   return result->toString();
 }
 
-String TrustedTypesCheckForScript(String script,
+String TrustedTypesCheckForScript(const String& script,
                                   const ExecutionContext* execution_context,
                                   ExceptionState& exception_state) {
   bool require_trusted_type = RequireTrustedTypesCheck(execution_context);
@@ -412,12 +411,10 @@ String TrustedTypesCheckForScript(String script,
   return result->toString();
 }
 
-String TrustedTypesCheckForScriptURL(String script_url,
+String TrustedTypesCheckForScriptURL(const String& script_url,
                                      const ExecutionContext* execution_context,
                                      ExceptionState& exception_state) {
-  bool require_trusted_type =
-      RequireTrustedTypesCheck(execution_context) &&
-      RuntimeEnabledFeatures::TrustedDOMTypesEnabled(execution_context);
+  bool require_trusted_type = RequireTrustedTypesCheck(execution_context);
   if (!require_trusted_type) {
     return script_url;
   }
@@ -465,7 +462,7 @@ String TrustedTypesCheckForScriptURL(String script_url,
 }
 
 String TrustedTypesCheckFor(SpecificTrustedType type,
-                            const V8TrustedString* trusted,
+                            const V8TrustedType* trusted,
                             const ExecutionContext* execution_context,
                             ExceptionState& exception_state) {
   DCHECK(trusted);
@@ -474,18 +471,15 @@ String TrustedTypesCheckFor(SpecificTrustedType type,
   String value;
   bool does_type_match = false;
   switch (trusted->GetContentType()) {
-    case V8TrustedString::ContentType::kString:
-      value = trusted->GetAsString();
-      break;
-    case V8TrustedString::ContentType::kTrustedHTML:
+    case V8TrustedType::ContentType::kTrustedHTML:
       value = trusted->GetAsTrustedHTML()->toString();
       does_type_match = type == SpecificTrustedType::kHTML;
       break;
-    case V8TrustedString::ContentType::kTrustedScript:
+    case V8TrustedType::ContentType::kTrustedScript:
       value = trusted->GetAsTrustedScript()->toString();
       does_type_match = type == SpecificTrustedType::kScript;
       break;
-    case V8TrustedString::ContentType::kTrustedScriptURL:
+    case V8TrustedType::ContentType::kTrustedScriptURL:
       value = trusted->GetAsTrustedScriptURL()->toString();
       does_type_match = type == SpecificTrustedType::kScriptURL;
       break;
@@ -573,7 +567,7 @@ String TrustedTypesCheckFor(SpecificTrustedType type,
 }
 
 String CORE_EXPORT
-GetStringForScriptExecution(String script,
+GetStringForScriptExecution(const String& script,
                             const ScriptElementBase::Type type,
                             ExecutionContext* context) {
   String value = GetStringFromScriptHelper(
@@ -589,11 +583,57 @@ GetStringForScriptExecution(String script,
 }
 
 String TrustedTypesCheckForJavascriptURLinNavigation(
-    String javascript_url,
+    const String& javascript_url,
     ExecutionContext* context) {
   return GetStringFromScriptHelper(
       std::move(javascript_url), context, "Location", "href",
       kNavigateToJavascriptURL, kNavigateToJavascriptURLAndDefaultPolicyFailed);
+}
+
+String TrustedTypesCheckForExecCommand(
+    const String& html,
+    const ExecutionContext* execution_context,
+    ExceptionState& exception_state) {
+  return TrustedTypesCheckForHTML(html, execution_context, exception_state);
+}
+
+bool IsTrustedTypesEventHandlerAttribute(const QualifiedName& q_name) {
+  return q_name.NamespaceURI().IsNull() &&
+         TrustedTypePolicyFactory::IsEventHandlerAttributeName(
+             q_name.LocalName());
+}
+
+String GetTrustedTypesLiteral(const ScriptValue& script_value,
+                              ScriptState* script_state) {
+  DCHECK(script_state);
+  // TrustedTypes fromLiteral requires several checks, which are steps 1-3
+  // in the "create a trusted type from literal algorithm". Ref:
+  // https://w3c.github.io/trusted-types/dist/spec/#create-a-trusted-type-from-literal-algorithm
+
+  // The core functionality here are the checks that we, indeed, have a
+  // literal object. The key work is done by
+  // v8::Context::HasTemplateLiteralObject, but we will additionally check that
+  // we have an object, with a real (non-inherited) property 0 (but not 1),
+  // whose value is a string.
+  v8::Local<v8::Context> context = script_state->GetContext();
+  v8::Local<v8::Value> value = script_value.V8ValueFor(script_state);
+  if (!context.IsEmpty() && !value.IsEmpty() &&
+      context->HasTemplateLiteralObject(value) && value->IsObject()) {
+    v8::Local<v8::Object> value_as_object = v8::Local<v8::Object>::Cast(value);
+    v8::Local<v8::Value> first_value;
+    if (value_as_object->HasRealIndexedProperty(context, 0).FromMaybe(false) &&
+        !value_as_object->HasRealIndexedProperty(context, 1).FromMaybe(false) &&
+        value_as_object->Get(context, 0).ToLocal(&first_value) &&
+        first_value->IsString()) {
+      v8::Local<v8::String> first_value_as_string =
+          v8::Local<v8::String>::Cast(first_value);
+      return ToCoreString(first_value_as_string);
+    }
+  }
+
+  // Fall-through: Some of the required conditions didn't hold. Return a
+  // null-string.
+  return String();
 }
 
 }  // namespace blink

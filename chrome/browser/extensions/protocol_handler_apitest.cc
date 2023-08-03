@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 #include "extensions/test/result_catcher.h"
 #include "third_party/blink/public/common/security/protocol_handler_security_level.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "chrome/test/base/launchservices_utils_mac.h"
 #endif
 
@@ -29,7 +29,7 @@ class ProtocolHandlerApiTest : public ExtensionApiTest {
   void SetUpOnMainThread() override {
     ExtensionApiTest::SetUpOnMainThread();
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
     ASSERT_TRUE(test::RegisterAppWithLaunchServices());
 #endif
   }
@@ -61,12 +61,18 @@ class ProtocolHandlerChangeWaiter
 // This test verifies correct registration of protocol handlers using HTML5's
 // registerProtocolHandler in extension context and its validation with relaxed
 // security checks.
-IN_PROC_BROWSER_TEST_F(ProtocolHandlerApiTest, Registration) {
+// TODO(crbug.com/1177254): Flaky on win/mac.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+#define MAYBE_Registration DISABLED_Registration
+#else
+#define MAYBE_Registration Registration
+#endif
+IN_PROC_BROWSER_TEST_F(ProtocolHandlerApiTest, MAYBE_Registration) {
   ASSERT_TRUE(StartEmbeddedTestServer());
 
   // Initialize listener and result catcher before the test page is loaded to
   // be sure not to miss any message.
-  ExtensionTestMessageListener listener(/*will_reply=*/false);
+  ExtensionTestMessageListener listener;
   ResultCatcher result_catcher;
 
   // Load the extension test page.
@@ -147,13 +153,15 @@ IN_PROC_BROWSER_TEST_F(ProtocolHandlerApiTest, BrowserProcessSecurityLevel) {
   // Run the extension subtest and wait for the initialization.
   ASSERT_TRUE(RunExtensionTest(
       "protocol_handler",
-      {.page_url = "test_browser_process_security_level.html"}))
+      {.extension_url = "test_browser_process_security_level.html"}))
       << message_;
 
   content::WebContentsDelegate* web_contents_delegate =
       browser()->tab_strip_model()->GetActiveWebContents()->GetDelegate();
-  content::RenderFrameHost* main_frame =
-      browser()->tab_strip_model()->GetActiveWebContents()->GetMainFrame();
+  content::RenderFrameHost* main_frame = browser()
+                                             ->tab_strip_model()
+                                             ->GetActiveWebContents()
+                                             ->GetPrimaryMainFrame();
   std::vector<content::RenderFrameHost*> subframes =
       CollectAllRenderFrameHosts(main_frame);
   ASSERT_EQ(3u, subframes.size());

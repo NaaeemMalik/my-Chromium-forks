@@ -1,25 +1,26 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import 'gtx://resources/cr_elements/cr_toolbar/cr_toolbar_selection_overlay.js';
-import 'gtx://resources/cr_elements/icons.m.js';
-import './shared_style.js';
+import 'gtx://resources/cr_elements/icons.html.js';
+import './shared_style.css.js';
 import './strings.m.js';
 import 'gtx://resources/cr_elements/cr_toolbar/cr_toolbar.js';
 import 'gtx://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
 
 import {CrToolbarElement} from 'gtx://resources/cr_elements/cr_toolbar/cr_toolbar.js';
 import {CrToolbarSearchFieldElement} from 'gtx://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/js/assert_ts.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {deselectItems, setSearchTerm} from './actions.js';
+import {setSearchTerm} from './actions.js';
 import {BookmarksCommandManagerElement} from './command_manager.js';
 import {Command, MenuSource} from './constants.js';
 import {StoreClientMixin} from './store_client_mixin.js';
+import {getTemplate} from './toolbar.html.js';
 
 const BookmarksToolbarElementBase = StoreClientMixin(PolymerElement);
 
@@ -29,7 +30,7 @@ export class BookmarksToolbarElement extends BookmarksToolbarElementBase {
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -68,7 +69,7 @@ export class BookmarksToolbarElement extends BookmarksToolbarElementBase {
   private selectedItems_: Set<string>;
   private globalCanEdit_: boolean;
 
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
     this.watch('searchTerm_', state => state.search.term);
     this.watch('selectedItems_', state => state.selection.items);
@@ -81,25 +82,25 @@ export class BookmarksToolbarElement extends BookmarksToolbarElementBase {
         .getSearchField();
   }
 
-  private onMenuButtonOpenTap_(e: Event) {
+  private onMenuButtonOpenClick_(e: Event) {
     this.dispatchEvent(new CustomEvent('open-command-menu', {
       bubbles: true,
       composed: true,
       detail: {
         targetElement: e.target,
         source: MenuSource.TOOLBAR,
-      }
+      },
     }));
   }
 
-  private onDeleteSelectionTap_() {
+  private onDeleteSelectionClick_() {
     const selection = this.selectedItems_;
     const commandManager = BookmarksCommandManagerElement.getInstance();
     assert(commandManager.canExecute(Command.DELETE, selection));
     commandManager.handle(Command.DELETE, selection);
   }
 
-  private onClearSelectionTap_() {
+  private onClearSelectionClick_() {
     const commandManager = BookmarksCommandManagerElement.getInstance();
     assert(
         commandManager.canExecute(Command.DESELECT_ALL, this.selectedItems_));

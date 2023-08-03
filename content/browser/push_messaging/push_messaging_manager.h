@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 
+#include "base/memory/raw_ref.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/browser_thread.h"
@@ -27,6 +28,10 @@ enum class PushRegistrationStatus;
 enum class PushUnregistrationStatus;
 }  // namespace mojom
 }  // namespace blink
+
+namespace url {
+class Origin;
+}  // namespace url
 
 namespace content {
 
@@ -127,7 +132,7 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
 
   void GetSubscriptionDidGetInfo(
       GetSubscriptionCallback callback,
-      const GURL& origin,
+      const url::Origin& origin,
       int64_t service_worker_registration_id,
       const std::string& application_server_key,
       bool is_valid,
@@ -137,7 +142,7 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
       const std::vector<uint8_t>& auth);
 
   void GetSubscriptionInfo(
-      const GURL& origin,
+      const url::Origin& origin,
       int64_t service_worker_registration_id,
       const std::string& sender_id,
       const std::string& push_subscription_id,
@@ -146,7 +151,7 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
   void UnsubscribeHavingGottenSenderId(
       UnsubscribeCallback callback,
       int64_t service_worker_registration_id,
-      const GURL& requesting_origin,
+      const url::Origin& requesting_origin,
       const std::vector<std::string>& sender_id,
       blink::ServiceWorkerStatusCode service_worker_status);
 
@@ -162,7 +167,7 @@ class PushMessagingManager : public blink::mojom::PushMessaging {
 
   PushMessagingService* GetService();
 
-  RenderProcessHost& render_process_host_;
+  const raw_ref<RenderProcessHost> render_process_host_;
 
   // Will be ChildProcessHost::kInvalidUniqueID in requests from Service Worker.
   const int render_frame_id_;

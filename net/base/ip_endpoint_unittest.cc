@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,29 +7,34 @@
 #include <string.h>
 
 #include <string>
+#include <tuple>
 
 #include "base/check_op.h"
-#include "base/ignore_result.h"
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/sys_byteorder.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "net/base/ip_address.h"
 #include "net/base/sockaddr_storage.h"
 #include "net/base/sys_addrinfo.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <winsock2.h>
 #include <ws2bth.h>
 
 #include "base/test/gtest_util.h"   // For EXPECT_DCHECK_DEATH
 #include "net/base/winsock_util.h"  // For kBluetoothAddressSize
-#elif defined(OS_POSIX)
+#elif BUILDFLAG(IS_POSIX)
 #include <netinet/in.h>
 #endif
+
+using testing::Optional;
 
 namespace net {
 
@@ -68,10 +73,10 @@ struct TestData {
   bool ipv6;
   IPAddress ip_address;
 } tests[] = {
-  { "127.0.00.1", "127.0.0.1", false},
-  { "192.168.1.1", "192.168.1.1", false },
-  { "::1", "[::1]", true },
-  { "2001:db8:0::42", "[2001:db8::42]", true },
+    {"127.0.00.1", "127.0.0.1", false},
+    {"192.168.1.1", "192.168.1.1", false},
+    {"::1", "[::1]", true},
+    {"2001:db8:0::42", "[2001:db8::42]", true},
 };
 
 class IPEndPointTest : public PlatformTest {
@@ -132,8 +137,8 @@ TEST_F(IPEndPointTest, ToFromSockAddr) {
     socklen_t expected_size =
         test.ipv6 ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in);
     EXPECT_EQ(expected_size, storage.addr_len);
-    EXPECT_EQ(ip_endpoint.port(), GetPortFromSockaddr(storage.addr,
-                                                      storage.addr_len));
+    EXPECT_EQ(ip_endpoint.port(),
+              GetPortFromSockaddr(storage.addr, storage.addr_len));
     // And convert back to an IPEndPoint.
     IPEndPoint ip_endpoint2;
     EXPECT_TRUE(ip_endpoint2.FromSockAddr(storage.addr, storage.addr_len));
@@ -162,7 +167,7 @@ TEST_F(IPEndPointTest, FromSockAddrBufTooSmall) {
   EXPECT_FALSE(ip_endpoint.FromSockAddr(sockaddr, sizeof(addr) - 1));
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 
 namespace {
 constexpr uint8_t kBluetoothAddrBytes[kBluetoothAddressSize] = {1, 2, 3,
@@ -202,7 +207,7 @@ TEST_F(IPEndPointTest, WinBluetoothSockAddrCompareWithSelf) {
   EXPECT_DCHECK_DEATH(bt_endpoint.port());
   SockaddrStorage storage;
   EXPECT_DCHECK_DEATH(
-      ignore_result(bt_endpoint.ToSockAddr(storage.addr, &storage.addr_len)));
+      std::ignore = bt_endpoint.ToSockAddr(storage.addr, &storage.addr_len));
   EXPECT_DCHECK_DEATH(bt_endpoint.ToString());
   EXPECT_DCHECK_DEATH(bt_endpoint.ToStringWithoutPort());
 }
@@ -246,8 +251,8 @@ TEST_F(IPEndPointTest, WinBluetoothSockAddrCompareWithCopy) {
   // Test that IPv4/IPv6-only methods crash.
   EXPECT_DCHECK_DEATH(bt_endpoint_other.port());
   SockaddrStorage storage;
-  EXPECT_DCHECK_DEATH(ignore_result(
-      bt_endpoint_other.ToSockAddr(storage.addr, &storage.addr_len)));
+  EXPECT_DCHECK_DEATH(std::ignore = bt_endpoint_other.ToSockAddr(
+                          storage.addr, &storage.addr_len));
   EXPECT_DCHECK_DEATH(bt_endpoint_other.ToString());
   EXPECT_DCHECK_DEATH(bt_endpoint_other.ToStringWithoutPort());
 }
@@ -277,8 +282,8 @@ TEST_F(IPEndPointTest, WinBluetoothSockAddrCompareWithDifferentPort) {
   // Test that IPv4/IPv6-only methods crash.
   EXPECT_DCHECK_DEATH(bt_endpoint_other.port());
   SockaddrStorage storage;
-  EXPECT_DCHECK_DEATH(ignore_result(
-      bt_endpoint_other.ToSockAddr(storage.addr, &storage.addr_len)));
+  EXPECT_DCHECK_DEATH(std::ignore = bt_endpoint_other.ToSockAddr(
+                          storage.addr, &storage.addr_len));
   EXPECT_DCHECK_DEATH(bt_endpoint_other.ToString());
   EXPECT_DCHECK_DEATH(bt_endpoint_other.ToStringWithoutPort());
 }
@@ -307,8 +312,8 @@ TEST_F(IPEndPointTest, WinBluetoothSockAddrCompareWithDifferentAddress) {
   // Test that IPv4/IPv6-only methods crash.
   EXPECT_DCHECK_DEATH(bt_endpoint_other.port());
   SockaddrStorage storage;
-  EXPECT_DCHECK_DEATH(ignore_result(
-      bt_endpoint_other.ToSockAddr(storage.addr, &storage.addr_len)));
+  EXPECT_DCHECK_DEATH(std::ignore = bt_endpoint_other.ToSockAddr(
+                          storage.addr, &storage.addr_len));
   EXPECT_DCHECK_DEATH(bt_endpoint_other.ToString());
   EXPECT_DCHECK_DEATH(bt_endpoint_other.ToStringWithoutPort());
 }
@@ -374,6 +379,47 @@ TEST_F(IPEndPointTest, ToString) {
   IPEndPoint invalid_endpoint(invalid_address, 8080);
   EXPECT_EQ("", invalid_endpoint.ToString());
   EXPECT_EQ("", invalid_endpoint.ToStringWithoutPort());
+}
+
+TEST_F(IPEndPointTest, RoundtripThroughValue) {
+  for (const auto& test : tests) {
+    IPEndPoint endpoint(test.ip_address, 1645);
+    base::Value value = endpoint.ToValue();
+
+    EXPECT_THAT(IPEndPoint::FromValue(value), Optional(endpoint));
+  }
+}
+
+TEST_F(IPEndPointTest, FromGarbageValue) {
+  base::Value value(123);
+  EXPECT_FALSE(IPEndPoint::FromValue(value).has_value());
+}
+
+TEST_F(IPEndPointTest, FromMalformedValues) {
+  for (const auto& test : tests) {
+    base::Value valid_value = IPEndPoint(test.ip_address, 1111).ToValue();
+    ASSERT_TRUE(IPEndPoint::FromValue(valid_value).has_value());
+
+    base::Value missing_address = valid_value.Clone();
+    ASSERT_TRUE(missing_address.GetDict().Remove("address"));
+    EXPECT_FALSE(IPEndPoint::FromValue(missing_address).has_value());
+
+    base::Value missing_port = valid_value.Clone();
+    ASSERT_TRUE(missing_port.GetDict().Remove("port"));
+    EXPECT_FALSE(IPEndPoint::FromValue(missing_port).has_value());
+
+    base::Value invalid_address = valid_value.Clone();
+    *invalid_address.GetDict().Find("address") = base::Value("1.2.3.4.5");
+    EXPECT_FALSE(IPEndPoint::FromValue(invalid_address).has_value());
+
+    base::Value negative_port = valid_value.Clone();
+    *negative_port.GetDict().Find("port") = base::Value(-1);
+    EXPECT_FALSE(IPEndPoint::FromValue(negative_port).has_value());
+
+    base::Value large_port = valid_value.Clone();
+    *large_port.GetDict().Find("port") = base::Value(66000);
+    EXPECT_FALSE(IPEndPoint::FromValue(large_port).has_value());
+  }
 }
 
 }  // namespace

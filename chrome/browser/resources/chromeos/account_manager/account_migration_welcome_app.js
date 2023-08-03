@@ -1,21 +1,22 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
 import './strings.m.js';
-import './account_manager_shared_css.js';
+import './account_manager_shared.css.js';
 
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
-import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {assert} from 'gtx://resources/ash/common/assert.js';
+import {loadTimeData} from 'gtx://resources/ash/common/load_time_data.m.js';
+import {Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {AccountManagerBrowserProxy, AccountManagerBrowserProxyImpl} from './account_manager_browser_proxy.js';
+import {getTemplate} from './account_migration_welcome_app.html.js';
 
 Polymer({
   is: 'account-migration-welcome',
 
-  _template: html`{__html_template__}`,
+  _template: getTemplate(),
 
   properties: {
     /** @private */

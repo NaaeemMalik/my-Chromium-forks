@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,11 @@
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/bind_post_task.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/thread_annotations.h"
 #include "base/threading/thread_restrictions.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/typed_macros.h"
 #include "build/build_config.h"
 #include "components/tracing/common/trace_startup_config.h"
@@ -28,9 +28,9 @@
 #include "third_party/perfetto/include/perfetto/tracing/core/trace_config.h"
 #include "third_party/perfetto/include/perfetto/tracing/tracing.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "content/browser/android/tracing_controller_android.h"
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 namespace content {
 
@@ -115,7 +115,7 @@ class StartupTracingController::BackgroundTracer {
       : state_(State::kTracing),
         write_mode_(write_mode),
         temp_file_policy_(temp_file_policy),
-        task_runner_(base::SequencedTaskRunnerHandle::Get()),
+        task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
         output_file_(output_file),
         output_format_(output_format),
         on_tracing_finished_(std::move(on_tracing_finished)) {
@@ -123,7 +123,7 @@ class StartupTracingController::BackgroundTracer {
         perfetto::Tracing::NewTrace(perfetto::BackendType::kCustomBackend);
 
     if (write_mode_ == WriteMode::kStreaming) {
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
       OpenFile(output_file_);
       tracing_session_->Setup(trace_config, file_.TakePlatformFile());
 #else
@@ -324,7 +324,7 @@ StartupTracingController& StartupTracingController::GetInstance() {
 namespace {
 
 base::FilePath BasenameToPath(std::string basename) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   return TracingControllerAndroid::GenerateTracingFilePath(basename);
 #else
   // Default to saving the startup trace into the current dir.
@@ -401,7 +401,7 @@ void StartupTracingController::StartIfNeeded() {
       tracing::TraceStartupConfig::GetInstance()->GetOutputFormat();
 
   BackgroundTracer::WriteMode write_mode;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // TODO(crbug.com/1158482/): Perfetto does not (yet) support writing directly
   // to a file on Windows.
   write_mode = BackgroundTracer::WriteMode::kAfterStopping;
@@ -488,7 +488,7 @@ void StartupTracingController::SetDefaultBasename(
         basename += ".json";
         break;
       case tracing::TraceStartupConfig::OutputFormat::kProto:
-        basename += ".proto";
+        basename += ".pftrace";
         break;
     }
   }

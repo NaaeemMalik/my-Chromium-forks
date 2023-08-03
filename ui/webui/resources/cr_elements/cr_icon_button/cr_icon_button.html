@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <link rel="import" href="../../html/polymer.html">
 
 <link rel="import" href="../shared_vars_css.html">
@@ -5,9 +6,11 @@
 
 <dom-module id="cr-icon-button">
   <template>
+=======
+>>>>>>> gtx-new
     <style>
       :host {
-        --cr-icon-button-fill-color: var(--google-grey-refresh-700);
+        --cr-icon-button-fill-color: var(--google-grey-700);
         --cr-icon-button-icon-start-offset: 0;
         --cr-icon-button-icon-size: 20px;
         --cr-icon-button-size: 36px;
@@ -33,6 +36,12 @@
         width: var(--cr-icon-button-width);
       }
 
+      :host-context([chrome-refresh-2023]):host {
+        --cr-icon-button-fill-color: currentColor;
+        --cr-icon-button-size: 32px;
+        position: relative;
+      }
+
       :host(:hover) {
         background-color: var(--cr-icon-button-hover-background-color,
             var(--cr-hover-background-color));
@@ -43,9 +52,27 @@
             var(--cr-focus-outline-color));
       }
 
-      :host(:active) {
+      @media (forced-colors: active) {
+        :host(:focus-visible:focus) {
+          /* Use outline instead of box-shadow (which does not work) in Windows
+             HCM. */
+          outline: var(--cr-focus-outline-hcm);
+        }
+      }
+
+      :host-context(html:not([chrome-refresh-2023])) :host(:active) {
         background-color: var(--cr-icon-button-active-background-color,
             var(--cr-active-background-color));
+      }
+
+      paper-ripple {
+        display: none;
+      }
+
+      :host-context([chrome-refresh-2023]) paper-ripple {
+        --paper-ripple-opacity: 1;
+        color: var(--cr-active-background-color);
+        display: block;
       }
 
       :host([disabled]) {
@@ -80,6 +107,12 @@
         width: 100%;
       }
 
+      @media (forced-colors: active) {
+        :host(:not([iron-icon])) #maskedImage {
+          background-color: ButtonText;
+        }
+      }
+
       #icon {
         align-items: center;
         border-radius: 4px;
@@ -103,13 +136,10 @@
 
       @media (prefers-color-scheme: dark) {
         :host {
-          --cr-icon-button-fill-color: var(--google-grey-refresh-500);
+          --cr-icon-button-fill-color: var(--google-grey-500);
         }
       }
     </style>
     <div id="icon">
       <div id="maskedImage"></div>
     </div>
-  </template>
-  <script src="cr_icon_button.js"></script>
-</dom-module>

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 package org.chromium.chrome.browser.password_manager;
@@ -28,14 +28,16 @@ public class PasswordManagerDialogContents {
     /**
      * Constructor for the dialog contents.
      *
-     * @param title The title of the dialog, to be displayed below the image.
-     * @param details The details text to be displayed under the title.
-     * @param illustrationId The resource id of the image displayed above the title.
-     * @param primaryButtonText The text of the primary button.
-     * @param secondaryButtonText The text of the secondary button or null if there shouldn't be a
-     *      secondary button.
-     * @param buttonClickCallback The callback handling the click on the buttons. It takes the type
-     *      of the button as a parameter.
+     * @param title               The title of the dialog, to be displayed below the
+     *                            image.
+     * @param details             The details text to be displayed under the title.
+     * @param illustrationId      The resource id of the image displayed above the
+     *                            title.
+     * @param primaryButtonText   The text of the primary button.
+     * @param secondaryButtonText The text of the secondary button or null if there
+     *                            shouldn't be a secondary button.
+     * @param buttonClickCallback The callback handling the click on the buttons. It
+     *                            takes the type of the button as a parameter.
      */
     public PasswordManagerDialogContents(String title, String details, int illustrationId,
             String primaryButtonText, @Nullable String secondaryButtonText,

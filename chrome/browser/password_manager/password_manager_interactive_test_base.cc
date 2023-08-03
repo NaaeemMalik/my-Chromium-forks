@@ -1,10 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/password_manager/password_manager_interactive_test_base.h"
 
+#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
+#include "chrome/browser/password_manager/passwords_navigation_observer.h"
 #include "content/public/test/browser_test_utils.h"
 #include "ui/events/keycodes/dom_us_layout_data.h"
 #include "ui/events/keycodes/keyboard_code_conversion.h"
@@ -34,8 +36,8 @@ void PasswordManagerInteractiveTestBase::FillElementWithValue(
                          element_id.c_str())));
   for (char16_t character : value) {
     ui::DomKey dom_key = ui::DomKey::FromCharacter(character);
-    const ui::PrintableCodeEntry* code_entry = std::find_if(
-        std::begin(ui::kPrintableCodeMap), std::end(ui::kPrintableCodeMap),
+    const ui::PrintableCodeEntry* code_entry = base::ranges::find_if(
+        ui::kPrintableCodeMap,
         [character](const ui::PrintableCodeEntry& entry) {
           return entry.character[0] == character ||
                  entry.character[1] == character;
@@ -72,27 +74,26 @@ void PasswordManagerInteractiveTestBase::WaitForElementValue(
   const std::string script =
       value_check_function +
       base::StringPrintf(
-          "if (valueCheck()) {"
-          "  /* Spin the event loop with setTimeout. */"
-          "  setTimeout(window.domAutomationController.send(%d), 0);"
-          "} else {"
-          "  var element = document.getElementById('%s');"
-          "  if (!element)"
-          "    window.domAutomationController.send(%d);"
-          "  element.oninput = function() {"
-          "    if (valueCheck()) {"
-          "      /* Spin the event loop with setTimeout. */"
-          "      setTimeout(window.domAutomationController.send(%d), 0);"
-          "      element.oninput = undefined;"
-          "    }"
-          "  };"
-          "}",
+          "new Promise(resolve => {"
+          "  if (valueCheck()) {"
+          "    resolve(%d);"
+          "  } else {"
+          "    var element = document.getElementById('%s');"
+          "    if (!element)"
+          "      resolve(%d);"
+          "    element.oninput = function() {"
+          "      if (valueCheck()) {"
+          "        resolve(%d);"
+          "        element.oninput = undefined;"
+          "      }"
+          "    };"
+          "  }"
+          "});",
           RETURN_CODE_OK, element_id.c_str(), RETURN_CODE_NO_ELEMENT,
           RETURN_CODE_OK);
   EXPECT_EQ(RETURN_CODE_OK,
             content::EvalJs(RenderFrameHost(), script,
-                            content::EXECUTE_SCRIPT_NO_USER_GESTURE |
-                                content::EXECUTE_SCRIPT_USE_MANUAL_REPLY))
+                            content::EXECUTE_SCRIPT_NO_USER_GESTURE))
       << "element_id = " << element_id
       << ", expected_value = " << expected_value;
 }
@@ -106,14 +107,14 @@ void PasswordManagerInteractiveTestBase::VerifyPasswordIsSavedAndFilled(
 
   NavigateToFile(filename);
 
-  NavigationObserver observer(WebContents());
+  PasswordsNavigationObserver observer(WebContents());
   const char kUsername[] = "user";
   const char kPassword[] = "123";
   if (!username_id.empty())
     FillElementWithValue(username_id, kUsername);
   FillElementWithValue(password_id, kPassword);
   ASSERT_TRUE(content::ExecuteScript(RenderFrameHost(), submission_script));
-  observer.Wait();
+  ASSERT_TRUE(observer.Wait());
   WaitForPasswordStore();
 
   BubbleObserver(WebContents()).AcceptSavePrompt();

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ namespace {
 class SettingsOverridePermissionTest : public ChromeManifestTest {
  protected:
   SettingsOverridePermissionTest()
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
       : scoped_channel_(version_info::Channel::UNKNOWN)
 #endif
   {
@@ -44,43 +44,40 @@ class SettingsOverridePermissionTest : public ChromeManifestTest {
   };
 
   scoped_refptr<Extension> GetPermissionSet(uint32_t flags) {
-    base::DictionaryValue ext_manifest;
-    ext_manifest.SetString(manifest_keys::kName, "test");
-    ext_manifest.SetString(manifest_keys::kVersion, "0.1");
-    ext_manifest.SetInteger(manifest_keys::kManifestVersion, 2);
+    base::Value::Dict ext_manifest;
+    ext_manifest.Set(manifest_keys::kName, "test");
+    ext_manifest.Set(manifest_keys::kVersion, "0.1");
+    ext_manifest.Set(manifest_keys::kManifestVersion, 2);
 
-    std::unique_ptr<base::DictionaryValue> settings_override(
-        new base::DictionaryValue);
+    base::Value::Dict settings_override;
     if (flags & kHomepage)
-      settings_override->SetString("homepage", "http://www.google.com/home");
+      settings_override.Set("homepage", "http://www.google.com/home");
     if (flags & kStartupPages) {
-      std::unique_ptr<base::ListValue> startup_pages(new base::ListValue);
-      startup_pages->Append("http://startup.com/startup.html");
-      settings_override->Set("startup_pages", std::move(startup_pages));
+      base::Value::List startup_pages;
+      startup_pages.Append("http://startup.com/startup.html");
+      settings_override.Set("startup_pages", std::move(startup_pages));
     }
     if (flags & kSearchProvider) {
-      std::unique_ptr<base::DictionaryValue> search_provider(
-          new base::DictionaryValue);
-      search_provider->SetString("search_url", "http://google.com/search.html");
-      search_provider->SetString("name", "test");
-      search_provider->SetString("keyword", "lock");
-      search_provider->SetString("encoding", "UTF-8");
-      search_provider->SetBoolean("is_default", true);
-      search_provider->SetString("favicon_url",
-                                 "http://wikipedia.org/wiki/Favicon");
-      settings_override->Set("search_provider", std::move(search_provider));
+      base::Value::Dict search_provider;
+      search_provider.Set("search_url", "http://google.com/search.html");
+      search_provider.Set("name", "test");
+      search_provider.Set("keyword", "lock");
+      search_provider.Set("encoding", "UTF-8");
+      search_provider.Set("is_default", true);
+      search_provider.Set("favicon_url", "http://wikipedia.org/wiki/Favicon");
+      settings_override.Set("search_provider", std::move(search_provider));
     }
     ext_manifest.Set(manifest_keys::kSettingsOverride,
                      std::move(settings_override));
 
-    ManifestData manifest(std::move(ext_manifest), "test");
+    ManifestData manifest(std::move(ext_manifest));
     return LoadAndExpectSuccess(manifest);
   }
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // On Mac, this API is limited to trunk.
   extensions::ScopedCurrentChannel scoped_channel_;
-#endif  // OS_MAC
+#endif  // BUILDFLAG(IS_MAC)
 };
 
 TEST_F(SettingsOverridePermissionTest, HomePage) {
@@ -88,7 +85,7 @@ TEST_F(SettingsOverridePermissionTest, HomePage) {
   const PermissionSet& permission_set =
       extension->permissions_data()->active_permissions();
 
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_TRUE(permission_set.HasAPIPermission(APIPermissionID::kHomepage));
   VerifyOnePermissionMessage(extension->permissions_data(),
                              "Change your home page to: google.com");
@@ -106,7 +103,7 @@ TEST_F(SettingsOverridePermissionTest, StartupPages) {
   const PermissionSet& permission_set =
       extension->permissions_data()->active_permissions();
 
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_TRUE(permission_set.HasAPIPermission(APIPermissionID::kStartupPages));
   VerifyOnePermissionMessage(extension->permissions_data(),
                              "Change your start page to: startup.com");
@@ -124,7 +121,7 @@ TEST_F(SettingsOverridePermissionTest, SearchSettings) {
   const PermissionSet& permission_set =
       extension->permissions_data()->active_permissions();
 
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_TRUE(
       permission_set.HasAPIPermission(APIPermissionID::kSearchProvider));
   VerifyOnePermissionMessage(extension->permissions_data(),
@@ -144,7 +141,7 @@ TEST_F(SettingsOverridePermissionTest, All) {
   const PermissionSet& permission_set =
       extension->permissions_data()->active_permissions();
 
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_TRUE(permission_set.HasAPIPermission(APIPermissionID::kHomepage));
   EXPECT_TRUE(permission_set.HasAPIPermission(APIPermissionID::kStartupPages));
   EXPECT_TRUE(
@@ -163,7 +160,7 @@ TEST_F(SettingsOverridePermissionTest, Some) {
   const PermissionSet& permission_set =
       extension->permissions_data()->active_permissions();
 
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   EXPECT_TRUE(permission_set.HasAPIPermission(APIPermissionID::kHomepage));
   EXPECT_TRUE(
       permission_set.HasAPIPermission(APIPermissionID::kSearchProvider));

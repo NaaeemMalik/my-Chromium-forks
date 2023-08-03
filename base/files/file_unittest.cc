@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,8 +21,12 @@
 #include "third_party/perfetto/include/perfetto/test/traced_value_test_support.h"  // no-presubmit-check nogncheck
 #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
+
+#include "base/environment.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/test/gtest_util.h"
 #endif
 
 using base::File;
@@ -248,7 +252,7 @@ TEST(FileTest, ReadWrite) {
 }
 
 TEST(FileTest, GetLastFileError) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   ::SetLastError(ERROR_ACCESS_DENIED);
 #else
   errno = EACCES;
@@ -364,7 +368,7 @@ TEST(FileTest, Length) {
   for (int i = 0; i < file_size; i++)
     EXPECT_EQ(data_to_write[i], data_read[i]);
 
-#if !defined(OS_FUCHSIA)  // Fuchsia doesn't seem to support big files.
+#if !BUILDFLAG(IS_FUCHSIA)  // Fuchsia doesn't seem to support big files.
   // Expand the file past the 4 GB limit.
   const int64_t kBigFileLength = 5'000'000'000;
   EXPECT_TRUE(file.SetLength(kBigFileLength));
@@ -382,7 +386,7 @@ TEST(FileTest, Length) {
 }
 
 // Flakily fails: http://crbug.com/86494
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 TEST(FileTest, TouchGetInfo) {
 #else
 TEST(FileTest, DISABLED_TouchGetInfo) {
@@ -431,7 +435,7 @@ TEST(FileTest, DISABLED_TouchGetInfo) {
   EXPECT_FALSE(info.is_symbolic_link);
 
   // ext2/ext3 and HPS/HPS+ seem to have a timestamp granularity of 1s.
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   EXPECT_EQ(info.last_accessed.ToTimeVal().tv_sec,
             new_last_accessed.ToTimeVal().tv_sec);
   EXPECT_EQ(info.last_modified.ToTimeVal().tv_sec,
@@ -595,7 +599,7 @@ TEST(FileTest, TracedValueSupport) {
 }
 #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Flakily times out on Windows, see http://crbug.com/846276.
 #define MAYBE_WriteDataToLargeOffset DISABLED_WriteDataToLargeOffset
 #else
@@ -622,7 +626,21 @@ TEST(FileTest, MAYBE_WriteDataToLargeOffset) {
   ASSERT_EQ(kDataLen, file.Write(kLargeFileOffset + 1, kData, kDataLen));
 }
 
-#if defined(OS_WIN)
+TEST(FileTest, AddFlagsForPassingToUntrustedProcess) {
+  {
+    uint32_t flags = base::File::FLAG_OPEN | base::File::FLAG_READ;
+    flags = base::File::AddFlagsForPassingToUntrustedProcess(flags);
+    EXPECT_EQ(flags, base::File::FLAG_OPEN | base::File::FLAG_READ);
+  }
+  {
+    uint32_t flags = base::File::FLAG_OPEN | base::File::FLAG_WRITE;
+    flags = base::File::AddFlagsForPassingToUntrustedProcess(flags);
+    EXPECT_EQ(flags, base::File::FLAG_OPEN | base::File::FLAG_WRITE |
+                         base::File::FLAG_WIN_NO_EXECUTE);
+  }
+}
+
+#if BUILDFLAG(IS_WIN)
 TEST(FileTest, GetInfoForDirectory) {
   base::ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
@@ -812,4 +830,31 @@ TEST(FileTest, UseSyncApiWithAsyncFile) {
 
   ASSERT_EQ(lying_file.WriteAtCurrentPos("12345", 5), -1);
 }
-#endif  // defined(OS_WIN)
+
+TEST(FileDeathTest, InvalidFlags) {
+  EXPECT_CHECK_DEATH_WITH(
+      {
+        // When this test is running as Admin, TMP gets ignored and temporary
+        // files/folders are created in %ProgramFiles%. This means that the
+        // temporary folder created by the death test never gets deleted, as it
+        // crashes before the `base::ScopedTempDir` goes out of scope and also
+        // does not get automatically cleaned by by the test runner.
+        //
+        // To avoid this from happening, this death test explicitly creates the
+        // temporary folder in TMP, which is set by the test runner parent
+        // process to a temporary folder for the test. This means that the
+        // folder created here is always deleted during test runner cleanup.
+        std::string tmp_folder;
+        ASSERT_TRUE(base::Environment::Create()->GetVar("TMP", &tmp_folder));
+        base::ScopedTempDir temp_dir;
+        ASSERT_TRUE(temp_dir.CreateUniqueTempDirUnderPath(
+            base::FilePath(base::UTF8ToWide(tmp_folder))));
+        FilePath file_path = temp_dir.GetPath().AppendASCII("file");
+
+        File file(file_path,
+                  base::File::FLAG_CREATE | base::File::FLAG_WIN_EXECUTE |
+                      base::File::FLAG_READ | base::File::FLAG_WIN_NO_EXECUTE);
+      },
+      "FLAG_WIN_NO_EXECUTE");
+}
+#endif  // BUILDFLAG(IS_WIN)

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/raw_ptr.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/net/nss_service.h"
 #include "net/cert/nss_cert_database.h"
@@ -22,13 +22,13 @@ namespace content {
 class BrowserContext;
 }  // namespace content
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 namespace ash {
-class CertificateProvider;
-}  // namespace ash
+class PolicyCertificateProvider;
+}
 
 namespace chromeos {
-class PolicyCertificateProvider;
+class CertificateProvider;
 }
 #endif
 
@@ -126,11 +126,12 @@ class CertificateManagerModel {
 
   // Holds parameters during construction.
   struct Params {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     // May be nullptr.
-    chromeos::PolicyCertificateProvider* policy_certs_provider = nullptr;
+    raw_ptr<ash::PolicyCertificateProvider> policy_certs_provider = nullptr;
     // May be nullptr.
-    std::unique_ptr<ash::CertificateProvider> extension_certificate_provider;
+    std::unique_ptr<chromeos::CertificateProvider>
+        extension_certificate_provider;
 #endif
 
     Params();
@@ -241,9 +242,9 @@ class CertificateManagerModel {
                     net::CertType type,
                     net::NSSCertDatabase::TrustBits trust_bits);
 
-  // Delete the cert.  Returns true on success.  |cert| is still valid when this
-  // function returns.
-  bool Delete(CERTCertificate* cert);
+  // Remove the cert from the cert database.
+  void RemoveFromDatabase(net::ScopedCERTCertificate cert,
+                          base::OnceCallback<void(bool /*success*/)> callback);
 
  private:
   // Called when one of the |certs_sources_| has been updated. Will notify the
@@ -271,7 +272,7 @@ class CertificateManagerModel {
                                   CertificateManagerModel::Observer* observer,
                                   CreationCallback callback);
 
-  net::NSSCertDatabase* cert_db_;
+  raw_ptr<net::NSSCertDatabase> cert_db_;
 
   // CertsSource instances providing certificates. The order matters - if a
   // certificate is provided by more than one CertsSource, only the first one is
@@ -281,7 +282,7 @@ class CertificateManagerModel {
   bool hold_back_updates_ = false;
 
   // The observer to notify when certificate list is refreshed.
-  Observer* observer_;
+  raw_ptr<Observer> observer_;
 };
 
 #endif  // CHROME_BROWSER_CERTIFICATE_MANAGER_MODEL_H_

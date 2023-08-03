@@ -1,16 +1,16 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/web/navigation/navigation_item_impl.h"
 
-#include <memory>
+#import <memory>
 
-#include "base/strings/utf_string_conversions.h"
-#include "ios/web/navigation/wk_navigation_util.h"
-#include "testing/gtest/include/gtest/gtest.h"
+#import "base/strings/utf_string_conversions.h"
+#import "ios/web/navigation/wk_navigation_util.h"
+#import "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
-#include "testing/platform_test.h"
+#import "testing/platform_test.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -61,7 +61,7 @@ TEST_F(NavigationItemTest, Description) {
   EXPECT_TRUE(
       [description containsString:@"is_created_from_hash_change: false"]);
   EXPECT_TRUE([description containsString:@"navigation_initiation_type: 0"]);
-  EXPECT_TRUE([description containsString:@"is_upgraded_to_https: false"]);
+  EXPECT_TRUE([description containsString:@"https_upgrade_type: None"]);
 }
 #endif
 
@@ -86,7 +86,7 @@ TEST_F(NavigationItemTest, Copy) {
   NSString* state1 = @"state1";
   [mutableState setString:state1];
 
-  // Check that changes occurred in |item_|, but not in |copy|.
+  // Check that changes occurred in `item_`, but not in `copy`.
   EXPECT_NSEQ([postData1 dataUsingEncoding:NSUTF8StringEncoding],
               item_->GetPostData());
   EXPECT_NSEQ(state1, item_->GetSerializedStateObject());
@@ -98,7 +98,7 @@ TEST_F(NavigationItemTest, Copy) {
   copy.AddHttpRequestHeaders(@{});
 }
 
-// Tests whether |NavigationItem::AddHttpRequestHeaders()| adds the passed
+// Tests whether `NavigationItem::AddHttpRequestHeaders()` adds the passed
 // headers to the item's request http headers.
 TEST_F(NavigationItemTest, AddHttpRequestHeaders) {
   EXPECT_NSEQ(@{kHTTPHeaderKey1 : kHTTPHeaderValue1},
@@ -116,7 +116,7 @@ TEST_F(NavigationItemTest, AddHttpRequestHeaders) {
   EXPECT_NSEQ(expected, item_->GetHttpRequestHeaders());
 }
 
-// Tests whether |NavigationItem::AddHttpRequestHeaders()| removes the header
+// Tests whether `NavigationItem::AddHttpRequestHeaders()` removes the header
 // value associated with the passed key from the item's request http headers.
 TEST_F(NavigationItemTest, RemoveHttpRequestHeaderForKey) {
   NSDictionary* httpHeaders = @{
@@ -195,10 +195,6 @@ TEST_F(NavigationItemTest, GetTitleForDisplay) {
 TEST_F(NavigationItemTest, RestoreState) {
   NavigationItemImpl other_item;
   other_item.SetUserAgentType(UserAgentType::DESKTOP);
-  PageDisplayState display_state;
-  display_state.set_scroll_state(
-      PageScrollState(CGPointMake(0, 10), UIEdgeInsetsMake(10, 10, 2, 2)));
-  other_item.SetPageDisplayState(display_state);
   other_item.SetURL(GURL("www.otherurl.com"));
   other_item.SetVirtualURL(GURL("www.virtual.com"));
 
@@ -207,19 +203,16 @@ TEST_F(NavigationItemTest, RestoreState) {
   // With a different URL, only the UserAgent should be restored.
   item_->RestoreStateFromItem(&other_item);
   EXPECT_EQ(other_item.GetUserAgentType(), item_->GetUserAgentType());
-  EXPECT_NE(other_item.GetPageDisplayState(), item_->GetPageDisplayState());
   EXPECT_NE(other_item.GetVirtualURL(), item_->GetVirtualURL());
 
   NavigationItemImpl other_item2;
   other_item2.SetUserAgentType(UserAgentType::DESKTOP);
-  other_item2.SetPageDisplayState(display_state);
   other_item2.SetURL(item_->GetURL());
   other_item2.SetVirtualURL(GURL("www.virtual.com"));
 
   // Same URL, everything is restored.
   item_->RestoreStateFromItem(&other_item2);
   EXPECT_EQ(other_item2.GetUserAgentType(), item_->GetUserAgentType());
-  EXPECT_EQ(other_item2.GetPageDisplayState(), item_->GetPageDisplayState());
   EXPECT_EQ(other_item2.GetVirtualURL(), item_->GetVirtualURL());
 }
 

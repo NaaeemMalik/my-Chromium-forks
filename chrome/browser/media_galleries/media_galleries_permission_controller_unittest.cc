@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include <memory>
 #include <string>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
@@ -277,7 +277,7 @@ TEST_F(MediaGalleriesPermissionControllerTest, TestNameGeneration) {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   galleryName = "gallery2";
 #endif
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   galleryName = base::FilePath(FILE_PATH_LITERAL("/path/to/gallery"))
                     .Append(gallery.path).MaybeAsASCII();
 #endif

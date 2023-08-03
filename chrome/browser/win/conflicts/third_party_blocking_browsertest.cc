@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/base_paths.h"
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/scoped_native_library.h"
@@ -14,7 +14,6 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_reg_util_win.h"
 #include "base/win/registry.h"
-#include "base/win/windows_version.h"
 #include "chrome/browser/win/conflicts/module_blocklist_cache_updater.h"
 #include "chrome/browser/win/conflicts/module_blocklist_cache_util.h"
 #include "chrome/browser/win/conflicts/module_database.h"
@@ -24,7 +23,6 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/install_static/install_util.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "components/services/quarantine/public/cpp/quarantine_features_win.h"
 #include "content/public/test/browser_test.h"
 
 namespace {
@@ -99,9 +97,7 @@ void CreateModuleList(base::FilePath* module_list_path) {
 
   base::ScopedAllowBlockingForTesting scoped_allow_blocking;
   ASSERT_TRUE(base::CreateDirectory(module_list_path->DirName()));
-  ASSERT_EQ(static_cast<int>(contents.size()),
-            base::WriteFile(*module_list_path, contents.data(),
-                            static_cast<int>(contents.size())));
+  ASSERT_TRUE(base::WriteFile(*module_list_path, contents));
 }
 
 class ThirdPartyBlockingBrowserTest : public InProcessBrowserTest {
@@ -116,9 +112,8 @@ class ThirdPartyBlockingBrowserTest : public InProcessBrowserTest {
 
   // InProcessBrowserTest:
   void SetUp() override {
-    scoped_feature_list_.InitWithFeatures({features::kThirdPartyModulesBlocking,
-                                           quarantine::kOutOfProcessQuarantine},
-                                          {});
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kThirdPartyModulesBlocking);
 
     ASSERT_TRUE(scoped_temp_dir_.CreateUniqueTempDir());
     ASSERT_NO_FATAL_FAILURE(
@@ -163,9 +158,6 @@ class ThirdPartyBlockingBrowserTest : public InProcessBrowserTest {
 //       browser launch.
 IN_PROC_BROWSER_TEST_F(ThirdPartyBlockingBrowserTest,
                        CreateModuleBlocklistCache) {
-  if (base::win::GetVersion() < base::win::Version::WIN8)
-    return;
-
   // Create the observer early so the change is guaranteed to be observed.
   ThirdPartyRegistryKeyObserver third_party_registry_key_observer;
   ASSERT_TRUE(third_party_registry_key_observer.StartWatching());

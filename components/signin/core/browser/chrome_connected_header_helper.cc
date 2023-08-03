@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <vector>
 
-#include "base/feature_list.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -41,7 +40,7 @@ const char kProfileModeAttrName[] = "mode";
 const char kServiceTypeAttrName[] = "action";
 const char kSupervisedAttrName[] = "supervised";
 const char kSourceAttrName[] = "source";
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 const char kEligibleForConsistency[] = "eligible_for_consistency";
 const char kShowConsistencyPromo[] = "show_consistency_promo";
 #endif
@@ -110,7 +109,7 @@ ManageAccountsParams ChromeConnectedHeaderHelper::BuildManageAccountsParams(
       params.continue_url = value;
     } else if (key_name == kIsSameTabAttrName) {
       params.is_same_tab = value == "true";
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     } else if (key_name == kShowConsistencyPromo) {
       params.show_consistency_promo = value == "true";
 #endif
@@ -124,15 +123,13 @@ ManageAccountsParams ChromeConnectedHeaderHelper::BuildManageAccountsParams(
 bool ChromeConnectedHeaderHelper::ShouldBuildRequestHeader(
     const GURL& url,
     const content_settings::CookieSettings* cookie_settings) {
-  // If signin cookies are not allowed, don't add the header.
-  if (!SettingsAllowSigninCookies(cookie_settings))
-    return false;
-
   // Check if url is eligible for the header.
-  if (!IsUrlEligibleForRequestHeader(url))
+  if (!IsUrlEligibleForRequestHeader(url)) {
     return false;
+  }
 
-  return true;
+  // If signin cookies are not allowed, don't add the header.
+  return SettingsAllowSigninCookies(cookie_settings);
 }
 
 bool ChromeConnectedHeaderHelper::IsUrlEligibleToIncludeGaiaId(
@@ -181,7 +178,7 @@ bool ChromeConnectedHeaderHelper::IsUrlEligibleForRequestHeader(
              google_util::IsYoutubeDomainUrl(
                  url, google_util::ALLOW_SUBDOMAIN,
                  google_util::DISALLOW_NON_STANDARD_PORTS) ||
-             gaia::IsGaiaSignonRealm(url.DeprecatedGetOriginAsURL());
+             gaia::HasGaiaSchemeHostPort(url);
     }
   }
 }
@@ -206,18 +203,18 @@ std::string ChromeConnectedHeaderHelper::BuildRequestHeader(
 // Sessions and Active Directory logins. Guest Sessions have already been
 // filtered upstream and we want to enforce account consistency in Public
 // Sessions and Active Directory logins.
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
   force_account_consistency = true;
 #endif
 
   if (!force_account_consistency && gaia_id.empty()) {
-#if defined(OS_ANDROID)
-    if (gaia::IsGaiaSignonRealm(url.DeprecatedGetOriginAsURL())) {
+#if BUILDFLAG(IS_ANDROID)
+    if (gaia::HasGaiaSchemeHostPort(url)) {
       parts.push_back(
           base::StringPrintf("%s=%s", kEligibleForConsistency, "true"));
       return base::JoinString(parts, is_header_request ? "," : ":");
     }
-#endif  // defined(OS_ANDROID) || defined(OS_IOS)
+#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
     return std::string();
   }
 
@@ -246,8 +243,14 @@ std::string ChromeConnectedHeaderHelper::BuildRequestHeader(
       // Do not add the supervised parameter.
       break;
   }
-  parts.push_back(base::StringPrintf(
-      "%s=%s", kConsistencyEnabledByDefaultAttrName, "false"));
+
+  parts.push_back(base::StringPrintf("%s=%s",
+                                     kConsistencyEnabledByDefaultAttrName,
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+                                     "true"));
+#else
+                                     "false"));
+#endif
 
   return base::JoinString(parts, is_header_request ? "," : ":");
 }

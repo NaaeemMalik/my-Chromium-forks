@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/common/importer/profile_import.mojom.h"
 #include "chrome/utility/importer/external_process_importer_bridge.h"
@@ -46,7 +45,7 @@ void ProfileImportImpl::StartImport(
 
   // Create worker thread in which importer runs.
   import_thread_ = std::make_unique<base::Thread>("import_thread");
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   import_thread_->init_com_with_mta(false);
 #endif
   if (!import_thread_->Start()) {

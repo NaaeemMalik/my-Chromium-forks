@@ -1,16 +1,16 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "weblayer/browser/popup_navigation_delegate_impl.h"
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "build/build_config.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "content/public/browser/web_contents.h"
 #include "weblayer/browser/host_content_settings_map_factory.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/blocked_content/android/popup_blocked_infobar_delegate.h"
 #endif
 
@@ -33,7 +33,7 @@ bool PopupNavigationDelegateImpl::GetOriginalUserGesture() {
   return original_user_gesture_;
 }
 
-const GURL& PopupNavigationDelegateImpl::GetURL() {
+GURL PopupNavigationDelegateImpl::GetURL() {
   return params_.url;
 }
 
@@ -57,7 +57,7 @@ PopupNavigationDelegateImpl::NavigateWithGesture(
 void PopupNavigationDelegateImpl::OnPopupBlocked(
     content::WebContents* web_contents,
     int total_popups_blocked_on_page) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   blocked_content::PopupBlockedInfoBarDelegate::Create(
       infobars::ContentInfoBarManager::FromWebContents(web_contents),
       total_popups_blocked_on_page,

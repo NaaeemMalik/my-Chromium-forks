@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 
 #include <memory>
 
-#include "base/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_observation.h"
 #include "components/password_manager/core/browser/password_account_storage_settings_watcher.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/sync/driver/model_type_controller.h"
@@ -31,6 +31,7 @@ class PasswordModelTypeController : public syncer::ModelTypeController,
                                     public syncer::SyncServiceObserver,
                                     public signin::IdentityManager::Observer {
  public:
+  // TODO(crbug.com/1425033): Remove account_password_store_for_cleanup param.
   PasswordModelTypeController(
       std::unique_ptr<syncer::ModelTypeControllerDelegate>
           delegate_for_full_sync_mode,
@@ -50,8 +51,7 @@ class PasswordModelTypeController : public syncer::ModelTypeController,
   // DataTypeController overrides.
   void LoadModels(const syncer::ConfigureContext& configure_context,
                   const ModelLoadCallback& model_load_callback) override;
-  void Stop(syncer::ShutdownReason shutdown_reason,
-            StopCallback callback) override;
+  void Stop(syncer::SyncStopMetadataFate fate, StopCallback callback) override;
   PreconditionState GetPreconditionState() const override;
   bool ShouldRunInTransportOnlyMode() const override;
 
@@ -69,9 +69,6 @@ class PasswordModelTypeController : public syncer::ModelTypeController,
  private:
   void OnOptInStateMaybeChanged();
 
-  void MaybeClearStore(
-      scoped_refptr<PasswordStoreInterface> account_password_store_for_cleanup);
-
   const raw_ptr<PrefService> pref_service_;
   const raw_ptr<signin::IdentityManager> identity_manager_;
   const raw_ptr<syncer::SyncService> sync_service_;
@@ -80,6 +77,13 @@ class PasswordModelTypeController : public syncer::ModelTypeController,
 
   // Passed in to LoadModels(), and cached here for later use in Stop().
   syncer::SyncMode sync_mode_ = syncer::SyncMode::kFull;
+
+  base::ScopedObservation<signin::IdentityManager,
+                          signin::IdentityManager::Observer>
+      identity_manager_observation_{this};
+
+  base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
+      sync_service_observation_{this};
 
   base::WeakPtrFactory<PasswordModelTypeController> weak_ptr_factory_{this};
 };

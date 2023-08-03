@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,13 @@
 #include <memory>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/ash/net/network_diagnostics/http_request_manager.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_routine.h"
 #include "net/base/address_list.h"
+#include "net/dns/public/host_resolver_results.h"
 #include "net/dns/public/resolve_error_info.h"
 #include "services/network/public/cpp/resolve_host_client_base.h"
 #include "services/network/public/mojom/host_resolver.mojom.h"
@@ -31,7 +33,7 @@ class NetworkContext;
 }
 }  // namespace network
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 // Tests whether the HTTPS latency is within established tolerance levels for
@@ -50,7 +52,7 @@ class HttpsLatencyRoutine : public NetworkDiagnosticsRoutine {
   ~HttpsLatencyRoutine() override;
 
   // NetworkDiagnosticsRoutine:
-  mojom::RoutineType Type() override;
+  chromeos::network_diagnostics::mojom::RoutineType Type() override;
   void Run() override;
   void AnalyzeResultsAndExecuteCallback() override;
 
@@ -58,7 +60,9 @@ class HttpsLatencyRoutine : public NetworkDiagnosticsRoutine {
   void OnHostResolutionComplete(
       int result,
       const net::ResolveErrorInfo& resolve_error_info,
-      const absl::optional<net::AddressList>& resolved_addresses);
+      const absl::optional<net::AddressList>& resolved_addresses,
+      const absl::optional<net::HostResolverEndpointResults>&
+          endpoint_results_with_metadata);
 
   // Sets the NetworkContextGetter for testing.
   void set_network_context_getter(NetworkContextGetter network_context_getter) {
@@ -95,7 +99,8 @@ class HttpsLatencyRoutine : public NetworkDiagnosticsRoutine {
   HttpRequestManagerGetter http_request_manager_getter_;
   bool successfully_resolved_hosts_ = true;
   bool failed_connection_ = false;
-  const base::TickClock* tick_clock_ = nullptr;  // Unowned
+  raw_ptr<const base::TickClock, ExperimentalAsh> tick_clock_ =
+      nullptr;  // Unowned
   base::TimeTicks request_start_time_;
   base::TimeTicks request_end_time_;
   std::vector<GURL> hostnames_to_query_dns_;
@@ -103,11 +108,12 @@ class HttpsLatencyRoutine : public NetworkDiagnosticsRoutine {
   std::vector<base::TimeDelta> latencies_;
   std::unique_ptr<HostResolver> host_resolver_;
   std::unique_ptr<HttpRequestManager> http_request_manager_;
-  std::vector<mojom::HttpsLatencyProblem> problems_;
+  std::vector<chromeos::network_diagnostics::mojom::HttpsLatencyProblem>
+      problems_;
   base::WeakPtrFactory<HttpsLatencyRoutine> weak_factory_{this};
 };
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_DIAGNOSTICS_HTTPS_LATENCY_ROUTINE_H_

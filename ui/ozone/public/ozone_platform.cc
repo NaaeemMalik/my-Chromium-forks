@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,13 @@
 
 #include "base/check_op.h"
 #include "base/no_destructor.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "ui/events/devices/device_data_manager.h"
-#include "ui/ozone/common/base_keyboard_hook.h"
 #include "ui/ozone/platform_object.h"
 #include "ui/ozone/platform_selection.h"
 #include "ui/ozone/public/platform_global_shortcut_listener.h"
+#include "ui/ozone/public/platform_keyboard_hook.h"
 #include "ui/ozone/public/platform_menu_utils.h"
 #include "ui/ozone/public/platform_screen.h"
 #include "ui/ozone/public/platform_user_input_monitor.h"
@@ -23,6 +24,8 @@ namespace ui {
 
 namespace {
 OzonePlatform* g_instance = nullptr;
+
+bool g_fail_initialize_ui_for_test = false;
 
 void EnsureInstance() {
   if (g_instance)
@@ -64,16 +67,18 @@ void OzonePlatform::PreEarlyInitialization() {
 }
 
 // static
-void OzonePlatform::InitializeForUI(const InitParams& args) {
+bool OzonePlatform::InitializeForUI(const InitParams& args) {
   EnsureInstance();
   if (g_instance->initialized_ui_)
-    return;
-  g_instance->initialized_ui_ = true;
+    return true;
   g_instance->single_process_ = args.single_process;
-  g_instance->InitializeUI(args);
+  if (!g_instance->InitializeUI(args))
+    return false;
+  g_instance->initialized_ui_ = true;
   // This is deliberately created after initializing so that the platform can
   // create its own version of DDM.
   DeviceDataManager::CreateInstance();
+  return true;
 }
 
 // static
@@ -90,6 +95,11 @@ void OzonePlatform::InitializeForGPU(const InitParams& args) {
 OzonePlatform* OzonePlatform::GetInstance() {
   DCHECK(g_instance) << "OzonePlatform is not initialized";
   return g_instance;
+}
+
+// static
+bool OzonePlatform::IsInitialized() {
+  return !!g_instance;
 }
 
 // static
@@ -125,13 +135,7 @@ std::unique_ptr<PlatformKeyboardHook> OzonePlatform::CreateKeyboardHook(
     base::RepeatingCallback<void(KeyEvent* event)> callback,
     absl::optional<base::flat_set<DomCode>> dom_codes,
     gfx::AcceleratedWidget accelerated_widget) {
-  switch (type) {
-    case PlatformKeyboardHookTypes::kModifier:
-      return std::make_unique<BaseKeyboardHook>(std::move(dom_codes),
-                                                std::move(callback));
-    case PlatformKeyboardHookTypes::kMedia:
-      return nullptr;
-  }
+  return nullptr;
 }
 
 bool OzonePlatform::IsNativePixmapConfigSupported(
@@ -173,9 +177,20 @@ OzonePlatform::GetPlatformUserInputMonitor(
 }
 
 void OzonePlatform::PostCreateMainMessageLoop(
-    base::OnceCallback<void()> shutdown_cb) {}
+    base::OnceCallback<void()> shutdown_cb,
+    scoped_refptr<base::SingleThreadTaskRunner> input_event_task_runner) {}
 
 void OzonePlatform::PostMainMessageLoopRun() {}
+
+// static
+bool OzonePlatform::ShouldFailInitializeUIForTest() {
+  return g_fail_initialize_ui_for_test;
+}
+
+// static
+void OzonePlatform::SetFailInitializeUIForTest(bool fail) {
+  g_fail_initialize_ui_for_test = fail;
+}
 
 void OzonePlatform::PreEarlyInitialize() {}
 

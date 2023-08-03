@@ -1,10 +1,52 @@
 {
-  "$build/goma": {
-    "enable_ats": true,
-    "jobs": 150,
-    "rpc_extra_params": "?prod",
-    "server_host": "goma.chromium.org",
-    "use_luci_auth": true
+  "$build/chromium_tests_builder_config": {
+    "builder_config": {
+      "builder_db": {
+        "entries": [
+          {
+            "builder_id": {
+              "bucket": "try",
+              "builder": "android_optional_gpu_tests_rel",
+              "project": "chromium-m114"
+            },
+            "builder_spec": {
+              "build_gs_bucket": "chromium-gpu-fyi-archive",
+              "builder_group": "tryserver.chromium.android",
+              "execution_mode": "COMPILE_AND_TEST",
+              "legacy_android_config": {
+                "config": "main_builder"
+              },
+              "legacy_chromium_config": {
+                "config": "android",
+                "target_platform": "android"
+              },
+              "legacy_gclient_config": {
+                "apply_configs": [
+                  "android"
+                ],
+                "config": "chromium"
+              }
+            }
+          }
+        ]
+      },
+      "builder_ids": [
+        {
+          "bucket": "try",
+          "builder": "android_optional_gpu_tests_rel",
+          "project": "chromium-m114"
+        }
+      ],
+      "retry_failed_shards": false
+    }
+  },
+  "$build/flakiness": {
+    "check_for_flakiness": true
+  },
+  "$build/reclient": {
+    "instance": "rbe-chromium-untrusted",
+    "jobs": 300,
+    "metrics_project": "chromium-reclient-metrics"
   },
   "$recipe_engine/resultdb/test_presentation": {
     "column_keys": [],
@@ -14,5 +56,6 @@
     ]
   },
   "builder_group": "tryserver.chromium.android",
+  "cq": "path-based",
   "recipe": "chromium_trybot"
 }

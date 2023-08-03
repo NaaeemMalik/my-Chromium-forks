@@ -1,10 +1,10 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
@@ -196,12 +196,12 @@ class WPADHttpProxyScriptBrowserTest : public HttpProxyScriptBrowserTest {
   void SetUp() override {
     ASSERT_TRUE(http_server_.Start());
     pac_url_ = http_server_.GetURL("/" + GetPacFilename());
-    chromeos::DhcpWpadUrlClient::SetPacUrlForTesting(pac_url_);
+    ash::DhcpWpadUrlClient::SetPacUrlForTesting(pac_url_);
     InProcessBrowserTest::SetUp();
   }
 
   void TearDown() override {
-    chromeos::DhcpWpadUrlClient::ClearPacUrlForTesting();
+    ash::DhcpWpadUrlClient::ClearPacUrlForTesting();
     InProcessBrowserTest::TearDown();
   }
 

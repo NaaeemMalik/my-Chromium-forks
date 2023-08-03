@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,20 +8,23 @@
 #include <utility>
 
 #include "base/base_paths.h"
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/debug/leak_annotations.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/process/process_metrics.h"
 #include "base/run_loop.h"
+#include "base/sampling_heap_profiler/poisson_allocation_sampler.h"
 #include "base/strings/string_util.h"
+#include "base/test/allow_check_is_test_for_testing.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_file_util.h"
 #include "base/test/test_switches.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/common/chrome_constants.h"
@@ -36,24 +39,28 @@
 #include "content/public/test/network_service_test_helper.h"
 #include "content/public/test/test_launcher.h"
 #include "content/public/test/test_utils.h"
+#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "mojo/public/cpp/bindings/service_factory.h"
+#include "services/test/echo/echo_service.h"
 #include "ui/base/test/ui_controls.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "base/mac/bundle_locations.h"
 #include "chrome/browser/chrome_browser_application_mac.h"
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 
 #if defined(USE_AURA)
 #include "ui/aura/test/ui_controls_factory_aura.h"
 #include "ui/base/test/ui_controls_aura.h"
 #endif
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
 #include "chrome/app/chrome_crash_reporter_client.h"
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <Shlobj.h>
+#include "base/debug/handle_hooks_win.h"
 #include "base/win/registry.h"
 #include "base/win/scoped_com_initializer.h"
 #include "chrome/app/chrome_crash_reporter_client_win.h"
@@ -63,8 +70,8 @@
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_WIN) || defined(OS_MAC) || \
-    (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || \
+    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
 #include "chrome/browser/first_run/scoped_relaunch_chrome_browser_override.h"
 #include "chrome/browser/upgrade_detector/installed_version_poller.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -74,14 +81,14 @@
 int ChromeTestSuiteRunner::RunTestSuiteInternal(ChromeTestSuite* test_suite) {
   // Browser tests are expected not to tear-down various globals.
   test_suite->DisableCheckForLeakedGlobals();
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Android browser tests run child processes as threads instead.
   content::ContentTestSuiteBase::RegisterInProcessThreads();
 #endif
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_WIN) || defined(OS_MAC) || \
-    (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || \
+    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
   InstalledVersionPoller::ScopedDisableForTesting disable_polling(
       InstalledVersionPoller::MakeScopedDisableForTesting());
 #endif
@@ -93,7 +100,7 @@ int ChromeTestSuiteRunner::RunTestSuite(int argc, char** argv) {
   return RunTestSuiteInternal(&test_suite);
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 
 // A helper class that adds Windows firewall rules for the duration of the test.
 class ChromeTestLauncherDelegate::ScopedFirewallRules {
@@ -123,7 +130,15 @@ class ChromeTestLauncherDelegate::ScopedFirewallRules {
   bool rules_added_ = false;
 };
 
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
+
+namespace {
+
+auto RunEchoService(mojo::PendingReceiver<echo::mojom::EchoService> receiver) {
+  return std::make_unique<echo::EchoService>(std::move(receiver));
+}
+
+}  // namespace
 
 ChromeTestLauncherDelegate::ChromeTestLauncherDelegate(
     ChromeTestSuiteRunner* runner)
@@ -151,6 +166,18 @@ class BrowserTestChromeContentBrowserClient
   }
 };
 
+// A replacement ChromeContentUtilityClient that binds the
+// echo::mojom::EchoService within the Utility process. For use with testing
+// only.
+class BrowserTestChromeContentUtilityClient
+    : public ChromeContentUtilityClient {
+ public:
+  void RegisterIOThreadServices(mojo::ServiceFactory& services) override {
+    ChromeContentUtilityClient::RegisterIOThreadServices(services);
+    services.Add(RunEchoService);
+  }
+};
+
 content::ContentBrowserClient*
 ChromeTestChromeMainDelegate::CreateContentBrowserClient() {
   chrome_content_browser_client_ =
@@ -158,14 +185,21 @@ ChromeTestChromeMainDelegate::CreateContentBrowserClient() {
   return chrome_content_browser_client_.get();
 }
 
-#if defined(OS_WIN)
+content::ContentUtilityClient*
+ChromeTestChromeMainDelegate::CreateContentUtilityClient() {
+  chrome_content_utility_client_ =
+      std::make_unique<BrowserTestChromeContentUtilityClient>();
+  return chrome_content_utility_client_.get();
+}
+
+#if BUILDFLAG(IS_WIN)
 bool ChromeTestChromeMainDelegate::ShouldHandleConsoleControlEvents() {
   // Allow Ctrl-C and friends to terminate the test processes forthwith.
   return false;
 }
 #endif
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 content::ContentMainDelegate*
 ChromeTestLauncherDelegate::CreateContentMainDelegate() {
   return new ChromeTestChromeMainDelegate(base::TimeTicks::Now());
@@ -173,7 +207,7 @@ ChromeTestLauncherDelegate::CreateContentMainDelegate() {
 #endif
 
 void ChromeTestLauncherDelegate::PreSharding() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Pre-test cleanup for registry state keyed off the profile dir (which can
   // proliferate with the use of uniquely named scoped_dirs):
   // https://crbug.com/721245. This needs to be here in order not to be racy
@@ -202,7 +236,7 @@ void ChromeTestLauncherDelegate::PreSharding() {
 }
 
 void ChromeTestLauncherDelegate::OnDoneRunningTests() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   firewall_rules_.reset();
 #endif
 }
@@ -211,7 +245,9 @@ int LaunchChromeTests(size_t parallel_jobs,
                       content::TestLauncherDelegate* delegate,
                       int argc,
                       char** argv) {
-#if defined(OS_MAC)
+  base::test::AllowCheckIsTestForTesting();
+
+#if BUILDFLAG(IS_MAC)
   // Set up the path to the framework so resources can be loaded. This is also
   // performed in ChromeTestSuite, but in browser tests that only affects the
   // browser process. Child processes need access to the Framework bundle too.
@@ -221,12 +257,24 @@ int LaunchChromeTests(size_t parallel_jobs,
   base::mac::SetOverrideFrameworkBundlePath(path);
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Create a primordial InstallDetails instance for the test.
   install_static::ScopedInstallDetails install_details;
-#endif
+
+  // Install handle hooks for tests only.
+  base::debug::HandleHooks::PatchLoadedModules();
+#endif  // BUILDFLAG(IS_WIN)
 
   const auto& command_line = *base::CommandLine::ForCurrentProcess();
+
+  // PoissonAllocationSampler's TLS slots need to be set up before
+  // MainThreadStackSamplingProfiler, which can allocate TLS slots of its own.
+  // On some platforms pthreads can malloc internally to access higher-numbered
+  // TLS slots, which can cause reentry in the heap profiler. (See the comment
+  // on ReentryGuard::InitTLSSlot().)
+  // TODO(https://crbug.com/1411454): Clean up other paths that call this Init()
+  // function, which are now redundant.
+  base::PoissonAllocationSampler::Init();
 
   // Initialize sampling profiler for tests that relaunching a browser. This
   // mimics the behavior in standalone Chrome, where this is done in
@@ -235,9 +283,9 @@ int LaunchChromeTests(size_t parallel_jobs,
   if (command_line.HasSwitch(switches::kLaunchAsBrowser))
     sampling_profiler = std::make_unique<MainThreadStackSamplingProfiler>();
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
   ChromeCrashReporterClient::Create();
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
   // We leak this pointer intentionally. The crash client needs to outlive
   // all other code.
   ChromeCrashReporterClient* crash_client = new ChromeCrashReporterClient();
@@ -249,23 +297,12 @@ int LaunchChromeTests(size_t parallel_jobs,
   // Only create this object in the utility process, so that its members don't
   // interfere with other test objects in the browser process.
   std::unique_ptr<content::NetworkServiceTestHelper>
-      network_service_test_helper;
-  if (command_line.GetSwitchValueASCII(switches::kProcessType) ==
-      switches::kUtilityProcess) {
-    network_service_test_helper =
-        std::make_unique<content::NetworkServiceTestHelper>();
-    ChromeContentUtilityClient::SetNetworkBinderCreationCallback(base::BindOnce(
-        [](content::NetworkServiceTestHelper* helper,
-           service_manager::BinderRegistry* registry) {
-          helper->RegisterNetworkBinders(registry);
-        },
-        network_service_test_helper.get()));
-  }
+      network_service_test_helper = content::NetworkServiceTestHelper::Create();
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_WIN) || defined(OS_MAC) || \
-    (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || \
+    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
   // Cause a test failure for any test that triggers an unexpected relaunch.
   // Tests that fail here should likely be restructured to put the "before
   // relaunch" code into a PRE_ test with its own

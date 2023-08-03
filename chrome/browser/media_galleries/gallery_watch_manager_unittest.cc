@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,12 @@
 
 #include <memory>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_path_override.h"
@@ -104,6 +104,7 @@ class GalleryWatchManagerTest : public GalleryWatchManagerObserver,
       manager_->RemoveObserver(profile_.get());
     }
     manager_.reset();
+    monitor_ = nullptr;
 
     // The TestingProfile must be destroyed before the TestingBrowserProcess
     // because TestingProfile uses TestingBrowserProcess in its destructor.
@@ -182,7 +183,10 @@ class GalleryWatchManagerTest : public GalleryWatchManagerObserver,
     pending_loop_ = loop;
   }
 
-  void ShutdownProfile() { profile_.reset(nullptr); }
+  void ShutdownProfile() {
+    gallery_prefs_ = nullptr;
+    profile_.reset();
+  }
 
  private:
   // GalleryWatchManagerObserver implementation.
@@ -190,12 +194,14 @@ class GalleryWatchManagerTest : public GalleryWatchManagerObserver,
                         MediaGalleryPrefId gallery_id) override {
     EXPECT_TRUE(expect_gallery_changed_);
     pending_loop_->Quit();
+    pending_loop_ = nullptr;
   }
 
   void OnGalleryWatchDropped(const std::string& extension_id,
                              MediaGalleryPrefId gallery_id) override {
     EXPECT_TRUE(expect_gallery_watch_dropped_);
     pending_loop_->Quit();
+    pending_loop_ = nullptr;
   }
 
   std::unique_ptr<GalleryWatchManager> manager_;
@@ -246,7 +252,7 @@ TEST_F(GalleryWatchManagerTest, MAYBE_Basic) {
 }
 
 // TODO(crbug.com/1183482): Flaky on mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_AddAndRemoveTwoWatches DISABLED_AddAndRemoveTwoWatches
 #else
 #define MAYBE_AddAndRemoveTwoWatches AddAndRemoveTwoWatches
@@ -297,7 +303,7 @@ TEST_F(GalleryWatchManagerTest, MAYBE_AddAndRemoveTwoWatches) {
 }
 
 // TODO(crbug.com/1182867): Flaky on mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_RemoveAllWatches DISABLED_RemoveAllWatches
 #else
 #define MAYBE_RemoveAllWatches RemoveAllWatches
@@ -332,7 +338,7 @@ TEST_F(GalleryWatchManagerTest, MAYBE_RemoveAllWatches) {
 
 // Fails on Mac: crbug.com/1183212
 // Fails on Chrome OS: crbug.com/1207878
-#if defined(OS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_ASH)
 #define MAYBE_DropWatchOnGalleryRemoved DISABLED_DropWatchOnGalleryRemoved
 #else
 #define MAYBE_DropWatchOnGalleryRemoved DropWatchOnGalleryRemoved
@@ -368,7 +374,7 @@ TEST_F(GalleryWatchManagerTest, DropWatchOnGalleryPermissionRevoked) {
 }
 
 // TODO(crbug.com/1183212): flaky on mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_DropWatchOnStorageRemoved DISABLED_DropWatchOnStorageRemoved
 #else
 #define MAYBE_DropWatchOnStorageRemoved DropWatchOnStorageRemoved
@@ -395,7 +401,7 @@ TEST_F(GalleryWatchManagerTest, MAYBE_DropWatchOnStorageRemoved) {
   success_loop.Run();
 }
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_TestWatchOperation DISABLED_TestWatchOperation
 #else
 #define MAYBE_TestWatchOperation TestWatchOperation

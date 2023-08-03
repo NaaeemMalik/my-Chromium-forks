@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,25 +6,25 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/check.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/singleton.h"
 #include "base/notreached.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
+#include "build/build_config.h"
 #include "net/base/network_change_notifier.h"
 #include "services/device/geolocation/location_arbitrator.h"
 #include "services/device/geolocation/position_cache_impl.h"
 #include "services/device/public/cpp/geolocation/geoposition.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/jni_android.h"
 #include "services/device/geolocation/geolocation_jni_headers/LocationProviderFactory_jni.h"
 #endif
@@ -37,12 +37,24 @@ base::LazyInstance<CustomLocationProviderCallback>::Leaky
 base::LazyInstance<std::unique_ptr<network::PendingSharedURLLoaderFactory>>::
     Leaky g_pending_url_loader_factory = LAZY_INSTANCE_INITIALIZER;
 base::LazyInstance<std::string>::Leaky g_api_key = LAZY_INSTANCE_INITIALIZER;
-GeolocationManager* g_geolocation_manager;
+GeolocationManager* g_geolocation_manager = nullptr;
 }  // namespace
 
 // static
+GeolocationProvider* GeolocationProvider::instance_for_testing_ = nullptr;
+
+// static
 GeolocationProvider* GeolocationProvider::GetInstance() {
+  if (instance_for_testing_) {
+    return instance_for_testing_;
+  }
   return GeolocationProviderImpl::GetInstance();
+}
+
+// static
+void GeolocationProvider::SetInstanceForTesting(
+    GeolocationProvider* instance_for_testing) {
+  instance_for_testing_ = instance_for_testing;
 }
 
 // static
@@ -58,7 +70,7 @@ void GeolocationProviderImpl::SetGeolocationConfiguration(
   g_custom_location_provider_callback.Get() = custom_location_provider_getter;
   g_geolocation_manager = geolocation_manager;
   if (use_gms_core_location_provider) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     JNIEnv* env = base::android::AttachCurrentThread();
     Java_LocationProviderFactory_useGmsCoreLocationProvider(env);
 #else
@@ -80,9 +92,8 @@ GeolocationProviderImpl::AddLocationUpdateCallback(
   }
 
   OnClientsChanged();
-  if (ValidateGeoposition(position_) ||
-      position_.error_code != mojom::Geoposition::ErrorCode::NONE) {
-    callback.Run(position_);
+  if (result_) {
+    callback.Run(*result_);
   }
 
   return subscription;
@@ -93,22 +104,22 @@ bool GeolocationProviderImpl::HighAccuracyLocationInUse() {
 }
 
 void GeolocationProviderImpl::OverrideLocationForTesting(
-    const mojom::Geoposition& position) {
+    mojom::GeopositionResultPtr result) {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
   ignore_location_updates_ = true;
-  NotifyClients(position);
+  NotifyClients(std::move(result));
 }
 
 void GeolocationProviderImpl::OnLocationUpdate(
     const LocationProvider* provider,
-    const mojom::Geoposition& position) {
+    mojom::GeopositionResultPtr result) {
   DCHECK(OnGeolocationThread());
   // Will be true only in testing.
   if (ignore_location_updates_)
     return;
   main_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&GeolocationProviderImpl::NotifyClients,
-                                base::Unretained(this), position));
+                                base::Unretained(this), std::move(result)));
 }
 
 // static
@@ -136,9 +147,7 @@ void GeolocationProviderImpl::UserDidOptIntoLocationServices() {
 
 GeolocationProviderImpl::GeolocationProviderImpl()
     : base::Thread("Geolocation"),
-      user_did_opt_into_location_services_(false),
-      ignore_location_updates_(false),
-      main_task_runner_(base::ThreadTaskRunnerHandle::Get()) {
+      main_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
   high_accuracy_callbacks_.set_removal_callback(base::BindRepeating(
       &GeolocationProviderImpl::OnClientsChanged, base::Unretained(this)));
@@ -168,14 +177,14 @@ void GeolocationProviderImpl::OnClientsChanged() {
     if (!ignore_location_updates_) {
       // We have no more observers, so we clear the cached geoposition so that
       // when the next observer is added we will not provide a stale position.
-      position_ = mojom::Geoposition();
+      result_.reset();
     }
     task = base::BindOnce(&GeolocationProviderImpl::StopProviders,
                           base::Unretained(this));
   } else {
     if (!IsRunning()) {
       base::Thread::Options options;
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
       options.message_pump_type = base::MessagePumpType::NS_RUNLOOP;
 #endif
       StartWithOptions(std::move(options));
@@ -221,13 +230,15 @@ void GeolocationProviderImpl::InformProvidersPermissionGranted() {
 }
 
 void GeolocationProviderImpl::NotifyClients(
-    const mojom::Geoposition& position) {
+    mojom::GeopositionResultPtr result) {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
-  DCHECK(ValidateGeoposition(position) ||
-         position.error_code != mojom::Geoposition::ErrorCode::NONE);
-  position_ = position;
-  high_accuracy_callbacks_.Notify(position_);
-  low_accuracy_callbacks_.Notify(position_);
+  DCHECK(result);
+  if (result->is_position() && !ValidateGeoposition(*result->get_position())) {
+    return;
+  }
+  result_ = std::move(result);
+  high_accuracy_callbacks_.Notify(*result_);
+  low_accuracy_callbacks_.Notify(*result_);
 }
 
 void GeolocationProviderImpl::Init() {

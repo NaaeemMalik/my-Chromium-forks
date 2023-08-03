@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
 #include "chrome/browser/android/oom_intervention/oom_intervention_config.h"
 #include "chrome/browser/android/oom_intervention/oom_intervention_decider.h"
-#include "chrome/browser/ui/android/infobars/near_oom_reduction_infobar.h"
 #include "components/back_forward_cache/back_forward_cache_disable.h"
 #include "components/messages/android/messages_feature.h"
 #include "content/public/browser/back_forward_cache.h"
@@ -62,11 +61,7 @@ void OomInterventionTabHelper::OnHighMemoryUsage() {
   if (config->is_renderer_pause_enabled() ||
       config->is_navigate_ads_enabled() ||
       config->is_purge_v8_memory_enabled()) {
-    if (messages::IsNearOomReductionMessagesUiEnabled()) {
-      near_oom_reduction_message_delegate_.ShowMessage(web_contents(), this);
-    } else {
-      NearOomReductionInfoBar::Show(web_contents(), this);
-    }
+    near_oom_reduction_message_delegate_.ShowMessage(web_contents(), this);
     intervention_state_ = InterventionState::UI_SHOWN;
   }
   if (!last_navigation_timestamp_.is_null()) {
@@ -128,10 +123,6 @@ void OomInterventionTabHelper::PrimaryMainFrameRenderProcessGone(
     return;
   }
 
-  // OOM crash is handled in OnForegroundOOMDetected().
-  if (status == base::TERMINATION_STATUS_OOM_PROTECTED)
-    return;
-
   if (near_oom_detected_time_) {
     ResetInterventionState();
   }
@@ -184,10 +175,7 @@ void OomInterventionTabHelper::OnVisibilityChanged(
   }
 }
 
-void OomInterventionTabHelper::DocumentOnLoadCompletedInMainFrame(
-    content::RenderFrameHost* render_frame_host) {
-  if (!render_frame_host->GetPage().IsPrimary())
-    return;
+void OomInterventionTabHelper::DocumentOnLoadCompletedInPrimaryMainFrame() {
   if (IsLastVisibleWebContents(web_contents()))
     StartMonitoringIfNeeded();
 }
@@ -196,7 +184,8 @@ void OomInterventionTabHelper::OnCrashDumpProcessed(
     int rph_id,
     const crash_reporter::CrashMetricsReporter::ReportedCrashTypeSet&
         reported_counts) {
-  if (rph_id != web_contents()->GetMainFrame()->GetProcess()->GetID())
+  if (rph_id !=
+      web_contents()->GetPrimaryPage().GetMainDocument().GetProcess()->GetID())
     return;
   if (!reported_counts.count(
           crash_reporter::CrashMetricsReporter::ProcessedCrashCounts::
@@ -236,7 +225,7 @@ void OomInterventionTabHelper::StartMonitoringIfNeeded() {
   if (near_oom_detected_time_)
     return;
 
-  if (!web_contents()->IsDocumentOnLoadCompletedInMainFrame())
+  if (!web_contents()->IsDocumentOnLoadCompletedInPrimaryMainFrame())
     return;
 
   auto* config = OomInterventionConfig::GetInstance();
@@ -277,17 +266,17 @@ void OomInterventionTabHelper::StartDetectionInRenderer() {
 
   start_monitor_timestamp_ = base::TimeTicks::Now();
 
-  content::RenderFrameHost* main_frame = web_contents()->GetMainFrame();
-  DCHECK(main_frame);
+  content::RenderFrameHost& main_frame =
+      web_contents()->GetPrimaryPage().GetMainDocument();
 
   // Connections to the renderer will not be recreated when coming out of the
   // cache so prevent us from getting in there in the first place.
   content::BackForwardCache::DisableForRenderFrameHost(
-      main_frame,
+      &main_frame,
       back_forward_cache::DisabledReason(
           back_forward_cache::DisabledReasonId::kOomInterventionTabHelper));
 
-  content::RenderProcessHost* render_process_host = main_frame->GetProcess();
+  content::RenderProcessHost* render_process_host = main_frame.GetProcess();
   DCHECK(render_process_host);
   render_process_host->BindReceiver(intervention_.BindNewPipeAndPassReceiver());
   DCHECK(!receiver_.is_bound());

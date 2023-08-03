@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,25 @@
 #define CHROME_BROWSER_EXTENSIONS_API_AUTOFILL_PRIVATE_AUTOFILL_PRIVATE_API_H_
 
 #include "extensions/browser/extension_function.h"
+#include "extensions/browser/extension_function_histogram_value.h"
 
 namespace extensions {
+class AutofillPrivateGetAccountInfoFunction : public ExtensionFunction {
+ public:
+  AutofillPrivateGetAccountInfoFunction() = default;
+  AutofillPrivateGetAccountInfoFunction(
+      const AutofillPrivateGetAccountInfoFunction&) = delete;
+  AutofillPrivateGetAccountInfoFunction& operator=(
+      const AutofillPrivateGetAccountInfoFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("autofillPrivate.getAccountInfo",
+                             AUTOFILLPRIVATE_GETACCOUNTINFO)
+
+ protected:
+  ~AutofillPrivateGetAccountInfoFunction() override = default;
+
+  // ExtensionFunction overrides.
+  ResponseAction Run() override;
+};
 
 class AutofillPrivateSaveAddressFunction : public ExtensionFunction {
  public:
@@ -217,6 +234,57 @@ class AutofillPrivateSetCreditCardFIDOAuthEnabledStateFunction
   ResponseAction Run() override;
 };
 
+class AutofillPrivateSaveIbanFunction : public ExtensionFunction {
+ public:
+  AutofillPrivateSaveIbanFunction() = default;
+  AutofillPrivateSaveIbanFunction(const AutofillPrivateSaveIbanFunction&) =
+      delete;
+  AutofillPrivateSaveIbanFunction& operator=(
+      const AutofillPrivateSaveIbanFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("autofillPrivate.saveIban",
+                             AUTOFILLPRIVATE_SAVEIBAN)
+
+ protected:
+  ~AutofillPrivateSaveIbanFunction() override = default;
+
+  // ExtensionFunction overrides.
+  ResponseAction Run() override;
+};
+
+class AutofillPrivateGetIbanListFunction : public ExtensionFunction {
+ public:
+  AutofillPrivateGetIbanListFunction() = default;
+  AutofillPrivateGetIbanListFunction(
+      const AutofillPrivateGetIbanListFunction&) = delete;
+  AutofillPrivateGetIbanListFunction& operator=(
+      const AutofillPrivateGetIbanListFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("autofillPrivate.getIbanList",
+                             AUTOFILLPRIVATE_GETIBANLIST)
+
+ protected:
+  ~AutofillPrivateGetIbanListFunction() override = default;
+
+  // ExtensionFunction overrides.
+  ResponseAction Run() override;
+};
+
+class AutofillPrivateIsValidIbanFunction : public ExtensionFunction {
+ public:
+  AutofillPrivateIsValidIbanFunction() = default;
+  AutofillPrivateIsValidIbanFunction(
+      const AutofillPrivateIsValidIbanFunction&) = delete;
+  AutofillPrivateIsValidIbanFunction& operator=(
+      const AutofillPrivateIsValidIbanFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("autofillPrivate.isValidIban",
+                             AUTOFILLPRIVATE_ISVALIDIBAN)
+
+ protected:
+  ~AutofillPrivateIsValidIbanFunction() override = default;
+
+  // ExtensionFunction overrides.
+  ResponseAction Run() override;
+};
+
 class AutofillPrivateGetUpiIdListFunction : public ExtensionFunction {
  public:
   AutofillPrivateGetUpiIdListFunction() = default;
@@ -229,6 +297,40 @@ class AutofillPrivateGetUpiIdListFunction : public ExtensionFunction {
 
  protected:
   ~AutofillPrivateGetUpiIdListFunction() override = default;
+
+  // ExtensionFunction overrides.
+  ResponseAction Run() override;
+};
+
+class AutofillPrivateAddVirtualCardFunction : public ExtensionFunction {
+ public:
+  AutofillPrivateAddVirtualCardFunction() = default;
+  AutofillPrivateAddVirtualCardFunction(
+      const AutofillPrivateAddVirtualCardFunction&) = delete;
+  AutofillPrivateAddVirtualCardFunction& operator=(
+      const AutofillPrivateAddVirtualCardFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("autofillPrivate.addVirtualCard",
+                             AUTOFILLPRIVATE_ADDVIRTUALCARD)
+
+ protected:
+  ~AutofillPrivateAddVirtualCardFunction() override = default;
+
+  // ExtensionFunction overrides.
+  ResponseAction Run() override;
+};
+
+class AutofillPrivateRemoveVirtualCardFunction : public ExtensionFunction {
+ public:
+  AutofillPrivateRemoveVirtualCardFunction() = default;
+  AutofillPrivateRemoveVirtualCardFunction(
+      const AutofillPrivateRemoveVirtualCardFunction&) = delete;
+  AutofillPrivateRemoveVirtualCardFunction& operator=(
+      const AutofillPrivateRemoveVirtualCardFunction&) = delete;
+  DECLARE_EXTENSION_FUNCTION("autofillPrivate.removeVirtualCard",
+                             AUTOFILLPRIVATE_REMOVEVIRTUALCARD)
+
+ protected:
+  ~AutofillPrivateRemoveVirtualCardFunction() override = default;
 
   // ExtensionFunction overrides.
   ResponseAction Run() override;

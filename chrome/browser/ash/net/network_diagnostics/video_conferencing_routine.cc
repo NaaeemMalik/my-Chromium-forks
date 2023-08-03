@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,16 +11,18 @@
 #include "base/time/time.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_util.h"
 #include "chrome/browser/ash/net/network_diagnostics/udp_prober.h"
-#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/storage_partition.h"
 #include "net/base/net_errors.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace {
+
+namespace mojom = ::chromeos::network_diagnostics::mojom;
 
 const char kDefaultStunServer[] = "stun.l.google.com";
 
@@ -210,4 +212,4 @@ void VideoConferencingRoutine::OnTlsProbeComplete(
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

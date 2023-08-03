@@ -1,19 +1,20 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/credential_provider_extension/ui/credential_details_view_controller.h"
 
-#import <MobileCoreServices/UTCoreTypes.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import "base/mac/foundation_util.h"
-#include "ios/chrome/common/app_group/app_group_metrics.h"
+#import "ios/chrome/common/app_group/app_group_metrics.h"
 #import "ios/chrome/common/constants.h"
 #import "ios/chrome/common/credential_provider/credential.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/elements/highlight_button.h"
 #import "ios/chrome/credential_provider_extension/metrics_util.h"
 #import "ios/chrome/credential_provider_extension/ui/feature_flags.h"
+#import "ios/chrome/credential_provider_extension/ui/password_note_cell.h"
 #import "ios/chrome/credential_provider_extension/ui/tooltip_view.h"
 #import "ios/chrome/credential_provider_extension/ui/ui_util.h"
 
@@ -35,6 +36,7 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
   RowIdentifierURL,
   RowIdentifierUsername,
   RowIdentifierPassword,
+  RowIdentifierNote,
   NumRows
 };
 
@@ -56,46 +58,32 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 @synthesize delegate;
 
 - (instancetype)init {
-  UITableViewStyle style = IsPasswordCreationEnabled()
-                               ? UITableViewStyleInsetGrouped
-                               : UITableViewStylePlain;
-  self = [super initWithStyle:style];
+  self = [super initWithStyle:UITableViewStyleInsetGrouped];
   return self;
 }
 
 - (void)viewDidLoad {
   [super viewDidLoad];
   UIColor* backgroundColor =
-      IsPasswordCreationEnabled()
-          ? [UIColor colorNamed:kGroupedPrimaryBackgroundColor]
-          : [UIColor colorNamed:kBackgroundColor];
+      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
   self.view.backgroundColor = backgroundColor;
-  if (IsPasswordCreationEnabled()) {
-    UINavigationBarAppearance* appearance =
-        [[UINavigationBarAppearance alloc] init];
-    [appearance configureWithDefaultBackground];
-    appearance.backgroundColor = backgroundColor;
-    if (@available(iOS 15, *)) {
-      self.navigationItem.scrollEdgeAppearance = appearance;
-    } else {
-      // On iOS 14, scrollEdgeAppearance only affects navigation bars with large
-      // titles, so it can't be used. Instead, the navigation bar will always be
-      // the same style.
-      self.navigationItem.standardAppearance = appearance;
-    }
+  UINavigationBarAppearance* appearance =
+      [[UINavigationBarAppearance alloc] init];
+  [appearance configureWithDefaultBackground];
+  appearance.backgroundColor = backgroundColor;
+  if (@available(iOS 15, *)) {
+    self.navigationItem.scrollEdgeAppearance = appearance;
   } else {
-    self.navigationController.navigationBar.translucent = NO;
-    self.navigationController.navigationBar.backgroundColor = backgroundColor;
+    // On iOS 14, scrollEdgeAppearance only affects navigation bars with large
+    // titles, so it can't be used. Instead, the navigation bar will always be
+    // the same style.
+    self.navigationItem.standardAppearance = appearance;
   }
-  self.navigationItem.rightBarButtonItem = IsPasswordCreationEnabled()
-                                               ? [self navigationEnterButton]
-                                               : [self navigationCancelButton];
-  if (IsPasswordCreationEnabled()) {
-    // UITableViewStyleInsetGrouped adds space to the top of the table view by
-    // default. Remove that space and add in the desired amount.
-    self.tableView.contentInset = UIEdgeInsetsMake(
-        -kUITableViewInsetGroupedTopSpace + kTableViewTopSpace, 0, 0, 0);
-  }
+  self.navigationItem.rightBarButtonItem = [self navigationEnterButton];
+  // UITableViewStyleInsetGrouped adds space to the top of the table view by
+  // default. Remove that space and add in the desired amount.
+  self.tableView.contentInset = UIEdgeInsetsMake(
+      -kUITableViewInsetGroupedTopSpace + kTableViewTopSpace, 0, 0, 0);
   self.tableView.tableFooterView = [[UIView alloc] initWithFrame:CGRectZero];
 
   NSNotificationCenter* defaultCenter = [NSNotificationCenter defaultCenter];
@@ -118,11 +106,29 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 
 - (NSInteger)tableView:(UITableView*)tableView
     numberOfRowsInSection:(NSInteger)section {
-  return RowIdentifier::NumRows;
+  if (IsPasswordNotesWithBackupEnabled()) {
+    return RowIdentifier::NumRows;
+  }
+
+  return RowIdentifier::NumRows - 1;
 }
 
 - (UITableViewCell*)tableView:(UITableView*)tableView
         cellForRowAtIndexPath:(NSIndexPath*)indexPath {
+  if (indexPath.row == RowIdentifier::RowIdentifierNote &&
+      IsPasswordNotesWithBackupEnabled()) {
+    PasswordNoteCell* cell =
+        [tableView dequeueReusableCellWithIdentifier:PasswordNoteCell.reuseID];
+    if (!cell) {
+      cell = [[PasswordNoteCell alloc] initWithStyle:UITableViewCellStyleValue1
+                                     reuseIdentifier:PasswordNoteCell.reuseID];
+    }
+    [cell configureCell];
+    cell.textView.text = self.credential.note;
+    cell.textView.editable = NO;
+    return cell;
+  }
+
   UITableViewCell* cell =
       [tableView dequeueReusableCellWithIdentifier:kCellIdentifier];
   if (!cell) {
@@ -152,6 +158,8 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
       cell.textLabel.text = NSLocalizedString(
           @"IDS_IOS_CREDENTIAL_PROVIDER_DETAILS_PASSWORD", @"Password");
       cell.detailTextLabel.text = [self password];
+      break;
+    case RowIdentifier::RowIdentifierNote:
       break;
     default:
       break;
@@ -227,7 +235,7 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 
 // Copy password to clipboard.
 - (void)copyPassword {
-  NSDictionary* item = @{(NSString*)kUTTypePlainText : self.clearPassword};
+  NSDictionary* item = @{UTTypePlainText.identifier : self.clearPassword};
   NSDate* expirationDate =
       [NSDate dateWithTimeIntervalSinceNow:kSecurePasteboardExpiration];
   NSDictionary* options = @{UIPasteboardOptionExpirationDate : expirationDate};
@@ -258,9 +266,7 @@ typedef NS_ENUM(NSInteger, RowIdentifier) {
 // Creates an enter button for the navigation item
 - (UIBarButtonItem*)navigationEnterButton {
   NSString* title =
-      IsPasswordCreationEnabled()
-          ? NSLocalizedString(@"IDS_IOS_CREDENTIAL_PROVIDER_USE", @"Use")
-          : NSLocalizedString(@"IDS_IOS_CREDENTIAL_PROVIDER_ENTER", @"Enter");
+      NSLocalizedString(@"IDS_IOS_CREDENTIAL_PROVIDER_USE", @"Use");
   UIBarButtonItem* enterButton =
       [[UIBarButtonItem alloc] initWithTitle:title
                                        style:UIBarButtonItemStyleDone

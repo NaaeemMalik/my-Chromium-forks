@@ -34,9 +34,7 @@
 #include <iosfwd>
 
 #include "base/compiler_specific.h"
-#include "third_party/blink/renderer/platform/geometry/float_rect.h"
 #include "third_party/blink/renderer/platform/geometry/layout_point.h"
-#include "third_party/blink/renderer/platform/geometry/layout_rect_outsets.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -44,8 +42,6 @@
 #include "ui/gfx/geometry/rect_f.h"
 
 namespace blink {
-
-class DoubleRect;
 
 class PLATFORM_EXPORT LayoutRect {
   DISALLOW_NEW();
@@ -61,9 +57,7 @@ class PLATFORM_EXPORT LayoutRect {
       : location_(LayoutPoint(x, y)), size_(LayoutSize(width, height)) {}
   constexpr LayoutRect(int x, int y, int width, int height)
       : location_(LayoutPoint(x, y)), size_(LayoutSize(width, height)) {}
-  constexpr LayoutRect(const gfx::PointF& location, const FloatSize& size)
-      : location_(location), size_(size) {}
-  constexpr LayoutRect(const DoublePoint& location, const DoubleSize& size)
+  constexpr LayoutRect(const gfx::PointF& location, const gfx::SizeF& size)
       : location_(location), size_(size) {}
   constexpr LayoutRect(const gfx::Point& location, const gfx::Size& size)
       : location_(location), size_(size) {}
@@ -71,18 +65,17 @@ class PLATFORM_EXPORT LayoutRect {
       : location_(rect.origin()), size_(rect.size()) {}
 
   // Don't do these implicitly since they are lossy.
-  constexpr explicit LayoutRect(const FloatRect& r)
-      : location_(r.origin()), size_(r.size()) {}
   constexpr explicit LayoutRect(const gfx::RectF& r)
       : location_(r.origin()), size_(r.size()) {}
-  explicit LayoutRect(const DoubleRect&);
 
-  constexpr explicit operator FloatRect() const {
-    return FloatRect(X(), Y(), Width(), Height());
-  }
   constexpr explicit operator gfx::RectF() const {
     return gfx::RectF(X(), Y(), Width(), Height());
   }
+
+  // This is deleted to avoid unwanted lossy conversion from float or double to
+  // LayoutUnit or int. Use explicit LayoutUnit constructor for each parameter
+  // instead.
+  LayoutRect(double, double, double, double) = delete;
 
   constexpr LayoutPoint Location() const { return location_; }
   constexpr LayoutSize Size() const { return size_; }
@@ -96,8 +89,8 @@ class PLATFORM_EXPORT LayoutRect {
   void SetLocation(const LayoutPoint& location) { location_ = location; }
   void SetSize(const LayoutSize& size) { size_ = size; }
 
-  constexpr ALWAYS_INLINE LayoutUnit X() const { return location_.X(); }
-  constexpr ALWAYS_INLINE LayoutUnit Y() const { return location_.Y(); }
+  ALWAYS_INLINE constexpr LayoutUnit X() const { return location_.X(); }
+  ALWAYS_INLINE constexpr LayoutUnit Y() const { return location_.Y(); }
   ALWAYS_INLINE LayoutUnit MaxX() const { return X() + Width(); }
   ALWAYS_INLINE LayoutUnit MaxY() const { return Y() + Height(); }
   constexpr LayoutUnit Width() const { return size_.Width(); }
@@ -111,7 +104,7 @@ class PLATFORM_EXPORT LayoutRect {
   void SetWidth(LayoutUnit width) { size_.SetWidth(width); }
   void SetHeight(LayoutUnit height) { size_.SetHeight(height); }
 
-  constexpr ALWAYS_INLINE bool IsEmpty() const { return size_.IsEmpty(); }
+  ALWAYS_INLINE constexpr bool IsEmpty() const { return size_.IsEmpty(); }
 
   // NOTE: The result is rounded to integer values, and thus may be not the
   // exact center point.
@@ -130,10 +123,6 @@ class PLATFORM_EXPORT LayoutRect {
   void Move(int dx, int dy) { location_.Move(LayoutUnit(dx), LayoutUnit(dy)); }
 
   void Expand(const LayoutSize& size) { size_ += size; }
-  void Expand(const LayoutRectOutsets& box) {
-    location_.Move(-box.Left(), -box.Top());
-    size_.Expand(box.Left() + box.Right(), box.Top() + box.Bottom());
-  }
   void Expand(LayoutUnit dw, LayoutUnit dh) { size_.Expand(dw, dh); }
   void ExpandEdges(LayoutUnit top,
                    LayoutUnit right,
@@ -145,22 +134,12 @@ class PLATFORM_EXPORT LayoutRect {
   void Contract(const LayoutSize& size) { size_ -= size; }
   void Contract(LayoutUnit dw, LayoutUnit dh) { size_.Expand(-dw, -dh); }
   void Contract(int dw, int dh) { size_.Expand(-dw, -dh); }
-  void Contract(const LayoutRectOutsets& box) {
-    location_.Move(box.Left(), box.Top());
-    size_.Shrink(box.Left() + box.Right(), box.Top() + box.Bottom());
-  }
   void ContractEdges(LayoutUnit top,
                      LayoutUnit right,
                      LayoutUnit bottom,
                      LayoutUnit left) {
     location_.Move(left, top);
     size_.Shrink(left + right, top + bottom);
-  }
-
-  // Convert to an outsets for {{0, 0}, size} rect.
-  LayoutRectOutsets ToOutsets(const LayoutSize& size) const {
-    return LayoutRectOutsets(-Y(), MaxX() - size.Width(),
-                             MaxY() - size.Height(), -X());
   }
 
   void ShiftXEdgeTo(LayoutUnit edge) {
@@ -201,7 +180,7 @@ class PLATFORM_EXPORT LayoutRect {
                        location_.Y() + size_.Height());
   }
 
-  WARN_UNUSED_RESULT bool Intersects(const LayoutRect&) const;
+  [[nodiscard]] bool Intersects(const LayoutRect&) const;
   bool Contains(const LayoutRect&) const;
 
   // This checks to see if the rect contains x,y in the traditional sense.
@@ -277,13 +256,21 @@ class PLATFORM_EXPORT LayoutRect {
     return LayoutRect(location_.TransposedPoint(), size_.TransposedSize());
   }
 
+  // Returns a big enough rect that can contain all reasonable rendered results.
+  // The rect can be used as a "non-clipping" clip rect. The rect can be
+  // modified to clip at one or more sides, e.g.
+  //   gfx::Rect r = LayoutRect::InfiniteIntRect();
+  //   r.set_width(clip_right - r.x());
   static constexpr gfx::Rect InfiniteIntRect() {
-    // Due to saturated arithmetic this value is not the same as
-    // LayoutRect(gfx::Rect(INT_MIN/2, INT_MIN/2, INT_MAX, INT_MAX)).
-    return gfx::Rect(LayoutUnit::NearlyMin().ToInt() / 2,
-                     LayoutUnit::NearlyMin().ToInt() / 2,
-                     LayoutUnit::NearlyMax().ToInt(),
-                     LayoutUnit::NearlyMax().ToInt());
+    constexpr int kInfiniteXY = LayoutUnit::Min().ToInt() / 4;
+    constexpr int kInfiniteWH = LayoutUnit::Max().ToInt() / 2;
+    // The values above ensure that any value between kInfiniteXY, and
+    // kInfiniteXY + kInvalidateWH can be converted among int, float, and
+    // LayoutUnit losslessly.
+    static_assert(kInfiniteXY >= -(1 << std::numeric_limits<float>::digits));
+    static_assert(kInfiniteXY + kInfiniteWH <=
+                  (1 << std::numeric_limits<float>::digits));
+    return gfx::Rect(kInfiniteXY, kInfiniteXY, kInfiniteWH, kInfiniteWH);
   }
 
   String ToString() const;
@@ -316,7 +303,7 @@ inline LayoutRect UnionRectEvenIfEmpty(const LayoutRect& a,
 
 PLATFORM_EXPORT LayoutRect UnionRectEvenIfEmpty(const Vector<LayoutRect>&);
 
-constexpr ALWAYS_INLINE bool operator==(const LayoutRect& a,
+ALWAYS_INLINE constexpr bool operator==(const LayoutRect& a,
                                         const LayoutRect& b) {
   return a.Location() == b.Location() && a.Size() == b.Size();
 }
@@ -340,14 +327,6 @@ inline gfx::Rect ToEnclosingRect(const LayoutRect& rect) {
   // skips internal clamping to improve performance.
   return gfx::Rect(location.x(), location.y(), max_point.x() - location.x(),
                    max_point.y() - location.y());
-}
-
-inline LayoutRect EnclosingLayoutRect(const FloatRect& rect) {
-  LayoutUnit x = LayoutUnit::FromFloatFloor(rect.x());
-  LayoutUnit y = LayoutUnit::FromFloatFloor(rect.y());
-  LayoutUnit max_x = LayoutUnit::FromFloatCeil(rect.right());
-  LayoutUnit max_y = LayoutUnit::FromFloatCeil(rect.bottom());
-  return LayoutRect(x, y, max_x - x, max_y - y);
 }
 
 inline LayoutRect EnclosingLayoutRect(const gfx::RectF& rect) {

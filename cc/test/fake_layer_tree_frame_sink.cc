@@ -1,14 +1,17 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "cc/test/fake_layer_tree_frame_sink.h"
 
-#include "base/bind.h"
 #include "base/containers/contains.h"
 #include "base/containers/cxx20_erase.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/functional/bind.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/task/single_thread_task_runner.h"
+#include "cc/tiles/image_decode_cache_utils.h"
 #include "cc/trees/layer_tree_frame_sink_client.h"
+#include "cc/trees/raster_context_provider_wrapper.h"
 #include "components/viz/common/frame_sinks/begin_frame_source.h"
 #include "components/viz/common/frame_sinks/delay_based_time_source.h"
 #include "components/viz/common/resources/returned_resource.h"
@@ -35,10 +38,17 @@ FakeLayerTreeFrameSink::Builder::Build() {
 FakeLayerTreeFrameSink::FakeLayerTreeFrameSink(
     scoped_refptr<viz::ContextProvider> context_provider,
     scoped_refptr<viz::RasterContextProvider> worker_context_provider)
-    : LayerTreeFrameSink(std::move(context_provider),
-                         std::move(worker_context_provider),
-                         base::ThreadTaskRunnerHandle::Get(),
-                         nullptr) {
+    : LayerTreeFrameSink(
+          std::move(context_provider),
+          worker_context_provider
+              ? base::MakeRefCounted<RasterContextProviderWrapper>(
+                    std::move(worker_context_provider),
+                    /*dark_mode_filter=*/nullptr,
+                    ImageDecodeCacheUtils::GetWorkingSetBytesForImageDecode(
+                        /*for_renderer=*/false))
+              : nullptr,
+          base::SingleThreadTaskRunner::GetCurrentDefault(),
+          nullptr) {
   gpu_memory_buffer_manager_ =
       context_provider_ ? &test_gpu_memory_buffer_manager_ : nullptr;
 }
@@ -50,7 +60,7 @@ bool FakeLayerTreeFrameSink::BindToClient(LayerTreeFrameSinkClient* client) {
     return false;
   begin_frame_source_ = std::make_unique<viz::BackToBackBeginFrameSource>(
       std::make_unique<viz::DelayBasedTimeSource>(
-          base::ThreadTaskRunnerHandle::Get().get()));
+          base::SingleThreadTaskRunner::GetCurrentDefault().get()));
   client_->SetBeginFrameSource(begin_frame_source_.get());
   return true;
 }
@@ -60,10 +70,8 @@ void FakeLayerTreeFrameSink::DetachFromClient() {
   LayerTreeFrameSink::DetachFromClient();
 }
 
-void FakeLayerTreeFrameSink::SubmitCompositorFrame(
-    viz::CompositorFrame frame,
-    bool hit_test_data_changed,
-    bool submit_hit_test_borders) {
+void FakeLayerTreeFrameSink::SubmitCompositorFrame(viz::CompositorFrame frame,
+                                                   bool hit_test_data_changed) {
   ReturnResourcesHeldByParent();
 
   last_sent_frame_ = std::make_unique<viz::CompositorFrame>(std::move(frame));
@@ -75,7 +83,7 @@ void FakeLayerTreeFrameSink::SubmitCompositorFrame(
                                    last_sent_frame_->resource_list.begin(),
                                    last_sent_frame_->resource_list.end());
 
-  base::ThreadTaskRunnerHandle::Get()->PostTask(
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE,
       base::BindOnce(&FakeLayerTreeFrameSink::DidReceiveCompositorFrameAck,
                      weak_ptr_factory_.GetWeakPtr()));

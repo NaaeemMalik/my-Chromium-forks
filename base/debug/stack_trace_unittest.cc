@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,14 +20,14 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
 
-#if defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_IOS)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 #include "base/test/multiprocess_test.h"
 #endif
 
 namespace base {
 namespace debug {
 
-#if defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_IOS)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 typedef MultiProcessTest StackTraceTest;
 #else
 typedef testing::Test StackTraceTest;
@@ -52,13 +52,14 @@ TEST_F(StackTraceTest, OutputToStream) {
   const void* const* addresses = trace.Addresses(&frames_found);
 
 #if defined(OFFICIAL_BUILD) && \
-    ((defined(OS_POSIX) && !defined(OS_APPLE)) || defined(OS_FUCHSIA))
+    ((BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE)) || BUILDFLAG(IS_FUCHSIA))
   // Stack traces require an extra data table that bloats our binaries,
   // so they're turned off for official builds. Stop the test here, so
   // it at least verifies that StackTrace calls don't crash.
   return;
 #endif  // defined(OFFICIAL_BUILD) &&
-        // ((defined(OS_POSIX) && !defined(OS_APPLE)) || defined(OS_FUCHSIA))
+        // ((BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE)) ||
+        // BUILDFLAG(IS_FUCHSIA))
 
   ASSERT_TRUE(addresses);
   ASSERT_GT(frames_found, 5u) << "Too few frames found.";
@@ -155,8 +156,8 @@ TEST_F(StackTraceTest, DebugOutputToStreamWithNullPrefix) {
 
 #endif  // !defined(__UCLIBC__) && !defined(_AIX)
 
-#if defined(OS_POSIX) && !defined(OS_ANDROID)
-#if !defined(OS_IOS)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
+#if !BUILDFLAG(IS_IOS)
 static char* newArray() {
   // Clang warns about the mismatched new[]/delete if they occur in the same
   // function.
@@ -180,7 +181,7 @@ TEST_F(StackTraceTest, AsyncSignalUnsafeSignalHandlerHang) {
   ASSERT_TRUE(
       child.WaitForExitWithTimeout(TestTimeouts::action_timeout(), &exit_code));
 }
-#endif  // !defined(OS_IOS)
+#endif  // !BUILDFLAG(IS_IOS)
 
 namespace {
 
@@ -255,7 +256,7 @@ TEST_F(StackTraceTest, itoa_r) {
   EXPECT_EQ("0688", itoa_r_wrapper(0x688, 128, 16, 4));
   EXPECT_EQ("00688", itoa_r_wrapper(0x688, 128, 16, 5));
 }
-#endif  // defined(OS_POSIX) && !defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(CAN_UNWIND_WITH_FRAME_POINTERS)
 
@@ -266,8 +267,9 @@ class CopyFunction : public StackCopier {
 
 // Copies the current stack segment, starting from the frame pointer of the
 // caller frame. Also fills in |stack_end| for the copied stack.
-static std::unique_ptr<StackBuffer> NOINLINE
-CopyCurrentStackAndRewritePointers(uintptr_t* out_fp, uintptr_t* stack_end) {
+NOINLINE static std::unique_ptr<StackBuffer> CopyCurrentStackAndRewritePointers(
+    uintptr_t* out_fp,
+    uintptr_t* stack_end) {
   const uint8_t* fp =
       reinterpret_cast<const uint8_t*>(__builtin_frame_address(0));
   uintptr_t original_stack_end = GetStackEnd();
@@ -282,10 +284,10 @@ CopyCurrentStackAndRewritePointers(uintptr_t* out_fp, uintptr_t* stack_end) {
 }
 
 template <size_t Depth>
-void NOINLINE ExpectStackFramePointers(const void** frames,
+NOINLINE void ExpectStackFramePointers(const void** frames,
                                        size_t max_depth,
                                        bool copy_stack) {
-  code_start:
+code_start:
   // Calling __builtin_frame_address() forces compiler to emit
   // frame pointers, even if they are not enabled.
   EXPECT_NE(nullptr, __builtin_frame_address(0));
@@ -295,14 +297,15 @@ void NOINLINE ExpectStackFramePointers(const void** frames,
   const void* frame = frames[frame_index];
   EXPECT_GE(frame, &&code_start) << "For frame at index " << frame_index;
   EXPECT_LE(frame, &&code_end) << "For frame at index " << frame_index;
-  code_end: return;
-  }
+code_end:
+  return;
+}
 
-  template <>
-  void NOINLINE ExpectStackFramePointers<1>(const void** frames,
-                                            size_t max_depth,
-                                            bool copy_stack) {
-  code_start:
+template <>
+NOINLINE void ExpectStackFramePointers<1>(const void** frames,
+                                          size_t max_depth,
+                                          bool copy_stack) {
+code_start:
   // Calling __builtin_frame_address() forces compiler to emit
   // frame pointers, even if they are not enabled.
   EXPECT_NE(nullptr, __builtin_frame_address(0));
@@ -321,7 +324,8 @@ void NOINLINE ExpectStackFramePointers(const void** frames,
   const void* frame = frames[0];
   EXPECT_GE(frame, &&code_start) << "For the top frame";
   EXPECT_LE(frame, &&code_end) << "For the top frame";
-  code_end: return;
+code_end:
+  return;
 }
 
 #if defined(MEMORY_SANITIZER)
@@ -344,7 +348,7 @@ TEST_F(StackTraceTest, MAYBE_TraceStackFramePointers) {
 // sometimes we read fp / pc from the place that previously held
 // uninitialized value.
 // TODO(crbug.com/1132511): Enable this test on Fuchsia.
-#if defined(MEMORY_SANITIZER) || defined(OS_FUCHSIA)
+#if defined(MEMORY_SANITIZER) || BUILDFLAG(IS_FUCHSIA)
 #define MAYBE_TraceStackFramePointersFromBuffer \
   DISABLED_TraceStackFramePointersFromBuffer
 #else
@@ -357,7 +361,7 @@ TEST_F(StackTraceTest, MAYBE_TraceStackFramePointersFromBuffer) {
   ExpectStackFramePointers<kDepth>(frames, kDepth, /*copy_stack=*/true);
 }
 
-#if defined(OS_ANDROID) || defined(OS_APPLE)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_APPLE)
 #define MAYBE_StackEnd StackEnd
 #else
 #define MAYBE_StackEnd DISABLED_StackEnd
@@ -369,7 +373,7 @@ TEST_F(StackTraceTest, MAYBE_StackEnd) {
 
 #endif  // BUILDFLAG(CAN_UNWIND_WITH_FRAME_POINTERS)
 
-#if defined(OS_LINUX) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID)
 
 #if !defined(ADDRESS_SANITIZER) && !defined(UNDEFINED_SANITIZER)
 
@@ -383,11 +387,10 @@ TEST(CheckExitCodeAfterSignalHandlerDeathTest, CheckSIGFPE) {
   // SIGFPE being raised outside of EXPECT_EXIT.
   volatile int const nominator = 23;
   volatile int const denominator = 0;
-  volatile int result;
+  [[maybe_unused]] volatile int result;
 
   EXPECT_EXIT(result = nominator / denominator,
               ::testing::KilledBySignal(SIGFPE), "");
-  ALLOW_UNUSED_LOCAL(result);
 }
 #endif  // !defined(ARCH_CPU_ARM_FAMILY)
 
@@ -399,6 +402,22 @@ TEST(CheckExitCodeAfterSignalHandlerDeathTest, CheckSIGSEGV) {
 
   EXPECT_EXIT(*p_int = 1234, ::testing::KilledBySignal(SIGSEGV), "");
 }
+
+#if defined(ARCH_CPU_X86_64)
+TEST(CheckExitCodeAfterSignalHandlerDeathTest,
+     CheckSIGSEGVNonCanonicalAddress) {
+  // Pointee and pointer are volatile to prevent reordering of instructions,
+  // i.e. for optimization. Reordering may lead to tests erroneously failing due
+  // to SIGSEGV being raised outside of EXPECT_EXIT.
+  //
+  // On Linux, the upper half of the address space is reserved by the kernel, so
+  // all upper bits must be 0 for canonical addresses.
+  volatile int* const volatile p_int =
+      reinterpret_cast<int*>(0xabcdabcdabcdabcdULL);
+
+  EXPECT_EXIT(*p_int = 1234, ::testing::KilledBySignal(SIGSEGV), "SI_KERNEL");
+}
+#endif
 
 #endif  // #if !defined(ADDRESS_SANITIZER) && !defined(UNDEFINED_SANITIZER)
 
@@ -416,7 +435,7 @@ TEST(CheckExitCodeAfterSignalHandlerDeathTest, CheckSIGILL) {
   EXPECT_EXIT(raise_sigill(), ::testing::KilledBySignal(SIGILL), "");
 }
 
-#endif  // defined(OS_LINUX) || defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID)
 
 }  // namespace debug
 }  // namespace base

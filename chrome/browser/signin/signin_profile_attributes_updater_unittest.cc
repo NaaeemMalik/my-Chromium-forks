@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/signin/signin_profile_attributes_updater.h"
 
-#include "base/bind.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -76,7 +76,7 @@ class SigninProfileAttributesUpdaterTest : public testing::Test {
     ASSERT_TRUE(profile_manager_.SetUp());
     std::string name = "profile_name";
     profile_ = profile_manager_.CreateTestingProfile(
-        name, /*prefs=*/nullptr, base::UTF8ToUTF16(name), 0, std::string(),
+        name, /*prefs=*/nullptr, base::UTF8ToUTF16(name), 0,
         TestingProfile::TestingFactories());
 
     RecreateSigninProfileAttributesUpdater();
@@ -125,7 +125,7 @@ TEST_F(SigninProfileAttributesUpdaterTest, SigninSignoutResetsProfilePrefs) {
 
   // Set profile prefs.
   CheckProfilePrefsReset(pref_service, true);
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   SetProfilePrefs(pref_service);
 
   // Set UPA should reset profile prefs.
@@ -137,7 +137,7 @@ TEST_F(SigninProfileAttributesUpdaterTest, SigninSignoutResetsProfilePrefs) {
   // Signout should reset profile prefs.
   identity_test_env_.ClearPrimaryAccount();
   CheckProfilePrefsReset(pref_service, false);
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
   SetProfilePrefs(pref_service);
   // Set primary account should reset profile prefs.
@@ -150,7 +150,7 @@ TEST_F(SigninProfileAttributesUpdaterTest, SigninSignoutResetsProfilePrefs) {
   CheckProfilePrefsReset(pref_service, false);
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 TEST_F(SigninProfileAttributesUpdaterTest,
        EnablingSyncWithUPAAccountShouldNotResetProfilePrefs) {
   PrefService* pref_service = profile_->GetPrefs();
@@ -190,7 +190,7 @@ TEST_F(SigninProfileAttributesUpdaterTest,
   EXPECT_TRUE(entry->IsAuthenticated());
   CheckProfilePrefsReset(pref_service, false);
 }
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 class SigninProfileAttributesUpdaterWithForceSigninTest
     : public SigninProfileAttributesUpdaterTest {

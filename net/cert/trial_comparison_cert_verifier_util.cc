@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,19 @@
 
 #include "build/build_config.h"
 #include "crypto/sha2.h"
+#include "net/base/hash_value.h"
 #include "net/base/net_errors.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/cert/ev_root_ca_metadata.h"
-#include "net/cert/internal/cert_errors.h"
-#include "net/cert/internal/parsed_certificate.h"
+#include "net/cert/pki/cert_errors.h"
+#include "net/cert/pki/parsed_certificate.h"
 #include "net/cert/x509_util.h"
 
 namespace net {
 
 namespace {
 
-scoped_refptr<ParsedCertificate> ParsedCertificateFromBuffer(
+std::shared_ptr<const ParsedCertificate> ParsedCertificateFromBuffer(
     CRYPTO_BUFFER* cert_handle,
     CertErrors* errors) {
   return ParsedCertificate::Create(bssl::UpRef(cert_handle),
@@ -30,14 +31,14 @@ ParsedCertificateList ParsedCertificateListFromX509Certificate(
   CertErrors parsing_errors;
 
   ParsedCertificateList certs;
-  scoped_refptr<ParsedCertificate> target =
+  std::shared_ptr<const ParsedCertificate> target =
       ParsedCertificateFromBuffer(cert->cert_buffer(), &parsing_errors);
   if (!target)
     return {};
   certs.push_back(target);
 
   for (const auto& buf : cert->intermediate_buffers()) {
-    scoped_refptr<ParsedCertificate> intermediate =
+    std::shared_ptr<const ParsedCertificate> intermediate =
         ParsedCertificateFromBuffer(buf.get(), &parsing_errors);
     if (!intermediate)
       return {};
@@ -60,8 +61,8 @@ bool CertHasMultipleEVPoliciesAndOneMatchesRoot(const X509Certificate* cert) {
   if (certs.empty())
     return false;
 
-  ParsedCertificate* leaf = certs.front().get();
-  ParsedCertificate* root = certs.back().get();
+  const ParsedCertificate* leaf = certs.front().get();
+  const ParsedCertificate* root = certs.back().get();
 
   if (!leaf->has_policy_oids())
     return false;
@@ -69,25 +70,46 @@ bool CertHasMultipleEVPoliciesAndOneMatchesRoot(const X509Certificate* cert) {
   const EVRootCAMetadata* ev_metadata = EVRootCAMetadata::GetInstance();
   std::set<der::Input> candidate_oids;
   for (const der::Input& oid : leaf->policy_oids()) {
-    if (ev_metadata->IsEVPolicyOIDGivenBytes(oid))
+    if (ev_metadata->IsEVPolicyOID(oid)) {
       candidate_oids.insert(oid);
+    }
   }
 
   if (candidate_oids.size() <= 1)
     return false;
 
   SHA256HashValue root_fingerprint;
-  crypto::SHA256HashString(root->der_cert().AsStringPiece(),
+  crypto::SHA256HashString(root->der_cert().AsStringView(),
                            root_fingerprint.data,
                            sizeof(root_fingerprint.data));
 
   for (const der::Input& oid : candidate_oids) {
-    if (ev_metadata->HasEVPolicyOIDGivenBytes(root_fingerprint, oid))
+    if (ev_metadata->HasEVPolicyOID(root_fingerprint, oid)) {
       return true;
+    }
   }
 
   return false;
 }
+
+SHA256HashValue GetRootHash(const X509Certificate* cert) {
+  SHA256HashValue sha256;
+  if (cert->intermediate_buffers().empty()) {
+    return sha256;
+  }
+  CRYPTO_BUFFER* root = cert->intermediate_buffers().back().get();
+  return X509Certificate::CalculateFingerprint256(root);
+}
+
+const SHA256HashValue lets_encrypt_dst_x3_sha256_fingerprint = {
+    {0x06, 0x87, 0x26, 0x03, 0x31, 0xA7, 0x24, 0x03, 0xD9, 0x09, 0xF1,
+     0x05, 0xE6, 0x9B, 0xCF, 0x0D, 0x32, 0xE1, 0xBD, 0x24, 0x93, 0xFF,
+     0xC6, 0xD9, 0x20, 0x6D, 0x11, 0xBC, 0xD6, 0x77, 0x07, 0x39}};
+
+const SHA256HashValue lets_encrypt_isrg_x1_sha256_fingerprint = {
+    {0x96, 0xBC, 0xEC, 0x06, 0x26, 0x49, 0x76, 0xF3, 0x74, 0x60, 0x77,
+     0x9A, 0xCF, 0x28, 0xC5, 0xA7, 0xCF, 0xE8, 0xA3, 0xC0, 0xAA, 0xE1,
+     0x1A, 0x8F, 0xFC, 0xEE, 0x05, 0xC0, 0xBD, 0xDF, 0x08, 0xC6}};
 
 }  // namespace
 
@@ -112,13 +134,6 @@ TrialComparisonResult IsSynchronouslyIgnorableDifference(
     bool sha1_local_anchors_enabled) {
   DCHECK(primary_result.verified_cert);
   DCHECK(trial_result.verified_cert);
-
-  if (primary_error == OK &&
-      primary_result.verified_cert->intermediate_buffers().empty()) {
-    // Platform may support trusting a leaf certificate directly. Builtin
-    // verifier does not. See https://crbug.com/814994.
-    return TrialComparisonResult::kIgnoredLocallyTrustedLeaf;
-  }
 
   const bool chains_equal = primary_result.verified_cert->EqualsIncludingChain(
       trial_result.verified_cert.get());
@@ -152,18 +167,6 @@ TrialComparisonResult IsSynchronouslyIgnorableDifference(
     return TrialComparisonResult::kIgnoredSHA1SignaturePresent;
   }
 
-#if defined(OS_WIN)
-  // cert_verify_proc_win has some oddities around revocation checking
-  // and EV certs; if the only difference is the primary windows verifier
-  // had CERT_STATUS_REV_CHECKING_ENABLED in addition then we can ignore.
-  if (chains_equal &&
-      (primary_result.cert_status & CERT_STATUS_REV_CHECKING_ENABLED) &&
-      ((primary_result.cert_status ^ CERT_STATUS_REV_CHECKING_ENABLED) ==
-       trial_result.cert_status)) {
-    return TrialComparisonResult::kIgnoredWindowsRevCheckingEnabled;
-  }
-#endif
-
   // Differences in chain or errors don't matter much if both
   // return AUTHORITY_INVALID.
   if ((primary_result.cert_status & CERT_STATUS_AUTHORITY_INVALID) &&
@@ -190,6 +193,39 @@ TrialComparisonResult IsSynchronouslyIgnorableDifference(
     return TrialComparisonResult::
         kIgnoredBuiltinAuthorityInvalidPlatformSymantec;
   }
+
+  // There is a fairly prevalant false positive where Windows users are getting
+  // errors because the chain that is built goes to Lets Encrypt's old root
+  // (https://crt.sh/?id=8395) due to the windows machine having an out of date
+  // auth root, whereas CCV builds to Let's Encrypt's new root
+  // (https://crt.sh/?id=9314791). This manifests itself as CCV saying OK
+  // whereas platform reports DATE_INVALID. If we detect this case, ignore it.
+  if (primary_error == ERR_CERT_DATE_INVALID && trial_error == OK &&
+      (primary_result.cert_status & CERT_STATUS_ALL_ERRORS) ==
+          CERT_STATUS_DATE_INVALID) {
+    SHA256HashValue primary_root_hash =
+        GetRootHash(primary_result.verified_cert.get());
+    SHA256HashValue trial_root_hash =
+        GetRootHash(trial_result.verified_cert.get());
+    if (primary_root_hash == lets_encrypt_dst_x3_sha256_fingerprint &&
+        trial_root_hash == lets_encrypt_isrg_x1_sha256_fingerprint) {
+      return TrialComparisonResult::kIgnoredLetsEncryptExpiredRoot;
+    }
+  }
+
+#if BUILDFLAG(IS_ANDROID)
+  // In the case where a cert is expired and does not have a trusted root,
+  // Android prefers ERR_CERT_DATE_INVALID whereas builtin prefers
+  // ERR_CERT_AUTHORITY_INVALID.
+  if (primary_error == ERR_CERT_DATE_INVALID &&
+      trial_error == ERR_CERT_AUTHORITY_INVALID &&
+      (primary_result.cert_status & CERT_STATUS_ALL_ERRORS) ==
+          CERT_STATUS_DATE_INVALID &&
+      (trial_result.cert_status & CERT_STATUS_ALL_ERRORS) ==
+          CERT_STATUS_AUTHORITY_INVALID) {
+    return TrialComparisonResult::kIgnoredAndroidErrorDatePriority;
+  }
+#endif
 
   return TrialComparisonResult::kInvalid;
 }

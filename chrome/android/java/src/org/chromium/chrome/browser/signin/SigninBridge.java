@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,6 +24,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorSupplier;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetCoordinator;
+import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetStrings;
 import org.chromium.chrome.browser.ui.signin.account_picker.WebSigninAccountPickerDelegate;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
@@ -79,7 +80,7 @@ final class SigninBridge {
         ThreadUtils.assertOnUiThread();
         SigninManager signinManager = IdentityServicesProvider.get().getSigninManager(
                 Profile.getLastUsedRegularProfile());
-        if (!signinManager.isSignInAllowed()) {
+        if (!signinManager.isSyncOptInAllowed()) {
             SigninMetricsUtils.logAccountConsistencyPromoAction(
                     AccountConsistencyPromoAction.SUPPRESSED_SIGNIN_NOT_ALLOWED);
             return;
@@ -114,7 +115,8 @@ final class SigninBridge {
                 tabModelSelectorSupplier.get().getModel(/*incognito=*/false);
         new AccountPickerBottomSheetCoordinator(windowAndroid, bottomSheetController,
                 new WebSigninAccountPickerDelegate(TabModelUtils.getCurrentTab(regularTabModel),
-                        new WebSigninBridge.Factory(), continueUrl));
+                        new WebSigninBridge.Factory(), continueUrl),
+                new AccountPickerBottomSheetStrings() {});
     }
 
     private SigninBridge() {}

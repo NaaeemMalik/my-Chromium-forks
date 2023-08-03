@@ -1,5 +1,4 @@
-
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +10,27 @@
 #include "base/files/file_path.h"
 #include "base/notreached.h"
 #include "base/path_service.h"
+#include "base/strings/strcat.h"
+#include "build/build_config.h"
 #include "components/component_updater/component_updater_paths.h"
 #include "components/crx_file/id_util.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
+#include "ui/base/l10n/l10n_util.h"
 
 namespace speech {
 
 const char kUsEnglishLocale[] = "en-US";
 
-#ifdef OS_WIN
+const char kSodaBinaryInstallationResult[] =
+    "SodaInstaller.BinaryInstallationResult";
+
+const char kSodaBinaryInstallationSuccessTimeTaken[] =
+    "SodaInstaller.BinaryInstallationSuccessTime";
+
+const char kSodaBinaryInstallationFailureTimeTaken[] =
+    "SodaInstaller.BinaryInstallationFailureTime";
+
+#if BUILDFLAG(IS_WIN)
 constexpr base::FilePath::CharType kSodaBinaryRelativePath[] =
     FILE_PATH_LITERAL("SODAFiles/SODA.dll");
 #else
@@ -173,13 +184,34 @@ LanguageCode GetLanguageCode(const std::string& language_name) {
   return LanguageCode::kNone;
 }
 
-int GetLanguageDisplayName(const std::string& language_name) {
-  absl::optional<SodaLanguagePackComponentConfig> language_config =
-      GetLanguageComponentConfig(language_name);
-  if (language_config.has_value()) {
-    return language_config.value().display_name;
-  }
-  return 0;
+const std::u16string GetLanguageDisplayName(const std::string& language_name,
+                                            const std::string& display_locale) {
+  return l10n_util::GetDisplayNameForLocaleWithoutCountry(language_name,
+                                                          display_locale, true);
+}
+
+const std::string GetInstallationSuccessTimeMetricForLanguagePack(
+    const LanguageCode& language_code) {
+  auto config = GetLanguageComponentConfig(language_code);
+  DCHECK(config && config->language_name);
+  return base::StrCat({"SodaInstaller.Language.", config->language_name,
+                       ".InstallationSuccessTime"});
+}
+
+const std::string GetInstallationFailureTimeMetricForLanguagePack(
+    const LanguageCode& language_code) {
+  auto config = GetLanguageComponentConfig(language_code);
+  DCHECK(config && config->language_name);
+  return base::StrCat({"SodaInstaller.Language.", config->language_name,
+                       ".InstallationFailureTime"});
+}
+
+const std::string GetInstallationResultMetricForLanguagePack(
+    const LanguageCode& language_code) {
+  auto config = GetLanguageComponentConfig(language_code);
+  DCHECK(config && config->language_name);
+  return base::StrCat({"SodaInstaller.Language.", config->language_name,
+                       ".InstallationResult"});
 }
 
 }  // namespace speech

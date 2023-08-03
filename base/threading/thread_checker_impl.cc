@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 
 #include "base/check.h"
 #include "base/debug/stack_trace.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/threading/platform_thread.h"
 #include "base/threading/thread_checker.h"
 #include "base/threading/thread_local.h"
-#include "base/threading/thread_task_runner_handle.h"
 
 namespace {
 bool g_log_thread_and_sequence_checker_binding = false;
@@ -23,7 +24,7 @@ void ThreadCheckerImpl::EnableStackLogging() {
 
 ThreadCheckerImpl::ThreadCheckerImpl() {
   AutoLock auto_lock(lock_);
-  EnsureAssignedLockRequired();
+  EnsureAssigned();
 }
 
 ThreadCheckerImpl::~ThreadCheckerImpl() = default;
@@ -72,11 +73,17 @@ bool ThreadCheckerImpl::CalledOnValidThread(
   const bool has_thread_been_destroyed = ThreadLocalStorage::HasBeenDestroyed();
 
   AutoLock auto_lock(lock_);
+  return CalledOnValidThreadInternal(out_bound_at, has_thread_been_destroyed);
+}
+
+bool ThreadCheckerImpl::CalledOnValidThreadInternal(
+    std::unique_ptr<debug::StackTrace>* out_bound_at,
+    bool has_thread_been_destroyed) const {
   // TaskToken/SequenceToken access thread-local storage. During destruction
   // the state of thread-local storage is not guaranteed to be in a consistent
   // state. Further, task-runner only installs the tokens when running a task.
   if (!has_thread_been_destroyed) {
-    EnsureAssignedLockRequired();
+    EnsureAssigned();
 
     // Always return true when called from the task from which this
     // ThreadCheckerImpl was assigned to a thread.
@@ -85,11 +92,12 @@ bool ThreadCheckerImpl::CalledOnValidThread(
 
     // If this ThreadCheckerImpl is bound to a valid SequenceToken, it must be
     // equal to the current SequenceToken and there must be a registered
-    // ThreadTaskRunnerHandle. Otherwise, the fact that the current task runs on
-    // the thread to which this ThreadCheckerImpl is bound is fortuitous.
+    // SingleThreadTaskRunner::CurrentDefaultHandle. Otherwise, the fact that
+    // the current task runs on the thread to which this ThreadCheckerImpl is
+    // bound is fortuitous.
     if (sequence_token_.IsValid() &&
         (sequence_token_ != SequenceToken::GetForCurrentThread() ||
-         !ThreadTaskRunnerHandle::IsSet())) {
+         !SingleThreadTaskRunner::HasCurrentDefault())) {
       if (out_bound_at && bound_at_) {
         *out_bound_at = std::make_unique<debug::StackTrace>(*bound_at_);
       }
@@ -123,13 +131,12 @@ void ThreadCheckerImpl::DetachFromThread() {
 }
 
 std::unique_ptr<debug::StackTrace> ThreadCheckerImpl::GetBoundAt() const {
-  AutoLock auto_lock(lock_);
   if (!bound_at_)
     return nullptr;
   return std::make_unique<debug::StackTrace>(*bound_at_);
 }
 
-void ThreadCheckerImpl::EnsureAssignedLockRequired() const {
+void ThreadCheckerImpl::EnsureAssigned() const {
   if (!thread_id_.is_null())
     return;
   if (g_log_thread_and_sequence_checker_binding)

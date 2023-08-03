@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 #define NET_CERT_NET_CERT_NET_FETCHER_URL_REQUEST_H_
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "net/base/net_export.h"
 #include "net/cert/cert_net_fetcher.h"
 
@@ -48,7 +48,7 @@ class NET_EXPORT CertNetFetcherURLRequest : public CertNetFetcher {
   std::unique_ptr<Request> FetchCrl(const GURL& url,
                                     int timeout_milliseconds,
                                     int max_response_bytes) override;
-  WARN_UNUSED_RESULT std::unique_ptr<Request> FetchOcsp(
+  [[nodiscard]] std::unique_ptr<Request> FetchOcsp(
       const GURL& url,
       int timeout_milliseconds,
       int max_response_bytes) override;

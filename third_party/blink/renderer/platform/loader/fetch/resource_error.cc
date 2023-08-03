@@ -88,6 +88,12 @@ ResourceError ResourceError::Failure(const KURL& url) {
   return ResourceError(net::ERR_FAILED, url, absl::nullopt);
 }
 
+ResourceError ResourceError::HttpError(const KURL& url) {
+  ResourceError error = CancelledError(url);
+  error.is_cancelled_from_http_error_ = true;
+  return error;
+}
+
 ResourceError::ResourceError(
     int error_code,
     const KURL& url,
@@ -194,8 +200,10 @@ bool ResourceError::IsTrustTokenCacheHit() const {
 bool ResourceError::IsUnactionableTrustTokensStatus() const {
   return IsTrustTokenCacheHit() ||
          (error_code_ == net::ERR_TRUST_TOKEN_OPERATION_FAILED &&
-          trust_token_operation_error_ ==
-              network::mojom::TrustTokenOperationStatus::kUnavailable);
+          (trust_token_operation_error_ ==
+               network::mojom::TrustTokenOperationStatus::kUnavailable ||
+           trust_token_operation_error_ ==
+               network::mojom::TrustTokenOperationStatus::kUnauthorized));
 }
 
 bool ResourceError::IsCacheMiss() const {
@@ -289,6 +297,9 @@ String DescriptionForBlockedByClientOrResponse(
       break;
     case ResourceRequestBlockedReason::kContentType:
       detail = "ContentType";
+      break;
+    case ResourceRequestBlockedReason::kContentRelationshipVerification:
+      detail = "ContentRelationshipVerification";
       break;
     case ResourceRequestBlockedReason::kCoepFrameResourceNeedsCoepHeader:
       detail = "ResponseNeedsCrossOriginEmbedderPolicy";

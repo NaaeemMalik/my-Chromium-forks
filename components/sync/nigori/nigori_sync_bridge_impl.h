@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "components/sync/engine/nigori/key_derivation_params.h"
@@ -48,8 +47,7 @@ class NigoriSyncBridgeImpl : public KeystoreKeysHandler,
                              public SyncEncryptionHandler {
  public:
   NigoriSyncBridgeImpl(std::unique_ptr<NigoriLocalChangeProcessor> processor,
-                       std::unique_ptr<NigoriStorage> storage,
-                       const std::string& packed_explicit_passphrase_key);
+                       std::unique_ptr<NigoriStorage> storage);
 
   NigoriSyncBridgeImpl(const NigoriSyncBridgeImpl&) = delete;
   NigoriSyncBridgeImpl& operator=(const NigoriSyncBridgeImpl&) = delete;
@@ -63,7 +61,9 @@ class NigoriSyncBridgeImpl : public KeystoreKeysHandler,
   ModelTypeSet GetEncryptedTypes() override;
   Cryptographer* GetCryptographer() override;
   PassphraseType GetPassphraseType() override;
-  void SetEncryptionPassphrase(const std::string& passphrase) override;
+  void SetEncryptionPassphrase(
+      const std::string& passphrase,
+      const KeyDerivationParams& key_derivation_params) override;
   void SetExplicitPassphraseDecryptionKey(std::unique_ptr<Nigori> key) override;
   void AddTrustedVaultDecryptionKeys(
       const std::vector<std::vector<uint8_t>>& keys) override;
@@ -77,9 +77,9 @@ class NigoriSyncBridgeImpl : public KeystoreKeysHandler,
   bool SetKeystoreKeys(const std::vector<std::vector<uint8_t>>& keys) override;
 
   // NigoriSyncBridge implementation.
-  absl::optional<ModelError> MergeSyncData(
+  absl::optional<ModelError> MergeFullSyncData(
       absl::optional<EntityData> data) override;
-  absl::optional<ModelError> ApplySyncChanges(
+  absl::optional<ModelError> ApplyIncrementalSyncChanges(
       absl::optional<EntityData> data) override;
   std::unique_ptr<EntityData> GetData() override;
   void ApplyDisableSyncChanges() override;
@@ -88,24 +88,16 @@ class NigoriSyncBridgeImpl : public KeystoreKeysHandler,
   bool HasPendingKeysForTesting() const;
   KeyDerivationParams GetCustomPassphraseKeyDerivationParamsForTesting() const;
 
-  static std::string PackExplicitPassphraseKeyForTesting(
-      const CryptographerImpl& cryptographer);
-
  private:
   absl::optional<ModelError> UpdateLocalState(
       const sync_pb::NigoriSpecifics& specifics);
 
-  absl::optional<sync_pb::NigoriKey> TryDecryptPendingKeystoreDecryptorToken(
-      const sync_pb::EncryptedData& keystore_decryptor_token);
-
   // Builds NigoriKeyBag, which contains keys acceptable for decryption of
   // |encryption_keybag| from remote NigoriSpecifics. Its content depends on
-  // current passphrase type and available keys: for KEYSTORE_PASSPHRASE it
-  // contains only |keystore_decryptor_key|, for all other passphrase types
-  // it contains deserialized |explicit_passphrase_key_| and current default
-  // encryption key.
-  NigoriKeyBag BuildDecryptionKeyBagForRemoteKeybag(
-      const absl::optional<sync_pb::NigoriKey>& keystore_decryptor_key) const;
+  // current passphrase type and available keys: it contains current default
+  // encryption key, for KEYSTORE_PASSPHRASE it additionally contains key
+  // obtained from |keystore_decryptor_token| and all keystore keys.
+  NigoriKeyBag BuildDecryptionKeyBagForRemoteKeybag() const;
 
   // Uses |key_bag| to try to decrypt pending keys as represented in
   // |state_.pending_keys| (which must be set).
@@ -133,11 +125,6 @@ class NigoriSyncBridgeImpl : public KeystoreKeysHandler,
   // the appropriate observer methods (if any).
   void MaybeNotifyOfPendingKeys() const;
 
-  // Persists Nigori derived from explicit passphrase into preferences, in case
-  // error occurs during serialization/encryption, corresponding preference
-  // just won't be updated.
-  void MaybeNotifyBootstrapTokenUpdated() const;
-
   // Queues keystore rotation or full keystore migration if current state
   // assumes it should happen.
   void MaybeTriggerKeystoreReencryption();
@@ -163,11 +150,6 @@ class NigoriSyncBridgeImpl : public KeystoreKeysHandler,
 
   const std::unique_ptr<NigoriLocalChangeProcessor> processor_;
   const std::unique_ptr<NigoriStorage> storage_;
-
-  // Stores a key derived from explicit passphrase and loaded from the prefs.
-  // Empty (i.e. default value) if prefs doesn't contain this key or in case of
-  // decryption/decoding errors.
-  const sync_pb::NigoriKey explicit_passphrase_key_;
 
   syncer::NigoriState state_;
 

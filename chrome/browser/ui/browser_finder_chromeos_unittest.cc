@@ -1,4 +1,4 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include "ash/public/cpp/multi_user_window_manager.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ui/ash/multi_user/multi_profile_support.h"
@@ -31,7 +32,7 @@ class BrowserFinderChromeOSTest : public BrowserWithTestWindowTest {
  protected:
   BrowserFinderChromeOSTest()
       : fake_user_manager_(new ash::FakeChromeUserManager),
-        user_manager_enabler_(base::WrapUnique(fake_user_manager_)) {}
+        user_manager_enabler_(base::WrapUnique(fake_user_manager_.get())) {}
 
   BrowserFinderChromeOSTest(const BrowserFinderChromeOSTest&) = delete;
   BrowserFinderChromeOSTest& operator=(const BrowserFinderChromeOSTest&) =
@@ -41,9 +42,9 @@ class BrowserFinderChromeOSTest : public BrowserWithTestWindowTest {
     TestingProfile* profile =
         profile_manager()->CreateTestingProfile(account_id.GetUserEmail());
     const user_manager::User* user = fake_user_manager_->AddUser(account_id);
-    chromeos::ProfileHelper::Get()->SetUserToProfileMappingForTesting(
+    ash::ProfileHelper::Get()->SetUserToProfileMappingForTesting(
         const_cast<user_manager::User*>(user), profile);
-    chromeos::ProfileHelper::Get()->SetProfileToUserMappingForTesting(
+    ash::ProfileHelper::Get()->SetProfileToUserMappingForTesting(
         const_cast<user_manager::User*>(user));
     // Force creation of MultiProfileSupport.
     GetMultiUserWindowManager();
@@ -77,10 +78,10 @@ class BrowserFinderChromeOSTest : public BrowserWithTestWindowTest {
     return CreateMultiUserProfile(test_account_id1_);
   }
 
-  TestingProfile* second_profile_;
+  raw_ptr<TestingProfile, ExperimentalAsh> second_profile_;
 
   // |fake_user_manager_| is owned by |user_manager_enabler_|
-  ash::FakeChromeUserManager* fake_user_manager_;
+  raw_ptr<ash::FakeChromeUserManager, ExperimentalAsh> fake_user_manager_;
   user_manager::ScopedUserManager user_manager_enabler_;
 };
 

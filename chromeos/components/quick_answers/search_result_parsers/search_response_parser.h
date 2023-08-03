@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/weak_ptr.h"
 #include "services/data_decoder/public/cpp/data_decoder.h"
 
 namespace base {
 class Value;
 }  // namespace base
 
-namespace ash {
 namespace quick_answers {
 
 struct QuickAnswer;
@@ -44,9 +44,10 @@ class SearchResponseParser {
   bool ProcessResult(const base::Value* result, QuickAnswer* quick_answer);
 
   SearchResponseParserCallback complete_callback_;
+
+  base::WeakPtrFactory<SearchResponseParser> weak_factory_{this};
 };
 
 }  // namespace quick_answers
-}  // namespace ash
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_SEARCH_RESULT_PARSERS_SEARCH_RESPONSE_PARSER_H_

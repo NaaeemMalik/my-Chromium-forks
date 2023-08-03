@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,10 +23,9 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.metrics.test.ShadowRecordHistogram;
+import org.chromium.base.metrics.UmaRecorderHolder;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.JniMocker;
-import org.chromium.chrome.browser.night_mode.WebContentsDarkModeController.AutoDarkModeEnabledState;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.site_settings.AutoDarkMetrics.AutoDarkSettingsChangeSource;
 import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridge;
@@ -38,7 +37,8 @@ import org.chromium.url.GURL;
 
 /** Unit tests for {@link WebContentsDarkModeController}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE, shadows = {ShadowRecordHistogram.class, ShadowColorUtils.class})
+@Config(manifest = Config.NONE, shadows = {ShadowColorUtils.class})
+@SuppressWarnings("DoNotMock") // Mocking GURL
 public class WebContentsDarkModeControllerUnitTest {
     @Rule
     public JniMocker mJniMocker = new JniMocker();
@@ -62,7 +62,7 @@ public class WebContentsDarkModeControllerUnitTest {
         mJniMocker.mock(WebsitePreferenceBridgeJni.TEST_HOOKS, mMockWebsitePreferenceBridgeJni);
 
         Profile.setLastUsedProfileForTesting(mMockProfile);
-        ShadowRecordHistogram.reset();
+        UmaRecorderHolder.resetForTesting();
 
         Mockito.doAnswer(invocation -> {
                    mIsGlobalSettingsEnabled = (boolean) invocation.getArguments()[2];
@@ -95,7 +95,7 @@ public class WebContentsDarkModeControllerUnitTest {
         Profile.setLastUsedProfileForTesting(null);
         ShadowColorUtils.sInNightMode = false;
 
-        ShadowRecordHistogram.reset();
+        UmaRecorderHolder.resetForTesting();
     }
 
     @Test
@@ -105,7 +105,7 @@ public class WebContentsDarkModeControllerUnitTest {
         Assert.assertTrue(
                 "Feature should be enabled, if both global settings and night mode enabled.",
                 WebContentsDarkModeController.isFeatureEnabled(mMockContext, mMockProfile));
-        assertEnabledState(GURL.emptyGURL(), AutoDarkModeEnabledState.ENABLED);
+        assertEnabledState(GURL.emptyGURL(), true);
     }
 
     @Test
@@ -114,7 +114,7 @@ public class WebContentsDarkModeControllerUnitTest {
         mIsGlobalSettingsEnabled = true;
         Assert.assertFalse("Feature should be disabled when not in night mode.",
                 WebContentsDarkModeController.isFeatureEnabled(mMockContext, mMockProfile));
-        assertEnabledState(GURL.emptyGURL(), AutoDarkModeEnabledState.DISABLED_LIGHT_MODE);
+        assertEnabledState(GURL.emptyGURL(), false);
     }
 
     @Test
@@ -123,7 +123,7 @@ public class WebContentsDarkModeControllerUnitTest {
         mIsGlobalSettingsEnabled = false;
         Assert.assertFalse("Feature should be disabled when global settings disabled.",
                 WebContentsDarkModeController.isFeatureEnabled(mMockContext, mMockProfile));
-        assertEnabledState(GURL.emptyGURL(), AutoDarkModeEnabledState.DISABLED_GLOBAL_SETTINGS);
+        assertEnabledState(GURL.emptyGURL(), false);
     }
 
     private void doTestSetAutoDarkGlobalSettingsEnabled(boolean enabled) {
@@ -175,7 +175,7 @@ public class WebContentsDarkModeControllerUnitTest {
         ShadowColorUtils.sInNightMode = true;
         mIsGlobalSettingsEnabled = true;
         mIsAutoDarkEnabledForUrlContentSettingValue = ContentSettingValues.ALLOW;
-        assertEnabledState(mMockGurl, AutoDarkModeEnabledState.ENABLED);
+        assertEnabledState(mMockGurl, true);
     }
 
     @Test
@@ -183,7 +183,7 @@ public class WebContentsDarkModeControllerUnitTest {
         ShadowColorUtils.sInNightMode = true;
         mIsGlobalSettingsEnabled = true;
         mIsAutoDarkEnabledForUrlContentSettingValue = ContentSettingValues.BLOCK;
-        assertEnabledState(mMockGurl, AutoDarkModeEnabledState.DISABLED_URL_SETTINGS);
+        assertEnabledState(mMockGurl, false);
     }
 
     private void assertAutoDarkModeChangeSourceRecorded(
@@ -196,8 +196,8 @@ public class WebContentsDarkModeControllerUnitTest {
                 expectedCounts, actualCount);
     }
 
-    private void assertEnabledState(GURL url, @AutoDarkModeEnabledState int expectedEnabledState) {
-        int actualEnabledState =
+    private void assertEnabledState(GURL url, boolean expectedEnabledState) {
+        boolean actualEnabledState =
                 WebContentsDarkModeController.getEnabledState(mMockProfile, mMockContext, url);
         Assert.assertEquals("AutoDarkModeEnabledState does not match.", expectedEnabledState,
                 actualEnabledState);

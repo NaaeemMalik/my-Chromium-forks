@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,10 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
+
+namespace content {
+class Page;
+}
 
 class SoundContentSettingObserver
     : public content::WebContentsObserver,
@@ -37,8 +41,7 @@ class SoundContentSettingObserver
   // content::WebContentsObserver implementation.
   void ReadyToCommitNavigation(
       content::NavigationHandle* navigation_handle) override;
-  void DidFinishNavigation(
-      content::NavigationHandle* navigation_handle) override;
+  void PrimaryPageChanged(content::Page& page) override;
   void OnAudioStateChanged(bool audible) override;
 
   // content_settings::Observer implementation.
@@ -65,7 +68,7 @@ class SoundContentSettingObserver
   // Determine the reason why audio was blocked on the page.
   MuteReason GetSiteMutedReason();
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Update the autoplay policy on the attached |WebContents|.
   void UpdateAutoplayPolicy();
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -172,27 +172,16 @@ void BrowserCompositorMac::UpdateSurfaceFromChild(
   client_->OnBrowserCompositorSurfaceIdChanged();
 }
 
-void BrowserCompositorMac::UpdateVSyncParameters(
-    const base::TimeTicks& timebase,
-    const base::TimeDelta& interval) {
-  ui::Compositor* compositor = nullptr;
-  if (recyclable_compositor_)
-    compositor = recyclable_compositor_->compositor();
-  // TODO(ccameron): VSync parameters for a ui::Compositor should be tracked
-  // with the owner of that ui::Compositor (which, in the case of MacViews, is
-  // BridgedNativeView). For the moment, push the VSync parameters from here to
-  // the BridgedNativeView's ui::Compositor because that is a small change and
-  // is easy to merge.
-  // https://crbug.com/869129
-  if (parent_ui_layer_)
-    compositor = parent_ui_layer_->GetCompositor();
-  if (compositor)
-    compositor->SetDisplayVSyncParameters(timebase, interval);
-}
-
 void BrowserCompositorMac::SetRenderWidgetHostIsHidden(bool hidden) {
   render_widget_host_is_hidden_ = hidden;
   UpdateState();
+  if (state_ == UseParentLayerCompositor) {
+    // UpdateState might not call WasShown when showing a frame using the same
+    // ParentLayerCompositor, since it returns early on a no-op state
+    // transition.
+    delegated_frame_host_->WasShown(GetRendererLocalSurfaceId(), dfh_size_dip_,
+                                    {} /* record_tab_switch_time_request */);
+  }
 }
 
 void BrowserCompositorMac::SetViewVisible(bool visible) {
@@ -239,8 +228,7 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
   if (state_ == HasOwnCompositor) {
     recyclable_compositor_->widget()->ResetNSView();
     recyclable_compositor_->compositor()->SetRootLayer(nullptr);
-    ui::RecyclableCompositorMacFactory::Get()->RecycleCompositor(
-        std::move(recyclable_compositor_));
+    recyclable_compositor_.reset();
   }
 
   // The compositor is now detached. If this is the target state, we're done.
@@ -261,9 +249,8 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
     state_ = UseParentLayerCompositor;
   }
   if (new_state == HasOwnCompositor) {
-    recyclable_compositor_ =
-        ui::RecyclableCompositorMacFactory::Get()->CreateCompositor(
-            content::GetContextFactory());
+    recyclable_compositor_ = std::make_unique<ui::RecyclableCompositorMac>(
+        content::GetContextFactory());
     display::ScreenInfo current = client_->GetCurrentScreenInfo();
     recyclable_compositor_->UpdateSurface(dfh_size_pixels_,
                                           current.device_scale_factor,
@@ -291,8 +278,6 @@ void BrowserCompositorMac::DisableRecyclingForShutdown() {
         *g_browser_compositors.Get().begin();
     browser_compositor->client_->DestroyCompositorForShutdown();
   }
-
-  ui::RecyclableCompositorMacFactory::Get()->DisableRecyclingForShutdown();
 }
 
 void BrowserCompositorMac::TakeFallbackContentFrom(
@@ -399,7 +384,7 @@ void BrowserCompositorMac::TransformPointToRootSurface(gfx::PointF* point) {
   gfx::Transform transform_to_root;
   if (parent_ui_layer_)
     parent_ui_layer_->GetTargetTransformRelativeTo(nullptr, &transform_to_root);
-  transform_to_root.TransformPoint(point);
+  *point = transform_to_root.MapPoint(*point);
 }
 
 void BrowserCompositorMac::LayerDestroyed(ui::Layer* layer) {

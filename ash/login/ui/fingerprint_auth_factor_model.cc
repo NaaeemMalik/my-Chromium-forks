@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,13 +23,34 @@ constexpr int kFingerprintFailedAnimationNumFrames = 45;
 
 }  // namespace
 
-FingerprintAuthFactorModel::FingerprintAuthFactorModel() = default;
+// static
+FingerprintAuthFactorModel::Factory*
+    FingerprintAuthFactorModel::Factory::factory_instance_ = nullptr;
+
+// static
+std::unique_ptr<FingerprintAuthFactorModel>
+FingerprintAuthFactorModel::Factory::Create(FingerprintState state) {
+  if (factory_instance_) {
+    return factory_instance_->CreateInstance(state);
+  }
+  return std::make_unique<FingerprintAuthFactorModel>(state);
+}
+
+// static
+void FingerprintAuthFactorModel::Factory::SetFactoryForTesting(
+    FingerprintAuthFactorModel::Factory* factory) {
+  factory_instance_ = factory;
+}
+
+FingerprintAuthFactorModel::FingerprintAuthFactorModel(FingerprintState state)
+    : state_(state) {}
 
 FingerprintAuthFactorModel::~FingerprintAuthFactorModel() = default;
 
 void FingerprintAuthFactorModel::SetFingerprintState(FingerprintState state) {
-  if (state_ == state)
+  if (state_ == state) {
     return;
+  }
 
   // Clear out the timeout if the state changes. This shouldn't happen
   // ordinarily -- permanent error states are permanent after all -- but this is
@@ -40,6 +61,11 @@ void FingerprintAuthFactorModel::SetFingerprintState(FingerprintState state) {
   RefreshUI();
 }
 
+void FingerprintAuthFactorModel::ResetUIState() {
+  auth_result_.reset();
+  RefreshUI();
+}
+
 void FingerprintAuthFactorModel::NotifyFingerprintAuthResult(bool result) {
   auth_result_ = result;
   RefreshUI();
@@ -47,8 +73,9 @@ void FingerprintAuthFactorModel::NotifyFingerprintAuthResult(bool result) {
 
 AuthFactorModel::AuthFactorState
 FingerprintAuthFactorModel::GetAuthFactorState() const {
-  if (!available_)
+  if (!available_) {
     return AuthFactorState::kUnavailable;
+  }
 
   if (auth_result_.has_value()) {
     if (auth_result_.value()) {
@@ -66,7 +93,7 @@ FingerprintAuthFactorModel::GetAuthFactorState() const {
     case FingerprintState::AVAILABLE_WITH_TOUCH_SENSOR_WARNING:
       return AuthFactorState::kErrorTemporary;
     case FingerprintState::DISABLED_FROM_ATTEMPTS:
-      FALLTHROUGH;
+      [[fallthrough]];
     case FingerprintState::DISABLED_FROM_TIMEOUT:
       return AuthFactorState::kErrorPermanent;
   }
@@ -87,14 +114,12 @@ int FingerprintAuthFactorModel::GetLabelId() const {
 
   switch (state_) {
     case FingerprintState::UNAVAILABLE:
-      FALLTHROUGH;
+      [[fallthrough]];
     case FingerprintState::AVAILABLE_DEFAULT:
       return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_AVAILABLE;
     case FingerprintState::AVAILABLE_WITH_TOUCH_SENSOR_WARNING:
       return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_TOUCH_SENSOR;
     case FingerprintState::DISABLED_FROM_ATTEMPTS:
-      // TODO(crbug.com/1233614): Update this string: "Too many attempts" ->
-      // "Too many fingerprint attempts".
       return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_DISABLED_FROM_ATTEMPTS;
     case FingerprintState::DISABLED_FROM_TIMEOUT:
       return can_use_pin_ ? IDS_AUTH_FACTOR_LABEL_PASSWORD_OR_PIN_REQUIRED
@@ -110,8 +135,9 @@ bool FingerprintAuthFactorModel::ShouldAnnounceLabel() const {
 }
 
 int FingerprintAuthFactorModel::GetAccessibleNameId() const {
-  if (state_ == FingerprintState::DISABLED_FROM_ATTEMPTS)
+  if (state_ == FingerprintState::DISABLED_FROM_ATTEMPTS) {
     return IDS_ASH_LOGIN_FINGERPRINT_UNLOCK_ACCESSIBLE_AUTH_DISABLED_FROM_ATTEMPTS;
+  }
 
   return GetLabelId();
 }
@@ -126,12 +152,12 @@ void FingerprintAuthFactorModel::UpdateIcon(AuthIconView* icon) {
 
   switch (state_) {
     case FingerprintState::AVAILABLE_DEFAULT:
-      FALLTHROUGH;
+      [[fallthrough]];
     case FingerprintState::AVAILABLE_WITH_TOUCH_SENSOR_WARNING:
       icon->SetIcon(kLockScreenFingerprintIcon);
       break;
     case FingerprintState::UNAVAILABLE:
-      FALLTHROUGH;
+      [[fallthrough]];
     case FingerprintState::DISABLED_FROM_TIMEOUT:
       icon->SetIcon(kLockScreenFingerprintDisabledIcon,
                     AuthIconView::Color::kDisabled);

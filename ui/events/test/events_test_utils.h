@@ -1,11 +1,10 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_EVENTS_TEST_EVENTS_TEST_UTILS_H_
 #define UI_EVENTS_TEST_EVENTS_TEST_UTILS_H_
 
-#include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
 #include "ui/events/event.h"
 #include "ui/events/event_dispatcher.h"
@@ -108,7 +107,7 @@ class EventSourceTestApi {
   EventSourceTestApi(const EventSourceTestApi&) = delete;
   EventSourceTestApi& operator=(const EventSourceTestApi&) = delete;
 
-  EventDispatchDetails SendEventToSink(Event* event) WARN_UNUSED_RESULT;
+  [[nodiscard]] EventDispatchDetails SendEventToSink(Event* event);
 
  private:
   EventSourceTestApi();

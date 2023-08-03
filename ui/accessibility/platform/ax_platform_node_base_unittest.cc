@@ -1,26 +1,19 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/accessibility/platform/ax_platform_node_base.h"
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/accessibility/platform/ax_platform_node_unittest.h"
 #include "ui/accessibility/platform/test_ax_node_wrapper.h"
+#include "ui/accessibility/test_ax_tree_update.h"
+
+using ax::mojom::Role;
+using ax::mojom::State;
 
 namespace ui {
 namespace {
-
-void MakeStaticText(AXNodeData* node, int id, const std::string& text) {
-  node->id = id;
-  node->role = ax::mojom::Role::kStaticText;
-  node->SetName(text);
-}
-
-void MakeGroup(AXNodeData* node, int id, std::vector<int> child_ids) {
-  node->id = id;
-  node->role = ax::mojom::Role::kGroup;
-  node->child_ids = child_ids;
-}
 
 void SetIsInvisible(AXTree* tree, int id, bool invisible) {
   AXTreeUpdate update;
@@ -43,33 +36,40 @@ void SetRole(AXTree* tree, int id, ax::mojom::Role role) {
 
 }  // namespace
 
-TEST(AXPlatformNodeBaseTest, GetHypertext) {
-  AXTreeUpdate update;
-
+TEST_F(AXPlatformNodeTest, GetHypertext) {
   // RootWebArea #1
   // ++++StaticText "text1" #2
   // ++++StaticText "text2" #3
   // ++++StaticText "text3" #4
+  AXNodeData root_data;
+  root_data.id = 1;
+  root_data.role = ax::mojom::Role::kRootWebArea;
 
+  AXNodeData item1, item2, item3;
+  item1.id = 2;
+  item1.role = ax::mojom::Role::kStaticText;
+  item1.SetName("text1");
+  item2.id = 3;
+  item2.role = ax::mojom::Role::kStaticText;
+  item2.SetName("text2");
+  item3.id = 4;
+  item3.role = ax::mojom::Role::kStaticText;
+  item3.SetName("text3");
+
+  root_data.child_ids = {item1.id, item2.id, item3.id};
+
+  AXTreeUpdate update;
   update.root_id = 1;
-  update.nodes.resize(4);
+  update.nodes = {root_data, item1, item2, item3};
 
-  update.nodes[0].id = 1;
-  update.nodes[0].role = ax::mojom::Role::kRootWebArea;
-  update.nodes[0].child_ids = {2, 3, 4};
-
-  MakeStaticText(&update.nodes[1], 2, "text1");
-  MakeStaticText(&update.nodes[2], 3, "text2");
-  MakeStaticText(&update.nodes[3], 4, "text3");
-
-  AXTree tree(update);
+  AXTree* tree = Init(update);
 
   // Set an AXMode on the AXPlatformNode as some platforms (auralinux) use it to
   // determine if it should enable accessibility.
-  testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
 
   AXPlatformNodeBase* root = static_cast<AXPlatformNodeBase*>(
-      TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
+      TestAXNodeWrapper::GetOrCreate(tree, tree->root())->ax_platform_node());
 
   EXPECT_EQ(root->GetHypertext(), u"text1text2text3");
 
@@ -86,9 +86,7 @@ TEST(AXPlatformNodeBaseTest, GetHypertext) {
   EXPECT_EQ(text3->GetHypertext(), u"text3");
 }
 
-TEST(AXPlatformNodeBaseTest, GetHypertextIgnoredContainerSiblings) {
-  AXTreeUpdate update;
-
+TEST_F(AXPlatformNodeTest, GetHypertextIgnoredContainerSiblings) {
   // RootWebArea #1
   // ++genericContainer IGNORED #2
   // ++++StaticText "text1" #3
@@ -96,39 +94,49 @@ TEST(AXPlatformNodeBaseTest, GetHypertextIgnoredContainerSiblings) {
   // ++++StaticText "text2" #5
   // ++genericContainer IGNORED #6
   // ++++StaticText "text3" #7
+  AXNodeData root_data;
+  root_data.id = 1;
+  root_data.role = ax::mojom::Role::kRootWebArea;
+  root_data.child_ids = {2, 4, 6};
 
+  AXNodeData container1, container2, container3;
+  container1.id = 2;
+  container1.role = ax::mojom::Role::kGenericContainer;
+  container1.AddState(ax::mojom::State::kIgnored);
+  container1.child_ids = {3};
+  container2.id = 4;
+  container2.role = ax::mojom::Role::kGenericContainer;
+  container2.AddState(ax::mojom::State::kIgnored);
+  container2.child_ids = {5};
+  container3.id = 6;
+  container3.role = ax::mojom::Role::kGenericContainer;
+  container3.AddState(ax::mojom::State::kIgnored);
+  container3.child_ids = {7};
+
+  AXNodeData item1, item2, item3;
+  item1.id = 3;
+  item1.role = ax::mojom::Role::kStaticText;
+  item1.SetName("text1");
+  item2.id = 5;
+  item2.role = ax::mojom::Role::kStaticText;
+  item2.SetName("text2");
+  item3.id = 7;
+  item3.role = ax::mojom::Role::kStaticText;
+  item3.SetName("text3");
+
+  AXTreeUpdate update;
   update.root_id = 1;
-  update.nodes.resize(7);
+  update.nodes = {root_data, container1, container2, container3,
+                  item1,     item2,      item3};
 
-  update.nodes[0].id = 1;
-  update.nodes[0].role = ax::mojom::Role::kRootWebArea;
-  update.nodes[0].child_ids = {2, 4, 6};
+  AXTree* tree = Init(update);
 
-  update.nodes[1].id = 2;
-  update.nodes[1].child_ids = {3};
-  update.nodes[1].role = ax::mojom::Role::kGenericContainer;
-  update.nodes[1].AddState(ax::mojom::State::kIgnored);
-  MakeStaticText(&update.nodes[2], 3, "text1");
-
-  update.nodes[3].id = 4;
-  update.nodes[3].child_ids = {5};
-  update.nodes[3].role = ax::mojom::Role::kGenericContainer;
-  update.nodes[3].AddState(ax::mojom::State::kIgnored);
-  MakeStaticText(&update.nodes[4], 5, "text2");
-
-  update.nodes[5].id = 6;
-  update.nodes[5].child_ids = {7};
-  update.nodes[5].role = ax::mojom::Role::kGenericContainer;
-  update.nodes[5].AddState(ax::mojom::State::kIgnored);
-  MakeStaticText(&update.nodes[6], 7, "text3");
-
-  AXTree tree(update);
   // Set an AXMode on the AXPlatformNode as some platforms (auralinux) use it to
   // determine if it should enable accessibility.
-  ui::testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
 
   AXPlatformNodeBase* root = static_cast<AXPlatformNodeBase*>(
-      TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
+      TestAXNodeWrapper::GetOrCreate(tree, tree->root())->ax_platform_node());
 
   EXPECT_EQ(root->GetHypertext(), u"text1text2text3");
 
@@ -148,61 +156,81 @@ TEST(AXPlatformNodeBaseTest, GetHypertextIgnoredContainerSiblings) {
   EXPECT_EQ(text3_ignored_container->GetHypertext(), u"text3");
 }
 
-TEST(AXPlatformNodeBaseTest, GetTextContentIgnoresInvisibleAndIgnored) {
+TEST_F(AXPlatformNodeTest, GetTextContentIgnoresInvisibleAndIgnored) {
+  // kGroup
+  // ++kStaticText "a"
+  // ++kStaticText "b"
+  // ++kGroup
+  // ++++kStaticText "d"
+  // ++++kStaticText "e"
+
+  AXNodeData root_data;
+  root_data.id = 1;
+  root_data.role = ax::mojom::Role::kGroup;
+  root_data.child_ids = {2, 3, 4};
+
+  AXNodeData item1, item2, group1, item3, item4;
+  item1.id = 2;
+  item1.role = ax::mojom::Role::kStaticText;
+  item1.SetName("a");
+  item2.id = 3;
+  item2.role = ax::mojom::Role::kStaticText;
+  item2.SetName("b");
+
+  group1.id = 4;
+  group1.role = ax::mojom::Role::kGroup;
+  group1.child_ids = {5, 6};
+
+  item3.id = 5;
+  item3.role = ax::mojom::Role::kStaticText;
+  item3.SetName("d");
+  item4.id = 6;
+  item4.role = ax::mojom::Role::kStaticText;
+  item4.SetName("e");
+
   AXTreeUpdate update;
-
   update.root_id = 1;
-  update.nodes.resize(6);
+  update.nodes = {root_data, item1, item2, group1, item3, item4};
 
-  MakeStaticText(&update.nodes[1], 2, "a");
-  MakeStaticText(&update.nodes[2], 3, "b");
-
-  MakeStaticText(&update.nodes[4], 5, "d");
-  MakeStaticText(&update.nodes[5], 6, "e");
-
-  MakeGroup(&update.nodes[3], 4, {5, 6});
-  MakeGroup(&update.nodes[0], 1, {2, 3, 4});
-
-  AXTree tree(update);
-
+  AXTree* tree = Init(update);
   auto* root = static_cast<AXPlatformNodeBase*>(
-      TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
+      TestAXNodeWrapper::GetOrCreate(tree, tree->root())->ax_platform_node());
 
   // Set an AXMode on the AXPlatformNode as some platforms (auralinux) use it to
   // determine if it should enable accessibility.
-  ui::testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
 
   EXPECT_EQ(root->GetTextContentUTF16(), u"abde");
 
   // Setting invisible or ignored on a static text node causes it to be included
   // or excluded from the root node's text content:
   {
-    SetIsInvisible(&tree, 2, true);
+    SetIsInvisible(tree, 2, true);
     EXPECT_EQ(root->GetTextContentUTF16(), u"bde");
 
-    SetIsInvisible(&tree, 2, false);
+    SetIsInvisible(tree, 2, false);
     EXPECT_EQ(root->GetTextContentUTF16(), u"abde");
 
-    SetRole(&tree, 2, ax::mojom::Role::kNone);
+    SetRole(tree, 2, ax::mojom::Role::kNone);
     EXPECT_EQ(root->GetTextContentUTF16(), u"bde");
 
-    SetRole(&tree, 2, ax::mojom::Role::kStaticText);
+    SetRole(tree, 2, ax::mojom::Role::kStaticText);
     EXPECT_EQ(root->GetTextContentUTF16(), u"abde");
   }
 
   // Setting invisible or ignored on a group node has no effect on the
   // text content:
   {
-    SetIsInvisible(&tree, 4, true);
+    SetIsInvisible(tree, 4, true);
     EXPECT_EQ(root->GetTextContentUTF16(), u"abde");
 
-    SetRole(&tree, 4, ax::mojom::Role::kNone);
+    SetRole(tree, 4, ax::mojom::Role::kNone);
     EXPECT_EQ(root->GetTextContentUTF16(), u"abde");
   }
 }
 
-TEST(AXPlatformNodeBaseTest, TestMenuSelectedItems) {
-  ui::testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+TEST_F(AXPlatformNodeTest, TestMenuSelectedItems) {
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
 
   AXNodeData root_data;
   root_data.id = 1;
@@ -222,8 +250,9 @@ TEST(AXPlatformNodeBaseTest, TestMenuSelectedItems) {
   AXTreeUpdate update;
   update.root_id = 1;
   update.nodes = {root_data, item_1_data, item_2_data};
-  AXTree tree(update);
+  Init(update);
 
+  AXTree& tree = *GetTree();
   auto* root = static_cast<AXPlatformNodeBase*>(
       TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
 
@@ -236,8 +265,8 @@ TEST(AXPlatformNodeBaseTest, TestMenuSelectedItems) {
   EXPECT_EQ(nullptr, root->GetSelectedItem(1));
 }
 
-TEST(AXPlatformNodeBaseTest, TestSelectedChildren) {
-  ui::testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+TEST_F(AXPlatformNodeTest, TestSelectedChildren) {
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
 
   AXNodeData root_data;
   root_data.id = 1;
@@ -257,8 +286,9 @@ TEST(AXPlatformNodeBaseTest, TestSelectedChildren) {
   AXTreeUpdate update;
   update.root_id = 1;
   update.nodes = {root_data, item_1_data, item_2_data};
-  AXTree tree(update);
+  Init(update);
 
+  AXTree& tree = *GetTree();
   auto* root = static_cast<AXPlatformNodeBase*>(
       TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
 
@@ -271,8 +301,8 @@ TEST(AXPlatformNodeBaseTest, TestSelectedChildren) {
   EXPECT_EQ(nullptr, root->GetSelectedItem(1));
 }
 
-TEST(AXPlatformNodeBaseTest, TestSelectedChildrenWithGroup) {
-  ui::testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+TEST_F(AXPlatformNodeTest, TestSelectedChildrenWithGroup) {
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
 
   AXNodeData root_data;
   root_data.id = 1;
@@ -313,8 +343,9 @@ TEST(AXPlatformNodeBaseTest, TestSelectedChildrenWithGroup) {
   update.root_id = 1;
   update.nodes = {root_data,   group_1_data, group_2_data, item_1_data,
                   item_2_data, item_3_data,  item_4_data};
-  AXTree tree(update);
+  Init(update);
 
+  AXTree& tree = *GetTree();
   auto* root = static_cast<AXPlatformNodeBase*>(
       TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
 
@@ -337,8 +368,8 @@ TEST(AXPlatformNodeBaseTest, TestSelectedChildrenWithGroup) {
             second_selected_node->GetNativeViewAccessible());
 }
 
-TEST(AXPlatformNodeBaseTest, TestSelectedChildrenMixed) {
-  ui::testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+TEST_F(AXPlatformNodeTest, TestSelectedChildrenMixed) {
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
 
   // Build the below tree which is mixed with listBoxOption and group.
   // id=1 listBox FOCUSABLE MULTISELECTABLE (0, 0)-(0, 0) child_ids=2,3,4,9
@@ -401,8 +432,9 @@ TEST(AXPlatformNodeBaseTest, TestSelectedChildrenMixed) {
   update.nodes = {root_data,   item_1_data, group_1_data,
                   item_2_data, item_3_data, group_2_data,
                   item_4_data, item_5_data, item_6_data};
-  AXTree tree(update);
+  Init(update);
 
+  AXTree& tree = *GetTree();
   auto* root = static_cast<AXPlatformNodeBase*>(
       TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
 
@@ -432,7 +464,7 @@ TEST(AXPlatformNodeBaseTest, TestSelectedChildrenMixed) {
   EXPECT_EQ(fourth_child, fourth_selected_node->GetNativeViewAccessible());
 }
 
-TEST(AXPlatformNodeBaseTest, CompareTo) {
+TEST_F(AXPlatformNodeTest, CompareTo) {
   // Compare the nodes' logical orders for the following tree. Node name is
   // denoted according to its id (i.e. "n#" is id#). Nodes that have smaller ids
   // are always logically less than nodes with bigger ids.
@@ -446,7 +478,7 @@ TEST(AXPlatformNodeBaseTest, CompareTo) {
   // n4  n5  n6       n10
   //         /
   //        n7
-  ui::testing::ScopedAxModeSetter ax_mode_setter(kAXModeComplete);
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
   AXNodeData node1;
   node1.id = 1;
   node1.role = ax::mojom::Role::kRootWebArea;
@@ -497,8 +529,9 @@ TEST(AXPlatformNodeBaseTest, CompareTo) {
   update.nodes = {node1, node2, node3, node4, node5,
                   node6, node7, node8, node9, node10};
 
-  AXTree tree(update);
+  Init(update);
 
+  AXTree& tree = *GetTree();
   // Retrieve the nodes in a level-order traversal way.
   auto* n1 = static_cast<AXPlatformNodeBase*>(
       TestAXNodeWrapper::GetOrCreate(&tree, tree.root())->ax_platform_node());
@@ -523,11 +556,12 @@ TEST(AXPlatformNodeBaseTest, CompareTo) {
 
   // Test for two nodes that do not share the same root. They should not be
   // comparable.
-  AXPlatformNodeDelegateBase detached_delegate;
-  std::unique_ptr<AXPlatformNodeBase> detached_node(
-      static_cast<AXPlatformNodeBase*>(
-          AXPlatformNode::Create(&detached_delegate)));
+  AXPlatformNodeDelegate detached_delegate;
+  AXPlatformNodeBase* detached_node = static_cast<AXPlatformNodeBase*>(
+      AXPlatformNode::Create(&detached_delegate));
   EXPECT_EQ(absl::nullopt, n1->CompareTo(*detached_node));
+  detached_node->Destroy();
+  detached_node = nullptr;
 
   // Create a test vector of all the tree nodes arranged in a pre-order
   // traversal way. The node that has a smaller index in the vector should also
@@ -562,4 +596,94 @@ TEST(AXPlatformNodeBaseTest, CompareTo) {
     }
   }
 }
+
+TEST_F(AXPlatformNodeTest, HypertextOffsetFromEndpoint) {
+  // <p>
+  //   <a href="google.com">link</a>
+  // </p>
+  //
+  // kRootWebArea
+  // ++kParagraph
+  // ++++kLink
+  // ++++++kStaticText "link"
+  // ++++++kStaticText "link#2"
+  AXNodeData root_data;
+  root_data.id = 1;
+  root_data.role = ax::mojom::Role::kRootWebArea;
+  root_data.child_ids = {2};
+
+  AXNodeData container1, link1, item1, item2;
+  container1.id = 2;
+  container1.role = ax::mojom::Role::kParagraph;
+  container1.child_ids = {3};
+  link1.id = 3;
+  link1.role = ax::mojom::Role::kLink;
+  link1.child_ids = {4, 5};
+  item1.id = 4;
+  item1.role = ax::mojom::Role::kStaticText;
+  item1.SetName("link");
+  item2.id = 5;
+  item2.role = ax::mojom::Role::kStaticText;
+  item2.SetName("link#2");
+
+  AXTreeUpdate update;
+  update.root_id = 1;
+  update.nodes = {root_data, container1, link1, item1, item2};
+
+  AXTree* tree = Init(update);
+  auto* root = static_cast<AXPlatformNodeBase*>(
+      TestAXNodeWrapper::GetOrCreate(tree, tree->root())->ax_platform_node());
+
+  // Set an AXMode on the AXPlatformNode as some platforms (auralinux) use it to
+  // determine if it should enable accessibility.
+  ScopedAXModeSetter ax_mode_setter(kAXModeComplete);
+
+  auto* paragraph = static_cast<AXPlatformNodeBase*>(
+      AXPlatformNode::FromNativeViewAccessible(root->ChildAtIndex(0)));
+
+  auto* link = static_cast<AXPlatformNodeBase*>(
+      AXPlatformNode::FromNativeViewAccessible(paragraph->ChildAtIndex(0)));
+
+  auto* static_text = static_cast<AXPlatformNodeBase*>(
+      AXPlatformNode::FromNativeViewAccessible(link->ChildAtIndex(0)));
+
+  auto* static_text2 = static_cast<AXPlatformNodeBase*>(
+      AXPlatformNode::FromNativeViewAccessible(link->ChildAtIndex(1)));
+
+  // End point is a parent, points before/after the link.
+  {
+    EXPECT_EQ(link->GetHypertextOffsetFromEndpoint(paragraph, 0), 0);
+    EXPECT_EQ(link->GetHypertextOffsetFromEndpoint(paragraph, 1), 10);
+  }
+
+  // End point is a parent, points before/after the static texts.
+  {
+    EXPECT_EQ(static_text->GetHypertextOffsetFromEndpoint(link, 0), 0);
+    EXPECT_EQ(static_text->GetHypertextOffsetFromEndpoint(link, 1), 4);
+    EXPECT_EQ(static_text->GetHypertextOffsetFromEndpoint(link, 2), 4);
+
+    EXPECT_EQ(static_text2->GetHypertextOffsetFromEndpoint(link, 0), 0);
+    EXPECT_EQ(static_text2->GetHypertextOffsetFromEndpoint(link, 1), 0);
+    EXPECT_EQ(static_text2->GetHypertextOffsetFromEndpoint(link, 2), 6);
+  }
+
+  // End point is a grand parent, points before/after the static text.
+  {
+    EXPECT_EQ(static_text->GetHypertextOffsetFromEndpoint(paragraph, 0), 0);
+    EXPECT_EQ(static_text->GetHypertextOffsetFromEndpoint(paragraph, 1), 4);
+  }
+
+  // End point is |this|, points into |this| text leaf object.
+  {
+    EXPECT_EQ(static_text->GetHypertextOffsetFromEndpoint(static_text, 0), 0);
+    EXPECT_EQ(static_text->GetHypertextOffsetFromEndpoint(static_text, 4), 4);
+  }
+
+  // End point is |this|, points into |this| hypertext object.
+  {
+    EXPECT_EQ(link->GetHypertextOffsetFromEndpoint(link, 0), 0);
+    EXPECT_EQ(link->GetHypertextOffsetFromEndpoint(link, 1), 4);
+  }
+}
+
 }  // namespace ui

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "ash/components/arc/mojom/app.mojom.h"
+#include "base/memory/raw_ptr.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 
@@ -98,15 +99,8 @@ class FakeAppInstance : public mojom::AppInstance {
   ~FakeAppInstance() override;
 
   // mojom::AppInstance overrides:
-  void InitDeprecated(mojo::PendingRemote<mojom::AppHost> host_remote) override;
   void Init(mojo::PendingRemote<mojom::AppHost> host_remote,
             InitCallback callback) override;
-  void LaunchAppDeprecated(const std::string& package_name,
-                           const std::string& activity,
-                           const absl::optional<gfx::Rect>& dimension) override;
-  void LaunchApp(const std::string& package_name,
-                 const std::string& activity,
-                 int64_t display_id) override;
   void LaunchAppWithWindowInfo(const std::string& package_name,
                                const std::string& activity,
                                arc::mojom::WindowInfoPtr window_info) override;
@@ -121,10 +115,6 @@ class FakeAppInstance : public mojom::AppInstance {
                   const std::string& activity,
                   int dimension,
                   GetAppIconCallback callback) override;
-  void LaunchIntentDeprecated(
-      const std::string& intent_uri,
-      const absl::optional<gfx::Rect>& dimension_on_screen) override;
-  void LaunchIntent(const std::string& intent_uri, int64_t display_id) override;
   void LaunchIntentWithWindowInfo(
       const std::string& intent_uri,
       arc::mojom::WindowInfoPtr window_info) override;
@@ -150,7 +140,8 @@ class FakeAppInstance : public mojom::AppInstance {
       const gfx::Rect& dimension,
       CanHandleResolutionDeprecatedCallback callback) override;
   void UninstallPackage(const std::string& package_name) override;
-  void GetTaskInfo(int32_t task_id, GetTaskInfoCallback callback) override;
+  void GetTaskInfoDeprecated(int32_t task_id,
+                              GetTaskInfoDeprecatedCallback callback) override;
   void SetTaskActive(int32_t task_id) override;
   void CloseTask(int32_t task_id) override;
   void ShowPackageInfoDeprecated(const std::string& package_name,
@@ -179,19 +170,19 @@ class FakeAppInstance : public mojom::AppInstance {
   void GetAppShortcutItems(const std::string& package_name,
                            GetAppShortcutItemsCallback callback) override;
   void StartPaiFlow(StartPaiFlowCallback callback) override;
-  void GetAppReinstallCandidates(
-      GetAppReinstallCandidatesCallback callback) override;
   void StartFastAppReinstallFlow(
       const std::vector<std::string>& package_names) override;
   void RequestAssistStructure(RequestAssistStructureCallback callback) override;
   void IsInstallable(const std::string& package_name,
                      IsInstallableCallback callback) override;
+  void GetAppCategory(const std::string& package_name,
+                      GetAppCategoryCallback callback) override;
 
   // Methods to reply messages.
-  void SendRefreshAppList(const std::vector<mojom::AppInfo>& apps);
+  void SendRefreshAppList(const std::vector<mojom::AppInfoPtr>& apps);
   void SendAppAdded(const mojom::AppInfo& app);
   void SendPackageAppListRefreshed(const std::string& package_name,
-                                   const std::vector<mojom::AppInfo>& apps);
+                                   const std::vector<mojom::AppInfoPtr>& apps);
   void SendTaskCreated(int32_t taskId,
                        const mojom::AppInfo& app,
                        const std::string& intent);
@@ -203,9 +194,6 @@ class FakeAppInstance : public mojom::AppInstance {
   void SendUninstallShortcut(const std::string& package_name,
                              const std::string& intent_uri);
   void SendInstallShortcuts(const std::vector<mojom::ShortcutInfo>& shortcuts);
-  void SetTaskInfo(int32_t task_id,
-                   const std::string& package_name,
-                   const std::string& activity);
   void SendRefreshPackageList(std::vector<mojom::ArcPackageInfoPtr> packages);
   void SendPackageAdded(mojom::ArcPackageInfoPtr package);
   void SendPackageModified(mojom::ArcPackageInfoPtr package);
@@ -254,10 +242,6 @@ class FakeAppInstance : public mojom::AppInstance {
     return launch_intents_;
   }
 
-  int get_app_reinstall_callback_count() const {
-    return get_app_reinstall_callback_count_;
-  }
-
   const std::vector<std::unique_ptr<IconRequest>>& icon_requests() const {
     return icon_requests_;
   }
@@ -267,11 +251,13 @@ class FakeAppInstance : public mojom::AppInstance {
     return shortcut_icon_requests_;
   }
 
-  void SetAppReinstallCandidates(
-      const std::vector<arc::mojom::AppReinstallCandidatePtr>& candidates);
-
   void set_is_installable(bool is_installable) {
     is_installable_ = is_installable;
+  }
+
+  void set_app_category_of_pkg(
+      std::string_view pkg_name, mojom::AppCategory category) {
+    pkg_name_to_app_category_[std::string(pkg_name)] = category;
   }
 
  private:
@@ -280,7 +266,7 @@ class FakeAppInstance : public mojom::AppInstance {
   arc::mojom::RawIconPngDataPtr GetFakeIcon(mojom::ScaleFactor scale_factor);
 
   // Mojo endpoints.
-  mojom::AppHost* app_host_;
+  raw_ptr<mojom::AppHost, ExperimentalAsh> app_host_;
   // Number of requests to start PAI flows.
   int start_pai_request_count_ = 0;
   // Response for PAI flow state;
@@ -289,13 +275,9 @@ class FakeAppInstance : public mojom::AppInstance {
   int start_fast_app_reinstall_request_count_ = 0;
   // Keeps information about launch app shortcut requests.
   int launch_app_shortcut_item_count_ = 0;
-  // Keeps info about the number of times we got a request for app reinstalls.
-  int get_app_reinstall_callback_count_ = 0;
   // AndroidId to return.
   int64_t android_id_ = 0;
 
-  // Vector to send as app reinstall candidates.
-  std::vector<arc::mojom::AppReinstallCandidatePtr> app_reinstall_candidates_;
   // Keeps information about launch requests.
   std::vector<std::unique_ptr<Request>> launch_requests_;
   // Keeps information about launch intents.
@@ -304,13 +286,13 @@ class FakeAppInstance : public mojom::AppInstance {
   std::vector<std::unique_ptr<IconRequest>> icon_requests_;
   // Keeps information about shortcut icon load requests.
   std::vector<std::unique_ptr<ShortcutIconRequest>> shortcut_icon_requests_;
-  // Keeps information for running tasks.
-  TaskIdToInfo task_id_to_info_;
   // Defines how to response to icon requests.
   IconResponseType icon_response_type_ =
       IconResponseType::ICON_RESPONSE_SEND_GOOD;
   // Keeps latest generated icons per icon dimension.
   std::map<int, std::string> icon_responses_;
+  // Stores information for serving GetAppCategory calls.
+  std::map<std::string, mojom::AppCategory> pkg_name_to_app_category_;
 
   bool is_installable_ = false;
 

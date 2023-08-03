@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,7 @@
 #include "ash/wm/window_state.h"
 #include "base/auto_reset.h"
 #include "base/logging.h"
+#include "base/memory/raw_ptr.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
 #include "ui/compositor/layer.h"
@@ -79,7 +80,7 @@ class ScreenPinningController::PinnedContainerChildWindowObserver
   }
 
  private:
-  ScreenPinningController* controller_;
+  raw_ptr<ScreenPinningController, ExperimentalAsh> controller_;
 };
 
 // Adapter to translate OnWindowAdded/OnWillRemoveWindow for the container
@@ -106,7 +107,7 @@ class ScreenPinningController::PinnedContainerWindowObserver
   }
 
  private:
-  ScreenPinningController* controller_;
+  raw_ptr<ScreenPinningController, ExperimentalAsh> controller_;
 };
 
 // Adapter to fire OnSystemModalContainerWindowStackingChanged().
@@ -127,7 +128,7 @@ class ScreenPinningController::SystemModalContainerChildWindowObserver
   }
 
  private:
-  ScreenPinningController* controller_;
+  raw_ptr<ScreenPinningController, ExperimentalAsh> controller_;
 };
 
 // Adapter to translate OnWindowAdded/OnWillRemoveWindow for the
@@ -156,7 +157,7 @@ class ScreenPinningController::SystemModalContainerWindowObserver
   }
 
  private:
-  ScreenPinningController* controller_;
+  raw_ptr<ScreenPinningController, ExperimentalAsh> controller_;
 };
 
 ScreenPinningController::ScreenPinningController()

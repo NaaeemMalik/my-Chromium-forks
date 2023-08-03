@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,14 @@
 #include <stdint.h>
 
 #include "base/check.h"
-#include "base/cxx17_backports.h"
 #include "base/notreached.h"
+#include "base/strings/string_util.h"
 #include "device/gamepad/public/cpp/gamepads.h"
 #include "device/vr/openxr/openxr_util.h"
 #include "device/vr/util/xr_standard_gamepad_builder.h"
+#include "ui/gfx/geometry/decomposed_transform.h"
 #include "ui/gfx/geometry/quaternion.h"
-#include "ui/gfx/geometry/transform_util.h"
+#include "ui/gfx/geometry/transform.h"
 
 namespace device {
 
@@ -185,14 +186,15 @@ XrResult OpenXrController::Initialize(
   XrActionSetCreateInfo action_set_create_info = {
       XR_TYPE_ACTION_SET_CREATE_INFO};
 
-  errno_t error = strcpy_s(action_set_create_info.actionSetName,
-                           base::size(action_set_create_info.actionSetName),
-                           action_set_name.c_str());
-  DCHECK(!error);
-  error = strcpy_s(action_set_create_info.localizedActionSetName,
-                   base::size(action_set_create_info.localizedActionSetName),
-                   action_set_name.c_str());
-  DCHECK(!error);
+  size_t dest_size = std::size(action_set_create_info.actionSetName);
+  size_t src_size = base::strlcpy(action_set_create_info.actionSetName,
+                                  action_set_name.c_str(), dest_size);
+  DCHECK_LT(src_size, dest_size);
+
+  dest_size = std::size(action_set_create_info.localizedActionSetName);
+  src_size = base::strlcpy(action_set_create_info.localizedActionSetName,
+                           action_set_name.c_str(), dest_size);
+  DCHECK_LT(src_size, dest_size);
 
   RETURN_IF_XR_FAILED(
       xrCreateActionSet(instance_, &action_set_create_info, &action_set_));
@@ -214,6 +216,7 @@ XrResult OpenXrController::InitializeControllerActions() {
   RETURN_IF_XR_FAILED(CreateActionsForButton(OpenXrButtonType::kButton1));
   RETURN_IF_XR_FAILED(CreateActionsForButton(OpenXrButtonType::kButton2));
   RETURN_IF_XR_FAILED(CreateActionsForButton(OpenXrButtonType::kGrasp));
+  RETURN_IF_XR_FAILED(CreateActionsForButton(OpenXrButtonType::kShoulder));
 
   const std::string type_string = GetStringFromType(type_);
   const std::string name_prefix = type_string + "_controller_";
@@ -559,7 +562,7 @@ absl::optional<gfx::Transform> OpenXrController::GetTransformFromSpaces(
     *emulated_position = false;
   }
 
-  return gfx::ComposeTransform(decomp);
+  return gfx::Transform::Compose(decomp);
 }
 
 XrResult OpenXrController::CreateActionsForButton(
@@ -592,6 +595,9 @@ XrResult OpenXrController::CreateActionsForButton(
     case OpenXrButtonType::kGrasp:
       name_prefix += "grasp_";
       break;
+    case OpenXrButtonType::kShoulder:
+      name_prefix += "shoulder_";
+      break;
   }
 
   std::unordered_map<OpenXrButtonActionType, XrAction>& cur_button =
@@ -616,14 +622,15 @@ XrResult OpenXrController::CreateAction(XrActionType type,
   XrActionCreateInfo action_create_info = {XR_TYPE_ACTION_CREATE_INFO};
   action_create_info.actionType = type;
 
-  errno_t error =
-      strcpy_s(action_create_info.actionName,
-               base::size(action_create_info.actionName), action_name.data());
-  DCHECK(error == 0);
-  error = strcpy_s(action_create_info.localizedActionName,
-                   base::size(action_create_info.localizedActionName),
-                   action_name.data());
-  DCHECK(error == 0);
+  size_t dest_size = std::size(action_create_info.actionName);
+  size_t src_size = base::strlcpy(action_create_info.actionName,
+                                  action_name.data(), dest_size);
+  DCHECK_LT(src_size, dest_size);
+
+  dest_size = std::size(action_create_info.localizedActionName);
+  src_size = base::strlcpy(action_create_info.localizedActionName,
+                           action_name.data(), dest_size);
+  DCHECK_LT(src_size, dest_size);
   return xrCreateAction(action_set_, &action_create_info, action);
 }
 

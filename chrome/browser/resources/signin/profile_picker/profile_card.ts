@@ -1,7 +1,8 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+<<<<<<< HEAD
 import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
 import 'gtx://resources/cr_elements/icons.m.js';
 import 'gtx://resources/cr_elements/hidden_style_css.m.js';
@@ -15,8 +16,24 @@ import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.m.js
 import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
 import {PaperTooltipElement} from 'gtx://resources/polymer/v3_0/paper-tooltip/paper-tooltip.js';
 import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+=======
+import 'chrome://resources/cr_elements/cr_button/cr_button.js';
+import 'chrome://resources/cr_elements/icons.html.js';
+import 'chrome://resources/cr_elements/cr_hidden_style.css.js';
+import 'chrome://resources/cr_elements/cr_shared_style.css.js';
+import './profile_card_menu.js';
+import './profile_picker_shared.css.js';
+import 'chrome://resources/cr_elements/cr_input/cr_input.js';
+import 'chrome://resources/polymer/v3_0/paper-tooltip/paper-tooltip.js';
+
+import {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
+import {PaperTooltipElement} from 'chrome://resources/polymer/v3_0/paper-tooltip/paper-tooltip.js';
+import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+>>>>>>> gtx-new
 
 import {ManageProfilesBrowserProxy, ManageProfilesBrowserProxyImpl, ProfileState} from './manage_profiles_browser_proxy.js';
+import {getTemplate} from './profile_card.html.js';
 
 export interface ProfileCardElement {
   $: {
@@ -35,7 +52,7 @@ export class ProfileCardElement extends ProfileCardElementBase {
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -56,7 +73,7 @@ export class ProfileCardElement extends ProfileCardElementBase {
   private manageProfilesBrowserProxy_: ManageProfilesBrowserProxy =
       ManageProfilesBrowserProxyImpl.getInstance();
 
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
     this.addNameInputTooltipListeners_();
     this.addGaiaNameTooltipListeners_();

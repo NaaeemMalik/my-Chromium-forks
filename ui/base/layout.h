@@ -1,14 +1,14 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_BASE_LAYOUT_H_
 #define UI_BASE_LAYOUT_H_
 
+#include <memory>
 #include <vector>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "ui/base/resource/resource_scale_factor.h"
 #include "ui/gfx/native_widget_types.h"
@@ -28,10 +28,12 @@ COMPONENT_EXPORT(UI_BASE)
 const std::vector<ResourceScaleFactor>& GetSupportedResourceScaleFactors();
 
 // Returns the supported ResourceScaleFactor which most closely matches |scale|.
-// Converting from float to ResourceScaleFactor is inefficient and should be
-// done as little as possible.
 COMPONENT_EXPORT(UI_BASE)
 ResourceScaleFactor GetSupportedResourceScaleFactor(float image_scale);
+
+// Returns the maximum supported ResourceScaleFactor.
+COMPONENT_EXPORT(UI_BASE)
+ResourceScaleFactor GetMaxSupportedResourceScaleFactor();
 
 // Returns the ResourceScaleFactor used by |view|.
 COMPONENT_EXPORT(UI_BASE)
@@ -56,7 +58,7 @@ class COMPONENT_EXPORT(UI_BASE) ScopedSetSupportedResourceScaleFactors {
   ~ScopedSetSupportedResourceScaleFactors();
 
  private:
-  raw_ptr<std::vector<ResourceScaleFactor>> original_scale_factors_;
+  std::unique_ptr<std::vector<ResourceScaleFactor>> original_scale_factors_;
 };
 
 }  // namespace test

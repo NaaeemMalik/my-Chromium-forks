@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,10 @@
 #include <memory>
 #include <string>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/files/file_path_watcher.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -27,11 +27,11 @@ const char kHostConfigSwitchName[] = "host-config";
 const base::FilePath::CharType kDefaultHostConfigFile[] =
     FILE_PATH_LITERAL("host.json");
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Maximum number of times to try reading the configuration file before
 // reporting an error.
 const int kMaxRetries = 3;
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 class ConfigFileWatcherImpl
     : public base::RefCountedThreadSafe<ConfigFileWatcherImpl> {
@@ -94,8 +94,8 @@ ConfigFileWatcher::ConfigFileWatcher(
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner,
     const base::FilePath& config_path)
     : impl_(new ConfigFileWatcherImpl(main_task_runner,
-                                      io_task_runner, config_path)) {
-}
+                                      io_task_runner,
+                                      config_path)) {}
 
 ConfigFileWatcher::~ConfigFileWatcher() {
   impl_->StopWatching();
@@ -182,8 +182,9 @@ void ConfigFileWatcherImpl::OnConfigUpdated(const base::FilePath& path,
   // the updated configuration file before it has been completely written.
   // If the writer moves the new configuration file into place atomically,
   // this delay may not be necessary.
-  if (!error && config_path_ == path)
+  if (!error && config_path_ == path) {
     config_updated_timer_->Reset();
+  }
 }
 
 void ConfigFileWatcherImpl::NotifyError() {
@@ -203,7 +204,7 @@ void ConfigFileWatcherImpl::ReloadConfig() {
 
   std::string config;
   if (!base::ReadFileToString(config_path_, &config)) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     // EACCESS may indicate a locking or sharing violation. Retry a few times
     // before reporting an error.
     if (errno == EACCES && retries_ < kMaxRetries) {
@@ -213,7 +214,7 @@ void ConfigFileWatcherImpl::ReloadConfig() {
       config_updated_timer_->Reset();
       return;
     }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
     PLOG(ERROR) << "Failed to read '" << config_path_.value() << "'";
 

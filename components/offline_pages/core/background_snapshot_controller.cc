@@ -1,11 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/offline_pages/core/background_snapshot_controller.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "components/offline_pages/core/offline_page_feature.h"
 
@@ -58,14 +59,13 @@ void BackgroundSnapshotController::Stop() {
 void BackgroundSnapshotController::RenovationsCompleted() {
 }
 
-void BackgroundSnapshotController::DocumentOnLoadCompletedInMainFrame() {
-    // Post a delayed task to snapshot and then stop this controller.
-    task_runner_->PostDelayedTask(
-        FROM_HERE,
-        base::BindOnce(
-            &BackgroundSnapshotController::MaybeStartSnapshotThenStop,
-            weak_ptr_factory_.GetWeakPtr()),
-        base::Milliseconds(delay_after_document_on_load_completed_ms_));
+void BackgroundSnapshotController::DocumentOnLoadCompletedInPrimaryMainFrame() {
+  // Post a delayed task to snapshot and then stop this controller.
+  task_runner_->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&BackgroundSnapshotController::MaybeStartSnapshotThenStop,
+                     weak_ptr_factory_.GetWeakPtr()),
+      base::Milliseconds(delay_after_document_on_load_completed_ms_));
 }
 
 void BackgroundSnapshotController::MaybeStartSnapshot() {

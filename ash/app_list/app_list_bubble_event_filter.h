@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,8 @@
 #define ASH_APP_LIST_APP_LIST_BUBBLE_EVENT_FILTER_H_
 
 #include "ash/ash_export.h"
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "ui/events/event_handler.h"
 
 namespace ui {
@@ -37,6 +38,10 @@ class ASH_EXPORT AppListBubbleEventFilter : public ui::EventHandler {
   AppListBubbleEventFilter& operator=(const AppListBubbleEventFilter&) = delete;
   ~AppListBubbleEventFilter() override;
 
+  // Changes the button to check (see class comment). Useful if the app list
+  // has changed displays, so a different home button needs to be checked.
+  void SetButton(views::View* button);
+
   // ui::EventHandler:
   void OnMouseEvent(ui::MouseEvent* event) override;
   void OnTouchEvent(ui::TouchEvent* event) override;
@@ -44,8 +49,9 @@ class ASH_EXPORT AppListBubbleEventFilter : public ui::EventHandler {
  private:
   void ProcessPressedEvent(const ui::LocatedEvent& event);
 
-  views::Widget* const widget_;
-  views::View* const button_;
+  const raw_ptr<views::Widget, ExperimentalAsh> widget_;
+  raw_ptr<views::View, DanglingUntriaged | ExperimentalAsh>
+      button_;  // May be null.
   base::RepeatingClosure on_click_outside_;
 };
 

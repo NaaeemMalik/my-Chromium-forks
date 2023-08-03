@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/google/google_brand.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/google/core/common/google_util.h"
@@ -47,7 +46,7 @@ std::string UIThreadSearchTermsData::GetApplicationLocale() const {
 }
 
 // Android implementations are in ui_thread_search_terms_data_android.cc.
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 std::u16string UIThreadSearchTermsData::GetRlzParameterValue(
     bool from_app_list) const {
   DCHECK(!BrowserThread::IsThreadInitialized(BrowserThread::UI) ||
@@ -80,26 +79,43 @@ std::string UIThreadSearchTermsData::GetSearchClient() const {
 }
 #endif
 
-std::string UIThreadSearchTermsData::GetSuggestClient() const {
+std::string UIThreadSearchTermsData::GetSuggestClient(
+    RequestSource request_source) const {
   DCHECK(!BrowserThread::IsThreadInitialized(BrowserThread::UI) ||
       BrowserThread::CurrentlyOn(BrowserThread::UI));
-#if defined(OS_ANDROID)
-  // Android does not send non-searchbox suggest requests from NTP at this time.
-  return ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE ?
-      "chrome" : "chrome-omni";
-#else
-  return "chrome-omni";
+  switch (request_source) {
+    case RequestSource::NTP_MODULE:
+      return "chrome-android-search-resumption-module";
+    case RequestSource::JOURNEYS:
+      return "journeys";
+    case RequestSource::SEARCHBOX:
+    case RequestSource::CROS_APP_LIST:
+#if BUILDFLAG(IS_ANDROID)
+      if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE) {
+        return "chrome";
+      }
 #endif
+      return "chrome-omni";
+  }
 }
 
-std::string UIThreadSearchTermsData::GetSuggestRequestIdentifier() const {
+std::string UIThreadSearchTermsData::GetSuggestRequestIdentifier(
+    RequestSource request_source) const {
   DCHECK(!BrowserThread::IsThreadInitialized(BrowserThread::UI) ||
       BrowserThread::CurrentlyOn(BrowserThread::UI));
-#if defined(OS_ANDROID)
-  if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE)
-    return "chrome-mobile-ext-ansg";
+  switch (request_source) {
+    case RequestSource::NTP_MODULE:
+    case RequestSource::JOURNEYS:
+      return "";
+    case RequestSource::SEARCHBOX:
+    case RequestSource::CROS_APP_LIST:
+#if BUILDFLAG(IS_ANDROID)
+      if (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_PHONE) {
+        return "chrome-mobile-ext-ansg";
+      }
 #endif
-  return "chrome-ext-ansg";
+      return "chrome-ext-ansg";
+  }
 }
 
 // It's acutally OK to call this method on any thread, but it's currently placed

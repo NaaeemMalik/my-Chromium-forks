@@ -1,23 +1,21 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import './strings.m.js';
-
 import './alert_indicators.js';
 
-import {assert} from 'gtx://resources/js/assert.m.js';
+import {assert} from 'gtx://resources/js/assert_ts.js';
 import {CustomElement} from 'gtx://resources/js/custom_element.js';
 import {getFavicon} from 'gtx://resources/js/icon.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
-import {isRTL} from 'gtx://resources/js/util.m.js';
+import {loadTimeData} from 'gtx://resources/js/load_time_data.js';
+import {isRTL} from 'gtx://resources/js/util_ts.js';
 
 import {AlertIndicatorsElement} from './alert_indicators.js';
+import {getTemplate} from './tab.html.js';
 import {Tab, TabNetworkState} from './tab_strip.mojom-webui.js';
 import {TabSwiper} from './tab_swiper.js';
 import {CloseTabAction, TabsApiProxy, TabsApiProxyImpl} from './tabs_api_proxy.js';
-
-const DEFAULT_ANIMATION_DURATION: number = 125;
 
 function getAccessibleTitle(tab: Tab): string {
   const tabTitle = tab.title;
@@ -41,8 +39,8 @@ function getPaddingInlineEndProperty(): string {
 }
 
 export class TabElement extends CustomElement {
-  static get template() {
-    return `{__html_template__}`;
+  static override get template() {
+    return getTemplate();
   }
 
   private alertIndicatorsEl_: AlertIndicatorsElement;
@@ -50,9 +48,8 @@ export class TabElement extends CustomElement {
   private dragImageEl_: HTMLElement;
   private tabEl_: HTMLElement;
   private faviconEl_: HTMLElement;
-  private thumbnailContainer_: HTMLElement;
   private thumbnail_: HTMLImageElement;
-  private tab_: Tab;
+  private tab_: Tab|null = null;
   private tabsApi_: TabsApiProxy;
   private titleTextEl_: HTMLElement;
   private isValidDragOverTarget_: boolean;
@@ -63,29 +60,27 @@ export class TabElement extends CustomElement {
     super();
 
     this.alertIndicatorsEl_ =
-        this.$('tabstrip-alert-indicators') as AlertIndicatorsElement;
-    // Normally, custom elements will get upgraded automatically once added to
-    // the DOM, but TabElement may need to update properties on
+        this.$<AlertIndicatorsElement>('tabstrip-alert-indicators')!;
+    // Normally, custom elements will get upgraded automatically once added
+    // to the DOM, but TabElement may need to update properties on
     // AlertIndicatorElement before this happens, so upgrade it manually.
     customElements.upgrade(this.alertIndicatorsEl_);
 
-    this.closeButtonEl_ = this.$('#close') as HTMLElement;
+    this.closeButtonEl_ = this.$<HTMLElement>('#close')!;
     this.closeButtonEl_.setAttribute(
         'aria-label', loadTimeData.getString('closeTab'));
 
-    this.dragImageEl_ = this.$('#dragImage') as HTMLElement;
+    this.dragImageEl_ = this.$<HTMLElement>('#dragImage')!;
 
-    this.tabEl_ = this.$('#tab') as HTMLElement;
+    this.tabEl_ = this.$<HTMLElement>('#tab')!;
 
-    this.faviconEl_ = this.$('#favicon') as HTMLElement;
+    this.faviconEl_ = this.$<HTMLElement>('#favicon')!;
 
-    this.thumbnailContainer_ = this.$('#thumbnail') as HTMLElement;
-
-    this.thumbnail_ = this.$('#thumbnailImg') as HTMLImageElement;
+    this.thumbnail_ = this.$<HTMLImageElement>('#thumbnailImg')!;
 
     this.tabsApi_ = TabsApiProxyImpl.getInstance();
 
-    this.titleTextEl_ = this.$('#titleText') as HTMLElement;
+    this.titleTextEl_ = this.$<HTMLElement>('#titleText')!;
 
     /**
      * Flag indicating if this TabElement can accept dragover events. This
@@ -104,10 +99,15 @@ export class TabElement extends CustomElement {
 
     this.tabSwiper_ = new TabSwiper(this);
 
-    this.onTabActivating_ = (tabId: number) => {};
+    this.onTabActivating_ = (_tabId: number) => {};
+  }
+
+  hasTabModel(): boolean {
+    return this.tab_ !== null;
   }
 
   get tab(): Tab {
+    assert(this.tab_);
     return this.tab_;
   }
 
@@ -145,7 +145,9 @@ export class TabElement extends CustomElement {
          tab.isDefaultFavicon)) {
       this.faviconEl_.style.backgroundImage = 'none';
     } else if (tab.faviconUrl) {
-      this.faviconEl_.style.backgroundImage = `url(${tab.faviconUrl.url})`;
+      this.faviconEl_.style.backgroundImage = `url(${
+          tab.active && tab.activeFaviconUrl ? tab.activeFaviconUrl.url :
+                                               tab.faviconUrl.url})`;
     } else {
       this.faviconEl_.style.backgroundImage = getFavicon('');
     }
@@ -179,7 +181,7 @@ export class TabElement extends CustomElement {
     this.onTabActivating_ = callback;
   }
 
-  focus() {
+  override focus() {
     this.tabEl_.focus();
   }
 
@@ -206,6 +208,7 @@ export class TabElement extends CustomElement {
     this.onTabActivating_(tabId);
     this.tabsApi_.activateTab(tabId);
 
+    this.setTouchPressed(false);
     this.tabsApi_.closeContainer();
   }
 
@@ -259,50 +262,8 @@ export class TabElement extends CustomElement {
     this.toggleAttribute('touch_pressed_', isTouchPressed);
   }
 
-  slideIn(): Promise<void> {
-    const paddingInlineEnd = getPaddingInlineEndProperty();
-
-    // If this TabElement is the last tab, there needs to be enough space for
-    // the view to scroll to it. Therefore, immediately take up all the space
-    // it needs to and only animate the scale.
-    const isLastChild = this.nextElementSibling === null;
-
-    const startState = {
-      maxWidth: isLastChild ? 'var(--tabstrip-tab-width)' : 0,
-      transform: `scale(0)`,
-      [paddingInlineEnd]: isLastChild ? 'var(--tabstrip-tab-spacing)' : 0,
-    };
-
-    const finishState = {
-      maxWidth: `var(--tabstrip-tab-width)`,
-      transform: `scale(1)`,
-      [paddingInlineEnd]: 'var(--tabstrip-tab-spacing)',
-    };
-
-    return new Promise(resolve => {
-      const animation = this.animate([startState, finishState], {
-        duration: 300,
-        easing: 'cubic-bezier(.4, 0, 0, 1)',
-      });
-      animation.onfinish = () => {
-        resolve();
-      };
-
-      // TODO(crbug.com/1035678) By the next animation frame, the animation
-      // should start playing. By the time another animation frame happens,
-      // force play the animation if the animation has not yet begun. Remove
-      // if/when the Blink issue has been fixed.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (animation.pending) {
-            animation.play();
-          }
-        });
-      });
-    });
-  }
-
   slideOut(): Promise<void> {
+    assert(this.tab_);
     if (!this.tabsApi_.isVisible() || this.tab_.pinned ||
         this.tabSwiper_.wasSwiping()) {
       this.remove();

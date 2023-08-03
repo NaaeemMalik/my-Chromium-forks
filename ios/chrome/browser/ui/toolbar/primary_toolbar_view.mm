@@ -1,26 +1,26 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/toolbar/primary_toolbar_view.h"
 
-#include "base/check.h"
+#import "base/check.h"
 #import "base/ios/ios_util.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/dynamic_type_util.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/ui/omnibox/omnibox_ui_features.h"
 #import "ios/chrome/browser/ui/thumb_strip/thumb_strip_feature.h"
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_button.h"
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_button_factory.h"
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_configuration.h"
 #import "ios/chrome/browser/ui/toolbar/buttons/toolbar_tab_grid_button.h"
-#import "ios/chrome/browser/ui/toolbar/buttons/toolbar_tools_menu_button.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_constants.h"
 #import "ios/chrome/browser/ui/toolbar/public/toolbar_utils.h"
 #import "ios/chrome/browser/ui/toolbar/toolbar_progress_bar.h"
-#include "ios/chrome/browser/ui/ui_feature_flags.h"
-#import "ios/chrome/browser/ui/util/dynamic_type_util.h"
-#import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#include "ui/gfx/ios/uikit_util.h"
+#import "ui/gfx/ios/uikit_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -71,7 +71,7 @@
 // Button to display the share menu, redefined as readwrite.
 @property(nonatomic, strong, readwrite) ToolbarButton* shareButton;
 // Button to display the tools menu, redefined as readwrite.
-@property(nonatomic, strong, readwrite) ToolbarToolsMenuButton* toolsMenuButton;
+@property(nonatomic, strong, readwrite) ToolbarButton* toolsMenuButton;
 
 // Button to cancel the edit of the location bar, redefined as readwrite.
 @property(nonatomic, strong, readwrite) UIButton* cancelButton;
@@ -148,6 +148,10 @@
   [self setUpConstraints];
 }
 
+- (void)setHidden:(BOOL)hidden {
+  [super setHidden:hidden];
+}
+
 - (void)addFakeOmniboxTarget {
   self.fakeOmniboxTarget = [[UIView alloc] init];
   self.fakeOmniboxTarget.translatesAutoresizingMaskIntoConstraints = NO;
@@ -171,22 +175,6 @@
   return CGSizeMake(
       UIViewNoIntrinsicMetric,
       ToolbarExpandedHeight(self.traitCollection.preferredContentSizeCategory));
-}
-
-- (void)willMoveToWindow:(UIWindow*)newWindow {
-  [super willMoveToWindow:newWindow];
-  [NamedGuide guideWithName:kPrimaryToolbarGuide view:self].constrainedView =
-      nil;
-  [NamedGuide guideWithName:kPrimaryToolbarLocationViewGuide view:self]
-      .constrainedView = nil;
-}
-
-- (void)didMoveToWindow {
-  [super didMoveToWindow];
-  [NamedGuide guideWithName:kPrimaryToolbarGuide view:self].constrainedView =
-      self;
-  [NamedGuide guideWithName:kPrimaryToolbarLocationViewGuide view:self]
-      .constrainedView = self.locationBarContainer;
 }
 
 #pragma mark - Setup

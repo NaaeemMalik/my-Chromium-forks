@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 namespace blink {
 
 class FillLayer;
-class InlineFlowBox;
 class LayoutBoxModelObject;
 struct PaintInfo;
 struct PhysicalRect;
@@ -24,18 +23,16 @@ class BoxModelObjectPainter : public BoxPainterBase {
   STACK_ALLOCATED();
 
  public:
-  BoxModelObjectPainter(const LayoutBoxModelObject&,
-                        const InlineFlowBox* = nullptr);
+  explicit BoxModelObjectPainter(const LayoutBoxModelObject&);
 
  protected:
-  LayoutRectOutsets ComputeBorders() const override;
-  LayoutRectOutsets ComputePadding() const override;
+  NGPhysicalBoxStrut ComputeBorders() const override;
+  NGPhysicalBoxStrut ComputePadding() const override;
   BoxPainterBase::FillLayerInfo GetFillLayerInfo(
       const Color&,
       const FillLayer&,
       BackgroundBleedAvoidance,
       bool is_painting_background_in_contents_space) const override;
-  bool IsPaintingBackgroundInContentsSpace(const PaintInfo&) const override;
 
   void PaintTextClipMask(const PaintInfo&,
                          const gfx::Rect& mask_rect,
@@ -48,7 +45,6 @@ class BoxModelObjectPainter : public BoxPainterBase {
 
  private:
   const LayoutBoxModelObject& box_model_;
-  const InlineFlowBox* flow_box_;
 };
 
 }  // namespace blink

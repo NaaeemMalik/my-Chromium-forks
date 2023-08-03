@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,12 @@ package org.chromium.chrome.browser.compositor.bottombar;
 
 import android.app.Activity;
 import android.content.Context;
-import android.support.test.InstrumentationRegistry;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.MediumTest;
 
 import org.junit.After;
@@ -38,8 +39,7 @@ import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.test.util.DisableAnimationsTestRule;
-import org.chromium.ui.test.util.DummyUiActivity;
+import org.chromium.ui.test.util.BlankUiTestActivity;
 /**
  * Class responsible for testing the OverlayPanelEventFilter.
  */
@@ -58,10 +58,8 @@ public class OverlayPanelEventFilterTest {
     private static final int MOCK_TOOLBAR_HEIGHT = 100;
 
     @ClassRule
-    public static DisableAnimationsTestRule disableAnimationsRule = new DisableAnimationsTestRule();
-    @ClassRule
-    public static BaseActivityTestRule<DummyUiActivity> activityTestRule =
-            new BaseActivityTestRule<>(DummyUiActivity.class);
+    public static BaseActivityTestRule<BlankUiTestActivity> activityTestRule =
+            new BaseActivityTestRule<>(BlankUiTestActivity.class);
 
     @Rule
     public MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -180,7 +178,7 @@ public class OverlayPanelEventFilterTest {
 
         @Override
         public ViewGroup getContainerView() {
-            return new ViewGroup(InstrumentationRegistry.getContext()) {
+            return new ViewGroup(ApplicationProvider.getApplicationContext()) {
                 @Override
                 public boolean dispatchTouchEvent(MotionEvent e) {
                     if (e.getActionMasked() != MotionEvent.ACTION_CANCEL) {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@
 
 #include <string>
 
-#include "base/callback.h"
 #include "base/component_export.h"
+#include "base/functional/callback.h"
 #include "base/mac/scoped_cftyperef.h"
 #include "base/mac/scoped_nsobject.h"
 #include "base/memory/weak_ptr.h"
+#include "device/fido/mac/credential_store.h"
 
 namespace device {
 namespace fido {
@@ -32,8 +33,7 @@ struct AuthenticatorConfig;
 // cancel any other pending evaluations with an error. Deleting an instance
 // will invalidate any pending evaluation prompts (i.e. the dialog will
 // disappear and evaluation will fail with an error).
-class COMPONENT_EXPORT(DEVICE_FIDO)
-    API_AVAILABLE(macosx(10.12.2)) TouchIdContext {
+class COMPONENT_EXPORT(DEVICE_FIDO) TouchIdContext {
  public:
   // The callback is invoked when the local user authentication prompt
   // completes. It receives a boolean indicating whether obtaining the
@@ -64,10 +64,6 @@ class COMPONENT_EXPORT(DEVICE_FIDO)
   // authentication prompt.
   LAContext* authentication_context() const { return context_; }
 
-  // access_control returns a reference to the SecAccessControl object that was
-  // evaluated/authorized in the local user authentication prompt.
-  SecAccessControlRef access_control() const { return access_control_; }
-
  protected:
   TouchIdContext();
 
@@ -84,9 +80,8 @@ class COMPONENT_EXPORT(DEVICE_FIDO)
   void RunCallback(bool success);
 
   base::scoped_nsobject<LAContext> context_;
-  base::ScopedCFTypeRef<SecAccessControlRef> access_control_;
   Callback callback_;
-  base::WeakPtrFactory<TouchIdContext> weak_ptr_factory_;
+  base::WeakPtrFactory<TouchIdContext> weak_ptr_factory_{this};
 
   friend class ScopedTouchIdTestEnvironment;
 };

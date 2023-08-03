@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,6 +20,7 @@
 #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "components/storage_monitor/removable_storage_observer.h"
 
+class BrowserContextKeyedServiceShutdownNotifierFactory;
 class ExtensionGalleriesHost;
 class GalleryWatchManager;
 class MediaFileSystemContext;
@@ -98,6 +99,9 @@ class MediaFileSystemRegistry
   // RemovableStorageObserver implementation.
   void OnRemovableStorageDetached(
       const storage_monitor::StorageInfo& info) override;
+
+  static BrowserContextKeyedServiceShutdownNotifierFactory*
+  GetFactoryInstance();
 
  private:
   class MediaFileSystemContextImpl;

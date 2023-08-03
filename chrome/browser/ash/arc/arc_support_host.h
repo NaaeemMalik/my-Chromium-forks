@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/arc/extensions/arc_support_message_host.h"
 #include "extensions/browser/api/messaging/native_message_host.h"
 #include "ui/display/display_observer.h"
@@ -204,7 +205,7 @@ class ArcSupportHost : public arc::ArcSupportMessageHost::Observer,
   void SetLocationServicesPreferenceCheckbox(bool is_enabled, bool is_managed);
 
   // arc::ArcSupportMessageHost::Observer override:
-  void OnMessage(const base::DictionaryValue& message) override;
+  void OnMessage(const base::Value::Dict& message) override;
 
   // display::DisplayObserver:
   void OnDisplayMetricsChanged(const display::Display& display,
@@ -231,6 +232,8 @@ class ArcSupportHost : public arc::ArcSupportMessageHost::Observer,
   // Requests to start the ARC support Chrome app.
   void RequestAppStart();
 
+  void SetWindowBound(const display::Display& display);
+
   bool Initialize();
 
   // Requests to ARC support Chrome app to show the specified page.
@@ -248,12 +251,14 @@ class ArcSupportHost : public arc::ArcSupportMessageHost::Observer,
 
   void DisconnectMessageHost();
 
-  Profile* const profile_;
+  const raw_ptr<Profile, ExperimentalAsh> profile_;
   RequestOpenAppCallback request_open_app_callback_;
 
-  AuthDelegate* auth_delegate_ = nullptr;           // not owned
-  TermsOfServiceDelegate* tos_delegate_ = nullptr;  // not owned
-  ErrorDelegate* error_delegate_ = nullptr;         // not owned
+  raw_ptr<AuthDelegate, ExperimentalAsh> auth_delegate_ = nullptr;  // not owned
+  raw_ptr<TermsOfServiceDelegate, ExperimentalAsh> tos_delegate_ =
+      nullptr;  // not owned
+  raw_ptr<ErrorDelegate, ExperimentalAsh> error_delegate_ =
+      nullptr;  // not owned
 
   // True, if ARC support app is requested to start, but the connection is not
   // yet established. Reset to false, when the app is started and the
@@ -261,7 +266,7 @@ class ArcSupportHost : public arc::ArcSupportMessageHost::Observer,
   bool app_start_pending_ = false;
 
   // The instance is created and managed by Chrome.
-  arc::ArcSupportMessageHost* message_host_ = nullptr;
+  raw_ptr<arc::ArcSupportMessageHost, ExperimentalAsh> message_host_ = nullptr;
 
   absl::optional<display::ScopedOptionalDisplayObserver> display_observer_;
 

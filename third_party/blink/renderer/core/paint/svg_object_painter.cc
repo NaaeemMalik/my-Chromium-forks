@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,25 +9,17 @@
 #include "third_party/blink/renderer/core/layout/svg/svg_resources.h"
 #include "third_party/blink/renderer/core/paint/paint_auto_dark_mode.h"
 #include "third_party/blink/renderer/core/paint/paint_info.h"
-#include "third_party/blink/renderer/core/paint/paint_layer.h"
+#include "third_party/skia/include/core/SkColorFilter.h"
 
 namespace blink {
 
 namespace {
 
-void CopyStateFromGraphicsContext(const GraphicsContext& context,
-                                  PaintFlags& flags) {
-  // TODO(fs): The color filter can be set when generating a picture for a mask
-  // due to color-interpolation. We could also just apply the
-  // color-interpolation property from the the shape itself (which could mean
-  // the paintserver if it has it specified), since that would be more in line
-  // with the spec for color-interpolation. For now, just steal it from the GC
-  // though.
-  // Additionally, it's not really safe/guaranteed to be correct, as something
-  // down the flags pipe may want to farther tweak the color filter, which could
-  // yield incorrect results. (Consider just using saveLayer() w/ this color
-  // filter explicitly instead.)
-  flags.setColorFilter(sk_ref_sp(context.GetColorFilter()));
+void ApplyColorInterpolation(const ComputedStyle& style,
+                             cc::PaintFlags& flags) {
+  if (style.ColorInterpolation() == EColorInterpolation::kLinearrgb) {
+    flags.setColorFilter(SkColorFilters::SRGBToLinearGamma());
+  }
 }
 
 }  // namespace
@@ -35,17 +27,16 @@ void CopyStateFromGraphicsContext(const GraphicsContext& context,
 void SVGObjectPainter::PaintResourceSubtree(GraphicsContext& context) {
   DCHECK(!layout_object_.SelfNeedsLayout());
 
-  PaintInfo info(context, CullRect::Infinite(), PaintPhase::kForeground,
-                 kGlobalPaintNormalPhase | kGlobalPaintFlattenCompositingLayers,
-                 kPaintLayerPaintingRenderingResourceSubtree,
-                 &layout_object_.PaintingLayer()->GetLayoutObject());
+  PaintInfo info(
+      context, CullRect::Infinite(), PaintPhase::kForeground,
+      PaintFlag::kOmitCompositingInfo | PaintFlag::kPaintingResourceSubtree);
   layout_object_.Paint(info);
 }
 
 bool SVGObjectPainter::ApplyPaintResource(
     const SVGPaint& paint,
     const AffineTransform* additional_paint_server_transform,
-    PaintFlags& flags) {
+    cc::PaintFlags& flags) {
   SVGElementResourceClient* client = SVGResources::GetClient(layout_object_);
   if (!client)
     return false;
@@ -64,11 +55,10 @@ bool SVGObjectPainter::ApplyPaintResource(
 }
 
 bool SVGObjectPainter::PreparePaint(
-    const GraphicsContext& context,
     bool is_rendering_clip_path_as_mask_image,
     const ComputedStyle& style,
     LayoutSVGResourceMode resource_mode,
-    PaintFlags& flags,
+    cc::PaintFlags& flags,
     const AffineTransform* additional_paint_server_transform) {
   if (is_rendering_clip_path_as_mask_image) {
     if (resource_mode == kApplyToStrokeMode)
@@ -86,17 +76,19 @@ bool SVGObjectPainter::PreparePaint(
   if (paint.HasUrl()) {
     if (ApplyPaintResource(paint, additional_paint_server_transform, flags)) {
       flags.setColor(ScaleAlpha(SK_ColorBLACK, alpha));
-      CopyStateFromGraphicsContext(context, flags);
+      ApplyColorInterpolation(style, flags);
       return true;
     }
   }
   if (paint.HasColor()) {
-    const CSSProperty& property =
-        apply_to_fill ? GetCSSPropertyFill() : GetCSSPropertyStroke();
-    const Color color = style.VisitedDependentColor(property);
-    flags.setColor(ScaleAlpha(color.Rgb(), alpha));
+    const Longhand& property = apply_to_fill
+                                   ? To<Longhand>(GetCSSPropertyFill())
+                                   : To<Longhand>(GetCSSPropertyStroke());
+    Color flag_color = style.VisitedDependentColor(property);
+    flag_color.SetAlpha(flag_color.FloatAlpha() * alpha);
+    flags.setColor(flag_color.toSkColor4f());
     flags.setShader(nullptr);
-    CopyStateFromGraphicsContext(context, flags);
+    ApplyColorInterpolation(style, flags);
     return true;
   }
   return false;

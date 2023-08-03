@@ -1,13 +1,16 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/aura/test/aura_test_helper.h"
 
-#include "base/bind.h"
+#include <memory>
+
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
+#include "ui/aura/client/cursor_shape_client.h"
 #include "ui/aura/client/default_capture_client.h"
 #include "ui/aura/env.h"
 #include "ui/aura/input_state_lookup.h"
@@ -27,24 +30,24 @@
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/compositor/test/test_context_factories.h"
 #include "ui/display/screen.h"
-#include "ui/events/platform/platform_event_source.h"
+#include "ui/wm/core/cursor_loader.h"
 #include "ui/wm/core/default_activation_client.h"
 #include "ui/wm/core/default_screen_position_client.h"
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #include "ui/platform_window/common/platform_window_defaults.h"  // nogncheck
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/task/sequenced_task_runner.h"
 #include "ui/aura/native_window_occlusion_tracker_win.h"
 #endif
 
-#if defined(USE_OZONE)
+#if BUILDFLAG(IS_OZONE)
 #include "ui/events/ozone/events_ozone.h"
 #endif
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
 #include "ui/platform_window/fuchsia/initialize_presenter_api_view.h"
 #endif
 
@@ -60,15 +63,15 @@ AuraTestHelper::AuraTestHelper(ui::ContextFactory* context_factory) {
   DCHECK(!g_instance);
   g_instance = this;
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   ui::test::EnableTestConfigForPlatformWindows();
 #endif
 
-#if defined(USE_OZONE) && BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_OZONE) && BUILDFLAG(IS_CHROMEOS_ASH)
   ui::DisableNativeUiEventDispatchForTest();
 #endif
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
   ui::fuchsia::IgnorePresentCallsForTest();
 #endif
 
@@ -95,7 +98,6 @@ AuraTestHelper::AuraTestHelper(ui::ContextFactory* context_factory) {
 
   // Reset aura::Env to eliminate test dependency (https://crbug.com/586514).
   EnvTestHelper env_helper(env);
-  env_helper.ResetEnvForTesting();
   // Unit tests generally don't want to query the system, rather use the state
   // from RootWindow.
   env_helper.SetInputStateLookup(nullptr);
@@ -139,6 +141,8 @@ void AuraTestHelper::SetUp() {
   parenting_client_ = std::make_unique<TestWindowParentingClient>(root_window);
   screen_position_client_ =
       std::make_unique<wm::DefaultScreenPositionClient>(root_window);
+  cursor_shape_client_ = std::make_unique<wm::CursorLoader>();
+  client::SetCursorShapeClient(cursor_shape_client_.get());
 
   root_window->Show();
 }
@@ -157,11 +161,10 @@ void AuraTestHelper::TearDown() {
 
   ui::ShutdownInputMethodForTesting();
 
-  if (ui::PlatformEventSource::GetInstance())
-    ui::PlatformEventSource::GetInstance()->StopProcessingEventsForTesting();
-
   // Destroy all owned objects to prevent tests from depending on their state
   // after this returns.
+  client::SetCursorShapeClient(nullptr);
+  cursor_shape_client_.reset();
   screen_position_client_.reset();
   parenting_client_.reset();
   capture_client_.reset();
@@ -173,7 +176,7 @@ void AuraTestHelper::TearDown() {
   zero_duration_mode_.reset();
   wm_state_.reset();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // TODO(pkasting): This code doesn't really belong here.
   // NativeWindowOcclusionTrackerWin is created on demand by various tests, must
   // be torn down before the TaskEnvironment (which our owner is responsible

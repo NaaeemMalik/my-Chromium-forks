@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,23 @@
 #include <stdint.h>
 #include <windows.h>
 
-#include <algorithm>
 #include <iterator>
 #include <memory>
 #include <set>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "base/base_paths.h"
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -152,11 +154,6 @@ int RunChromeCleanerTestSuite(int argc,
         chrome_cleaner::SandboxType::kNonSandboxed);
   }
 
-  // Some tests spawn sandbox targets using job objects. Windows 7 doesn't
-  // support nested job objects, so don't use them in the test suite. Otherwise
-  // all sandbox tests will fail as they try to create a second job object.
-  bool use_job_objects = base::win::GetVersion() >= base::win::Version::WIN8;
-
   // Some tests will fail if two tests try to launch test_process.exe
   // simultaneously, so run the tests serially. This will still shard them and
   // distribute the shards to different swarming bots, but tests will run
@@ -165,7 +162,7 @@ int RunChromeCleanerTestSuite(int argc,
       argc, argv,
       /*parallel_jobs=*/1U,        // Like LaunchUnitTestsSerially
       /*default_batch_limit=*/10,  // Like LaunchUnitTestsSerially
-      use_job_objects,
+      /*use_job_objects=*/true, base::DoNothing(),
       base::BindOnce(&base::TestSuite::Run, base::Unretained(&test_suite)));
 
   if (!IsSandboxedProcess())
@@ -267,8 +264,8 @@ void ExpectScheduledTaskFootprint(const PUPData::PUP& pup,
 
 bool StringContainsCaseInsensitive(const std::string& value,
                                    const std::string& substring) {
-  return std::search(
-             value.begin(), value.end(), substring.begin(), substring.end(),
+  return base::ranges::search(
+             value, substring,
              base::CaseInsensitiveCompareASCII<std::string::value_type>()) !=
          value.end();
 }
@@ -365,7 +362,7 @@ ScopedTempDirNoWow64::~ScopedTempDirNoWow64() {
   // Since the temp dir was created with Wow64 disabled, it must be deleted
   // with Wow64 disabled.
   ScopedDisableWow64Redirection disable_wow64_redirection;
-  ANALYZER_ALLOW_UNUSED(Delete());
+  std::ignore = Delete();
 
   // The parent's destructor will call Delete again, without disabling Wow64,
   // which could delete a directory with the same name in SysWOW64. So make
@@ -418,17 +415,16 @@ bool CheckTestPrivileges() {
 }
 
 bool ResetAclForUcrtbase() {
+#ifdef NDEBUG
+  return true;
+#else
   base::FilePath exe_path;
   if (!base::PathService::Get(base::BasePathKey::DIR_EXE, &exe_path)) {
     LOG(ERROR) << "Failed to get directory path.";
     return false;
   }
   base::FilePath abs_path = base::MakeAbsoluteFilePath(exe_path);
-#ifdef NDEBUG
-  base::FilePath ucrt_path = abs_path.Append(L"ucrtbase.dll");
-#else
   base::FilePath ucrt_path = abs_path.Append(L"ucrtbased.dll");
-#endif
   base::CommandLine cmd({L"icacls"});
   cmd.AppendArgPath(ucrt_path);
   cmd.AppendArg("/reset");
@@ -446,6 +442,7 @@ bool ResetAclForUcrtbase() {
                << " with exit code " << exit_code;
   }
   return !exit_code;
+#endif
 }
 
 }  // namespace chrome_cleaner

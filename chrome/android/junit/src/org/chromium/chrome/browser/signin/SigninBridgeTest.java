@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.signin;
 
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import androidx.test.filters.SmallTest;
@@ -19,9 +18,8 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
-import org.chromium.base.metrics.UmaRecorder;
-import org.chromium.base.metrics.UmaRecorderHolder;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -57,12 +55,8 @@ public class SigninBridgeTest {
     @Mock
     private WindowAndroid mWindowAndroidMock;
 
-    @Mock
-    private UmaRecorder mUmaRecorderMock;
-
     @Before
     public void setUp() {
-        UmaRecorderHolder.setNonNativeDelegate(mUmaRecorderMock);
         Profile.setLastUsedProfileForTesting(mProfileMock);
         IdentityServicesProvider.setInstanceForTests(mIdentityServicesProviderMock);
         when(mIdentityServicesProviderMock.getSigninManager(mProfileMock))
@@ -77,34 +71,37 @@ public class SigninBridgeTest {
     @Test
     @SmallTest
     public void testAccountPickerSuppressedWhenSigninNotAllowed() {
-        when(mSigninManagerMock.isSignInAllowed()).thenReturn(false);
+        when(mSigninManagerMock.isSyncOptInAllowed()).thenReturn(false);
+        HistogramWatcher promoActionHistogram =
+                HistogramWatcher.newSingleRecordWatcher("Signin.AccountConsistencyPromoAction",
+                        AccountConsistencyPromoAction.SUPPRESSED_SIGNIN_NOT_ALLOWED);
         SigninBridge.openAccountPickerBottomSheet(mWindowAndroidMock, CONTINUE_URL);
-        checkHistogramRecording(AccountConsistencyPromoAction.SUPPRESSED_SIGNIN_NOT_ALLOWED);
+        promoActionHistogram.assertExpected();
     }
 
     @Test
     @SmallTest
     public void testAccountPickerSuppressedWhenNoAccountsOnDevice() {
-        when(mSigninManagerMock.isSignInAllowed()).thenReturn(true);
+        when(mSigninManagerMock.isSyncOptInAllowed()).thenReturn(true);
+        HistogramWatcher promoActionHistogram =
+                HistogramWatcher.newSingleRecordWatcher("Signin.AccountConsistencyPromoAction",
+                        AccountConsistencyPromoAction.SUPPRESSED_NO_ACCOUNTS);
         SigninBridge.openAccountPickerBottomSheet(mWindowAndroidMock, CONTINUE_URL);
-        checkHistogramRecording(AccountConsistencyPromoAction.SUPPRESSED_NO_ACCOUNTS);
+        promoActionHistogram.assertExpected();
     }
 
     @Test
     @SmallTest
     public void testAccountPickerSuppressedIfDismissLimitReached() {
-        when(mSigninManagerMock.isSignInAllowed()).thenReturn(true);
+        when(mSigninManagerMock.isSyncOptInAllowed()).thenReturn(true);
         mAccountManagerTestRule.addAccount("account@test.com");
         SharedPreferencesManager.getInstance().writeInt(
                 ChromePreferenceKeys.WEB_SIGNIN_ACCOUNT_PICKER_ACTIVE_DISMISSAL_COUNT,
                 SigninBridge.ACCOUNT_PICKER_BOTTOM_SHEET_DISMISS_LIMIT);
+        HistogramWatcher promoActionHistogram =
+                HistogramWatcher.newSingleRecordWatcher("Signin.AccountConsistencyPromoAction",
+                        AccountConsistencyPromoAction.SUPPRESSED_CONSECUTIVE_DISMISSALS);
         SigninBridge.openAccountPickerBottomSheet(mWindowAndroidMock, CONTINUE_URL);
-        checkHistogramRecording(AccountConsistencyPromoAction.SUPPRESSED_CONSECUTIVE_DISMISSALS);
-    }
-
-    private void checkHistogramRecording(@AccountConsistencyPromoAction int action) {
-        verify(mUmaRecorderMock)
-                .recordLinearHistogram("Signin.AccountConsistencyPromoAction", action, 1,
-                        AccountConsistencyPromoAction.MAX, AccountConsistencyPromoAction.MAX + 1);
+        promoActionHistogram.assertExpected();
     }
 }

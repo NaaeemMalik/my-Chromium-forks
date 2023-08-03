@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <cstdint>
 #include <memory>
 
-#include "base/callback.h"
 #include "base/containers/span.h"
+#include "base/functional/callback.h"
 #include "base/time/time.h"
 #include "net/base/host_port_pair.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 // Uses a UDP socket to send data to a remote destination. After sending data,
@@ -56,6 +56,6 @@ class UdpProber {
 };
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_DIAGNOSTICS_UDP_PROBER_H_

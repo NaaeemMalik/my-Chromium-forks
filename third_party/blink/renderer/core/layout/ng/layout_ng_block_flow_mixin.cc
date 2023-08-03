@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <memory>
 #include <utility>
 
+#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/editing/position_with_affinity.h"
 #include "third_party/blink/renderer/core/editing/visible_units.h"
@@ -17,11 +18,6 @@
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_physical_line_box_fragment.h"
 #include "third_party/blink/renderer/core/layout/ng/layout_box_utils.h"
 #include "third_party/blink/renderer/core/layout/ng/layout_ng_block_flow.h"
-#include "third_party/blink/renderer/core/layout/ng/layout_ng_progress.h"
-#include "third_party/blink/renderer/core/layout/ng/layout_ng_ruby_as_block.h"
-#include "third_party/blink/renderer/core/layout/ng/layout_ng_ruby_base.h"
-#include "third_party/blink/renderer/core/layout/ng/layout_ng_ruby_run.h"
-#include "third_party/blink/renderer/core/layout/ng/layout_ng_ruby_text.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_block_break_token.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_constraint_space.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_layout_result.h"
@@ -37,8 +33,8 @@
 namespace blink {
 
 template <typename Base>
-LayoutNGBlockFlowMixin<Base>::LayoutNGBlockFlowMixin(Element* element)
-    : LayoutNGMixin<Base>(element) {
+LayoutNGBlockFlowMixin<Base>::LayoutNGBlockFlowMixin(ContainerNode* node)
+    : LayoutNGMixin<Base>(node) {
   static_assert(std::is_base_of<LayoutBlockFlow, Base>::value,
                 "Base class of LayoutNGBlockFlowMixin must be LayoutBlockFlow "
                 "or derived class.");
@@ -51,6 +47,7 @@ template <typename Base>
 void LayoutNGBlockFlowMixin<Base>::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style) {
+  Base::CheckIsNotDestroyed();
   Base::StyleDidChange(diff, old_style);
 
   if (diff.NeedsReshape()) {
@@ -60,22 +57,26 @@ void LayoutNGBlockFlowMixin<Base>::StyleDidChange(
 
 template <typename Base>
 NGInlineNodeData* LayoutNGBlockFlowMixin<Base>::TakeNGInlineNodeData() {
+  Base::CheckIsNotDestroyed();
   return ng_inline_node_data_.Release();
 }
 
 template <typename Base>
 NGInlineNodeData* LayoutNGBlockFlowMixin<Base>::GetNGInlineNodeData() const {
+  Base::CheckIsNotDestroyed();
   DCHECK(ng_inline_node_data_);
   return ng_inline_node_data_;
 }
 
 template <typename Base>
 void LayoutNGBlockFlowMixin<Base>::ResetNGInlineNodeData() {
+  Base::CheckIsNotDestroyed();
   ng_inline_node_data_ = MakeGarbageCollected<NGInlineNodeData>();
 }
 
 template <typename Base>
 void LayoutNGBlockFlowMixin<Base>::ClearNGInlineNodeData() {
+  Base::CheckIsNotDestroyed();
   if (ng_inline_node_data_) {
     // ng_inline_node_data_ is not used from now on but exists until GC happens,
     // so it is better to eagerly clear HeapVector to improve memory
@@ -86,81 +87,32 @@ void LayoutNGBlockFlowMixin<Base>::ClearNGInlineNodeData() {
 }
 
 template <typename Base>
+bool LayoutNGBlockFlowMixin<Base>::HasNGInlineNodeData() const {
+  Base::CheckIsNotDestroyed();
+  return ng_inline_node_data_;
+}
+
+template <typename Base>
 void LayoutNGBlockFlowMixin<Base>::AddOutlineRects(
-    Vector<PhysicalRect>& rects,
+    OutlineRectCollector& collector,
+    LayoutObject::OutlineInfo* info,
     const PhysicalOffset& additional_offset,
     NGOutlineType include_block_overflows) const {
+  Base::CheckIsNotDestroyed();
+
   // TODO(crbug.com/1145048): Currently |NGBoxPhysicalFragment| does not support
   // NG block fragmentation. Fallback to the legacy code path.
   if (Base::PhysicalFragmentCount() == 1) {
     const NGPhysicalBoxFragment* fragment = Base::GetPhysicalFragment(0);
     if (fragment->HasItems()) {
       fragment->AddSelfOutlineRects(additional_offset, include_block_overflows,
-                                    &rects);
+                                    collector, info);
       return;
     }
   }
 
-  Base::AddOutlineRects(rects, additional_offset, include_block_overflows);
-}
-
-template <typename Base>
-LayoutUnit LayoutNGBlockFlowMixin<Base>::FirstLineBoxBaseline() const {
-  if (const absl::optional<LayoutUnit> baseline =
-          Base::FirstLineBoxBaselineOverride())
-    return *baseline;
-
-  // Return the baseline of the first fragment that has a baseline.
-  // |OffsetFromOwnerLayoutBox| is not needed here, because the block offset of
-  // all fragments are 0 for multicol.
-  for (const NGPhysicalBoxFragment& fragment : Base::PhysicalFragments()) {
-    if (const absl::optional<LayoutUnit> offset = fragment.Baseline())
-      return *offset;
-  }
-
-  // This logic is in |LayoutBlock|, but we cannot call |Base| because doing so
-  // may traverse |LayoutObject| tree, which may call this function for a child,
-  // but the child may be block fragmented.
-  if (Base::ChildrenInline()) {
-    return Base::EmptyLineBaseline(
-        Base::IsHorizontalWritingMode() ? kHorizontalLine : kVerticalLine);
-  }
-  return LayoutUnit(-1);
-}
-
-template <typename Base>
-LayoutUnit LayoutNGBlockFlowMixin<Base>::InlineBlockBaseline(
-    LineDirectionMode line_direction) const {
-  // Please see |LayoutNGMixin<Base>::Paint()| for these DCHECKs.
-  DCHECK(Base::GetNGPaginationBreakability() ==
-             LayoutNGBlockFlow::kForbidBreaks ||
-         !Base::CanTraversePhysicalFragments() ||
-         !Base::Parent()->CanTraversePhysicalFragments());
-  DCHECK_LE(Base::PhysicalFragmentCount(), 1u);
-
-  if (const absl::optional<LayoutUnit> baseline =
-          Base::InlineBlockBaselineOverride(line_direction))
-    return *baseline;
-
-  if (Base::PhysicalFragmentCount()) {
-    const NGPhysicalBoxFragment* fragment = Base::GetPhysicalFragment(0);
-    DCHECK(fragment);
-    if (absl::optional<LayoutUnit> offset = fragment->Baseline())
-      return *offset;
-  }
-
-  // This logic is in |LayoutBlock| and |LayoutBlockFlow|, but we cannot call
-  // |Base| because doing so may traverse |LayoutObject| tree, which may call
-  // this function for a child, but the child may be block fragmented.
-  if (!Base::ChildrenInline()) {
-    for (LayoutObject* child = Base::LastChild(); child;
-         child = child->PreviousSibling()) {
-      DCHECK(child->IsBox());
-      if (!child->IsFloatingOrOutOfFlowPositioned())
-        return LayoutUnit(-1);
-    }
-  }
-  return Base::EmptyLineBaseline(line_direction);
+  Base::AddOutlineRects(collector, info, additional_offset,
+                        include_block_overflows);
 }
 
 template <typename Base>
@@ -168,13 +120,16 @@ bool LayoutNGBlockFlowMixin<Base>::NodeAtPoint(
     HitTestResult& result,
     const HitTestLocation& hit_test_location,
     const PhysicalOffset& accumulated_offset,
-    HitTestAction action) {
+    HitTestPhase phase) {
+  Base::CheckIsNotDestroyed();
+
   // Please see |LayoutNGMixin<Base>::Paint()| for these DCHECKs.
-  DCHECK(Base::GetNGPaginationBreakability() ==
-             LayoutNGBlockFlow::kForbidBreaks ||
-         !Base::CanTraversePhysicalFragments() ||
+  DCHECK(Base::IsMonolithic() || !Base::CanTraversePhysicalFragments() ||
          !Base::Parent()->CanTraversePhysicalFragments());
-  DCHECK_LE(Base::PhysicalFragmentCount(), 1u);
+  // We may get here in multiple-fragment cases if the object is repeated
+  // (inside table headers and footers, for instance).
+  DCHECK(Base::PhysicalFragmentCount() <= 1u ||
+         Base::GetPhysicalFragment(0)->BreakToken()->IsRepeated());
 
   if (!Base::MayIntersect(result, hit_test_location, accumulated_offset))
     return false;
@@ -185,20 +140,21 @@ bool LayoutNGBlockFlowMixin<Base>::NodeAtPoint(
     if (fragment->HasItems() ||
         // Check descendants of this fragment because floats may be in the
         // |NGFragmentItems| of the descendants.
-        (action == kHitTestFloat &&
+        (phase == HitTestPhase::kFloat &&
          fragment->HasFloatingDescendantsForPaint())) {
       return NGBoxFragmentPainter(*fragment).NodeAtPoint(
-          result, hit_test_location, accumulated_offset, action);
+          result, hit_test_location, accumulated_offset, phase);
     }
   }
 
   return LayoutBlockFlow::NodeAtPoint(result, hit_test_location,
-                                      accumulated_offset, action);
+                                      accumulated_offset, phase);
 }
 
 template <typename Base>
 PositionWithAffinity LayoutNGBlockFlowMixin<Base>::PositionForPoint(
     const PhysicalOffset& point) const {
+  Base::CheckIsNotDestroyed();
   DCHECK_GE(Base::GetDocument().Lifecycle().GetState(),
             DocumentLifecycle::kPrePaintClean);
 
@@ -222,6 +178,7 @@ template <typename Base>
 void LayoutNGBlockFlowMixin<Base>::DirtyLinesFromChangedChild(
     LayoutObject* child,
     MarkingBehavior marking_behavior) {
+  Base::CheckIsNotDestroyed();
   DCHECK_EQ(marking_behavior, kMarkContainerChain);
 
   // We need to dirty line box fragments only if the child is once laid out in
@@ -233,13 +190,16 @@ void LayoutNGBlockFlowMixin<Base>::DirtyLinesFromChangedChild(
 
 template <typename Base>
 void LayoutNGBlockFlowMixin<Base>::UpdateNGBlockLayout() {
+  Base::CheckIsNotDestroyed();
+
   if (Base::IsOutOfFlowPositioned()) {
     LayoutNGMixin<Base>::UpdateOutOfFlowBlockLayout();
     return;
   }
 
   LayoutNGMixin<Base>::UpdateInFlowBlockLayout();
-  LayoutNGMixin<Base>::UpdateMargins();
+  if (!Base::IsSVGChild())
+    LayoutNGMixin<Base>::UpdateMargins();
 }
 
 template <typename Base>
@@ -249,12 +209,7 @@ void LayoutNGBlockFlowMixin<Base>::Trace(Visitor* visitor) const {
 }
 
 template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutBlockFlow>;
-template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutProgress>;
-template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutRubyAsBlock>;
-template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutRubyBase>;
-template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutRubyRun>;
-template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutRubyText>;
 template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutSVGBlock>;
-template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutTableCaption>;
+template class CORE_TEMPLATE_EXPORT LayoutNGBlockFlowMixin<LayoutView>;
 
 }  // namespace blink

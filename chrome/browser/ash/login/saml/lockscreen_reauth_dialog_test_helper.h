@@ -1,21 +1,13 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ASH_LOGIN_SAML_LOCKSCREEN_REAUTH_DIALOG_TEST_HELPER_H_
 #define CHROME_BROWSER_ASH_LOGIN_SAML_LOCKSCREEN_REAUTH_DIALOG_TEST_HELPER_H_
 
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ash/login/test/js_checker.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
-
-namespace chromeos {
-class LockScreenStartReauthDialog;
-class LockScreenStartReauthUI;
-class LockScreenReauthHandler;
-class LockScreenNetworkDialog;
-class LockScreenNetworkUI;
-class NetworkConfigMessageHandler;
-}  // namespace chromeos
 
 namespace content {
 class WebContents;
@@ -23,7 +15,13 @@ class WebContents;
 
 namespace ash {
 
-class InSessionPasswordSyncManager;
+class LockScreenStartReauthDialog;
+class LockScreenStartReauthUI;
+class LockScreenReauthHandler;
+class LockScreenNetworkDialog;
+class LockScreenNetworkUI;
+class LockScreenCaptivePortalDialog;
+class NetworkConfigMessageHandler;
 
 // Supports triggering the online re-authentication dialog on the Chrome OS lock
 // screen from browser tests and interacting with it.
@@ -33,6 +31,12 @@ class LockScreenReauthDialogTestHelper {
   // Precondition: A user is logged in and the lock screen is shown.
   // Returns an empty `absl::optional` if the operation fails.
   static absl::optional<LockScreenReauthDialogTestHelper> ShowDialogAndWait();
+
+  // Triggers the online re-authentication dialog, clicks through VerifyAccount
+  // screen and waits for IdP page to load. Returns an empty `absl::optional` if
+  // the operation fails.
+  static absl::optional<LockScreenReauthDialogTestHelper>
+  StartSamlAndWaitForIdpPageLoad();
 
   ~LockScreenReauthDialogTestHelper();
 
@@ -58,12 +62,40 @@ class LockScreenReauthDialogTestHelper {
   // For SAML flows this proceeds to the SAML flow.
   void ClickVerifyButton();
 
+  // Clicks the 'Cancel' button on the 'Verify Account' screen.
+  void ClickCancelButtonOnVerifyScreen();
+
+  // Clicks the 'Cancel' button on the 'Error' screen.
+  void ClickCancelButtonOnErrorScreen();
+
+  // Clicks the 'Cancel' button on the 'Saml Account' screen.
+  void ClickCancelButtonOnSamlScreen();
+
+  // Clicks the 'Enter Google Account Info' button on the SAML screen.
+  void ClickChangeIdPButtonOnSamlScreen();
+
   // Waits for a screen with the `saml-container` element to be shown.
   void WaitForSamlScreen();
 
+  // Next members allow to check visibility for some screens ('verify account',
+  // ' error screen' and 'saml screen')
   void ExpectVerifyAccountScreenVisible();
   void ExpectVerifyAccountScreenHidden();
+  void ExpectErrorScreenVisible();
   void ExpectSamlScreenVisible();
+  void ExpectSamlScreenHidden();
+
+  void ExpectGaiaScreenVisible();
+
+  // Next members allow to check visibility of some elements on 'confirm
+  // password screen' and also help to fill forms. Precondition: 'confirm
+  // password screen' is visible.
+  void ExpectSamlConfirmPasswordVisible();
+  void ExpectPasswordConfirmInputHidden();
+  void ExpectPasswordConfirmInputVisible();
+  void SendConfirmPassword(const std::string& password_to_confirm);
+  void SetManualPasswords(const std::string& password,
+                          const std::string& confirm_password);
 
   void ShowNetworkScreenAndWait();
   void WaitForNetworkDialogAndSetHandlers();
@@ -73,9 +105,23 @@ class LockScreenReauthDialogTestHelper {
   void ExpectNetworkDialogHidden();
   void ClickCloseNetworkButton();
 
+  // Wait until the main dialog closes.
+  void WaitForReauthDialogToClose();
+
   // Wait for the SAML IdP page to load.
   // Precondition: The SAML container is visible.
   void WaitForIdpPageLoad();
+
+  // Next members allow to wait for the captive portal dialog to load (i.e. be
+  // initialized in `LockScreenStartReauthDialog`), be shown or be closed.
+  // Precondition: Main dialog must exist, since it owns the portal dialog.
+  void WaitForCaptivePortalDialogToLoad();
+  void WaitForCaptivePortalDialogToShow();
+  void WaitForCaptivePortalDialogToClose();
+
+  void ExpectCaptivePortalDialogVisible();
+  void ExpectCaptivePortalDialogHidden();
+  void CloseCaptivePortalDialogAndWait();
 
   // Returns the WebContents of the dialog's WebUI.
   content::WebContents* DialogWebContents();
@@ -103,15 +149,24 @@ class LockScreenReauthDialogTestHelper {
   void WaitForNetworkDialogToLoad();
 
   // Main Dialog
-  InSessionPasswordSyncManager* password_sync_manager_ = nullptr;
-  chromeos::LockScreenStartReauthDialog* reauth_dialog_ = nullptr;
-  chromeos::LockScreenStartReauthUI* reauth_webui_controller_ = nullptr;
-  chromeos::LockScreenReauthHandler* main_handler_ = nullptr;
+  base::raw_ptr<LockScreenStartReauthDialog, DanglingUntriaged> reauth_dialog_ =
+      nullptr;
+  base::raw_ptr<LockScreenStartReauthUI, DanglingUntriaged>
+      reauth_webui_controller_ = nullptr;
+  base::raw_ptr<LockScreenReauthHandler, DanglingUntriaged> main_handler_ =
+      nullptr;
 
   // Network dialog which is owned by the main dialog.
-  chromeos::LockScreenNetworkDialog* network_dialog_ = nullptr;
-  chromeos::LockScreenNetworkUI* network_webui_controller_ = nullptr;
-  chromeos::NetworkConfigMessageHandler* network_handler_ = nullptr;
+  base::raw_ptr<LockScreenNetworkDialog, DanglingUntriaged> network_dialog_ =
+      nullptr;
+  base::raw_ptr<LockScreenNetworkUI, DanglingUntriaged>
+      network_webui_controller_ = nullptr;
+  base::raw_ptr<NetworkConfigMessageHandler, DanglingUntriaged>
+      network_handler_ = nullptr;
+
+  // Captive portal dialog which is owned by the main dialog.
+  base::raw_ptr<LockScreenCaptivePortalDialog, DanglingUntriaged>
+      captive_portal_dialog_ = nullptr;
 };
 
 }  // namespace ash

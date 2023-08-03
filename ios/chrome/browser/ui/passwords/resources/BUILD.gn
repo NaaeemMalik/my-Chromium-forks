@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,7 +9,6 @@ group("resources") {
   deps = [
     ":legacy_password_breach_illustration",
     ":password_breach_illustration",
-    ":passwords_logo_colored",
   ]
 }
 
@@ -20,16 +19,6 @@ imageset("password_breach_illustration") {
     "password_breach_illustration.imageset/password_check_alert@3x.png",
     "password_breach_illustration.imageset/password_check_alert_dark@2x.png",
     "password_breach_illustration.imageset/password_check_alert_dark@3x.png",
-  ]
-}
-
-imageset("passwords_logo_colored") {
-  sources = [
-    "passwords_logo_colored.imageset/Contents.json",
-    "passwords_logo_colored.imageset/passwords_logo_colored@2x.png",
-    "passwords_logo_colored.imageset/passwords_logo_colored@3x.png",
-    "passwords_logo_colored.imageset/passwords_logo_colored_dark@2x.png",
-    "passwords_logo_colored.imageset/passwords_logo_colored_dark@3x.png",
   ]
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,8 +23,8 @@
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/sync/sync_service_factory.h"
+#include "components/browsing_data/core/browsing_data_policies_utils.h"
 #include "components/browsing_data/core/pref_names.h"
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
@@ -35,13 +35,18 @@
 #include "content/public/browser/browsing_data_filter_builder.h"
 #include "content/public/browser/browsing_data_remover.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#else
+#include "chrome/browser/android/tab_android.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #endif
 
 namespace {
@@ -101,7 +106,7 @@ class BrowsingDataRemoverObserver
         filterable_deletion_(filterable_deletion),
         profile_(profile),
         keep_browser_alive_(keep_browser_alive) {
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     if (keep_browser_alive) {
       keep_alive_ = std::make_unique<ScopedKeepAlive>(
           KeepAliveOrigin::BROWSING_DATA_LIFETIME_MANAGER,
@@ -147,14 +152,14 @@ class BrowsingDataRemoverObserver
 
   const raw_ptr<Profile> profile_;
   bool keep_browser_alive_;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<ScopedKeepAlive> keep_alive_;
 #endif
 };
 
-uint64_t GetOriginTypeMask(const base::Value& data_types) {
+uint64_t GetOriginTypeMask(const base::Value::List& data_types) {
   uint64_t result = 0;
-  for (const auto& data_type : data_types.GetList()) {
+  for (const auto& data_type : data_types) {
     std::string data_type_str = data_type.GetString();
     if (data_type_str ==
         browsing_data::policy_data_types::kCookiesAndOtherSiteData) {
@@ -167,9 +172,9 @@ uint64_t GetOriginTypeMask(const base::Value& data_types) {
   return result;
 }
 
-uint64_t GetRemoveMask(const base::Value& data_types) {
+uint64_t GetRemoveMask(const base::Value::List& data_types) {
   uint64_t result = 0;
-  for (const auto& data_type : data_types.GetList()) {
+  for (const auto& data_type : data_types) {
     std::string data_type_str = data_type.GetString();
     if (data_type_str == browsing_data::policy_data_types::kBrowsingHistory) {
       result |= chrome_browsing_data_remover::DATA_TYPE_HISTORY;
@@ -199,16 +204,14 @@ uint64_t GetRemoveMask(const base::Value& data_types) {
 }
 
 std::vector<ScheduledRemovalSettings> ConvertToScheduledRemovalSettings(
-    const base::Value* browsing_data_settings) {
+    const base::Value::List& browsing_data_settings) {
   std::vector<ScheduledRemovalSettings> scheduled_removals_settings;
-  if (!browsing_data_settings)
-    return scheduled_removals_settings;
-  for (const auto& setting : browsing_data_settings->GetList()) {
+  for (const auto& setting : browsing_data_settings) {
     const auto* data_types =
-        setting.FindListKey(browsing_data::policy_fields::kDataTypes);
-    const auto time_to_live_in_hours =
-        setting.FindIntKey(browsing_data::policy_fields::kTimeToLiveInHours);
-
+        setting.GetDict().FindList(browsing_data::policy_fields::kDataTypes);
+    const auto time_to_live_in_hours = setting.GetDict().FindInt(
+        browsing_data::policy_fields::kTimeToLiveInHours);
+    DCHECK(data_types);
     scheduled_removals_settings.push_back({GetRemoveMask(*data_types),
                                            GetOriginTypeMask(*data_types),
                                            *time_to_live_in_hours});
@@ -218,13 +221,22 @@ std::vector<ScheduledRemovalSettings> ConvertToScheduledRemovalSettings(
 
 base::flat_set<GURL> GetOpenedUrls(Profile* profile) {
   base::flat_set<GURL> result;
-#if !defined(OS_ANDROID)
+  // TODO (crbug/1288416): Enable this for android.
+#if !BUILDFLAG(IS_ANDROID)
   for (auto* browser : *BrowserList::GetInstance()) {
     if (browser->profile() != profile) {
       continue;
     }
     for (int i = 0; i < browser->tab_strip_model()->count(); ++i) {
-      result.insert(browser->tab_strip_model()->GetWebContentsAt(0)->GetURL());
+      result.insert(browser->tab_strip_model()->GetWebContentsAt(i)->GetURL());
+    }
+  }
+#else
+  for (const TabModel* model : TabModelList::models()) {
+    for (int index = 0; index < model->GetTabCount(); ++index) {
+      TabAndroid* tab = model->GetTabAt(index);
+      if (tab)
+        result.insert(tab->GetURL());
     }
   }
 #endif
@@ -234,19 +246,6 @@ base::flat_set<GURL> GetOpenedUrls(Profile* profile) {
 }  // namespace
 
 namespace browsing_data {
-
-namespace policy_data_types {
-
-const char kBrowsingHistory[] = "browsing_history";
-const char kDownloadHistory[] = "download_history";
-const char kCookiesAndOtherSiteData[] = "cookies_and_other_site_data";
-const char kCachedImagesAndFiles[] = "cached_images_and_files";
-const char kPasswordSignin[] = "password_signin";
-const char kAutofill[] = "autofill";
-const char kSiteSettings[] = "site_settings";
-const char kHostedAppData[] = "hosted_app_data";
-
-}  // namespace policy_data_types
 
 namespace policy_fields {
 
@@ -269,11 +268,7 @@ ChromeBrowsingDataLifetimeManager::ChromeBrowsingDataLifetimeManager(
 
   // When the service is instantiated, wait a few minutes after Chrome startup
   // to start deleting data.
-  content::GetUIThreadTaskRunner(
-      {
-          base::TaskPriority::BEST_EFFORT,
-          base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN,
-      })
+  content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
       ->PostDelayedTask(FROM_HERE,
                         base::BindOnce(&ChromeBrowsingDataLifetimeManager::
                                            UpdateScheduledRemovalSettings,
@@ -291,10 +286,9 @@ void ChromeBrowsingDataLifetimeManager::Shutdown() {
 
 void ChromeBrowsingDataLifetimeManager::ClearBrowsingDataForOnExitPolicy(
     bool keep_browser_alive) {
-  auto* data_types = profile_->GetPrefs()->GetList(
+  const base::Value::List& data_types = profile_->GetPrefs()->GetList(
       browsing_data::prefs::kClearBrowsingDataOnExitList);
-  if (data_types && !data_types->GetList().empty() &&
-      !SyncServiceFactory::IsSyncAllowed(profile_)) {
+  if (!data_types.empty() && !SyncServiceFactory::IsSyncAllowed(profile_)) {
     profile_->GetPrefs()->SetBoolean(
         browsing_data::prefs::kClearBrowsingDataOnExitDeletionPending, true);
     auto* remover = profile_->GetBrowsingDataRemover();
@@ -305,8 +299,8 @@ void ChromeBrowsingDataLifetimeManager::ClearBrowsingDataForOnExitPolicy(
       DCHECK(keep_browser_alive);
 #endif
     remover->RemoveAndReply(base::Time(), base::Time::Max(),
-                            GetRemoveMask(*data_types),
-                            GetOriginTypeMask(*data_types),
+                            GetRemoveMask(data_types),
+                            GetOriginTypeMask(data_types),
                             BrowsingDataRemoverObserver::Create(
                                 remover, /*filterable_deletion=*/true, profile_,
                                 keep_browser_alive));
@@ -346,7 +340,11 @@ void ChromeBrowsingDataLifetimeManager::StartScheduledBrowsingDataRemoval() {
       auto filter_builder = content::BrowsingDataFilterBuilder::Create(
           content::BrowsingDataFilterBuilder::Mode::kPreserve);
       for (const auto& url : GetOpenedUrls(profile_)) {
-        filter_builder->AddRegisterableDomain(url.spec());
+        std::string domain = GetDomainAndRegistry(
+            url, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+        if (domain.empty())
+          domain = url.host();  // IP address or internal hostname.
+        filter_builder->AddRegisterableDomain(domain);
       }
       remover->RemoveWithFilterAndReply(
           base::Time::Min(), deletion_end_time, filterable_remove_mask,
@@ -370,11 +368,7 @@ void ChromeBrowsingDataLifetimeManager::StartScheduledBrowsingDataRemoval() {
                     remover, /*filterable_deletion=*/false, profile_));
     }
   }
-  content::GetUIThreadTaskRunner(
-      {
-          base::TaskPriority::BEST_EFFORT,
-          base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN,
-      })
+  content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
       ->PostDelayedTask(FROM_HERE,
                         base::BindOnce(&ChromeBrowsingDataLifetimeManager::
                                            StartScheduledBrowsingDataRemoval,

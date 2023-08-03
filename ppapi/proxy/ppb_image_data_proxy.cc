@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,14 @@
 #include <map>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/shared_memory_mapping.h"
 #include "base/memory/singleton.h"
 #include "base/memory/weak_ptr.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
+#include "components/nacl/common/buildflags.h"
 #include "ppapi/c/pp_completion_callback.h"
 #include "ppapi/c/pp_errors.h"
 #include "ppapi/c/pp_resource.h"
@@ -31,9 +33,9 @@
 #include "ppapi/thunk/enter.h"
 #include "ppapi/thunk/thunk.h"
 
-#if !defined(OS_NACL)
-#include "skia/ext/platform_canvas.h"
-#include "ui/surface/transport_dib.h"
+#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
+#include "skia/ext/platform_canvas.h"  //nogncheck
+#include "ui/surface/transport_dib.h"  //nogncheck
 #endif
 
 using ppapi::thunk::PPB_ImageData_API;
@@ -370,17 +372,17 @@ void ImageData::RecycleToPlugin(bool zero_contents) {
 
 // PlatformImageData -----------------------------------------------------------
 
-#if !defined(OS_NACL)
+#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
 PlatformImageData::PlatformImageData(
     const HostResource& resource,
     const PP_ImageDataDesc& desc,
     base::UnsafeSharedMemoryRegion image_region)
     : ImageData(resource, PPB_ImageData_Shared::PLATFORM, desc) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   transport_dib_ = TransportDIB::CreateWithHandle(std::move(image_region));
 #else
   transport_dib_ = TransportDIB::Map(std::move(image_region));
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 PlatformImageData::~PlatformImageData() = default;
@@ -410,7 +412,7 @@ void PlatformImageData::Unmap() {
 SkCanvas* PlatformImageData::GetCanvas() {
   return mapped_canvas_.get();
 }
-#endif  // !defined(OS_NACL)
+#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
 
 // SimpleImageData -------------------------------------------------------------
 
@@ -489,7 +491,7 @@ PP_Resource PPB_ImageData_Proxy::CreateProxyResource(
       break;
     }
     case PPB_ImageData_Shared::PLATFORM: {
-#if !defined(OS_NACL)
+#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
       ppapi::proxy::SerializedHandle image_handle;
       dispatcher->Send(new PpapiHostMsg_PPBImageData_CreatePlatform(
           kApiID, instance, format, size, init_to_zero, &result, &desc,
@@ -517,7 +519,7 @@ PP_Resource PPB_ImageData_Proxy::CreateProxyResource(
 bool PPB_ImageData_Proxy::OnMessageReceived(const IPC::Message& msg) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(PPB_ImageData_Proxy, msg)
-#if !defined(OS_NACL)
+#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
     IPC_MESSAGE_HANDLER(PpapiHostMsg_PPBImageData_CreatePlatform,
                         OnHostMsgCreatePlatform)
     IPC_MESSAGE_HANDLER(PpapiHostMsg_PPBImageData_CreateSimple,
@@ -531,7 +533,7 @@ bool PPB_ImageData_Proxy::OnMessageReceived(const IPC::Message& msg) {
   return handled;
 }
 
-#if !defined(OS_NACL)
+#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
 // static
 PP_Resource PPB_ImageData_Proxy::CreateImageData(
     PP_Instance instance,
@@ -639,7 +641,7 @@ void PPB_ImageData_Proxy::OnHostMsgCreateSimple(
     result_image_handle->set_null_shmem_region();
   }
 }
-#endif  // !defined(OS_NACL)
+#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MINIMAL_TOOLCHAIN)
 
 void PPB_ImageData_Proxy::OnPluginMsgNotifyUnusedImageData(
     const HostResource& old_image_data) {

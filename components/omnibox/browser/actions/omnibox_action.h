@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,22 +7,30 @@
 
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ref.h"
 #include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "components/omnibox/browser/actions/omnibox_action_concepts.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
 #include "components/omnibox/browser/buildflags.h"
 #include "components/search_engines/template_url.h"
+#include "components/url_formatter/spoof_checks/idna_metrics.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/gfx/color_utils.h"
 #include "url/gurl.h"
 
-#if (!defined(OS_ANDROID) || BUILDFLAG(ENABLE_VR)) && !defined(OS_IOS)
+#if (!BUILDFLAG(IS_ANDROID) || BUILDFLAG(ENABLE_VR)) && !BUILDFLAG(IS_IOS)
+#define SUPPORT_PEDALS_VECTOR_ICONS
 namespace gfx {
 struct VectorIcon;
 }
+#endif
+
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/scoped_java_ref.h"
 #endif
 
 class AutocompleteInput;
@@ -45,6 +53,10 @@ class OmniboxAction : public base::RefCounted<OmniboxAction> {
                  int id_suggestion_contents,
                  int id_accessibility_suffix,
                  int id_accessibility_hint);
+    LabelStrings(std::u16string hint,
+                 std::u16string suggestion_contents,
+                 std::u16string accessibility_suffix,
+                 std::u16string accessibility_hint);
     LabelStrings();
     LabelStrings(const LabelStrings&);
     ~LabelStrings();
@@ -72,6 +84,11 @@ class OmniboxAction : public base::RefCounted<OmniboxAction> {
 
     // Presents translation prompt for current tab web contents.
     virtual void PromptPageTranslation() = 0;
+
+    // Opens Journeys in an embedder-specific way. If this returns true, that
+    // means that the embedder successfully opened Journeys, and the caller can
+    // early exit. If this returns false, the caller should open the WebUI.
+    virtual bool OpenJourneys(const std::string& query);
   };
 
   // ExecutionContext provides the necessary structure for Action
@@ -100,29 +117,32 @@ class OmniboxAction : public base::RefCounted<OmniboxAction> {
                                 bool destination_url_entered_without_scheme,
                                 const std::u16string&,
                                 const AutocompleteMatch&,
-                                const AutocompleteMatch&)>;
+                                const AutocompleteMatch&,
+                                IDNA2008DeviationCharacter)>;
 
     ExecutionContext(Client& client,
                      OpenUrlCallback callback,
                      base::TimeTicks match_selection_timestamp,
                      WindowOpenDisposition disposition);
     ~ExecutionContext();
-    Client& client_;
+    const raw_ref<Client, DanglingUntriaged> client_;
     OpenUrlCallback open_url_callback_;
     base::TimeTicks match_selection_timestamp_;
     WindowOpenDisposition disposition_;
   };
 
-  OmniboxAction(LabelStrings strings, GURL url);
+  OmniboxAction(LabelStrings strings, GURL url, bool takes_over_match = false);
 
   // Provides read access to labels associated with this Action.
   const LabelStrings& GetLabelStrings() const;
 
-  // Records that the action was shown at index `position` in the popup.
-  virtual void RecordActionShown(size_t position) const {}
+  // Returns the destination URL for navigation Actions, Otherwise, returns an
+  // empty URL.
+  const GURL& getUrl() const { return url_; }
 
-  // Records that the action was executed at index `position` in the popup.
-  virtual void RecordActionExecuted(size_t position) const {}
+  // Records that the action was shown at index `position` in the popup.
+  // `executed` is set to true if the action was also executed by the user.
+  virtual void RecordActionShown(size_t position, bool executed) const {}
 
   // Takes the action associated with this Action.  Non-navigation
   // Actions must override the default, but Navigation Actions don't need to.
@@ -134,20 +154,27 @@ class OmniboxAction : public base::RefCounted<OmniboxAction> {
   virtual bool IsReadyToTrigger(const AutocompleteInput& input,
                                 const AutocompleteProviderClient& client) const;
 
-#if (!defined(OS_ANDROID) || BUILDFLAG(ENABLE_VR)) && !defined(OS_IOS)
+  // Returns true if the Action should take over the whole match - that is:
+  // If the user presses Enter or clicks on the match at all, the navigation
+  // is ignored and the action is executed. Note, when this returns true, the
+  // action chip should be un-rendered, because the whole match IS the action.
+  bool TakesOverMatch() const;
+
+#if defined(SUPPORT_PEDALS_VECTOR_ICONS)
   // Returns the vector icon to represent this Action.
   virtual const gfx::VectorIcon& GetVectorIcon() const;
 #endif
 
-  // Returns SK_ColorTRANSPARENT by default to indicate usage of normal theme
-  // color for suggestion row buttons; or override to force icon color.
-  virtual SkColor GetVectorIconColor() const;
-
   // Estimates RAM usage in bytes for this Action.
   virtual size_t EstimateMemoryUsage() const;
 
-  // Returns an ID used to identify some actions. Not defined for all Actions.
-  virtual int32_t GetID() const;
+  // Returns an ID used to identify the action.
+  virtual OmniboxActionId ActionId() const;
+
+#if BUILDFLAG(IS_ANDROID)
+  virtual base::android::ScopedJavaLocalRef<jobject> GetOrCreateJavaObject(
+      JNIEnv* env) const;
+#endif
 
  protected:
   friend class base::RefCounted<OmniboxAction>;
@@ -160,6 +187,9 @@ class OmniboxAction : public base::RefCounted<OmniboxAction> {
 
   // For navigation Actions, this holds the destination URL. Otherwise, empty.
   GURL url_;
+
+  // Used to make the action chip take over the whole match.
+  const bool takes_over_match_;
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_ACTIONS_OMNIBOX_ACTION_H_

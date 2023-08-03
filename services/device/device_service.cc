@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,16 @@
 
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
-#include "base/task/post_task.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 #include "services/device/binder_overrides.h"
-#include "services/device/bluetooth/bluetooth_system_factory.h"
+#include "services/device/compute_pressure/pressure_manager_impl.h"
 #include "services/device/device_posture/device_posture_platform_provider.h"
 #include "services/device/device_posture/device_posture_provider_impl.h"
 #include "services/device/fingerprint/fingerprint.h"
@@ -35,7 +33,7 @@
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "ui/gfx/native_widget_types.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/jni_android.h"
 #include "services/device/device_service_jni_headers/InterfaceRegistrar_jni.h"
 #include "services/device/screen_orientation/screen_orientation_listener_android.h"
@@ -46,7 +44,7 @@
 #include "services/device/vibration/vibration_manager_impl.h"
 #endif
 
-#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_UDEV)
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(USE_UDEV)
 #include "services/device/hid/input_service_linux.h"
 #endif
 
@@ -56,7 +54,7 @@
 
 namespace {
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 constexpr bool IsLaCrOS() {
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
   return true;
@@ -66,7 +64,7 @@ constexpr bool IsLaCrOS() {
 }
 #endif
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 void BindLaCrOSHidManager(
     mojo::PendingReceiver<device::mojom::HidManager> receiver) {
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
@@ -115,17 +113,18 @@ DeviceService::DeviceService(
                           params->wake_lock_context_callback) {
   receivers_.Add(this, std::move(receiver));
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   java_nfc_delegate_.Reset(params->java_nfc_delegate);
 #endif
 
 #if defined(IS_SERIAL_ENABLED_PLATFORM)
   serial_port_manager_ = std::make_unique<SerialPortManagerImpl>(
-      io_task_runner_, base::ThreadTaskRunnerHandle::Get());
-#if defined(OS_MAC)
+      io_task_runner_, base::SingleThreadTaskRunner::GetCurrentDefault());
+#if BUILDFLAG(IS_MAC)
   // On macOS the SerialDeviceEnumerator needs to run on the UI thread so that
   // it has access to a CFRunLoop where it can register a notification source.
-  serial_port_manager_task_runner_ = base::ThreadTaskRunnerHandle::Get();
+  serial_port_manager_task_runner_ =
+      base::SingleThreadTaskRunner::GetCurrentDefault();
 #else
   // On other platforms it must be allowed to do blocking IO.
   serial_port_manager_task_runner_ =
@@ -134,16 +133,16 @@ DeviceService::DeviceService(
 #endif
 #endif  // defined(IS_SERIAL_ENABLED_PLATFORM)
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Ensure that the battery backend is initialized now; otherwise it may end up
   // getting initialized on access during destruction, when it's no longer safe
   // to initialize.
   device::BatteryStatusService::GetInstance();
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 }
 
 DeviceService::~DeviceService() {
-#if !defined(OS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS_ASH)
   // NOTE: We don't call this on Chrome OS due to https://crbug.com/856771, as
   // Shutdown() implicitly depends on DBusThreadManager, which may already be
   // destroyed by the time DeviceService is destroyed. Fortunately on Chrome OS
@@ -181,16 +180,35 @@ void DeviceService::OverrideGeolocationContextBinderForTesting(
   internal::GetGeolocationContextBinderOverride() = std::move(binder);
 }
 
+// static
+void DeviceService::OverridePressureManagerBinderForTesting(
+    PressureManagerBinder binder) {
+  internal::GetPressureManagerBinderOverride() = std::move(binder);
+}
+
 void DeviceService::BindBatteryMonitor(
     mojo::PendingReceiver<mojom::BatteryMonitor> receiver) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   GetJavaInterfaceProvider()->GetInterface(std::move(receiver));
 #else
   BatteryMonitorImpl::Create(std::move(receiver));
 #endif
 }
 
-#if defined(OS_ANDROID)
+void DeviceService::BindPressureManager(
+    mojo::PendingReceiver<mojom::PressureManager> receiver) {
+  const auto& binder_override = internal::GetPressureManagerBinderOverride();
+  if (binder_override) {
+    binder_override.Run(std::move(receiver));
+    return;
+  }
+
+  if (!pressure_manager_)
+    pressure_manager_ = PressureManagerImpl::Create();
+  pressure_manager_->Bind(std::move(receiver));
+}
+
+#if BUILDFLAG(IS_ANDROID)
 // static
 void DeviceService::OverrideNFCProviderBinderForTesting(
     NFCProviderBinder binder) {
@@ -209,14 +227,14 @@ void DeviceService::BindNFCProvider(
 
 void DeviceService::BindVibrationManager(
     mojo::PendingReceiver<mojom::VibrationManager> receiver) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   GetJavaInterfaceProvider()->GetInterface(std::move(receiver));
 #else
   VibrationManagerImpl::Create(std::move(receiver));
 #endif
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 void DeviceService::BindHidManager(
     mojo::PendingReceiver<mojom::HidManager> receiver) {
   if (IsLaCrOS() && !HidManagerImpl::IsHidServiceTesting()) {
@@ -230,11 +248,6 @@ void DeviceService::BindHidManager(
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-void DeviceService::BindBluetoothSystemFactory(
-    mojo::PendingReceiver<mojom::BluetoothSystemFactory> receiver) {
-  BluetoothSystemFactory::CreateFactory(std::move(receiver));
-}
-
 void DeviceService::BindMtpManager(
     mojo::PendingReceiver<mojom::MtpManager> receiver) {
   if (!mtp_device_manager_)
@@ -243,7 +256,7 @@ void DeviceService::BindMtpManager(
 }
 #endif
 
-#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_UDEV)
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(USE_UDEV)
 void DeviceService::BindInputDeviceManager(
     mojo::PendingReceiver<mojom::InputDeviceManager> receiver) {
   file_task_runner_->PostTask(
@@ -301,7 +314,7 @@ void DeviceService::BindPublicIpAddressGeolocationProvider(
 
 void DeviceService::BindScreenOrientationListener(
     mojo::PendingReceiver<mojom::ScreenOrientationListener> receiver) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (io_task_runner_) {
     io_task_runner_->PostTask(
         FROM_HERE, base::BindOnce(&ScreenOrientationListenerAndroid::Create,
@@ -322,7 +335,7 @@ void DeviceService::BindSensorProvider(
   sensor_provider_->Bind(std::move(receiver));
 }
 
-#if defined(OS_ANDROID) || defined(OS_WIN)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN)
 void DeviceService::BindDevicePostureProvider(
     mojo::PendingReceiver<mojom::DevicePostureProvider> receiver) {
   if (!device_posture_provider_) {
@@ -391,7 +404,7 @@ void DeviceService::BindUsbDeviceManagerTest(
   usb_device_manager_test_->BindReceiver(std::move(receiver));
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 service_manager::InterfaceProvider* DeviceService::GetJavaInterfaceProvider() {
   if (!java_interface_provider_initialized_) {
     mojo::PendingRemote<service_manager::mojom::InterfaceProvider> provider;

@@ -1,16 +1,16 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/services/print_compositor/print_compositor_impl.h"
 
-#include <algorithm>
 #include <tuple>
 #include <utility>
 
 #include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/memory/discardable_memory.h"
+#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
@@ -29,14 +29,17 @@
 #include "third_party/skia/src/utils/SkMultiPictureDocument.h"
 #include "ui/accessibility/ax_tree_update.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "content/public/child/dwrite_font_proxy_init_win.h"
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/skia/include/core/SkFontMgr.h"
-#elif defined(OS_POSIX) && !defined(OS_ANDROID)
+#elif BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
 #include "third_party/blink/public/platform/platform.h"
 #endif
+
+using MojoDiscardableSharedMemoryManager =
+    discardable_memory::mojom::DiscardableSharedMemoryManager;
 
 namespace printing {
 
@@ -45,13 +48,24 @@ PrintCompositorImpl::PrintCompositorImpl(
     bool initialize_environment,
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner)
     : io_task_runner_(std::move(io_task_runner)) {
-  if (receiver)
+  if (receiver) {
     receiver_.Bind(std::move(receiver));
+
+    mojo::PendingRemote<MojoDiscardableSharedMemoryManager> manager_remote;
+    content::ChildThread::Get()->BindHostReceiver(
+        manager_remote.InitWithNewPipeAndPassReceiver());
+    DCHECK(io_task_runner_);
+    discardable_shared_memory_manager_ = base::MakeRefCounted<
+        discardable_memory::ClientDiscardableSharedMemoryManager>(
+        std::move(manager_remote), io_task_runner_);
+    base::DiscardableMemoryAllocator::SetInstance(
+        discardable_shared_memory_manager_.get());
+  }
 
   if (!initialize_environment)
     return;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Initialize direct write font proxy so skia can use it.
   content::InitializeDWriteFontProxy();
 #endif
@@ -60,7 +74,7 @@ PrintCompositorImpl::PrintCompositorImpl(
   SkGraphics::SetImageGeneratorFromEncodedDataFactory(
       blink::WebImageGenerator::CreateAsSkImageGenerator);
 
-#if defined(OS_POSIX) && !defined(OS_ANDROID)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
   content::UtilityThread::Get()->EnsureBlinkInitializedWithSandboxSupport();
   // Check that we have sandbox support on this platform.
   DCHECK(blink::Platform::Current()->GetSandboxSupport());
@@ -68,7 +82,7 @@ PrintCompositorImpl::PrintCompositorImpl(
   content::UtilityThread::Get()->EnsureBlinkInitialized();
 #endif
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   // Check that font access is granted.
   // This doesn't do comprehensive tests to make sure fonts can work properly.
   // It is just a quick and simple check to catch things like improper sandbox
@@ -78,22 +92,9 @@ PrintCompositorImpl::PrintCompositorImpl(
 }
 
 PrintCompositorImpl::~PrintCompositorImpl() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   content::UninitializeDWriteFontProxy();
 #endif
-}
-
-void PrintCompositorImpl::SetDiscardableSharedMemoryManager(
-    mojo::PendingRemote<
-        discardable_memory::mojom::DiscardableSharedMemoryManager> manager) {
-  // Set up discardable memory manager.
-  mojo::PendingRemote<discardable_memory::mojom::DiscardableSharedMemoryManager>
-      manager_remote(std::move(manager));
-  discardable_shared_memory_manager_ = base::MakeRefCounted<
-      discardable_memory::ClientDiscardableSharedMemoryManager>(
-      std::move(manager_remote), io_task_runner_);
-  base::DiscardableMemoryAllocator::SetInstance(
-      discardable_shared_memory_manager_.get());
 }
 
 void PrintCompositorImpl::NotifyUnavailableSubframe(uint64_t frame_guid) {
@@ -221,8 +222,8 @@ void PrintCompositorImpl::UpdateRequestsWithSubframeInfo(
     // update with this frame's pending list.
     auto& pending_list = request->pending_subframes;
     if (pending_list.erase(frame_guid)) {
-      std::copy(pending_subframes.begin(), pending_subframes.end(),
-                std::inserter(pending_list, pending_list.end()));
+      base::ranges::copy(pending_subframes,
+                         std::inserter(pending_list, pending_list.end()));
     }
 
     // If the request still has pending frames, or isn't at the front of the

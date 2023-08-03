@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,16 @@
 
 #include <string>
 
+#include "build/build_config.h"
 #include "chrome/browser/shell_integration.h"
 #include "content/public/browser/web_contents.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
+#include "services/network/public/mojom/url_loader_factory.mojom-forward.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/page_transition_types.h"
 
 namespace content {
-class WebContents;
+class WeakDocumentPtr;
 }
 
 namespace url {
@@ -46,8 +49,8 @@ class ExternalProtocolHandler {
   // Delegate to allow unit testing to provide different behavior.
   class Delegate {
    public:
-    virtual scoped_refptr<shell_integration::DefaultProtocolClientWorker>
-    CreateShellWorker(const std::string& protocol) = 0;
+    virtual scoped_refptr<shell_integration::DefaultSchemeClientWorker>
+    CreateShellWorker(const GURL& url) = 0;
     virtual BlockState GetBlockState(const std::string& scheme,
                                      Profile* profile) = 0;
     virtual void BlockRequest() = 0;
@@ -56,7 +59,8 @@ class ExternalProtocolHandler {
         content::WebContents* web_contents,
         ui::PageTransition page_transition,
         bool has_user_gesture,
-        const absl::optional<url::Origin>& initiating_origin) = 0;
+        const absl::optional<url::Origin>& initiating_origin,
+        const std::u16string& program_name) = 0;
     virtual void LaunchUrlWithoutSecurityCheck(
         const GURL& url,
         content::WebContents* web_contents) = 0;
@@ -105,12 +109,22 @@ class ExternalProtocolHandler {
   // ExternalProtocolDialog is created asking the user. If the user accepts,
   // LaunchUrlWithoutSecurityCheck is called on the io thread and the
   // application is launched.
+  // If possible, |initiator_document| identifies the document that requested
+  // the external protocol launch.
   // Must run on the UI thread.
-  static void LaunchUrl(const GURL& url,
-                        content::WebContents::Getter web_contents_getter,
-                        ui::PageTransition page_transition,
-                        bool has_user_gesture,
-                        const absl::optional<url::Origin>& initiating_origin);
+  static void LaunchUrl(
+      const GURL& url,
+      content::WebContents::Getter web_contents_getter,
+      ui::PageTransition page_transition,
+      bool has_user_gesture,
+      bool is_in_fenced_frame_tree,
+      const absl::optional<url::Origin>& initiating_origin,
+      content::WeakDocumentPtr initiator_document
+#if BUILDFLAG(IS_ANDROID)
+      ,
+      mojo::PendingRemote<network::mojom::URLLoaderFactory>* out_factory
+#endif
+  );
 
   // Starts a url using the external protocol handler with the help
   // of shellexecute. Should only be called if the protocol is allowlisted
@@ -121,8 +135,10 @@ class ExternalProtocolHandler {
   // NOTE: You should NOT call this function directly unless you are sure the
   // url you have has been checked against the denylist.
   // All calls to this function should originate in some way from LaunchUrl.
-  static void LaunchUrlWithoutSecurityCheck(const GURL& url,
-                                            content::WebContents* web_contents);
+  static void LaunchUrlWithoutSecurityCheck(
+      const GURL& url,
+      content::WebContents* web_contents,
+      content::WeakDocumentPtr initiator_document);
 
   // Allows LaunchUrl to proceed with launching an external protocol handler.
   // This is typically triggered by a user gesture, but is also called for
@@ -138,6 +154,7 @@ class ExternalProtocolHandler {
   // Register the ExcludedSchemes preference.
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
+#if !BUILDFLAG(IS_ANDROID)
   // Creates and runs a External Protocol dialog box.
   // |url| - The url of the request.
   // |render_process_host_id| and |routing_id| are used by
@@ -161,7 +178,11 @@ class ExternalProtocolHandler {
       content::WebContents* web_contents,
       ui::PageTransition page_transition,
       bool has_user_gesture,
-      const absl::optional<url::Origin>& initiating_origin);
+      bool is_in_fenced_frame_tree,
+      const absl::optional<url::Origin>& initiating_origin,
+      content::WeakDocumentPtr initiator_document,
+      const std::u16string& program_name);
+#endif
 
   // Clears the external protocol handling data.
   static void ClearData(Profile* profile);

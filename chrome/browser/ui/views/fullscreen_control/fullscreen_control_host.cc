@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/fullscreen_control/fullscreen_control_host.h"
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/command_line.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
@@ -64,7 +64,7 @@ constexpr base::TimeDelta kTouchPopupTimeout = base::Seconds(10);
 constexpr base::TimeDelta kKeyPressPopupDelay = base::Seconds(1);
 
 bool IsExitUiEnabled() {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // Exit UI is unnecessary, since Mac uses the OS fullscreen such that window
   // menu and controls reveal when the cursor is moved to the top.
   return false;

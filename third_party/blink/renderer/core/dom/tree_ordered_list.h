@@ -32,7 +32,7 @@
 
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_linked_hash_set.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
@@ -48,7 +48,7 @@ class CORE_EXPORT TreeOrderedList final {
 
   void Add(Node*);
   void Remove(const Node*);
-  bool IsEmpty() const { return nodes_.IsEmpty(); }
+  bool IsEmpty() const { return nodes_.empty(); }
   void Clear() { nodes_.clear(); }
   wtf_size_t size() const { return nodes_.size(); }
 

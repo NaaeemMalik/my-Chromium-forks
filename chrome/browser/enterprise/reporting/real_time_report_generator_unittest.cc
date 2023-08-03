@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,7 +42,7 @@ TEST_F(RealTimeReportGeneratorTest, ExtensionRequest) {
       std::make_unique<base::Value>(true));
 
   std::unique_ptr<base::Value> requests =
-      std::make_unique<base::Value>(base::Value::Type::DICTIONARY);
+      std::make_unique<base::Value>(base::Value::Type::DICT);
   requests->SetKey(extension_id, base::Value());
   profile->GetTestingPrefService()->SetUserPref(
       prefs::kCloudExtensionRequestIds, std::move(requests));

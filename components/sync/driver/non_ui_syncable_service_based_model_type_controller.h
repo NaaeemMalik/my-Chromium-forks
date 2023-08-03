@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_SYNC_DRIVER_NON_UI_SYNCABLE_SERVICE_BASED_MODEL_TYPE_CONTROLLER_H_
 #define COMPONENTS_SYNC_DRIVER_NON_UI_SYNCABLE_SERVICE_BASED_MODEL_TYPE_CONTROLLER_H_
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
@@ -30,17 +30,28 @@ class NonUiSyncableServiceBasedModelTypeController
   using SyncableServiceProvider =
       base::OnceCallback<base::WeakPtr<syncer::SyncableService>()>;
 
-  // |syncable_service_provider| and |store_factory| will be run on the backend
-  // sequence, i.e. |task_runner|.
-  // |allow_transport_mode| will sync the data in both full-sync mode and in
-  // transport-only mode.
+  enum class DelegateMode {
+    // The data type runs only in full-sync mode. This is deprecated; new data
+    // types should not use this!
+    kLegacyFullSyncModeOnly,
+    // The data type runs in both full-sync mode and transport mode, and it
+    // shares a single data model across both modes (i.e. the data type does not
+    // distinguish between syncing users and signed-in non-syncing users).
+    kTransportModeWithSingleModel
+  };
+
+  // `syncable_service_provider` and `store_factory` will be run on the backend
+  // sequence, i.e. `task_runner`.
+  // `delegate_mode` determines whether only a single delegate (for full-sync
+  // mode) will be created, or two separate delegates for both full-sync and
+  // transport mode.
   NonUiSyncableServiceBasedModelTypeController(
       ModelType type,
       OnceModelTypeStoreFactory store_factory,
       SyncableServiceProvider syncable_service_provider,
       const base::RepeatingClosure& dump_stack,
       scoped_refptr<base::SequencedTaskRunner> task_runner,
-      bool allow_transport_mode = false);
+      DelegateMode delegate_mode);
 
   NonUiSyncableServiceBasedModelTypeController(
       const NonUiSyncableServiceBasedModelTypeController&) = delete;

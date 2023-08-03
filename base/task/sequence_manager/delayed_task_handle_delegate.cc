@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -60,7 +60,7 @@ void DelayedTaskHandleDelegate::WillRunTask() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(IsValid());
   // The task must be removed from the heap before running it.
-  DCHECK(heap_handle_.IsValid());
+  DCHECK(!heap_handle_.IsValid());
   weak_ptr_factory_.InvalidateWeakPtrs();
 }
 

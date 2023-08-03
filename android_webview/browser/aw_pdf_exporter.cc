@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "android_webview/browser_jni_headers/AwPdfExporter_jni.h"
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "content/public/browser/browser_thread.h"
 #include "printing/print_settings.h"
 #include "printing/units.h"
@@ -86,7 +86,7 @@ void AwPdfExporter::ExportToPdf(JNIEnv* env,
 namespace {
 // Converts from 1/1000 of inches to device units using DPI.
 int MilsToDots(int val, int dpi) {
-  return static_cast<int>(printing::ConvertUnitDouble(val, 1000.0, dpi));
+  return static_cast<int>(printing::ConvertUnitFloat(val, 1000, dpi));
 }
 }  // namespace
 

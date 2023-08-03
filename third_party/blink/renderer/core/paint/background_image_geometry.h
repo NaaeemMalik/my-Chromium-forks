@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
 #include "third_party/blink/renderer/core/paint/paint_phase.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_types.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
@@ -20,10 +19,9 @@ class ImageResourceObserver;
 class LayoutBox;
 class LayoutBoxModelObject;
 class LayoutNGTableCell;
-class LayoutObject;
-class LayoutTableCell;
 class LayoutView;
 class NGPhysicalBoxFragment;
+struct PaintInfo;
 
 class BackgroundImageGeometry {
   STACK_ALLOCATED();
@@ -34,13 +32,8 @@ class BackgroundImageGeometry {
       const LayoutView&,
       const PhysicalOffset& element_positioning_area_offset);
 
-  // Constructor for table cells where background_object may be the row or
-  // column the background image is attached to.
-  BackgroundImageGeometry(const LayoutTableCell&,
-                          const LayoutObject* background_object);
-
   // Generic constructor for all other elements.
-  BackgroundImageGeometry(const LayoutBoxModelObject&);
+  explicit BackgroundImageGeometry(const LayoutBoxModelObject&);
 
   // Constructor for TablesNG table parts.
   BackgroundImageGeometry(const LayoutNGTableCell& cell,
@@ -50,8 +43,10 @@ class BackgroundImageGeometry {
 
   explicit BackgroundImageGeometry(const NGPhysicalBoxFragment&);
 
-  void Calculate(const LayoutBoxModelObject* container,
-                 PaintPhase,
+  // Calculates data members. This must be called before any of the following
+  // getters is called. The document lifecycle phase must be at least
+  // PrePaintClean.
+  void Calculate(const PaintInfo& paint_info,
                  const FillLayer&,
                  const PhysicalRect& paint_rect);
 
@@ -87,10 +82,6 @@ class BackgroundImageGeometry {
   // the image if used as a pattern with background-repeat: space.
   const PhysicalSize& SpaceSize() const { return repeat_spacing_; }
 
-  // Has background-attachment: fixed. Implies that we can't always cheaply
-  // compute the destination rects.
-  bool HasNonLocalGeometry() const { return has_non_local_geometry_; }
-
   // Whether the background needs to be positioned relative to a container
   // element. Only used for tables.
   bool CellUsingContainerBackground() const {
@@ -102,8 +93,15 @@ class BackgroundImageGeometry {
   const ComputedStyle& ImageStyle(const ComputedStyle& fragment_style) const;
   InterpolationQuality ImageInterpolationQuality() const;
 
+  bool CanCompositeBackgroundAttachmentFixed() const;
+
+  static bool HasBackgroundFixedToViewport(const LayoutBoxModelObject&);
+
  private:
-  static bool ShouldUseFixedAttachment(const FillLayer&);
+  BackgroundImageGeometry(const LayoutBoxModelObject* box,
+                          const LayoutBoxModelObject* positioning_box);
+
+  bool ShouldUseFixedAttachment(const FillLayer&) const;
 
   void SetSpaceSize(const PhysicalSize& repeat_spacing) {
     repeat_spacing_ = repeat_spacing;
@@ -126,12 +124,8 @@ class BackgroundImageGeometry {
   void SetSpaceX(LayoutUnit space, LayoutUnit extra_offset);
   void SetSpaceY(LayoutUnit space, LayoutUnit extra_offset);
 
+  PhysicalRect FixedAttachmentPositioningArea(const PaintInfo&) const;
   void UseFixedAttachment(const PhysicalOffset& attachment_point);
-  void SetHasNonLocalGeometry() { has_non_local_geometry_ = true; }
-  PhysicalOffset GetPositioningOffsetForCell(const LayoutTableCell&,
-                                             const LayoutBox&);
-  PhysicalSize GetBackgroundObjectDimensions(const LayoutTableCell&,
-                                             const LayoutBox&);
 
   // Compute adjustments for the destination rects. Adjustments
   // both optimize painting when the background is obscured by a
@@ -140,8 +134,8 @@ class BackgroundImageGeometry {
   void ComputeDestRectAdjustments(const FillLayer&,
                                   const PhysicalRect&,
                                   bool,
-                                  LayoutRectOutsets&,
-                                  LayoutRectOutsets&) const;
+                                  NGPhysicalBoxStrut&,
+                                  NGPhysicalBoxStrut&) const;
 
   // Positioning area adjustments modify the size of the
   // positioning area to snap values and apply the
@@ -149,11 +143,10 @@ class BackgroundImageGeometry {
   void ComputePositioningAreaAdjustments(const FillLayer&,
                                          const PhysicalRect&,
                                          bool,
-                                         LayoutRectOutsets&,
-                                         LayoutRectOutsets&) const;
+                                         NGPhysicalBoxStrut&,
+                                         NGPhysicalBoxStrut&) const;
 
-  void ComputePositioningArea(const LayoutBoxModelObject*,
-                              PaintPhase,
+  void ComputePositioningArea(const PaintInfo&,
                               const FillLayer&,
                               const PhysicalRect&,
                               PhysicalRect&,
@@ -167,15 +160,23 @@ class BackgroundImageGeometry {
   // The offset of the background image within the background positioning area.
   PhysicalOffset OffsetInBackground(const FillLayer&) const;
 
-  // |box_| is the source for the Document. In most cases it also provides the
-  // background properties (see |positioning_box_| for exceptions.) It's also
-  // the image client unless painting the view background.
+  // In most cases this is the same as positioning_box_. They are different
+  // when we are painting:
+  // 1. the view background (box_ is the LayoutView, and positioning_box_ is
+  //    the LayoutView's RootBox()), or
+  // 2. a table cell using its row/column's background (box_ is the table cell,
+  //    and positioning_box_ is the row/column).
+  // When they are different:
+  // - ImageDocument() uses box_;
+  // - ImageClient() uses box_ if painting view, otherwise positioning_box_;
+  // - ImageStyle() uses positioning_box_;
+  // - ImageInterpolationQuality() uses box_;
+  // - FillLayers come from box_ if painting view, otherwise positioning_box_.
   const LayoutBoxModelObject* const box_;
 
   // The positioning box is the source of geometric information for positioning
-  // and sizing the background. It also provides the background properties if
-  // painting the view background or a table-cell using its container's
-  // (row's/column's) background.
+  // and sizing the background. It also provides the information listed in the
+  // comment for box_.
   const LayoutBoxModelObject* const positioning_box_;
 
   // When painting table cells or the view, the positioning area
@@ -192,7 +193,7 @@ class BackgroundImageGeometry {
   PhysicalOffset phase_;
   PhysicalSize tile_size_;
   PhysicalSize repeat_spacing_;
-  bool has_non_local_geometry_ = false;
+  bool has_background_fixed_to_viewport_ = false;
   bool painting_view_ = false;
   bool painting_table_cell_ = false;
   bool cell_using_container_background_ = false;

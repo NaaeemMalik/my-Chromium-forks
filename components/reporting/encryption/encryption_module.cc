@@ -1,15 +1,14 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/reporting/encryption/encryption_module.h"
 
-#include <atomic>
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/strings/string_piece.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -62,7 +61,7 @@ void EncryptionModule::EncryptRecordImpl(
     base::OnceCallback<void(StatusOr<EncryptedRecord>)> cb) const {
   // Encryption key is available, encrypt.
   encryptor_->OpenRecord(base::BindOnce(
-      [](base::StringPiece record,
+      [](std::string record,
          base::OnceCallback<void(StatusOr<EncryptedRecord>)> cb,
          StatusOr<Encryptor::Handle*> handle_result) {
         if (!handle_result.ok()) {
@@ -71,7 +70,7 @@ void EncryptionModule::EncryptRecordImpl(
         }
         base::ThreadPool::PostTask(
             FROM_HERE,
-            base::BindOnce(&AddToRecord, std::string(record),
+            base::BindOnce(&AddToRecord, record,
                            base::Unretained(handle_result.ValueOrDie()),
                            std::move(cb)));
       },

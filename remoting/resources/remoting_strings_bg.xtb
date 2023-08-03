@@ -4,6 +4,7 @@
 <translation id="1002108253973310084">Открита е несъвместима версия на протокол. Моля, уверете се, че най-новата версия на софтуера е инсталирана и на двата компютъра, и опитайте отново.</translation>
 <translation id="1008557486741366299">Не сега</translation>
 <translation id="1201402288615127009">Напред</translation>
+<translation id="1296511125400541222">Авторски права 2023 г. Авторите на Chromium. Всички права запазени.</translation>
 <translation id="1297009705180977556">Грешка при свързването с хоста „<ph name="HOSTNAME" />“</translation>
 <translation id="1450760146488584666">Заявеният обект не съществува.</translation>
 <translation id="1480046233931937785">Признание</translation>
@@ -26,7 +27,6 @@
 <translation id="225614027745146050">Добре дошли</translation>
 <translation id="2320166752086256636">Скриване на клавиатурата</translation>
 <translation id="2329392777730037872"><ph name="URL" /> не се отвори на устройството клиент.</translation>
-<translation id="2333212046079545895">Авторски права 2021 г. Google LLC. Всички права запазени.</translation>
 <translation id="2359808026110333948">Напред</translation>
 <translation id="2366718077645204424">Не можем да се свържем с хоста. Това вероятно се дължи на конфигурацията на използваната от вас мрежа.</translation>
 <translation id="2370754117186920852"><ph name="OPTIONAL_OFFLINE_REASON" /> Последно онлайн: <ph name="RELATIVE_TIMESTAMP" />.</translation>
@@ -76,7 +76,6 @@
 <translation id="4405930547258349619">Библиотека на ядрото</translation>
 <translation id="443560535555262820">Отваряне на предпочитанията за достъпност</translation>
 <translation id="4450893287417543264">Да не се показва отново</translation>
-<translation id="4512952200932940229">Авторски права 2021 г. Авторите на Chromium. Всички права запазени.</translation>
 <translation id="4513946894732546136">Отзиви</translation>
 <translation id="4563926062592110512">Връзката с клиентската програма е прекъсната: <ph name="CLIENT_USERNAME" />.</translation>
 <translation id="4618411825115957973">Конфигурацията за <ph name="URL_FORWARDER_NAME" /> е неправилна. Моля, изберете друг уеб браузър по подразбиране, след което активирайте отново препращането на URL адреси.</translation>
@@ -90,6 +89,7 @@
 <translation id="4808503597364150972">Моля, въведете ПИН кода си за <ph name="HOSTNAME" />.</translation>
 <translation id="4812684235631257312">Хост</translation>
 <translation id="4867841927763172006">Изпращане на PrtScn</translation>
+<translation id="4960795469833295568">Авторски права 2023 г. Google LLC. Всички права запазени.</translation>
 <translation id="4974476491460646149">Връзката с хоста „<ph name="HOSTNAME" />“ е прекратена</translation>
 <translation id="4985296110227979402">Трябва първо да настроите компютъра си за отдалечен достъп</translation>
 <translation id="4987330545941822761">Отдалеченият работен плот на Chrome не може да избере браузъра, с който да се отварят URL адреси локално. Моля, изберете браузър от списъка по-долу.</translation>

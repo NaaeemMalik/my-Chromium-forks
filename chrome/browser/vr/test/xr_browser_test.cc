@@ -1,20 +1,21 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <cstring>
 
 #include "base/base_paths.h"
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/command_line.h"
 #include "base/debug/debugger.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/path_service.h"
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser.h"
@@ -53,19 +54,19 @@ XrBrowserTestBase::XrBrowserTestBase() : env_(base::Environment::Create()) {
 XrBrowserTestBase::~XrBrowserTestBase() = default;
 
 base::FilePath::StringType UTF8ToWideIfNecessary(std::string input) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   return base::UTF8ToWide(input);
 #else
   return input;
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 std::string WideToUTF8IfNecessary(base::FilePath::StringType input) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   return base::WideToUTF8(input);
 #else
   return input;
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 // Returns an std::string consisting of the given path relative to the test
@@ -189,7 +190,7 @@ void XrBrowserTestBase::LoadFileAndAwaitInitialization(
                                     GetCurrentWebContents()))
       << "Timed out waiting for JavaScript test initialization.";
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Now that the browser is opened and has focus, keep track of this window so
   // that we can restore the proper focus after entering each session. This is
   // required for tests that create multiple sessions to work properly.
@@ -217,13 +218,8 @@ bool XrBrowserTestBase::RunJavaScriptAndExtractBoolOrFail(
     return false;
   }
 
-  bool result = false;
   DLOG(INFO) << "Run JavaScript: " << js_expression;
-  EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
-      web_contents,
-      "window.domAutomationController.send(" + js_expression + ")", &result))
-      << "Failed to run given JavaScript for bool: " << js_expression;
-  return result;
+  return content::EvalJs(web_contents, js_expression).ExtractBool();
 }
 
 std::string XrBrowserTestBase::RunJavaScriptAndExtractStringOrFail(
@@ -234,12 +230,7 @@ std::string XrBrowserTestBase::RunJavaScriptAndExtractStringOrFail(
     return "";
   }
 
-  std::string result;
-  EXPECT_TRUE(content::ExecuteScriptAndExtractString(
-      web_contents,
-      "window.domAutomationController.send(" + js_expression + ")", &result))
-      << "Failed to run given JavaScript for string: " << js_expression;
-  return result;
+  return content::EvalJs(web_contents, js_expression).ExtractString();
 }
 
 bool XrBrowserTestBase::PollJavaScriptBoolean(
@@ -288,7 +279,7 @@ void XrBrowserTestBase::BlockOnCondition(
     }
     // In the case where the condition is met fast enough that the given
     // RunLoop hasn't started yet, spin until it's available.
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&XrBrowserTestBase::BlockOnCondition,
                        base::Unretained(this), std::move(condition),
@@ -303,7 +294,7 @@ void XrBrowserTestBase::BlockOnCondition(
     return;
   }
 
-  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&XrBrowserTestBase::BlockOnCondition,
                      base::Unretained(this), std::move(condition),

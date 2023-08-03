@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include "base/run_loop.h"
 #include "base/test/gtest_util.h"
-#include "base/test/scoped_feature_list.h"
 #include "media/base/media_content_type.h"
 #include "media/base/media_switches.h"
 #include "media/mojo/mojom/media_player.mojom-blink.h"
@@ -78,6 +77,7 @@ class MockWebMediaPlayer : public EmptyWebMediaPlayer {
  public:
   MOCK_METHOD0(OnTimeUpdate, void());
   MOCK_CONST_METHOD0(Seekable, WebTimeRanges());
+  MOCK_METHOD0(OnFrozen, void());
   MOCK_CONST_METHOD0(HasAudio, bool());
   MOCK_CONST_METHOD0(HasVideo, bool());
   MOCK_CONST_METHOD0(Duration, double());
@@ -86,7 +86,7 @@ class MockWebMediaPlayer : public EmptyWebMediaPlayer {
   MOCK_CONST_METHOD0(GetNetworkState, NetworkState());
   MOCK_CONST_METHOD0(WouldTaintOrigin, bool());
   MOCK_METHOD1(SetLatencyHint, void(double));
-  MOCK_METHOD1(SetAutoplayInitiated, void(bool));
+  MOCK_METHOD1(SetWasPlayedWithUserActivation, void(bool));
   MOCK_METHOD1(EnabledAudioTracksChanged, void(const WebVector<TrackId>&));
   MOCK_METHOD1(SelectedVideoTrackChanged, void(TrackId*));
   MOCK_METHOD4(
@@ -185,6 +185,13 @@ class TestMediaPlayerObserver final
 
   void OnAudioOutputSinkChangingDisabled() override {}
 
+  void OnRemotePlaybackMetadataChange(
+      media_session::mojom::blink::RemotePlaybackMetadataPtr
+          remote_playback_metadata) override {
+    received_remote_playback_metadata_ = std::move(remote_playback_metadata);
+    run_loop_->Quit();
+  }
+
   // Getters used from HTMLMediaElementTest.
   bool received_media_playing() const { return received_media_playing_; }
 
@@ -207,6 +214,12 @@ class TestMediaPlayerObserver final
     return received_uses_audio_service_.value() == uses_audio_service;
   }
 
+  bool received_remote_playback_metadata(
+      media_session::mojom::blink::RemotePlaybackMetadataPtr
+          remote_playback_metadata) const {
+    return received_remote_playback_metadata_ == remote_playback_metadata;
+  }
+
  private:
   std::unique_ptr<base::RunLoop> run_loop_;
   bool received_media_playing_{false};
@@ -215,6 +228,8 @@ class TestMediaPlayerObserver final
   absl::optional<OnMetadataChangedResult> received_metadata_changed_result_;
   gfx::Size received_media_size_{0, 0};
   absl::optional<bool> received_uses_audio_service_;
+  media_session::mojom::blink::RemotePlaybackMetadataPtr
+      received_remote_playback_metadata_;
 };
 
 class TestMediaPlayerHost final : public media::mojom::blink::MediaPlayerHost {
@@ -297,7 +312,8 @@ class HTMLMediaElementTest : public testing::TestWithParam<MediaTestParam> {
   HTMLMediaElement* Media() const { return media_.Get(); }
   void SetCurrentSrc(const AtomicString& src) {
     KURL url(src);
-    Media()->current_src_ = url;
+    Media()->current_src_.SetSource(
+        url, HTMLMediaElement::SourceMetadata::SourceVisibility::kVisibleToApp);
   }
 
   MockWebMediaPlayer* MockMediaPlayer() { return media_player_; }
@@ -316,6 +332,14 @@ class HTMLMediaElementTest : public testing::TestWithParam<MediaTestParam> {
 
   void SetNetworkState(WebMediaPlayer::NetworkState state) {
     Media()->SetNetworkState(state);
+  }
+
+  bool MediaIsPlaying() const { return Media()->playing_; }
+
+  void ResetWebMediaPlayer() const { Media()->web_media_player_.reset(); }
+
+  void MediaContextLifecycleStateChanged(mojom::FrameLifecycleState state) {
+    Media()->ContextLifecycleStateChanged(state);
   }
 
   bool MediaShouldBeOpaque() const { return Media()->MediaShouldBeOpaque(); }
@@ -377,9 +401,19 @@ class HTMLMediaElementTest : public testing::TestWithParam<MediaTestParam> {
 
   void NotifyMediaMetadataChanged(bool has_audio,
                                   bool has_video,
-                                  media::MediaContentType media_content_type) {
-    media_->DidMediaMetadataChange(has_audio, has_video, media_content_type);
+                                  media::AudioCodec audio_codec,
+                                  media::VideoCodec video_codec,
+                                  media::MediaContentType media_content_type,
+                                  bool is_encrypted_media) {
+    media_->DidMediaMetadataChange(has_audio, has_video, audio_codec,
+                                   video_codec, media_content_type,
+                                   is_encrypted_media);
     media_player_observer().WaitUntilReceivedMessage();
+    // wait for OnRemotePlaybackMetadataChange() to be called.
+    if (audio_codec != media::AudioCodec::kUnknown ||
+        video_codec != media::VideoCodec::kUnknown) {
+      media_player_observer().WaitUntilReceivedMessage();
+    }
   }
 
   bool ReceivedMessageMediaMetadataChanged(
@@ -411,11 +445,24 @@ class HTMLMediaElementTest : public testing::TestWithParam<MediaTestParam> {
         uses_audio_service);
   }
 
+  void NotifyRemotePlaybackDisabled(bool is_remote_playback_disabled) {
+    media_->OnRemotePlaybackDisabled(is_remote_playback_disabled);
+    media_player_observer().WaitUntilReceivedMessage();
+  }
+
+  bool ReceivedRemotePlaybackMetadataChange(
+      media_session::mojom::blink::RemotePlaybackMetadataPtr
+          remote_playback_metadata) {
+    return media_player_observer().received_remote_playback_metadata(
+        std::move(remote_playback_metadata));
+  }
+
   bool WasPlayerDestroyed() const { return !media_player_weak_; }
 
   // Create a dummy page holder with the given security origin.
   std::unique_ptr<DummyPageHolder> CreatePageWithSecurityOrigin(
-      const char* origin) {
+      const char* origin,
+      bool is_picture_in_picture) {
     // Make another document with the same security origin.
 
     auto dummy_page_holder = std::make_unique<DummyPageHolder>(
@@ -425,6 +472,8 @@ class HTMLMediaElementTest : public testing::TestWithParam<MediaTestParam> {
     Document& document = dummy_page_holder->GetDocument();
     document.domWindow()->GetSecurityContext().SetSecurityOriginForTesting(
         SecurityOrigin::CreateFromString(origin));
+    document.domWindow()->set_is_picture_in_picture_window_for_testing(
+        is_picture_in_picture);
 
     return dummy_page_holder;
   }
@@ -439,22 +488,55 @@ class HTMLMediaElementTest : public testing::TestWithParam<MediaTestParam> {
   }
 
   // Move Media() from a document in `old_origin` to  one in `new_origin`, and
-  // expect that `should_destroy` matches whether the player is destroyed.
-  void MoveElementAndTestPlayerDestruction(const char* old_origin,
-                                           const char* new_origin,
-                                           bool should_destroy) {
+  // expect that `should_destroy` matches whether the player is destroyed.  If
+  // the player should not be destroyed, then we also move it back to the
+  // original document and verify that it works in both directions.
+  void MoveElementAndTestPlayerDestruction(
+      const char* old_origin,
+      const char* new_origin,
+      bool should_destroy,
+      bool is_new_document_picture_in_picture,
+      bool is_old_document_picture_in_picture,
+      bool is_new_document_opener,
+      bool is_old_document_opener) {
+    // The two documents cannot both be opener.
+    EXPECT_FALSE(is_new_document_opener && is_old_document_opener);
+
     SetSecurityOrigin(old_origin);
     WaitForPlayer();
     // Player should not be destroyed yet.
     EXPECT_FALSE(WasPlayerDestroyed());
 
+    auto& original_document = Media()->GetDocument();
+    if (is_old_document_picture_in_picture) {
+      original_document.domWindow()
+          ->set_is_picture_in_picture_window_for_testing(
+              is_old_document_picture_in_picture);
+    }
+
     // Make another document with the correct security origin.
-    auto new_dummy_page_holder = CreatePageWithSecurityOrigin(new_origin);
+    auto new_dummy_page_holder = CreatePageWithSecurityOrigin(
+        new_origin, is_new_document_picture_in_picture);
     Document& new_document = new_dummy_page_holder->GetDocument();
+
+    if (is_old_document_opener) {
+      new_document.GetFrame()->SetOpener(original_document.GetFrame());
+    } else if (is_new_document_opener) {
+      original_document.GetFrame()->SetOpener(new_document.GetFrame());
+    }
 
     // Move the element.
     new_document.adoptNode(Media(), ASSERT_NO_EXCEPTION);
     EXPECT_EQ(should_destroy, WasPlayerDestroyed());
+
+    // If the player should be destroyed, then that's everything.
+    if (should_destroy)
+      return;
+
+    // The move should always work in zero or two directions, so move it back
+    // and make sure that the player is retained.
+    original_document.adoptNode(Media(), ASSERT_NO_EXCEPTION);
+    EXPECT_FALSE(WasPlayerDestroyed());
   }
 
  private:
@@ -564,7 +646,6 @@ TEST_P(HTMLMediaElementTest, CouldPlayIfEnoughDataRespondsToEnded) {
   EXPECT_TRUE(CouldPlayIfEnoughData());
 
   // Playback can only end once the ready state is above kHaveMetadata.
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
   EXPECT_FALSE(Media()->paused());
   EXPECT_FALSE(Media()->ended());
@@ -590,7 +671,6 @@ TEST_P(HTMLMediaElementTest, CouldPlayIfEnoughDataRespondsToError) {
   EXPECT_NE(mock_wmpi, nullptr);
   EXPECT_TRUE(CouldPlayIfEnoughData());
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveMetadata);
   EXPECT_FALSE(Media()->paused());
   EXPECT_FALSE(Media()->ended());
@@ -633,7 +713,6 @@ TEST_P(HTMLMediaElementTest, CouldPlayIfEnoughDataInfiniteStreamNeverEnds) {
   EXPECT_CALL(*MockMediaPlayer(), CurrentTime())
       .WillRepeatedly(Return(std::numeric_limits<double>::infinity()));
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveMetadata);
   EXPECT_FALSE(Media()->paused());
   EXPECT_FALSE(Media()->ended());
@@ -782,7 +861,6 @@ TEST_P(HTMLMediaElementTest, DefaultTracksAreEnabled) {
 
   Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
   test::RunPendingTasks();
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
 
   ASSERT_EQ(1u, Media()->audioTracks().length());
@@ -798,7 +876,6 @@ TEST_P(HTMLMediaElementTest, VisibilityObserverCreatedForLazyLoad) {
 
   EXPECT_CALL(*MockMediaPlayer(), DidLazyLoad()).WillRepeatedly(Return(true));
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
   EXPECT_EQ(HasLazyLoadObserver(), GetParam() == MediaTestParam::kVideo);
 }
@@ -807,23 +884,33 @@ TEST_P(HTMLMediaElementTest, DomInteractive) {
   EXPECT_FALSE(Media()->GetDocument().GetTiming().DomInteractive().is_null());
 }
 
-TEST_P(HTMLMediaElementTest, ContextPaused) {
+TEST_P(HTMLMediaElementTest, ContextFrozen) {
   Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
   Media()->Play();
 
   test::RunPendingTasks();
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
 
+  // First, set frozen but with auto resume.
+  EXPECT_CALL((*MockMediaPlayer()), OnFrozen());
   EXPECT_FALSE(Media()->paused());
   GetExecutionContext()->SetLifecycleState(
       mojom::FrameLifecycleState::kFrozenAutoResumeMedia);
   EXPECT_TRUE(Media()->paused());
+  testing::Mock::VerifyAndClearExpectations(MockMediaPlayer());
+
+  // Now, if we set back to running the media should auto resume.
   GetExecutionContext()->SetLifecycleState(
       mojom::FrameLifecycleState::kRunning);
   EXPECT_FALSE(Media()->paused());
+
+  // Then set to frozen without auto resume.
+  EXPECT_CALL((*MockMediaPlayer()), OnFrozen());
   GetExecutionContext()->SetLifecycleState(mojom::FrameLifecycleState::kFrozen);
   EXPECT_TRUE(Media()->paused());
+  testing::Mock::VerifyAndClearExpectations(MockMediaPlayer());
+
+  // Now, the media should stay paused.
   GetExecutionContext()->SetLifecycleState(
       mojom::FrameLifecycleState::kRunning);
   EXPECT_TRUE(Media()->paused());
@@ -850,7 +937,6 @@ TEST_P(HTMLMediaElementTest, GcMarkingNoAllocHasActivity) {
   Media()->Play();
 
   test::RunPendingTasks();
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
   SetError(MakeGarbageCollected<MediaError>(MediaError::kMediaErrDecode, ""));
 
@@ -871,10 +957,9 @@ TEST_P(HTMLMediaElementTest, CapturesRedirectedSrc) {
   // Should start at the original.
   EXPECT_EQ(Media()->downloadURL(), Media()->currentSrc());
 
-  GURL redirected_url("https://redirected.com");
+  KURL redirected_url("https://redirected.com");
   EXPECT_CALL(*MockMediaPlayer(), GetSrcAfterRedirects())
-      .WillRepeatedly(Return(redirected_url));
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
+      .WillRepeatedly(Return(GURL(redirected_url)));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
 
   EXPECT_EQ(Media()->downloadURL(), redirected_url);
@@ -887,7 +972,6 @@ TEST_P(HTMLMediaElementTest, EmptyRedirectedSrcUsesOriginal) {
   Media()->Play();
   test::RunPendingTasks();
   EXPECT_EQ(Media()->downloadURL(), Media()->currentSrc());
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
   EXPECT_EQ(Media()->downloadURL(), Media()->currentSrc());
 }
@@ -962,11 +1046,9 @@ TEST_P(HTMLMediaElementTest, OnTimeUpdate_ReadyState) {
   EXPECT_CALL(*MockMediaPlayer(), GetSrcAfterRedirects)
       .WillRepeatedly(Return(GURL()));
   EXPECT_CALL(*MockMediaPlayer(), OnTimeUpdate());
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   SetReadyState(HTMLMediaElement::kHaveCurrentData);
   testing::Mock::VerifyAndClearExpectations(MockMediaPlayer());
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   EXPECT_CALL(*MockMediaPlayer(), OnTimeUpdate());
   SetReadyState(HTMLMediaElement::kHaveFutureData);
 }
@@ -981,7 +1063,6 @@ TEST_P(HTMLMediaElementTest, OnTimeUpdate_Seeking) {
   EXPECT_CALL(*MockMediaPlayer(), OnTimeUpdate());
   Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
   test::RunPendingTasks();
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   SetReadyState(HTMLMediaElement::kHaveCurrentData);
 
   EXPECT_CALL(*MockMediaPlayer(), OnTimeUpdate());
@@ -1002,7 +1083,6 @@ TEST_P(HTMLMediaElementTest, ShowPosterFlag_InitiallyTrue) {
 
   EXPECT_TRUE(Media()->IsShowPosterFlagSet());
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   SetReadyState(HTMLMediaElement::kHaveEnoughData);
   test::RunPendingTasks();
 
@@ -1014,7 +1094,6 @@ TEST_P(HTMLMediaElementTest, ShowPosterFlag_FalseAfterPlay) {
   Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
   test::RunPendingTasks();
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   SetReadyState(HTMLMediaElement::kHaveEnoughData);
   test::RunPendingTasks();
 
@@ -1030,7 +1109,6 @@ TEST_P(HTMLMediaElementTest, ShowPosterFlag_FalseAfterSeek) {
   Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
   test::RunPendingTasks();
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(false));
   SetReadyState(HTMLMediaElement::kHaveEnoughData);
   test::RunPendingTasks();
 
@@ -1048,7 +1126,6 @@ TEST_P(HTMLMediaElementTest, ShowPosterFlag_FalseAfterAutoPlay) {
   Media()->SetBooleanAttribute(html_names::kAutoplayAttr, true);
   test::RunPendingTasks();
 
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveEnoughData);
   test::RunPendingTasks();
 
@@ -1079,7 +1156,6 @@ TEST_P(HTMLMediaElementTest, ShowPosterFlag_FalseAfterPlayBeforeReady) {
   EXPECT_FALSE(Media()->IsShowPosterFlagSet());
 
   // Pretend we have data to begin playback
-  EXPECT_CALL(*MockMediaPlayer(), SetAutoplayInitiated(true));
   SetReadyState(HTMLMediaElement::kHaveFutureData);
 
   // We should have data, be playing, and the show poster flag should be unset
@@ -1121,19 +1197,35 @@ TEST_P(HTMLMediaElementTest, SendMediaMetadataChangedToObserver) {
 
   bool has_audio = false;
   bool has_video = true;
+  bool is_encrypted_media = false;
+  media::AudioCodec audio_codec = media::AudioCodec::kUnknown;
+  media::VideoCodec video_codec = media::VideoCodec::kUnknown;
   media::MediaContentType media_content_type =
       media::MediaContentType::Transient;
 
-  NotifyMediaMetadataChanged(has_audio, has_video, media_content_type);
+  NotifyMediaMetadataChanged(has_audio, has_video, audio_codec, video_codec,
+                             media_content_type, is_encrypted_media);
   EXPECT_TRUE(ReceivedMessageMediaMetadataChanged(has_audio, has_video,
                                                   media_content_type));
   // Change values and test again.
   has_audio = true;
   has_video = false;
   media_content_type = media::MediaContentType::OneShot;
-  NotifyMediaMetadataChanged(has_audio, has_video, media_content_type);
+  NotifyMediaMetadataChanged(has_audio, has_video, audio_codec, video_codec,
+                             media_content_type, is_encrypted_media);
   EXPECT_TRUE(ReceivedMessageMediaMetadataChanged(has_audio, has_video,
                                                   media_content_type));
+
+  // Send codecs
+  audio_codec = media::AudioCodec::kAAC;
+  video_codec = media::VideoCodec::kH264;
+  NotifyMediaMetadataChanged(has_audio, has_video, audio_codec, video_codec,
+                             media_content_type, is_encrypted_media);
+  EXPECT_TRUE(ReceivedRemotePlaybackMetadataChange(
+      media_session::mojom::blink::RemotePlaybackMetadata::New(
+          WTF::String(media::GetCodecName(video_codec)),
+          WTF::String(media::GetCodecName(audio_codec)), false, false,
+          WTF::String(), is_encrypted_media)));
 }
 
 TEST_P(HTMLMediaElementTest, SendMediaSizeChangeToObserver) {
@@ -1142,6 +1234,25 @@ TEST_P(HTMLMediaElementTest, SendMediaSizeChangeToObserver) {
   const gfx::Size kTestMediaSizeChangedValue(16, 9);
   NotifyMediaSizeChange(kTestMediaSizeChangedValue);
   EXPECT_TRUE(ReceivedMessageMediaSizeChange(kTestMediaSizeChangedValue));
+}
+
+TEST_P(HTMLMediaElementTest, SendRemotePlaybackMetadataChangeToObserver) {
+  WaitForPlayer();
+  media::VideoCodec video_codec = media::VideoCodec::kH264;
+  media::AudioCodec audio_codec = media::AudioCodec::kAAC;
+  bool is_remote_playback_disabled = true;
+  bool is_remote_playback_started = false;
+  bool is_encrypted_media = false;
+  NotifyMediaMetadataChanged(true, true, audio_codec, video_codec,
+                             media::MediaContentType::Transient,
+                             is_encrypted_media);
+  NotifyRemotePlaybackDisabled(is_remote_playback_disabled);
+  EXPECT_TRUE(ReceivedRemotePlaybackMetadataChange(
+      media_session::mojom::blink::RemotePlaybackMetadata::New(
+          WTF::String(media::GetCodecName(video_codec)),
+          WTF::String(media::GetCodecName(audio_codec)),
+          is_remote_playback_disabled, is_remote_playback_started,
+          WTF::String(), is_encrypted_media)));
 }
 
 TEST_P(HTMLMediaElementTest, SendUseAudioServiceChangedToObserver) {
@@ -1223,55 +1334,123 @@ TEST_P(HTMLMediaElementTest,
 TEST_P(HTMLMediaElementTest,
        DestroyMediaPlayerWhenSwitchingSameOriginDocumentsIfReuseIsNotEnabled) {
   // Ensure that the WebMediaPlayer is destroyed when moving to a same-origin
-  // document, if `kReuseMediaPlayer` is not enabled.
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(media::kReuseMediaPlayer);
-  MoveElementAndTestPlayerDestruction("https://a.com", "https://a.com",
-                                      /*should_destroy=*/true);
+  // document, if `kDocumentPictureInPictureAPI` is not enabled.
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(false);
+  MoveElementAndTestPlayerDestruction(
+      "https://a.com", "https://a.com",
+      /*should_destroy=*/true,
+      /*is_new_document_picture_in_picture=*/false,
+      /*is_old_document_picture_in_picture=*/false,
+      /*is_new_document_opener=*/false,
+      /*is_old_document_opener=*/false);
 }
 
 TEST_P(
     HTMLMediaElementTest,
     DestroyMediaPlayerWhenSwitchingDifferentOriginDocumentsIfReuseIsNotEnabled) {
   // Ensure that the WebMediaPlayer is destroyed when moving to a new origin
-  // document, if `kReuseMediaPlayer` is not enabled.
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(media::kReuseMediaPlayer);
-  MoveElementAndTestPlayerDestruction("https://a.com", "https://b.com",
-                                      /*should_destroy=*/true);
+  // document, if `kDocumentPictureInPictureAPI` is not enabled.
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(false);
+  MoveElementAndTestPlayerDestruction(
+      "https://a.com", "https://b.com",
+      /*should_destroy=*/true,
+      /*is_new_document_picture_in_picture=*/false,
+      /*is_old_document_picture_in_picture=*/false,
+      /*is_new_document_opener=*/false,
+      /*is_old_document_opener=*/false);
 }
 
 TEST_P(
     HTMLMediaElementTest,
     DoNotDestroyMediaPlayerWhenSwitchingSameOriginDocumentsIfReuseIsEnabled) {
   // Ensure that the WebMediaPlayer is re-used when moving to a same-origin
-  // document, if `kReuseMediaPlayer` is enabled.
-  base::test::ScopedFeatureList scoped_feature_list(media::kReuseMediaPlayer);
-  MoveElementAndTestPlayerDestruction("https://a.com", "https://a.com",
-                                      /*should_destroy=*/false);
+  // document, if `kDocumentPictureInPictureAPI` is enabled.
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(true);
+  MoveElementAndTestPlayerDestruction(
+      "https://a.com", "https://a.com",
+      /*should_destroy=*/false,
+      /*is_new_document_picture_in_picture=*/true,
+      /*is_old_document_picture_in_picture=*/false,
+      /*is_new_document_opener=*/false,
+      /*is_old_document_opener=*/true);
+}
+
+TEST_P(
+    HTMLMediaElementTest,
+    DestroyMediaPlayerWhenSwitchingSameOriginDocumentsIfNewDocumentIsNotInPictureInPicture) {
+  // Ensure that the WebMediaPlayer is destroyed when moving to a same-origin
+  // document when the new frame is in picture in picture window, if
+  // 'kDocumentPictureInPictureAPI' is enabled.
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(true);
+  MoveElementAndTestPlayerDestruction(
+      "https//a.com", "https://a.com",
+      /*should_destroy=*/true,
+      /*is_new_document_picture_in_picture=*/false,
+      /*is_old_document_picture_in_picture=*/false,
+      /*is_new_document_opener=*/false,
+      /*is_old_document_opener=*/false);
+}
+
+TEST_P(
+    HTMLMediaElementTest,
+    DoNotDestroyMediaPlayerWhenSwitchingSameOriginDocumentsIfOldDocumentIsInPictureInPicture) {
+  // Ensure that the WebMediaPlayer is not destroyed when moving to a
+  // same-origin document when the old document is in picture-in-picture window,
+  // if 'kDocumentPictureInPictureAPI' is enabled.
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(true);
+  MoveElementAndTestPlayerDestruction(
+      "https://a.com", "https://a.com",
+      /*should_destroy=*/false,
+      /*is_new_document_picture_in_picture=*/false,
+      /*is_old_document_picture_in_picture=*/true,
+      /*is_new_document_opener=*/true,
+      /*is_old_document_opener=*/false);
+}
+
+TEST_P(
+    HTMLMediaElementTest,
+    DestroyMediaPlayerWhenSwitchingSameOriginDocumentsIfNotOpenerPipRelation) {
+  // Ensure that the WebMediaPlayer is destroyed when moving to a
+  // same-origin document when the new document is in picture-in-picture window
+  // but not opened from old document.
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(true);
+  MoveElementAndTestPlayerDestruction(
+      "https://a.com", "https://a.com",
+      /*should_destroy=*/true,
+      /*is_new_document_picture_in_picture=*/true,
+      /*is_old_document_picture_in_picture=*/false,
+      /*is_new_document_opener=*/false,
+      /*is_old_document_opener=*/false);
 }
 
 TEST_P(
     HTMLMediaElementTest,
     DestroyMediaPlayerWhenSwitchingDifferentOriginDocumentsIfReuseIsEnabled) {
   // Ensure that the WebMediaPlayer is destroyed when moving to a new origin
-  // document, if `kReuseMediaPlayer` is enabled.  Re-use should only occur if
-  // it's a same-orign document.
-  base::test::ScopedFeatureList scoped_feature_list(media::kReuseMediaPlayer);
-  MoveElementAndTestPlayerDestruction("https://a.com", "https://b.com",
-                                      /*should_destroy=*/true);
+  // document, if `kDocumentPictureInPictureAPI` is enabled. Re-use should only
+  // occur if it's a same-origin document.
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(true);
+  MoveElementAndTestPlayerDestruction(
+      "https://a.com", "https://b.com",
+      /*should_destroy=*/true,
+      /*is_new_document_picture_in_picture=*/true,
+      /*is_old_document_picture_in_picture=*/false,
+      /*is_new_document_opener=*/false,
+      /*is_old_document_opener=*/true);
 }
 
 TEST_P(HTMLMediaElementTest,
        DestroyMediaPlayerWhenUnloadingOpenerIfReuseIsEnabled) {
   // Ensure that the WebMediaPlayer is re-used, that navigating the opener away
   // causes the player to be destroyed.
-  base::test::ScopedFeatureList scoped_feature_list(media::kReuseMediaPlayer);
-
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(true);
   const char* origin = "https://a.com";
   SetSecurityOrigin(origin);
   WaitForPlayer();
-  auto new_dummy_page_holder = CreatePageWithSecurityOrigin(origin);
+  auto new_dummy_page_holder =
+      CreatePageWithSecurityOrigin(origin, /*is_picture_in_picture=*/true);
+  new_dummy_page_holder->GetDocument().GetFrame()->SetOpener(
+      Media()->GetDocument().GetFrame());
   new_dummy_page_holder->GetDocument().adoptNode(Media(), ASSERT_NO_EXCEPTION);
 
   EXPECT_FALSE(WasPlayerDestroyed());
@@ -1281,13 +1460,15 @@ TEST_P(HTMLMediaElementTest,
 
 TEST_P(HTMLMediaElementTest,
        CreateMediaPlayerAfterMovingElementUsesOpenerFrameIfReuseIsEnabled) {
-  base::test::ScopedFeatureList scoped_feature_list(media::kReuseMediaPlayer);
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(true);
   // Move the element before creating the player.
   const char* origin = "https://a.com";
   SetSecurityOrigin(origin);
-  auto new_dummy_page_holder = CreatePageWithSecurityOrigin(origin);
+  auto new_dummy_page_holder =
+      CreatePageWithSecurityOrigin(origin, /*is_picture_in_picture=*/true);
   Document& new_document = new_dummy_page_holder->GetDocument();
   LocalFrame* old_frame = Media()->GetDocument().GetFrame();
+  new_document.GetFrame()->SetOpener(old_frame);
   EXPECT_EQ(old_frame, Media()->LocalFrameForPlayer());
   new_document.adoptNode(Media(), ASSERT_NO_EXCEPTION);
   // The element should still use the original frame.
@@ -1296,18 +1477,95 @@ TEST_P(HTMLMediaElementTest,
 
 TEST_P(HTMLMediaElementTest,
        CreateMediaPlayerAfterMovingElementUsesNewFrameIfReuseIsNotEnabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(media::kReuseMediaPlayer);
+  ScopedDocumentPictureInPictureAPIForTest scoped_feature(false);
   // Move the element before creating the player.
   const char* origin = "https://a.com";
   SetSecurityOrigin(origin);
-  auto new_dummy_page_holder = CreatePageWithSecurityOrigin(origin);
+  auto new_dummy_page_holder =
+      CreatePageWithSecurityOrigin(origin, /*is_picture_in_picture=*/false);
   Document& new_document = new_dummy_page_holder->GetDocument();
   LocalFrame* old_frame = Media()->GetDocument().GetFrame();
   EXPECT_EQ(old_frame, Media()->LocalFrameForPlayer());
   new_document.adoptNode(Media(), ASSERT_NO_EXCEPTION);
   // The element should no longer use the original frame.
   EXPECT_NE(old_frame, Media()->LocalFrameForPlayer());
+}
+
+TEST_P(HTMLMediaElementTest, PlayedWithoutUserActivation) {
+  Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
+  test::RunPendingTasks();
+
+  SetReadyState(HTMLMediaElement::kHaveEnoughData);
+  test::RunPendingTasks();
+
+  EXPECT_CALL(*MockMediaPlayer(), SetWasPlayedWithUserActivation(false));
+  Media()->Play();
+}
+
+TEST_P(HTMLMediaElementTest, PlayedWithUserActivation) {
+  Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
+  test::RunPendingTasks();
+
+  SetReadyState(HTMLMediaElement::kHaveEnoughData);
+  test::RunPendingTasks();
+
+  LocalFrame::NotifyUserActivation(
+      Media()->GetDocument().GetFrame(),
+      mojom::UserActivationNotificationType::kTest);
+
+  EXPECT_CALL(*MockMediaPlayer(), SetWasPlayedWithUserActivation(true));
+  Media()->Play();
+}
+
+TEST_P(HTMLMediaElementTest, PlayedWithUserActivationBeforeLoad) {
+  LocalFrame::NotifyUserActivation(
+      Media()->GetDocument().GetFrame(),
+      mojom::UserActivationNotificationType::kTest);
+
+  EXPECT_CALL(*MockMediaPlayer(), SetWasPlayedWithUserActivation(_)).Times(0);
+  Media()->Play();
+}
+
+TEST_P(HTMLMediaElementTest, CanFreezeWithoutMediaPlayerAttached) {
+  Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
+  test::RunPendingTasks();
+
+  SetReadyState(HTMLMediaElement::kHaveEnoughData);
+  test::RunPendingTasks();
+
+  EXPECT_CALL(*MockMediaPlayer(), SetWasPlayedWithUserActivation(false));
+  Media()->Play();
+
+  ResetWebMediaPlayer();
+  EXPECT_FALSE(Media()->GetWebMediaPlayer());
+  EXPECT_TRUE(MediaIsPlaying());
+
+  // Freeze with auto resume.
+  MediaContextLifecycleStateChanged(
+      mojom::FrameLifecycleState::kFrozenAutoResumeMedia);
+
+  EXPECT_FALSE(MediaIsPlaying());
+}
+
+TEST_P(HTMLMediaElementTest, CanFreezeWithMediaPlayerAttached) {
+  Media()->SetSrc(SrcSchemeToURL(TestURLScheme::kHttp));
+  test::RunPendingTasks();
+
+  SetReadyState(HTMLMediaElement::kHaveEnoughData);
+  test::RunPendingTasks();
+
+  EXPECT_CALL(*MockMediaPlayer(), SetWasPlayedWithUserActivation(false));
+  EXPECT_CALL(*MockMediaPlayer(), OnFrozen());
+  Media()->Play();
+
+  EXPECT_TRUE(Media()->GetWebMediaPlayer());
+  EXPECT_TRUE(MediaIsPlaying());
+
+  // Freeze with auto resume.
+  MediaContextLifecycleStateChanged(
+      mojom::FrameLifecycleState::kFrozenAutoResumeMedia);
+
+  EXPECT_FALSE(MediaIsPlaying());
 }
 
 }  // namespace blink

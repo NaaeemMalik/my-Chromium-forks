@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ namespace blink {
 // InternalPopupMenuTest is not used on Android, and its Platform implementation
 // does not provide the resources (as in GetDataResource) needed by
 // InternalPopupMenu::WriteDocument.
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 
 TEST(InternalPopupMenuTest, ShowSelectDisplayNone) {
   auto dummy_page_holder_ =
@@ -48,6 +48,6 @@ TEST(InternalPopupMenuTest, ShowSelectDisplayNone) {
   menu->Show(PopupMenu::kOther);
 }
 
-#endif  // defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 }  // namespace blink

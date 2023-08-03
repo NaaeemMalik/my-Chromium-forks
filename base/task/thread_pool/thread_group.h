@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,6 @@
 
 #include "base/base_export.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/thread_pool/priority_queue.h"
 #include "base/task/thread_pool/task.h"
@@ -19,7 +18,7 @@
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/scoped_windows_thread_environment.h"
 #endif
 
@@ -47,12 +46,10 @@ class BASE_EXPORT ThreadGroup {
   enum class WorkerEnvironment {
     // No special worker environment required.
     NONE,
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     // Initialize a COM MTA on the worker.
     COM_MTA,
-    // Initialize a COM STA on the worker.
-    COM_STA,
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
   };
 
   ThreadGroup(const ThreadGroup&) = delete;
@@ -99,6 +96,11 @@ class BASE_EXPORT ThreadGroup {
   void InvalidateAndHandoffAllTaskSourcesToOtherThreadGroup(
       ThreadGroup* destination_thread_group);
 
+  // Move all task sources except the ones with TaskPriority::USER_BLOCKING,
+  // from this ThreadGroup's PriorityQueue to the |destination_thread_group|'s.
+  void HandoffNonUserBlockingTaskSourcesToOtherThreadGroup(
+      ThreadGroup* destination_thread_group);
+
   // Returns true if a task with |sort_key| running in this thread group should
   // return ASAP, either because its priority is not allowed to run or because
   // work of higher priority is pending. Thread-safe but may return an outdated
@@ -125,6 +127,10 @@ class BASE_EXPORT ThreadGroup {
   virtual void DidUpdateCanRunPolicy() = 0;
 
   virtual void OnShutdownStarted() = 0;
+
+  // Returns true if a thread group is registered in TLS. Used by diagnostic
+  // code to check whether it's inside a ThreadPool task.
+  static bool CurrentThreadHasGroup();
 
  protected:
   // Derived classes must implement a ScopedCommandsExecutor that derives from
@@ -180,7 +186,7 @@ class BASE_EXPORT ThreadGroup {
               TrackedRef<Delegate> delegate,
               ThreadGroup* predecessor_thread_group = nullptr);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   static std::unique_ptr<win::ScopedWindowsThreadEnvironment>
   GetScopedWindowsThreadEnvironment(WorkerEnvironment environment);
 #endif

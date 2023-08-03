@@ -1,19 +1,45 @@
 # Lint as: python3
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Helper functions for running commands as subprocesses."""
 
 import logging
+import pathlib
+import shutil
+import sys
 import subprocess
 
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
+
+_PYTHON_UTILS_PATH = pathlib.Path(__file__).resolve().parents[0]
+if str(_PYTHON_UTILS_PATH) not in sys.path:
+    sys.path.append(str(_PYTHON_UTILS_PATH))
+import git_metadata_utils
+
+
+def resolve_ninja() -> str:
+    # Prefer the version on PATH, but fallback to known version if PATH doesn't
+    # have one (e.g. on bots).
+    if shutil.which('ninja') is None:
+        return str(git_metadata_utils.get_chromium_src_path() /
+                   'third_party/ninja/ninja')
+    return 'ninja'
+
+
+def resolve_autoninja():
+    # Prefer the version on PATH, but fallback to known version if PATH doesn't
+    # have one (e.g. on bots).
+    if shutil.which('autoninja') is None:
+        return str(git_metadata_utils.get_chromium_src_path() /
+                   'third_party/depot_tools/autoninja')
+    return 'autoninja'
 
 
 def run_command(
         command: Sequence[str],
         *,  # Ensures that the rest of the args are passed explicitly.
-        cwd: Optional[str] = None,
+        cwd: Optional[Union[str, pathlib.Path]] = None,
         cmd_input: Optional[str] = None,
         exitcode_only: bool = False) -> str:
     """Runs a command and returns the output as a string.

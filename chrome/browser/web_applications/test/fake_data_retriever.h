@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,15 @@
 
 #include <memory>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
-#include "chrome/browser/web_applications/web_app_data_retriever.h"
+#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_install_utils.h"
-#include "chrome/browser/web_applications/web_application_info.h"
+#include "chrome/browser/web_applications/web_contents/web_app_data_retriever.h"
+#include "components/webapps/browser/installable/installable_logging.h"
+#include "components/webapps/browser/installable/installable_params.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-forward.h"
 #include "url/gurl.h"
 
@@ -28,30 +31,31 @@ class FakeDataRetriever : public WebAppDataRetriever {
   ~FakeDataRetriever() override;
 
   // WebAppDataRetriever:
-  void GetWebApplicationInfo(content::WebContents* web_contents,
-                             GetWebApplicationInfoCallback callback) override;
+  void GetWebAppInstallInfo(content::WebContents* web_contents,
+                            GetWebAppInstallInfoCallback callback) override;
   void CheckInstallabilityAndRetrieveManifest(
       content::WebContents* web_contents,
       bool bypass_service_worker_check,
-      CheckInstallabilityCallback callback) override;
+      CheckInstallabilityCallback callback,
+      absl::optional<webapps::InstallableParams> params) override;
   void GetIcons(content::WebContents* web_contents,
-                const std::vector<GURL>& icon_urls,
+                base::flat_set<GURL> icon_urls,
                 bool skip_page_favicons,
                 GetIconsCallback callback) override;
 
-  // Set info to respond on |GetWebApplicationInfo|.
-  void SetRendererWebApplicationInfo(
-      std::unique_ptr<WebApplicationInfo> web_app_info);
-  void SetEmptyRendererWebApplicationInfo();
+  // Set info to respond on |GetWebAppInstallInfo|.
+  void SetRendererWebAppInstallInfo(
+      std::unique_ptr<WebAppInstallInfo> web_app_info);
+  void SetEmptyRendererWebAppInstallInfo();
   // Set arguments to respond on |CheckInstallabilityAndRetrieveManifest|.
   void SetManifest(blink::mojom::ManifestPtr manifest,
-                   bool is_installable,
+                   webapps::InstallableStatusCode error_code,
                    GURL manifest_url = GURL());
   // Set icons to respond on |GetIcons|.
   void SetIcons(IconsMap icons_map);
   using GetIconsDelegate =
       base::RepeatingCallback<IconsMap(content::WebContents* web_contents,
-                                       const std::vector<GURL>& icon_urls,
+                                       const base::flat_set<GURL>& icon_urls,
                                        bool skip_page_favicons)>;
   void SetGetIconsDelegate(GetIconsDelegate get_icons_delegate);
 
@@ -63,7 +67,7 @@ class FakeDataRetriever : public WebAppDataRetriever {
 
   void SetDestructionCallback(base::OnceClosure callback);
 
-  WebApplicationInfo& web_app_info() { return *web_app_info_; }
+  WebAppInstallInfo& web_app_info() { return *web_app_info_; }
 
   // Builds minimal data for install to succeed. Data includes: empty renderer
   // info, manifest with |url| and |scope|, installability checked as |true|,
@@ -75,11 +79,12 @@ class FakeDataRetriever : public WebAppDataRetriever {
   void CallCompletionCallback();
 
   base::OnceClosure completion_callback_;
-  std::unique_ptr<WebApplicationInfo> web_app_info_;
+  std::unique_ptr<WebAppInstallInfo> web_app_info_;
 
   blink::mojom::ManifestPtr manifest_;
   GURL manifest_url_;
-  bool is_installable_ = false;
+  webapps::InstallableStatusCode error_code_ =
+      webapps::InstallableStatusCode::NO_MANIFEST;
 
   IconsMap icons_map_;
   GetIconsDelegate get_icons_delegate_;

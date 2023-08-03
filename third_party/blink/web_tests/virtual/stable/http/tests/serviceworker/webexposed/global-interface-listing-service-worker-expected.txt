@@ -10,11 +10,13 @@ interface AbortPaymentEvent : ExtendableEvent
     method respondWith
 interface AbortSignal : EventTarget
     static method abort
+    static method timeout
     attribute @@toStringTag
     getter aborted
     getter onabort
     getter reason
     method constructor
+    method throwIfAborted
     setter onabort
 interface BackgroundFetchEvent : ExtendableEvent
     attribute @@toStringTag
@@ -105,10 +107,6 @@ interface CacheStorage
     method open
 interface CanMakePaymentEvent : ExtendableEvent
     attribute @@toStringTag
-    getter methodData
-    getter modifiers
-    getter paymentRequestOrigin
-    getter topOrigin
     method constructor
     method respondWith
 interface CanvasGradient
@@ -162,6 +160,9 @@ interface CountQueuingStrategy
     attribute @@toStringTag
     getter highWaterMark
     getter size
+    method constructor
+interface CropTarget
+    attribute @@toStringTag
     method constructor
 interface Crypto
     attribute @@toStringTag
@@ -406,7 +407,6 @@ interface Event
     getter currentTarget
     getter defaultPrevented
     getter eventPhase
-    getter path
     getter returnValue
     getter srcElement
     getter target
@@ -524,6 +524,7 @@ interface FileSystemFileHandle : FileSystemHandle
     method constructor
     method createWritable
     method getFile
+    method move
 interface FileSystemHandle
     attribute @@toStringTag
     getter kind
@@ -531,6 +532,7 @@ interface FileSystemHandle
     method constructor
     method isSameEntry
     method queryPermission
+    method remove
     method requestPermission
 interface FileSystemWritableFileStream : WritableStream
     attribute @@toStringTag
@@ -591,6 +593,7 @@ interface Headers
     method entries
     method forEach
     method get
+    method getSetCookie
     method has
     method keys
     method set
@@ -766,6 +769,7 @@ interface MediaCapabilities
     attribute @@toStringTag
     method constructor
     method decodingInfo
+    method encodingInfo
 interface MessageChannel
     attribute @@toStringTag
     getter port1
@@ -852,12 +856,16 @@ interface NotificationEvent : ExtendableEvent
 interface OffscreenCanvas : EventTarget
     attribute @@toStringTag
     getter height
+    getter oncontextlost
+    getter oncontextrestored
     getter width
     method constructor
     method convertToBlob
     method getContext
     method transferToImageBitmap
     setter height
+    setter oncontextlost
+    setter oncontextrestored
     setter width
 interface OffscreenCanvasRenderingContext2D
     attribute @@toStringTag
@@ -866,10 +874,14 @@ interface OffscreenCanvasRenderingContext2D
     getter fillStyle
     getter filter
     getter font
+    getter fontKerning
+    getter fontStretch
+    getter fontVariantCaps
     getter globalAlpha
     getter globalCompositeOperation
     getter imageSmoothingEnabled
     getter imageSmoothingQuality
+    getter letterSpacing
     getter lineCap
     getter lineDashOffset
     getter lineJoin
@@ -882,6 +894,8 @@ interface OffscreenCanvasRenderingContext2D
     getter strokeStyle
     getter textAlign
     getter textBaseline
+    getter textRendering
+    getter wordSpacing
     method arc
     method arcTo
     method beginPath
@@ -890,6 +904,7 @@ interface OffscreenCanvasRenderingContext2D
     method clip
     method closePath
     method constructor
+    method createConicGradient
     method createImageData
     method createLinearGradient
     method createPattern
@@ -902,6 +917,7 @@ interface OffscreenCanvasRenderingContext2D
     method getImageData
     method getLineDash
     method getTransform
+    method isContextLost
     method isPointInPath
     method isPointInStroke
     method lineTo
@@ -910,9 +926,11 @@ interface OffscreenCanvasRenderingContext2D
     method putImageData
     method quadraticCurveTo
     method rect
+    method reset
     method resetTransform
     method restore
     method rotate
+    method roundRect
     method save
     method scale
     method setLineDash
@@ -926,10 +944,14 @@ interface OffscreenCanvasRenderingContext2D
     setter fillStyle
     setter filter
     setter font
+    setter fontKerning
+    setter fontStretch
+    setter fontVariantCaps
     setter globalAlpha
     setter globalCompositeOperation
     setter imageSmoothingEnabled
     setter imageSmoothingQuality
+    setter letterSpacing
     setter lineCap
     setter lineDashOffset
     setter lineJoin
@@ -942,6 +964,8 @@ interface OffscreenCanvasRenderingContext2D
     setter strokeStyle
     setter textAlign
     setter textBaseline
+    setter textRendering
+    setter wordSpacing
 interface Path2D
     attribute @@toStringTag
     method addPath
@@ -955,15 +979,7 @@ interface Path2D
     method moveTo
     method quadraticCurveTo
     method rect
-interface PaymentInstruments
-    attribute @@toStringTag
-    method clear
-    method constructor
-    method delete
-    method get
-    method has
-    method keys
-    method set
+    method roundRect
 interface PaymentRequestEvent : ExtendableEvent
     attribute @@toStringTag
     getter instrumentKey
@@ -1040,9 +1056,11 @@ interface PerformanceResourceTiming : PerformanceEntry
     getter nextHopProtocol
     getter redirectEnd
     getter redirectStart
+    getter renderBlockingStatus
     getter requestStart
     getter responseEnd
     getter responseStart
+    getter responseStatus
     getter secureConnectionStart
     getter serverTiming
     getter transferSize
@@ -1166,6 +1184,7 @@ interface ReportingObserver
     method takeRecords
 interface Request
     attribute @@toStringTag
+    getter body
     getter bodyUsed
     getter cache
     getter credentials
@@ -1348,6 +1367,13 @@ interface TransformStream
     getter readable
     getter writable
     method constructor
+interface TransformStreamDefaultController
+    attribute @@toStringTag
+    getter desiredSize
+    method constructor
+    method enqueue
+    method error
+    method terminate
 interface TrustedHTML
     attribute @@toStringTag
     method constructor
@@ -1425,6 +1451,7 @@ interface URLPattern
     method test
 interface URLSearchParams
     attribute @@toStringTag
+    getter size
     method @@iterator
     method append
     method constructor
@@ -2006,8 +2033,10 @@ interface WebGL2RenderingContext
     attribute WAIT_FAILED
     attribute ZERO
     getter canvas
+    getter drawingBufferColorSpace
     getter drawingBufferHeight
     getter drawingBufferWidth
+    getter unpackColorSpace
     method activeTexture
     method attachShader
     method beginQuery
@@ -2234,6 +2263,8 @@ interface WebGL2RenderingContext
     method vertexAttribPointer
     method viewport
     method waitSync
+    setter drawingBufferColorSpace
+    setter unpackColorSpace
 interface WebGLActiveInfo
     attribute @@toStringTag
     getter name
@@ -2242,6 +2273,10 @@ interface WebGLActiveInfo
     method constructor
 interface WebGLBuffer
     attribute @@toStringTag
+    method constructor
+interface WebGLContextEvent : Event
+    attribute @@toStringTag
+    getter statusMessage
     method constructor
 interface WebGLFramebuffer
     attribute @@toStringTag
@@ -2554,8 +2589,10 @@ interface WebGLRenderingContext
     attribute VIEWPORT
     attribute ZERO
     getter canvas
+    getter drawingBufferColorSpace
     getter drawingBufferHeight
     getter drawingBufferWidth
+    getter unpackColorSpace
     method activeTexture
     method attachShader
     method bindAttribLocation
@@ -2694,6 +2731,8 @@ interface WebGLRenderingContext
     method vertexAttrib4fv
     method vertexAttribPointer
     method viewport
+    setter drawingBufferColorSpace
+    setter unpackColorSpace
 interface WebGLSampler
     attribute @@toStringTag
     method constructor
@@ -2884,8 +2923,33 @@ interface WritableStreamDefaultWriter
     method releaseLock
     method write
 [NAMESPACES]
+namespace console
+    attribute @@toStringTag
+    method assert
+    method clear
+    method context
+    method count
+    method countReset
+    method createTask
+    method debug
+    method dir
+    method dirxml
+    method error
+    method group
+    method groupCollapsed
+    method groupEnd
+    method info
+    method log
+    method profile
+    method profileEnd
+    method table
+    method time
+    method timeEnd
+    method timeLog
+    method timeStamp
+    method trace
+    method warn
 [GLOBAL OBJECT]
-    attribute console
     attribute globalThis
     attribute internals
     getter clients

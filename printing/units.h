@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,18 @@
 #define PRINTING_UNITS_H_
 
 #include "base/component_export.h"
+#include "build/build_config.h"
 
 namespace printing {
 
 // Length of an inch in 0.001mm unit.
 constexpr int kMicronsPerInch = 25400;
+
+// A micron is a thousandth of a mm.
+constexpr int kMicronsPerMm = 1000;
+
+// Length of a PWG unit in 0.001mm unit.
+constexpr int kMicronsPerPwgUnit = kMicronsPerMm / 100;
 
 // Mil is a thousandth of an inch.
 constexpr float kMicronsPerMil = 25.4f;
@@ -23,6 +30,10 @@ constexpr int kPointsPerInch = 72;
 // Length of an inch in CSS's 1px unit.
 // http://dev.w3.org/csswg/css3-values/#the-px-unit
 constexpr int kPixelsPerInch = 96;
+
+#if BUILDFLAG(IS_MAC)
+constexpr int kDefaultMacDpi = 72;
+#endif  // BUILDFLAG(IS_MAC)
 
 // Dpi used to save to PDF or Cloud Print.
 constexpr int kDefaultPdfDpi = 300;
@@ -45,22 +56,11 @@ constexpr float kA3HeightInch = 16.54f;
 
 // Converts from one unit system to another using integer arithmetics.
 COMPONENT_EXPORT(PRINTING_BASE)
-int ConvertUnit(double value, int old_unit, int new_unit);
+int ConvertUnit(float value, int old_unit, int new_unit);
 
-// Converts from one unit system to another using doubles.
+// Converts from one unit system to another using floats.
 COMPONENT_EXPORT(PRINTING_BASE)
-double ConvertUnitDouble(double value, double old_unit, double new_unit);
-
-// Converts from 1 pixel to 1 point using integers.
-COMPONENT_EXPORT(PRINTING_BASE) int ConvertPixelsToPoint(int pixels);
-
-// Converts from 1 pixel to 1 point using doubles.
-COMPONENT_EXPORT(PRINTING_BASE)
-double ConvertPixelsToPointDouble(double pixels);
-
-// Converts from 1 point to 1 pixel using doubles.
-COMPONENT_EXPORT(PRINTING_BASE)
-double ConvertPointsToPixelDouble(double points);
+float ConvertUnitFloat(float value, float old_unit, float new_unit);
 
 }  // namespace printing
 

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,8 +14,8 @@ import static org.chromium.base.CollectionUtil.newHashSet;
 import static org.chromium.net.CronetTestRule.getContext;
 
 import android.os.ConditionVariable;
-import android.support.test.runner.AndroidJUnit4;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import org.junit.After;
@@ -24,12 +24,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
 import org.chromium.net.MetricsTestUtil.TestExecutor;
-import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 import org.chromium.net.impl.CronetMetrics;
 import org.chromium.net.test.EmbeddedTestServer;
 
@@ -119,7 +117,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     @SuppressWarnings("deprecation")
     public void testRequestFinishedListener() throws Exception {
         TestRequestFinishedListener requestFinishedListener = new TestRequestFinishedListener();
@@ -148,7 +145,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     @SuppressWarnings("deprecation")
     public void testRequestFinishedListenerDirectExecutor() throws Exception {
         DirectExecutor testExecutor = new DirectExecutor();
@@ -181,7 +177,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     @SuppressWarnings("deprecation")
     public void testRequestFinishedListenerDifferentThreads() throws Exception {
         TestRequestFinishedListener firstListener = new TestRequestFinishedListener();
@@ -224,7 +219,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     @SuppressWarnings("deprecation")
     public void testRequestFinishedListenerFailedRequest() throws Exception {
         String connectionRefusedUrl = "http://127.0.0.1:3";
@@ -271,7 +265,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     @SuppressWarnings("deprecation")
     public void testRequestFinishedListenerRemoved() throws Exception {
         TestExecutor testExecutor = new TestExecutor();
@@ -294,7 +287,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     public void testRequestFinishedListenerCanceledRequest() throws Exception {
         TestRequestFinishedListener requestFinishedListener = new TestRequestFinishedListener();
         mTestFramework.mCronetEngine.addRequestFinishedListener(requestFinishedListener);
@@ -338,7 +330,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     public void testExceptionInRequestStart() throws Exception {
         // The listener in this test shouldn't get any tasks.
         Executor executor = new RejectAllTasksExecutor();
@@ -361,7 +352,6 @@ public class RequestFinishedInfoTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testMetricsGetters() throws Exception {
         long requestStart = 1;
         long dnsStart = 2;
@@ -403,7 +393,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     @SuppressWarnings("deprecation")
     public void testOrderSuccessfulRequest() throws Exception {
         final TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -433,7 +422,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     @RequiresMinApi(11)
     public void testUpdateAnnotationOnSucceeded() throws Exception {
         // The annotation that is updated in onSucceeded() callback.
@@ -471,7 +459,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     // Tests a failed request where the error originates from Java.
     public void testOrderFailedRequestJava() throws Exception {
         final TestUrlRequestCallback callback = new TestUrlRequestCallback() {
@@ -504,7 +491,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     // Tests a failed request where the error originates from native code.
     public void testOrderFailedRequestNative() throws Exception {
         String connectionRefusedUrl = "http://127.0.0.1:3";
@@ -533,7 +519,6 @@ public class RequestFinishedInfoTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     public void testOrderCanceledRequest() throws Exception {
         final TestUrlRequestCallback callback = new TestUrlRequestCallback() {
             @Override

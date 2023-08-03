@@ -37,8 +37,7 @@
 #include "third_party/blink/renderer/core/html/html_summary_element.h"
 #include "third_party/blink/renderer/core/html/shadow/shadow_element_names.h"
 #include "third_party/blink/renderer/core/html_names.h"
-#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
-#include "third_party/blink/renderer/core/layout/layout_object_factory.h"
+#include "third_party/blink/renderer/core/layout/ng/layout_ng_block_flow.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
@@ -77,16 +76,19 @@ void HTMLDetailsElement::DispatchPendingEvent(
     GetDocument().SetToggleDuringParsing(false);
 }
 
-LayoutObject* HTMLDetailsElement::CreateLayoutObject(const ComputedStyle& style,
-                                                     LegacyLayout legacy) {
-  return LayoutObjectFactory::CreateBlockFlow(*this, style, legacy);
+LayoutObject* HTMLDetailsElement::CreateLayoutObject(
+    const ComputedStyle& style) {
+  return LayoutObject::CreateBlockFlowOrListItem(this, style);
 }
 
-// Creates shadow DOM
-// <SLOT id="details-summary">
-//   <SUMMARY>#text "Details"</SUMMARY>
-// <SLOT id="details-content" style="display: none;">
-// <STYLE>...
+// Creates shadow DOM:
+// #shadowroot
+//   <SLOT id="details-summary">
+//     <SUMMARY>Details</SUMMARY>
+//   </SLOT>
+//   <SLOT id="details-content"
+//         style="content-visibility: hidden; display:block;"></SLOT>
+//   <STYLE>...
 void HTMLDetailsElement::DidAddUserAgentShadowRoot(ShadowRoot& root) {
   auto* default_summary =
       MakeGarbageCollected<HTMLSummaryElement>(GetDocument());
@@ -101,16 +103,11 @@ void HTMLDetailsElement::DidAddUserAgentShadowRoot(ShadowRoot& root) {
 
   content_slot_ = MakeGarbageCollected<HTMLSlotElement>(GetDocument());
   content_slot_->SetIdAttribute(shadow_element_names::kIdDetailsContent);
-  if (RuntimeEnabledFeatures::AutoExpandDetailsElementEnabled()) {
-    content_slot_->SetInlineStyleProperty(CSSPropertyID::kContentVisibility,
-                                          CSSValueID::kHidden);
-    content_slot_->EnsureDisplayLockContext().SetIsDetailsSlotElement(true);
-    content_slot_->SetInlineStyleProperty(CSSPropertyID::kDisplay,
-                                          CSSValueID::kBlock);
-  } else {
-    content_slot_->SetInlineStyleProperty(CSSPropertyID::kDisplay,
-                                          CSSValueID::kNone);
-  }
+  content_slot_->SetInlineStyleProperty(CSSPropertyID::kContentVisibility,
+                                        CSSValueID::kHidden);
+  content_slot_->EnsureDisplayLockContext().SetIsDetailsSlotElement(true);
+  content_slot_->SetInlineStyleProperty(CSSPropertyID::kDisplay,
+                                        CSSValueID::kBlock);
   root.AppendChild(content_slot_);
 
   auto* default_summary_style = MakeGarbageCollected<HTMLStyleElement>(
@@ -176,31 +173,22 @@ void HTMLDetailsElement::ParseAttribute(
     // Dispatch toggle event asynchronously.
     pending_event_ = PostCancellableTask(
         *GetDocument().GetTaskRunner(TaskType::kDOMManipulation), FROM_HERE,
-        WTF::Bind(&HTMLDetailsElement::DispatchPendingEvent,
-                  WrapPersistent(this), params.reason));
+        WTF::BindOnce(&HTMLDetailsElement::DispatchPendingEvent,
+                      WrapPersistent(this), params.reason));
 
     Element* content = EnsureUserAgentShadowRoot().getElementById(
         shadow_element_names::kIdDetailsContent);
     DCHECK(content);
 
-    if (RuntimeEnabledFeatures::AutoExpandDetailsElementEnabled()) {
-      if (is_open_) {
-        content->RemoveInlineStyleProperty(CSSPropertyID::kContentVisibility);
-        content->RemoveInlineStyleProperty(CSSPropertyID::kDisplay);
-      } else {
-        content->SetInlineStyleProperty(CSSPropertyID::kDisplay,
-                                        CSSValueID::kBlock);
-        content->SetInlineStyleProperty(CSSPropertyID::kContentVisibility,
-                                        CSSValueID::kHidden);
-        content->EnsureDisplayLockContext().SetIsDetailsSlotElement(true);
-      }
+    if (is_open_) {
+      content->RemoveInlineStyleProperty(CSSPropertyID::kContentVisibility);
+      content->RemoveInlineStyleProperty(CSSPropertyID::kDisplay);
     } else {
-      if (is_open_) {
-        content->RemoveInlineStyleProperty(CSSPropertyID::kDisplay);
-      } else {
-        content->SetInlineStyleProperty(CSSPropertyID::kDisplay,
-                                        CSSValueID::kNone);
-      }
+      content->SetInlineStyleProperty(CSSPropertyID::kDisplay,
+                                      CSSValueID::kBlock);
+      content->SetInlineStyleProperty(CSSPropertyID::kContentVisibility,
+                                      CSSValueID::kHidden);
+      content->EnsureDisplayLockContext().SetIsDetailsSlotElement(true);
     }
 
     return;

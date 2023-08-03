@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "base/logging.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
 #include "ui/ozone/platform/wayland/host/wayland_pointer.h"
+#include "ui/ozone/platform/wayland/host/wayland_seat.h"
 #include "ui/ozone/platform/wayland/host/wayland_surface.h"
 #include "ui/ozone/platform/wayland/host/wayland_zwp_relative_pointer_manager.h"
 
@@ -27,9 +28,10 @@ void WaylandZwpPointerConstraints::Instantiate(WaylandConnection* connection,
                                                uint32_t name,
                                                const std::string& interface,
                                                uint32_t version) {
-  DCHECK_EQ(interface, kInterfaceName);
+  CHECK_EQ(interface, kInterfaceName) << "Expected \"" << kInterfaceName
+                                      << "\" but got \"" << interface << "\"";
 
-  if (connection->wayland_zwp_pointer_constraints_ ||
+  if (connection->zwp_pointer_constraints_ ||
       !wl::CanBind(interface, version, kMinVersion, kMinVersion)) {
     return;
   }
@@ -40,7 +42,7 @@ void WaylandZwpPointerConstraints::Instantiate(WaylandConnection* connection,
     LOG(ERROR) << "Failed to bind wp_pointer_constraints_v1";
     return;
   }
-  connection->wayland_zwp_pointer_constraints_ =
+  connection->zwp_pointer_constraints_ =
       std::make_unique<WaylandZwpPointerConstraints>(
           zwp_pointer_constraints_v1.release(), connection);
 }
@@ -57,8 +59,9 @@ WaylandZwpPointerConstraints::~WaylandZwpPointerConstraints() = default;
 
 void WaylandZwpPointerConstraints::LockPointer(WaylandSurface* surface) {
   locked_pointer_.reset(zwp_pointer_constraints_v1_lock_pointer(
-      obj_.get(), surface->surface(), connection_->pointer()->wl_object(),
-      nullptr, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT));
+      obj_.get(), surface->surface(),
+      connection_->seat()->pointer()->wl_object(), nullptr,
+      ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT));
 
   static constexpr zwp_locked_pointer_v1_listener
       zwp_locked_pointer_v1_listener = {
@@ -71,7 +74,7 @@ void WaylandZwpPointerConstraints::LockPointer(WaylandSurface* surface) {
 
 void WaylandZwpPointerConstraints::UnlockPointer() {
   locked_pointer_.reset();
-  connection_->wayland_zwp_relative_pointer_manager()->DisableRelativePointer();
+  connection_->zwp_relative_pointer_manager()->DisableRelativePointer();
 }
 
 // static
@@ -79,7 +82,7 @@ void WaylandZwpPointerConstraints::OnLock(
     void* data,
     struct zwp_locked_pointer_v1* zwp_locked_pointer_v1) {
   auto* pointer_constraints = static_cast<WaylandZwpPointerConstraints*>(data);
-  pointer_constraints->connection_->wayland_zwp_relative_pointer_manager()
+  pointer_constraints->connection_->zwp_relative_pointer_manager()
       ->EnableRelativePointer();
 }
 

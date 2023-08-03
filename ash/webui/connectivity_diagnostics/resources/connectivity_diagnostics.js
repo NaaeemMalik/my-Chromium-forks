@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_components/chromeos/network_health/network_diagnostics.m.js';
-import 'gtx://resources/cr_components/chromeos/network_health/network_health_summary.m.js';
-import 'gtx://resources/cr_elements/shared_style_css.m.js';
+import 'gtx://resources/ash/common/network_health/network_diagnostics.js';
+import 'gtx://resources/ash/common/network_health/network_health_summary.js';
+import 'gtx://resources/cr_elements/cr_shared_style.css.js';
 import './strings.m.js';
 
-import {CrContainerShadowBehavior} from 'gtx://resources/cr_elements/cr_container_shadow_behavior.m.js';
-import {sendWithPromise} from 'gtx://resources/js/cr.m.js';
-import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
+import {sendWithPromise} from 'gtx://resources/ash/common/cr.m.js';
+import {CrContainerShadowBehavior} from 'gtx://resources/ash/common/cr_container_shadow_behavior.js';
+import {I18nBehavior} from 'gtx://resources/ash/common/i18n_behavior.js';
 import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /**
@@ -76,5 +76,5 @@ Polymer({
     sendWithPromise('getShowFeedbackButton').then(result => {
       this.set('showFeedbackBtn_', result[0]);
     });
-  }
+  },
 });

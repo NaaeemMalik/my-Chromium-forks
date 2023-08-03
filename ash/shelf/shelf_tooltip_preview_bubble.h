@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "ash/shelf/shelf_tooltip_manager.h"
 #include "ash/shelf/window_preview.h"
 #include "ash/wm/window_mirror_view.h"
+#include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
 #include "ui/aura/window.h"
 #include "ui/views/controls/label.h"
@@ -26,8 +27,7 @@ class ASH_EXPORT ShelfTooltipPreviewBubble : public ShelfBubble,
   ShelfTooltipPreviewBubble(views::View* anchor,
                             const std::vector<aura::Window*>& windows,
                             ShelfTooltipManager* manager,
-                            ShelfAlignment alignment,
-                            SkColor background_color);
+                            ShelfAlignment alignment);
 
   ShelfTooltipPreviewBubble(const ShelfTooltipPreviewBubble&) = delete;
   ShelfTooltipPreviewBubble& operator=(const ShelfTooltipPreviewBubble&) =
@@ -56,7 +56,7 @@ class ASH_EXPORT ShelfTooltipPreviewBubble : public ShelfBubble,
 
   std::vector<WindowPreview*> previews_;
 
-  ShelfTooltipManager* manager_;
+  raw_ptr<ShelfTooltipManager, ExperimentalAsh> manager_;
   base::OneShotTimer dismiss_timer_;
 };
 

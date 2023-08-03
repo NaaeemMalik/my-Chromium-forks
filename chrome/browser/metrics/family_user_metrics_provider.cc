@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,10 +52,9 @@ Profile* GetPrimaryUserProfile() {
       user_manager::UserManager::Get()->GetPrimaryUser();
   DCHECK(primary_user);
   DCHECK(primary_user->is_profile_created());
-  Profile* profile =
-      chromeos::ProfileHelper::Get()->GetProfileByUser(primary_user);
+  Profile* profile = ash::ProfileHelper::Get()->GetProfileByUser(primary_user);
   DCHECK(profile);
-  DCHECK(chromeos::ProfileHelper::IsRegularProfile(profile));
+  DCHECK(ash::ProfileHelper::IsUserProfile(profile));
   return profile;
 }
 
@@ -98,17 +97,19 @@ FamilyUserMetricsProvider::~FamilyUserMetricsProvider() {
 
 // This function is called at unpredictable intervals throughout the entire
 // ChromeOS session, so guarantee it will never crash.
-void FamilyUserMetricsProvider::ProvideCurrentSessionData(
-    metrics::ChromeUserMetricsExtension* uma_proto_unused) {
-  if (family_user_log_segment_) {
-    base::UmaHistogramEnumeration(kFamilyUserLogSegmentHistogramName,
-                                  family_user_log_segment_.value());
-  }
+bool FamilyUserMetricsProvider::ProvideHistograms() {
+  if (!family_user_log_segment_)
+    return false;
+
+  base::UmaHistogramEnumeration(kFamilyUserLogSegmentHistogramName,
+                                family_user_log_segment_.value());
 
   if (num_secondary_accounts_ >= 0) {
     base::UmaHistogramCounts100(kNumSecondaryAccountsHistogramName,
                                 num_secondary_accounts_);
   }
+
+  return true;
 }
 
 void FamilyUserMetricsProvider::OnUserSessionStarted(bool is_primary_user) {

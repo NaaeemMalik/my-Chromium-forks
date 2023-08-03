@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 
 #include "base/logging.h"
 #include "base/task/sequence_manager/sequence_manager.h"
-#include "base/task/simple_task_executor.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/tick_clock.h"
 #include "third_party/blink/public/platform/task_type.h"
@@ -36,8 +36,12 @@ class PLATFORM_EXPORT SchedulerHelper
   SchedulerHelper& operator=(const SchedulerHelper&) = delete;
   ~SchedulerHelper() override;
 
+  // Must be called before invoking AttachToCurrentThread().
+  void InitDefaultTaskRunner(
+      scoped_refptr<base::SingleThreadTaskRunner> task_runner);
+
   // Must be invoked before running any task from the scheduler, on the thread
-  // that will run these tasks. Setups the ThreadChecker and the TaskExecutor.
+  // that will run these tasks. Setups the ThreadChecker.
   void AttachToCurrentThread();
 
   // SequenceManager::Observer implementation:
@@ -49,8 +53,9 @@ class PLATFORM_EXPORT SchedulerHelper
   void SetTimerSlack(base::TimerSlack timer_slack);
 
   // Returns the task runner for the default task queue.
-  virtual const scoped_refptr<base::SingleThreadTaskRunner>&
-  DefaultTaskRunner() = 0;
+  const scoped_refptr<base::SingleThreadTaskRunner>& DefaultTaskRunner() {
+    return default_task_runner_;
+  }
 
   // Returns the task runner for the control task queue.  Tasks posted to this
   // queue are executed with the highest priority. Care must be taken to avoid
@@ -111,6 +116,10 @@ class PLATFORM_EXPORT SchedulerHelper
   bool ShouldRecordTaskUkm(bool task_has_thread_time) {
     return ukm_task_sampler_.ShouldRecordTaskUkm(task_has_thread_time);
   }
+  bool IsInNestedRunloop() const {
+    CheckOnValidThread();
+    return nested_runloop_depth_ > 0;
+  }
 
   // Test helpers.
   void SetWorkBatchSizeForTesting(int work_batch_size);
@@ -119,16 +128,7 @@ class PLATFORM_EXPORT SchedulerHelper
   }
 
  protected:
-  void InitDefaultQueues(
-      scoped_refptr<base::sequence_manager::TaskQueue> default_task_queue,
-      scoped_refptr<base::sequence_manager::TaskQueue> control_task_queue,
-      TaskType default_task_type);
-
   virtual void ShutdownAllQueues() {}
-
-  const scoped_refptr<base::SingleThreadTaskRunner>& default_task_runner() {
-    return default_task_runner_;
-  }
 
   THREAD_CHECKER(thread_checker_);
   base::sequence_manager::SequenceManager* sequence_manager_;  // NOT OWNED
@@ -141,7 +141,8 @@ class PLATFORM_EXPORT SchedulerHelper
   Observer* observer_;  // NOT OWNED
 
   UkmTaskSampler ukm_task_sampler_;
-  absl::optional<base::SimpleTaskExecutor> simple_task_executor_;
+  // Depth of nested_runloop.
+  int nested_runloop_depth_ = 0;
 };
 
 }  // namespace scheduler

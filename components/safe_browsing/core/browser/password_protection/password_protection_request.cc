@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,13 @@
 
 #include <cstddef>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/strings/escape.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
+#include "build/build_config.h"
 #include "components/safe_browsing/core/browser/db/allowlist_checker_client.h"
 #include "components/safe_browsing/core/browser/db/database_manager.h"
 #include "components/safe_browsing/core/browser/password_protection/password_protection_service_base.h"
@@ -17,7 +20,6 @@
 #include "components/safe_browsing/core/common/safebrowsing_constants.h"
 #include "components/safe_browsing/core/common/utils.h"
 #include "components/url_formatter/url_formatter.h"
-#include "net/base/escape.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_status_code.h"
@@ -54,7 +56,7 @@ std::vector<std::string> GetMatchingDomains(
             url_formatter::kFormatUrlOmitHTTPS |
             url_formatter::kFormatUrlOmitTrivialSubdomains |
             url_formatter::kFormatUrlTrimAfterHost,
-        net::UnescapeRule::SPACES, nullptr, nullptr, nullptr));
+        base::UnescapeRule::SPACES, nullptr, nullptr, nullptr));
     matching_domains.push_back(std::move(domain));
   }
   return base::flat_set<std::string>(std::move(matching_domains)).extract();
@@ -110,17 +112,6 @@ PasswordProtectionRequest::~PasswordProtectionRequest() = default;
 
 void PasswordProtectionRequest::Start() {
   DCHECK(ui_task_runner()->RunsTasksInCurrentSequence());
-  if (trigger_type_ == LoginReputationClientRequest::UNFAMILIAR_LOGIN_PAGE) {
-    base::UmaHistogramExactLinear(
-        "PasswordProtection.OnFocus.UserPopulationStart",
-        password_protection_service_->GetUserPopulationPref(),
-        ChromeUserPopulation::UserPopulation_MAX + 1);
-  } else {
-    base::UmaHistogramExactLinear(
-        "PasswordProtection.PasswordEntry.UserPopulationStart",
-        password_protection_service_->GetUserPopulationPref(),
-        ChromeUserPopulation::UserPopulation_MAX + 1);
-  }
   CheckAllowlist();
 }
 
@@ -139,16 +130,20 @@ void PasswordProtectionRequest::CheckAllowlist() {
   // callback immediately on the IO thread or take some time if a full-hash-
   // check is required.
   auto result_callback =
-      base::BindOnce(&OnAllowlistCheckDoneOnIO, ui_task_runner(), AsWeakPtr());
+      base::BindOnce(&OnAllowlistCheckDoneOnSB, ui_task_runner(), AsWeakPtr());
+  auto task_runner =
+      base::FeatureList::IsEnabled(safe_browsing::kSafeBrowsingOnUIThread)
+          ? ui_task_runner()
+          : io_task_runner_;
   tracker_.PostTask(
-      io_task_runner_.get(), FROM_HERE,
+      task_runner.get(), FROM_HERE,
       base::BindOnce(&AllowlistCheckerClient::StartCheckCsdAllowlist,
                      password_protection_service_->database_manager(),
                      main_frame_url_, std::move(result_callback)));
 }
 
 // static
-void PasswordProtectionRequest::OnAllowlistCheckDoneOnIO(
+void PasswordProtectionRequest::OnAllowlistCheckDoneOnSB(
     scoped_refptr<base::SequencedTaskRunner> ui_task_runner,
     base::WeakPtr<PasswordProtectionRequest> weak_request,
     bool match_allowlist) {
@@ -236,7 +231,7 @@ void PasswordProtectionRequest::FillRequestProto(bool is_sampled_ping) {
       password_protection_service_->UserClickedThroughSBInterstitial(this);
   request_proto_->set_clicked_through_interstitial(
       clicked_through_interstitial);
-  request_proto_->set_content_type(mime_type_);
+  request_proto_->set_content_type(*mime_type_);
 
 #if BUILDFLAG(FULL_SAFE_BROWSING)
   if (password_protection_service_->IsExtendedReporting() &&
@@ -248,9 +243,9 @@ void PasswordProtectionRequest::FillRequestProto(bool is_sampled_ping) {
   }
 #endif  // BUILDFLAG(FULL_SAFE_BROWSING)
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   SetReferringAppInfo();
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
   switch (trigger_type_) {
     case LoginReputationClientRequest::UNFAMILIAR_LOGIN_PAGE: {
@@ -274,7 +269,6 @@ void PasswordProtectionRequest::FillRequestProto(bool is_sampled_ping) {
           request_proto_->mutable_password_reuse_event();
       bool matches_signin_password =
           password_type_ == PasswordType::PRIMARY_ACCOUNT_PASSWORD;
-      reuse_event->set_is_chrome_signin_password(matches_signin_password);
       reuse_event->set_reused_password_type(
           password_protection_service_->GetPasswordProtectionReusedPasswordType(
               password_type_));
@@ -293,15 +287,12 @@ void PasswordProtectionRequest::FillRequestProto(bool is_sampled_ping) {
             break;
         }
       }
-      if (base::FeatureList::IsEnabled(
-              safe_browsing::kPasswordProtectionForSignedInUsers)) {
-        ReusedPasswordAccountType password_account_type_to_add =
-            password_protection_service_
-                ->GetPasswordProtectionReusedPasswordAccountType(password_type_,
-                                                                 username_);
-        *reuse_event->mutable_reused_password_account_type() =
-            password_account_type_to_add;
-      }
+      ReusedPasswordAccountType password_account_type_to_add =
+          password_protection_service_
+              ->GetPasswordProtectionReusedPasswordAccountType(password_type_,
+                                                               username_);
+      *reuse_event->mutable_reused_password_account_type() =
+          password_account_type_to_add;
       break;
     }
     default:
@@ -333,19 +324,6 @@ bool PasswordProtectionRequest::IsVisualFeaturesEnabled() {
 
 void PasswordProtectionRequest::SendRequest() {
   DCHECK(ui_task_runner()->RunsTasksInCurrentSequence());
-
-  if (trigger_type_ == LoginReputationClientRequest::UNFAMILIAR_LOGIN_PAGE) {
-    base::UmaHistogramExactLinear(
-        "PasswordProtection.OnFocus.UserPopulationOnPing",
-        password_protection_service_->GetUserPopulationPref(),
-        ChromeUserPopulation::UserPopulation_MAX + 1);
-  } else {
-    base::UmaHistogramExactLinear(
-        "PasswordProtection.PasswordEntry.UserPopulationOnPing",
-        password_protection_service_->GetUserPopulationPref(),
-        ChromeUserPopulation::UserPopulation_MAX + 1);
-  }
-
   if (password_protection_service_->CanGetAccessToken() &&
       password_protection_service_->token_fetcher()) {
     password_protection_service_->token_fetcher()->Start(

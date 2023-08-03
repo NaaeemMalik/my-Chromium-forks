@@ -1,12 +1,14 @@
-#!/usr/bin/env vpython
-# Copyright 2021 The Chromium Authors. All rights reserved.
+#!/usr/bin/env vpython3
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Unit tests for classes in gtest_utils.py."""
 
+import os
 import unittest
 
 import gtest_utils
+from test_result_util import TestStatus
 
 FAILURES = [
     'NavigationControllerTest.Reload',
@@ -18,6 +20,7 @@ FAILURES = [
 FAILS_FAILURES = ['SomeOtherTest.FAILS_Bar']
 FLAKY_FAILURES = ['SomeOtherTest.FLAKY_Baz']
 
+CRASH_MESSAGE = ['Oops, this test crashed!']
 TIMEOUT_MESSAGE = 'Killed (timed out).'
 
 RELOAD_ERRORS = (r'C:\b\slave\chrome-release-snappy\build\chrome\browser'
@@ -479,16 +482,89 @@ End output from shard index 0 (machine tag: swarm12.c, id: swarm12). Return 1
 ================================================================
 
 """
+
+TEST_DATA_COMPILED_FILE = """
+
+Testing started
+Wrote compiled tests to file: test_data/compiled_tests.json
+
+[----------] 1 tests from test1
+[ RUN      ] test1.test_method1
+[       OK ] test1.test_method1 (5 ms)
+[----------] 1 tests from test1 (5 ms total)
+
+"""
+
+COMPILED_FILE_PATH = 'test_data/compiled_tests.json'
+
+TEST_DATA_LAUNCHER_SPAWN = """
+[03:12:19:INFO] Using 8 parallel jobs.
+[03:12:19:INFO] [1/2] TestFix.TestCase (8 ms)
+[04:20:17:INFO] [ RUN      ] TextPaintTimingDetectorTest.LargestTextPaint
+[04:20:17:INFO] ../../third_party/blink/renderer/core/paint/timing/text_paint_timing_detector_test.cc:361: Failure
+[04:20:17:INFO] Expected equality of these values:
+[04:20:17:INFO]   1u
+[04:20:17:INFO]     Which is: 1
+[04:20:17:INFO]   events.size()
+[04:20:17:INFO]     Which is: 8
+[04:20:17:INFO]
+[04:20:17:INFO] [  FAILED  ] TextPaintTimingDetectorTest.LargestTextPaint (567 ms)
+[04:22:58:INFO] Retrying 1 test (retry #0)
+[04:23:01:INFO] [3/3] TextPaintTimingDetectorTest.LargestTextPaint (138 ms)
+[03:12:19:INFO] SUCCESS: all tests passed.
+[03:12:20:INFO] Tests took 46 seconds.
+
+"""
+
+TEST_DATA_LAUNCHER_SPAWN_CRASH = """
+
+IMPORTANT DEBUGGING NOTE: batches of tests are run inside their
+own process. For debugging a test inside a debugger, use the
+--gtest_filter=<your_test_name> flag along with
+--single-process-tests.
+Using sharding settings from environment. This is shard 0/1
+Using 1 parallel jobs.
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from LoggingTest
+[ RUN      ] LoggingTest.FailedTest
+../../base/logging_unittest.cc:143: Failure
+Value of: (::logging::ShouldCreateLogMessage(::logging::LOGGING_INFO))
+  Actual: true
+Expected: false
+Stack trace:
+#0 0x560c1971de44 logging::(anonymous namespace)::LoggingTest_LogIsOn_Test::TestBody()
+
+[  FAILED  ] LoggingTest.FailedTest (1 ms)
+[ RUN      ] LoggingTest.StreamingWstringFindsCorrectOperator
+[       OK ] LoggingTest.StreamingWstringFindsCorrectOperator (0 ms)
+[ RUN      ] LoggingTest.CrashedTest
+[1309853:1309853:FATAL:logging_unittest.cc(145)] Check failed: false.
+#0 0x7f151e295152 base::debug::CollectStackTrace()
+
+[1/3] LoggingTest.FailedTest (1 ms)
+[2/3] LoggingTest.StreamingWstringFindsCorrectOperator (1 ms)
+[3/3] LoggingTest.CrashedTest (CRASHED)
+1 test failed:
+    LoggingTest.FailedTest (../../base/logging_unittest.cc:141)
+1 test crashed:
+    LoggingTest.CrashedTest (../../base/logging_unittest.cc:141)
+Tests took 0 seconds.
+
+"""
+
+TEST_REPO = 'https://test'
 # pylint: enable=line-too-long
 
 
 class TestGTestLogParserTests(unittest.TestCase):
 
-  def testGTestLogParserNoSharing(self):
+  def testGTestLogParserNoSharding(self):
     # Tests for log parsing without sharding.
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual(0, len(parser.ParsingErrors()))
     self.assertFalse(parser.RunningTests())
@@ -536,9 +612,68 @@ class TestGTestLogParserTests(unittest.TestCase):
 
     self.assertEqual(['SUCCESS'], parser.TriesForTest('SomeOtherTest.Foo'))
 
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(
+        sorted(FAILURES + FAILS_FAILURES + FLAKY_FAILURES),
+        sorted(collection.never_expected_tests()))
+
+    self.assertEqual(len(collection.test_results), 12)
+
+    # To know that each condition branch in for loop is covered.
+    cover_set = set()
+    for test_result in collection.test_results:
+      name = test_result.name
+      if name == 'NavigationControllerTest.Reload':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([RELOAD_ERRORS]), test_result.test_log)
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual(2, test_result.duration)
+
+      if name == 'NavigationControllerTest/SpdyNetworkTransTest.Constructor/0':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([SPDY_ERRORS]), test_result.test_log)
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual(2, test_result.duration)
+
+      if name == 'SomeOtherTest.SwitchTypes':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([SWITCH_ERRORS]), test_result.test_log)
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual(40, test_result.duration)
+
+      if name == 'BadTest.TimesOut':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([TIMEOUT_ERRORS, TIMEOUT_MESSAGE]),
+                         test_result.test_log)
+        self.assertEqual(TestStatus.ABORT, test_result.status)
+        self.assertEqual(None, test_result.duration)
+
+      if name == 'MoreBadTest.TimesOutAndFails':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([MOREBAD_ERRORS, TIMEOUT_MESSAGE]),
+                         test_result.test_log)
+        self.assertEqual(TestStatus.ABORT, test_result.status)
+        self.assertEqual(None, test_result.duration)
+
+      if name == 'SomeOtherTest.Foo':
+        cover_set.add(name)
+        self.assertEqual('', test_result.test_log)
+        self.assertEqual(TestStatus.PASS, test_result.status)
+        self.assertEqual(20, test_result.duration)
+
+    test_list = [
+        'BadTest.TimesOut', 'MoreBadTest.TimesOutAndFails',
+        'NavigationControllerTest.Reload',
+        'NavigationControllerTest/SpdyNetworkTransTest.Constructor/0',
+        'SomeOtherTest.Foo', 'SomeOtherTest.SwitchTypes'
+    ]
+    self.assertEqual(sorted(test_list), sorted(cover_set))
+
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_CRASH.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual(0, len(parser.ParsingErrors()))
     self.assertTrue(parser.RunningTests())
@@ -547,17 +682,33 @@ class TestGTestLogParserTests(unittest.TestCase):
     self.assertEqual(0, parser.FlakyTests())
 
     test_name = 'HunspellTest.Crashes'
-    self.assertEqual('\n'.join(['%s: ' % test_name, 'Did not complete.']),
+    expected_log_lines = [
+        'Did not complete.',
+        'Potential test logs from crash until the end of test program:'
+    ] + CRASH_MESSAGE
+    self.assertEqual('\n'.join(['%s: ' % test_name] + expected_log_lines),
                      '\n'.join(parser.FailureDescription(test_name)))
     self.assertEqual(['UNKNOWN'], parser.TriesForTest(test_name))
 
-  def testGTestLogParserSharing(self):
+    collection = parser.GetResultCollection()
+    self.assertEqual(
+        set(['HunspellTest.Crashes']), collection.unexpected_tests())
+    for result in collection.test_results:
+      covered = False
+      if result.name == 'HunspellTest.Crashes':
+        covered = True
+        self.assertEqual('\n'.join(expected_log_lines), result.test_log)
+        self.assertEqual(TestStatus.CRASH, result.status)
+    self.assertTrue(covered)
+
+  def testGTestLogParserSharding(self):
     # Same tests for log parsing with sharding_supervisor.
     parser = gtest_utils.GTestLogParser()
     test_data_shard = TEST_DATA_SHARD_0 + TEST_DATA_SHARD_1
     for line in test_data_shard.splitlines():
       parser.ProcessLine(line)
     parser.ProcessLine(TEST_DATA_SHARD_EXIT + '2')
+    parser.Finalize()
 
     self.assertEqual(0, len(parser.ParsingErrors()))
     self.assertFalse(parser.RunningTests())
@@ -605,9 +756,67 @@ class TestGTestLogParserTests(unittest.TestCase):
 
     self.assertEqual(['SUCCESS'], parser.TriesForTest('SomeOtherTest.Foo'))
 
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(
+        sorted(FAILURES + FAILS_FAILURES + FLAKY_FAILURES),
+        sorted(collection.never_expected_tests()))
+
+    self.assertEqual(len(collection.test_results), 12)
+
+    # To know that each condition branch in for loop is covered.
+    cover_set = set()
+    for test_result in collection.test_results:
+      name = test_result.name
+      if name == 'NavigationControllerTest.Reload':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([RELOAD_ERRORS]), test_result.test_log)
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual(2, test_result.duration)
+
+      if name == 'NavigationControllerTest/SpdyNetworkTransTest.Constructor/0':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([SPDY_ERRORS]), test_result.test_log)
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual(2, test_result.duration)
+
+      if name == 'SomeOtherTest.SwitchTypes':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([SWITCH_ERRORS]), test_result.test_log)
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual(40, test_result.duration)
+
+      if name == 'BadTest.TimesOut':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([TIMEOUT_ERRORS, TIMEOUT_MESSAGE]),
+                         test_result.test_log)
+        self.assertEqual(TestStatus.ABORT, test_result.status)
+        self.assertEqual(None, test_result.duration)
+
+      if name == 'MoreBadTest.TimesOutAndFails':
+        cover_set.add(name)
+        self.assertEqual('\n'.join([MOREBAD_ERRORS, TIMEOUT_MESSAGE]),
+                         test_result.test_log)
+        self.assertEqual(TestStatus.ABORT, test_result.status)
+        self.assertEqual(None, test_result.duration)
+
+      if name == 'SomeOtherTest.Foo':
+        cover_set.add(name)
+        self.assertEqual('', test_result.test_log)
+        self.assertEqual(TestStatus.PASS, test_result.status)
+
+    test_list = [
+        'BadTest.TimesOut', 'MoreBadTest.TimesOutAndFails',
+        'NavigationControllerTest.Reload',
+        'NavigationControllerTest/SpdyNetworkTransTest.Constructor/0',
+        'SomeOtherTest.Foo', 'SomeOtherTest.SwitchTypes'
+    ]
+    self.assertEqual(sorted(test_list), sorted(cover_set))
+
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_CRASH.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual(0, len(parser.ParsingErrors()))
     self.assertTrue(parser.RunningTests())
@@ -616,14 +825,30 @@ class TestGTestLogParserTests(unittest.TestCase):
     self.assertEqual(0, parser.FlakyTests())
 
     test_name = 'HunspellTest.Crashes'
-    self.assertEqual('\n'.join(['%s: ' % test_name, 'Did not complete.']),
+    expected_log_lines = [
+        'Did not complete.',
+        'Potential test logs from crash until the end of test program:'
+    ] + CRASH_MESSAGE
+    self.assertEqual('\n'.join(['%s: ' % test_name] + expected_log_lines),
                      '\n'.join(parser.FailureDescription(test_name)))
     self.assertEqual(['UNKNOWN'], parser.TriesForTest(test_name))
+
+    collection = parser.GetResultCollection()
+    self.assertEqual(
+        set(['HunspellTest.Crashes']), collection.unexpected_tests())
+    for result in collection.test_results:
+      covered = False
+      if result.name == 'HunspellTest.Crashes':
+        covered = True
+        self.assertEqual('\n'.join(expected_log_lines), result.test_log)
+        self.assertEqual(TestStatus.CRASH, result.status)
+    self.assertTrue(covered)
 
   def testGTestLogParserMixedStdout(self):
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_MIXED_STDOUT.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual([], parser.ParsingErrors())
     self.assertEqual(['Crash.Test'], parser.RunningTests())
@@ -636,10 +861,39 @@ class TestGTestLogParserTests(unittest.TestCase):
                      parser.TriesForTest(
                          'WebSocketHandshakeHandlerSpdy3Test.RequestResponse'))
 
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(
+        sorted(['TestFix.TestCase', 'Crash.Test']),
+        sorted(collection.never_expected_tests()))
+
+    # To know that each condition branch in for loop is covered.
+    cover_set = set()
+    for test_result in collection.test_results:
+      name = test_result.name
+      if name == 'Crash.Test':
+        cover_set.add(name)
+        self.assertEqual(TestStatus.CRASH, test_result.status)
+
+      if name == 'TestFix.TestCase':
+        cover_set.add(name)
+        self.assertEqual(TestStatus.ABORT, test_result.status)
+
+      if name == 'WebSocketHandshakeHandlerSpdy3Test.RequestResponse':
+        cover_set.add(name)
+        self.assertEqual(TestStatus.PASS, test_result.status)
+        self.assertEqual(1, test_result.duration)
+    test_list = [
+        'Crash.Test', 'TestFix.TestCase',
+        'WebSocketHandshakeHandlerSpdy3Test.RequestResponse'
+    ]
+    self.assertEqual(test_list, sorted(cover_set))
+
   def testGtestLogParserSkipped(self):
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_SKIPPED.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual([], parser.ParsingErrors())
     self.assertEqual([], parser.RunningTests())
@@ -650,10 +904,26 @@ class TestGTestLogParserTests(unittest.TestCase):
     self.assertEqual(['SKIPPED'],
                      parser.TriesForTest('ProcessReaderLinux.AbortMessage'))
 
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(['ProcessReaderLinux.AbortMessage'],
+                     sorted(
+                         collection.tests_by_expression(lambda tr: tr.status ==
+                                                        TestStatus.SKIP)))
+    self.assertEqual([], sorted(collection.unexpected_tests()))
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'ProcessReaderLinux.AbortMessage':
+        covered = True
+        self.assertEqual(TestStatus.SKIP, test_result.status)
+    self.assertTrue(covered)
+
   def testRunTestCaseFail(self):
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_RUN_TEST_CASE_FAIL.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual(0, len(parser.ParsingErrors()))
     self.assertEqual([], parser.RunningTests())
@@ -666,10 +936,26 @@ class TestGTestLogParserTests(unittest.TestCase):
         ['FAILURE'],
         parser.TriesForTest('SUIDSandboxUITest.testSUIDSandboxEnabled'))
 
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(['SUIDSandboxUITest.testSUIDSandboxEnabled'],
+                     sorted(collection.failed_tests()))
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'SUIDSandboxUITest.testSUIDSandboxEnabled':
+        covered = True
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual('', test_result.test_log)
+        self.assertEqual(771, test_result.duration)
+
+    self.assertTrue(covered)
+
   def testRunTestCaseTimeout(self):
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_RUN_TEST_CASE_TIMEOUT.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual(0, len(parser.ParsingErrors()))
     self.assertEqual([], parser.RunningTests())
@@ -682,29 +968,203 @@ class TestGTestLogParserTests(unittest.TestCase):
         ['TIMEOUT'],
         parser.TriesForTest('SUIDSandboxUITest.testSUIDSandboxEnabled'))
 
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(['SUIDSandboxUITest.testSUIDSandboxEnabled'],
+                     sorted(collection.never_expected_tests()))
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'SUIDSandboxUITest.testSUIDSandboxEnabled':
+        covered = True
+        self.assertEqual(TestStatus.ABORT, test_result.status)
+        self.assertEqual('(junk)', test_result.test_log)
+        self.assertEqual(None, test_result.duration)
+
+    self.assertTrue(covered)
+
   def testRunTestCaseParseSwarm(self):
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_SWARM_TEST_FAIL.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
 
     self.assertEqual(0, len(parser.ParsingErrors()))
     self.assertEqual([], parser.RunningTests())
     self.assertEqual(['PickleTest.EncodeDecode'], parser.FailedTests())
-    self.assertEqual([
+    log_lines = [
         'PickleTest.EncodeDecode: ',
         '../../base/pickle_unittest.cc:69: Failure',
         'Value of: false',
         '  Actual: false',
         'Expected: true',
-    ], parser.FailureDescription('PickleTest.EncodeDecode'))
+    ]
+    self.assertEqual(log_lines,
+                     parser.FailureDescription('PickleTest.EncodeDecode'))
     self.assertEqual(['FAILURE'],
                      parser.TriesForTest('PickleTest.EncodeDecode'))
+
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(['PickleTest.EncodeDecode'],
+                     sorted(collection.never_expected_tests()))
+
+    covered_count = 0
+    for test_result in collection.test_results:
+      if test_result.name == 'PickleTest.EncodeDecode':
+        covered_count += 1
+        self.assertEqual(TestStatus.FAIL, test_result.status)
+        self.assertEqual('\n'.join(log_lines[1:]), test_result.test_log)
+
+    self.assertEqual(3, covered_count)
 
   def testNestedGtests(self):
     parser = gtest_utils.GTestLogParser()
     for line in TEST_DATA_NESTED_RUNS.splitlines():
       parser.ProcessLine(line)
+    parser.Finalize()
     self.assertEqual(['Foo.Bar'], parser.FailedTests(True, True))
+
+    # Same unit tests (when applicable) using ResultCollection
+    collection = parser.GetResultCollection()
+    self.assertEqual(['Foo.Bar'], sorted(collection.never_expected_tests()))
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'Foo.Bar':
+        covered = True
+        self.assertEqual(TestStatus.ABORT, test_result.status)
+
+    self.assertTrue(covered)
+
+  def testParseCompiledFileLocation(self):
+    parser = gtest_utils.GTestLogParser()
+    for line in TEST_DATA_COMPILED_FILE.splitlines():
+      parser.ProcessLine(line)
+    parser.Finalize()
+    self.assertEqual(COMPILED_FILE_PATH, parser.compiled_tests_file_path)
+
+    # Just a hack so that we can point the compiled file path to right place
+    parser.compiled_tests_file_path = os.path.join(
+        os.getcwd(), parser.compiled_tests_file_path)
+    parser.ParseAndPopulateTestResultLocations(TEST_REPO, False)
+    collection = parser.GetResultCollection()
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'test1.test_method1':
+        covered = True
+        self.assertEqual(TestStatus.PASS, test_result.status)
+        test_loc = {'repo': TEST_REPO, 'fileName': '//random/path/test1.cc'}
+        self.assertEqual(test_loc, test_result.test_loc)
+    self.assertTrue(covered)
+
+    disabled_tests_covered = True
+    # disabled tests shouldn't be included in the result
+    # because output_disabled_tests is false
+    for test_result in collection.test_results:
+      if test_result.name == 'test2.DISABLED_test_method1':
+        covered = False
+    self.assertTrue(disabled_tests_covered)
+
+  def testParseCompiledFileLocationWithCustomPath(self):
+    parser = gtest_utils.GTestLogParser()
+    for line in TEST_DATA_COMPILED_FILE.splitlines():
+      parser.ProcessLine(line)
+    parser.Finalize()
+    self.assertEqual(COMPILED_FILE_PATH, parser.compiled_tests_file_path)
+
+    # Just a hack so that we can point the compiled file path to right place
+    parser.compiled_tests_file_path = os.path.join(
+        os.getcwd(), parser.compiled_tests_file_path)
+
+    host_file_path = parser.compiled_tests_file_path
+    # setting it to None to make sure overriding the path arg really works
+    parser.compiled_tests_file_path = None
+
+    parser.ParseAndPopulateTestResultLocations(TEST_REPO, False, host_file_path)
+    collection = parser.GetResultCollection()
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'test1.test_method1':
+        covered = True
+        self.assertEqual(TestStatus.PASS, test_result.status)
+        test_loc = {'repo': TEST_REPO, 'fileName': '//random/path/test1.cc'}
+        self.assertEqual(test_loc, test_result.test_loc)
+    self.assertTrue(covered)
+
+    disabled_tests_covered = True
+    # disabled tests shouldn't be included in the result
+    # because output_disabled_tests is false
+    for test_result in collection.test_results:
+      if test_result.name == 'test2.DISABLED_test_method1':
+        covered = False
+    self.assertTrue(disabled_tests_covered)
+
+  def testParseCompiledFileLocationOutputDisabledTests(self):
+    parser = gtest_utils.GTestLogParser()
+    for line in TEST_DATA_COMPILED_FILE.splitlines():
+      parser.ProcessLine(line)
+    parser.Finalize()
+    self.assertEqual(COMPILED_FILE_PATH, parser.compiled_tests_file_path)
+
+    # Just a hack so that we can point the compiled file path to right place
+    parser.compiled_tests_file_path = os.path.join(
+        os.getcwd(), parser.compiled_tests_file_path)
+    parser.ParseAndPopulateTestResultLocations(TEST_REPO, True)
+    collection = parser.GetResultCollection()
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'test1.test_method1':
+        covered = True
+        self.assertEqual(TestStatus.PASS, test_result.status)
+        test_loc = {'repo': TEST_REPO, 'fileName': '//random/path/test1.cc'}
+        self.assertEqual(test_loc, test_result.test_loc)
+
+    covered = False
+    for test_result in collection.test_results:
+      if test_result.name == 'test2.DISABLED_test_method1':
+        covered = True
+        self.assertEqual(TestStatus.SKIP, test_result.status)
+        test_loc = {'repo': TEST_REPO, 'fileName': '//random/path/test2.cc'}
+        self.assertEqual(test_loc, test_result.test_loc)
+    self.assertTrue(covered)
+
+  def testGTestLogLauncherSpawn(self):
+    parser = gtest_utils.GTestLogParser()
+    for line in TEST_DATA_LAUNCHER_SPAWN.splitlines():
+      parser.ProcessLine(line)
+    parser.Finalize()
+
+    self.assertEqual([], parser.ParsingErrors())
+    self.assertEqual([], parser.RunningTests())
+    self.assertEqual([], parser.FailedTests())
+    self.assertEqual(0, parser.DisabledTests())
+    self.assertEqual(0, parser.FlakyTests())
+    self.assertEqual(
+        ['TestFix.TestCase', 'TextPaintTimingDetectorTest.LargestTextPaint'],
+        parser.PassedTests())
+    collection = parser.GetResultCollection()
+    self.assertFalse(collection.crashed)
+
+  def testGTestLogLauncherSpawnCrash(self):
+    parser = gtest_utils.GTestLogParser()
+    for line in TEST_DATA_LAUNCHER_SPAWN_CRASH.splitlines():
+      parser.ProcessLine(line)
+    parser.Finalize()
+
+    self.assertEqual([], parser.ParsingErrors())
+    self.assertEqual(['LoggingTest.CrashedTest'], parser.RunningTests())
+    self.assertEqual(['LoggingTest.FailedTest', 'LoggingTest.CrashedTest'],
+                     parser.FailedTests())
+    self.assertEqual(0, parser.DisabledTests())
+    self.assertEqual(0, parser.FlakyTests())
+    self.assertEqual(['LoggingTest.StreamingWstringFindsCorrectOperator'],
+                     parser.PassedTests())
+    collection = parser.GetResultCollection()
+    self.assertTrue(collection.crashed)
 
 
 if __name__ == '__main__':

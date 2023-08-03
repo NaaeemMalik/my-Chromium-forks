@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "ui/compositor/layer_animation_observer.h"
 
@@ -220,6 +221,7 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
     return ending_desk_screenshot_taken_;
   }
   bool animation_finished() const { return animation_finished_; }
+  bool reached_edge() const { return reached_edge_; }
 
   // Begins phase (1) of the animation by taking a screenshot of the starting
   // desk content. Delegate::OnStartingDeskScreenshotTaken() will be called once
@@ -302,7 +304,7 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
   int GetXPositionOfScreenshot(int index);
 
   // The root window that this animator is associated with.
-  aura::Window* const root_window_;
+  const raw_ptr<aura::Window, ExperimentalAsh> root_window_;
 
   // The index of the active desk at the start of the animation.
   int starting_desk_index_;
@@ -310,7 +312,7 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
   // The index of the desk to activate and animate to with this animator.
   int ending_desk_index_;
 
-  Delegate* const delegate_;
+  const raw_ptr<Delegate, ExperimentalAsh> delegate_;
 
   // The owner of the layer tree of the old detached layers of the removed
   // desk's windows. This is only valid if |for_remove_| is true. This layer
@@ -361,6 +363,10 @@ class ASH_EXPORT RootWindowDeskSwitchAnimator
 
   // True when phase (3) finishes.
   bool animation_finished_ = false;
+
+  // True if during a continuous swipe, the user went all the way left or right
+  // and swiping in that direction will no longer update the UI.
+  bool reached_edge_ = false;
 
   // True while setting a new transform for chaining. If a animation is active,
   // calling SetTransform will trigger OnImplicitAnimationsCompleted. In these

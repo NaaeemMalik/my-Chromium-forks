@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,7 +65,7 @@ void PlatformNotificationServiceProxy::VerifyServiceWorkerScope(
   base::OnceClosure task;
 
   if (status == blink::ServiceWorkerStatusCode::kOk &&
-      registration->scope().DeprecatedGetOriginAsURL() == data.origin) {
+      registration->key().origin().GetURL() == data.origin) {
     DoDisplayNotification(data, registration->scope(), std::move(callback));
   } else {
     std::move(callback).Run(/* success= */ false, /* notification_id= */ "");
@@ -90,7 +90,8 @@ void PlatformNotificationServiceProxy::DisplayNotification(
           base::BindOnce(
               &ServiceWorkerContextWrapper::FindReadyRegistrationForId,
               service_worker_context_, data.service_worker_registration_id,
-              blink::StorageKey(url::Origin::Create(data.origin)),
+              blink::StorageKey::CreateFirstParty(
+                  url::Origin::Create(data.origin)),
               base::BindOnce(
                   &PlatformNotificationServiceProxy::VerifyServiceWorkerScope,
                   weak_ptr_factory_io_.GetWeakPtr(), data,

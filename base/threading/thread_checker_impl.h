@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,17 @@
 #include <memory>
 
 #include "base/base_export.h"
-#include "base/compiler_specific.h"
 #include "base/sequence_token.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
-#include "base/threading/platform_thread.h"
+#include "base/threading/platform_thread_ref.h"
 
 namespace base {
 namespace debug {
 class StackTrace;
 }
+
+class SequenceCheckerImpl;
 
 // Real implementation of ThreadChecker, for use in debug mode, or for temporary
 // use in release mode (e.g. to CHECK on a threading issue seen only in the
@@ -47,21 +48,30 @@ class LOCKABLE BASE_EXPORT ThreadCheckerImpl {
   // `out_bound_at` is not null, this method allocates a StackTrace and returns
   // it in the out-parameter, storing inside it the stack from where the failing
   // ThreadChecker was bound to its thread.
-  bool CalledOnValidThread(std::unique_ptr<debug::StackTrace>* out_bound_at =
-                               nullptr) const WARN_UNUSED_RESULT;
+  [[nodiscard]] bool CalledOnValidThread(
+      std::unique_ptr<debug::StackTrace>* out_bound_at = nullptr) const
+      LOCKS_EXCLUDED(lock_);
 
   // Changes the thread that is checked for in CalledOnValidThread.  This may
   // be useful when an object may be created on one thread and then used
   // exclusively on another thread.
-  void DetachFromThread();
+  void DetachFromThread() LOCKS_EXCLUDED(lock_);
+
+ private:
+  // This shares storage with SequenceCheckerImpl.
+  friend class SequenceCheckerImpl;
+
+  [[nodiscard]] bool CalledOnValidThreadInternal(
+      std::unique_ptr<debug::StackTrace>* out_bound_at,
+      bool has_thread_been_destroyed) const EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Returns ownership of a pointer to StackTrace where the ThreadCheckerImpl
   // was bound for debug logs, or nullptr if such logging was not enabled at
   // the time.
-  std::unique_ptr<debug::StackTrace> GetBoundAt() const;
+  std::unique_ptr<debug::StackTrace> GetBoundAt() const
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
- private:
-  void EnsureAssignedLockRequired() const EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void EnsureAssigned() const EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Members are mutable so that CalledOnValidThread() can set them.
 
@@ -87,6 +97,9 @@ class LOCKABLE BASE_EXPORT ThreadCheckerImpl {
   // ensure that CalledOnValidThread() doesn't return true for ThreadPool
   // tasks that happen to run on the same thread but weren't posted to the same
   // SingleThreadTaskRunner.
+  //
+  // Also used for SequenceCheckerImpl's CalledOnValidSequence(), as this shares
+  // storage. See SequenceCheckerImpl.
   mutable SequenceToken sequence_token_ GUARDED_BY(lock_);
 };
 

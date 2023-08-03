@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,10 +27,10 @@
 #include "base/android/bundle_utils.h"
 #include "base/android/memory_pressure_listener_android.h"
 #include "base/base_paths_android.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/callback_helpers.h"
 #include "base/i18n/rtl.h"
 #include "base/logging.h"
 #include "base/message_loop/message_pump_type.h"
@@ -39,14 +39,18 @@
 #include "components/crash/content/browser/child_exit_observer_android.h"
 #include "components/crash/core/common/crash_key.h"
 #include "components/embedder_support/android/metrics/memory_metrics_logger.h"
+#include "components/embedder_support/origin_trials/component_updater_utils.h"
 #include "components/heap_profiling/multi_process/supervisor.h"
 #include "components/metrics/metrics_service.h"
 #include "components/services/heap_profiling/public/cpp/settings.h"
 #include "components/user_prefs/user_prefs.h"
+#include "components/variations/synthetic_trials.h"
 #include "components/variations/synthetic_trials_active_group_id_provider.h"
 #include "components/variations/variations_crash_keys.h"
 #include "components/variations/variations_ids_provider.h"
 #include "content/public/browser/android/synchronous_compositor.h"
+#include "content/public/browser/browser_task_traits.h"
+#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/common/content_client.h"
@@ -88,13 +92,18 @@ int AwBrowserMainParts::PreEarlyInitialization() {
 
   browser_process_ = std::make_unique<AwBrowserProcess>(
       browser_client_->aw_feature_list_creator());
+
+  embedder_support::SetupOriginTrialsCommandLine(
+      browser_process_->local_state());
+
   return content::RESULT_CODE_NORMAL_EXIT;
 }
 
 int AwBrowserMainParts::PreCreateThreads() {
   base::android::MemoryPressureListenerAndroid::Initialize(
       base::android::AttachCurrentThread());
-  ::crash_reporter::ChildExitObserver::Create();
+  child_exit_observer_ =
+      std::make_unique<::crash_reporter::ChildExitObserver>();
 
   // We need to create the safe browsing specific directory even if the
   // AwSafeBrowsingConfigHelper::GetSafeBrowsingEnabled() is false
@@ -117,7 +126,7 @@ int AwBrowserMainParts::PreCreateThreads() {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kWebViewSandboxedRenderer)) {
     // Create the renderers crash manager on the UI thread.
-    ::crash_reporter::ChildExitObserver::GetInstance()->RegisterClient(
+    child_exit_observer_->RegisterClient(
         std::make_unique<AwBrowserTerminator>());
   }
 
@@ -132,9 +141,9 @@ int AwBrowserMainParts::PreCreateThreads() {
 void AwBrowserMainParts::RegisterSyntheticTrials() {
   metrics::MetricsService* metrics =
       AwMetricsServiceClient::GetInstance()->GetMetricsService();
-  metrics->synthetic_trial_registry()->AddSyntheticTrialObserver(
+  metrics->GetSyntheticTrialRegistry()->AddSyntheticTrialObserver(
       variations::VariationsIdsProvider::GetInstance());
-  metrics->synthetic_trial_registry()->AddSyntheticTrialObserver(
+  metrics->GetSyntheticTrialRegistry()->AddSyntheticTrialObserver(
       variations::SyntheticTrialsActiveGroupIdProvider::GetInstance());
 
   static constexpr char kWebViewApkTypeTrial[] = "WebViewApkType";
@@ -152,7 +161,8 @@ void AwBrowserMainParts::RegisterSyntheticTrials() {
       break;
   }
   AwMetricsServiceAccessor::RegisterSyntheticFieldTrial(
-      metrics, kWebViewApkTypeTrial, apk_type_string);
+      metrics, kWebViewApkTypeTrial, apk_type_string,
+      variations::SyntheticTrialAnnotationMode::kNextLog);
 }
 
 int AwBrowserMainParts::PreMainMessageLoopRun() {
@@ -163,6 +173,14 @@ int AwBrowserMainParts::PreMainMessageLoopRun() {
       AwWebUIControllerFactory::GetInstance());
   content::RenderFrameHost::AllowInjectingJavaScript();
   metrics_logger_ = std::make_unique<metrics::MemoryMetricsLogger>();
+
+  // Requesting the |OriginTrialsControllerDelegate| will initialize
+  // it if the feature is enabled.
+  //
+  // This should be done as soon as possible in the start-up process, in order
+  // to load the database from disk.
+  AwBrowserContext::GetDefault()->GetOriginTrialsControllerDelegate();
+
   return content::RESULT_CODE_NORMAL_EXIT;
 }
 
@@ -176,7 +194,7 @@ void AwBrowserMainParts::PostCreateThreads() {
   if (mode != heap_profiling::Mode::kNone)
     heap_profiling::Supervisor::GetInstance()->Start(base::NullCallback());
 
-  SetupBackgroundTracingFieldTrial();
+  MaybeSetupSystemTracing();
 }
 
 }  // namespace android_webview

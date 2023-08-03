@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,8 @@
 
 namespace content {
 
-// Base for unit tests that need a ContentBrowserClient.
+// Base for unit tests that need a ContentBrowserClient. Browser tests should
+// not use this class, instead use ContentBrowserTestContentBrowserClient.
 class TestContentBrowserClient : public ContentBrowserClient {
  public:
   TestContentBrowserClient();
@@ -35,12 +36,12 @@ class TestContentBrowserClient : public ContentBrowserClient {
       content::BrowserContext* context) override;
   std::string GetUserAgent() override;
   std::string GetApplicationLocale() override;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   void GetAdditionalMappedFilesForChildProcess(
       const base::CommandLine& command_line,
       int child_process_id,
       content::PosixFileDescriptorInfo* mappings) override;
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
  private:
   // Temporary directory for GetDefaultDownloadDirectory.

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include "ppapi/c/pp_errors.h"
 #include "printing/buildflags/buildflags.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/threading/thread_restrictions.h"
 #endif
 
@@ -86,7 +86,7 @@ PepperPrintSettingsManagerImpl::ComputeDefaultPrintSettings() {
   // call into platform APIs.
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Blocking is needed here because Windows printer drivers are oftentimes
   // not thread-safe and have to be accessed on the UI thread.
   base::ScopedAllowBlocking allow_blocking;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,15 @@ enum AppPermission {
   NOTIFICATIONS   = 3, // Not a manifest permission
   CONTACTS        = 4, // android.manifest.READ_CONTACTS and android.manifest.WRITE_CONTACTS
   STORAGE         = 5, // android.manifest.WRITE_EXTERNAL_STORAGE and android.manifest.READ_EXTERNAL_STORAGE
+};
+
+// These permissions map to ones listed at
+// https://developer.android.com/reference/android/Manifest.permission_group
+[Extensible]
+enum AppPermissionGroup {
+  CAMERA          = 0, // android.permission-group.CAMERA
+  MICROPHONE      = 1, // android.permission-group.MICROPHONE
+  LOCATION        = 2, // android.permission-group.LOCATION
 };
 
 struct PermissionState {

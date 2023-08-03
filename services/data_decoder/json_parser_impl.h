@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,9 @@ class JsonParserImpl : public mojom::JsonParser {
 
  private:
   // mojom::JsonParser implementation.
-  void Parse(const std::string& json, ParseCallback callback) override;
+  void Parse(const std::string& json,
+             uint32_t options,
+             ParseCallback callback) override;
 };
 
 }  // namespace data_decoder

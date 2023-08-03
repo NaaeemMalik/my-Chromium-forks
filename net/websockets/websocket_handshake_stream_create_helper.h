@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define NET_WEBSOCKETS_WEBSOCKET_HANDSHAKE_STREAM_CREATE_HELPER_H_
 
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -54,12 +55,17 @@ class NET_EXPORT_PRIVATE WebSocketHandshakeStreamCreateHelper
   // Creates a WebSocketHttp2HandshakeStream over an HTTP/2 connection.
   std::unique_ptr<WebSocketHandshakeStreamBase> CreateHttp2Stream(
       base::WeakPtr<SpdySession> session,
-      std::vector<std::string> dns_aliases) override;
+      std::set<std::string> dns_aliases) override;
+
+  std::unique_ptr<WebSocketHandshakeStreamBase> CreateHttp3Stream(
+      std::unique_ptr<QuicChromiumClientSession::Handle> session,
+      std::set<std::string> dns_aliases) override;
 
  private:
-  const raw_ptr<WebSocketStream::ConnectDelegate> connect_delegate_;
+  const raw_ptr<WebSocketStream::ConnectDelegate, DanglingUntriaged>
+      connect_delegate_;
   const std::vector<std::string> requested_subprotocols_;
-  const raw_ptr<WebSocketStreamRequestAPI> request_;
+  const raw_ptr<WebSocketStreamRequestAPI, DanglingUntriaged> request_;
 };
 
 }  // namespace net

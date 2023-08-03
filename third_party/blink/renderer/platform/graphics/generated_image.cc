@@ -34,6 +34,7 @@
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_image.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_record.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_shader.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 
@@ -45,8 +46,7 @@ void GeneratedImage::DrawPattern(GraphicsContext& dest_context,
                                  const ImageTilingInfo& tiling_info,
                                  const ImageDrawOptions& draw_options) {
   gfx::RectF tile_rect = tiling_info.image_rect;
-  tile_rect.Outset(0, 0, tiling_info.spacing.width(),
-                   tiling_info.spacing.height());
+  tile_rect.set_size(tile_rect.size() + tiling_info.spacing);
 
   SkMatrix pattern_matrix =
       SkMatrix::Translate(tiling_info.phase.x(), tiling_info.phase.y());
@@ -56,7 +56,7 @@ void GeneratedImage::DrawPattern(GraphicsContext& dest_context,
   sk_sp<PaintShader> tile_shader = CreateShader(
       tile_rect, &pattern_matrix, tiling_info.image_rect, draw_options);
 
-  PaintFlags fill_flags(base_flags);
+  cc::PaintFlags fill_flags(base_flags);
   fill_flags.setShader(std::move(tile_shader));
   fill_flags.setColor(SK_ColorBLACK);
 
@@ -72,9 +72,9 @@ sk_sp<PaintShader> GeneratedImage::CreateShader(
   auto paint_controller =
       std::make_unique<PaintController>(PaintController::kTransient);
   GraphicsContext context(*paint_controller);
-  context.BeginRecording(tile_rect);
+  context.BeginRecording();
   DrawTile(context, src_rect, draw_options);
-  sk_sp<PaintRecord> record = context.EndRecording();
+  PaintRecord record = context.EndRecording();
 
   return PaintShader::MakePaintRecord(
       std::move(record), gfx::RectFToSkRect(tile_rect), SkTileMode::kRepeat,

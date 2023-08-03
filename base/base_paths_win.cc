@@ -1,8 +1,9 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <windows.h>
+
 #include <KnownFolders.h>
 #include <shlobj.h>
 
@@ -61,7 +62,7 @@ bool PathProviderWin(int key, FilePath* result) {
         break;
       }
       // Fall through to base::DIR_PROGRAM_FILES if we're on an X86 machine.
-      FALLTHROUGH;
+      [[fallthrough]];
     case base::DIR_PROGRAM_FILES:
       if (FAILED(SHGetFolderPath(NULL, CSIDL_PROGRAM_FILES, NULL,
                                  SHGFP_TYPE_CURRENT, system_buffer)))
@@ -145,9 +146,6 @@ bool PathProviderWin(int key, FilePath* result) {
       break;
     }
     case base::DIR_APP_SHORTCUTS: {
-      if (win::GetVersion() < win::Version::WIN8)
-        return false;
-
       base::win::ScopedCoMem<wchar_t> path_buf;
       if (FAILED(SHGetKnownFolderPath(FOLDERID_ApplicationShortcuts, 0, NULL,
                                       &path_buf)))

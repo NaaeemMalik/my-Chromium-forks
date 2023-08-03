@@ -1,14 +1,13 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/signin/chrome_signin_client.h"
+
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/cxx17_backports.h"
-#include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/run_loop.h"
@@ -19,10 +18,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/signin/signin_features.h"
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -39,7 +36,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "chrome/test/base/browser_with_test_window_test.h"
 #endif
 
@@ -143,7 +140,7 @@ TEST_F(ChromeSigninClientTest, DelayNetworkCallRunsAfterNetworkChange) {
   ASSERT_TRUE(tester.WasCalledExactlyOnce());
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 
 class MockChromeSigninClient : public ChromeSigninClient {
  public:
@@ -181,7 +178,8 @@ class ChromeSigninClientSignoutTest : public BrowserWithTestWindowTest {
     client_->PreSignOut(base::BindOnce(&MockChromeSigninClient::SignOutCallback,
                                        base::Unretained(client_.get()),
                                        source_metric, delete_metric),
-                        source_metric);
+                        source_metric,
+                        /*has_sync_account=*/false);
   }
 
   signin_util::ScopedForceSigninSetterForTesting forced_signin_setter_;
@@ -190,7 +188,7 @@ class ChromeSigninClientSignoutTest : public BrowserWithTestWindowTest {
 
 TEST_F(ChromeSigninClientSignoutTest, SignOut) {
   signin_metrics::ProfileSignout source_metric =
-      signin_metrics::ProfileSignout::USER_CLICKED_SIGNOUT_SETTINGS;
+      signin_metrics::ProfileSignout::kUserClickedSignoutSettings;
   signin_metrics::SignoutDelete delete_metric =
       signin_metrics::SignoutDelete::kIgnoreMetric;
 
@@ -198,10 +196,8 @@ TEST_F(ChromeSigninClientSignoutTest, SignOut) {
       .Times(1);
   EXPECT_CALL(*client_, LockForceSigninProfile(browser()->profile()->GetPath()))
       .Times(1);
-  EXPECT_CALL(
-      *client_,
-      SignOutCallback(source_metric, delete_metric,
-                      SigninClient::SignoutDecision::ALLOW_SIGNOUT))
+  EXPECT_CALL(*client_, SignOutCallback(source_metric, delete_metric,
+                                        SigninClient::SignoutDecision::ALLOW))
       .Times(1);
 
   PreSignOut(source_metric, delete_metric);
@@ -212,7 +208,7 @@ TEST_F(ChromeSigninClientSignoutTest, SignOutWithoutForceSignin) {
   CreateClient(browser()->profile());
 
   signin_metrics::ProfileSignout source_metric =
-      signin_metrics::ProfileSignout::USER_CLICKED_SIGNOUT_SETTINGS;
+      signin_metrics::ProfileSignout::kUserClickedSignoutSettings;
   signin_metrics::SignoutDelete delete_metric =
       signin_metrics::SignoutDelete::kIgnoreMetric;
 
@@ -220,12 +216,58 @@ TEST_F(ChromeSigninClientSignoutTest, SignOutWithoutForceSignin) {
       .Times(0);
   EXPECT_CALL(*client_, LockForceSigninProfile(browser()->profile()->GetPath()))
       .Times(0);
-  EXPECT_CALL(
-      *client_,
-      SignOutCallback(source_metric, delete_metric,
-                      SigninClient::SignoutDecision::ALLOW_SIGNOUT))
+  EXPECT_CALL(*client_, SignOutCallback(source_metric, delete_metric,
+                                        SigninClient::SignoutDecision::ALLOW))
       .Times(1);
   PreSignOut(source_metric, delete_metric);
+}
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+TEST_F(ChromeSigninClientSignoutTest, MainProfile) {
+  TestingProfile::Builder builder;
+  builder.SetIsMainProfile(true);
+  std::unique_ptr<TestingProfile> profile = builder.Build();
+
+  CreateClient(profile.get());
+  EXPECT_FALSE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
+  EXPECT_TRUE(client_->IsRevokeSyncConsentAllowed());
+}
+#endif
+
+TEST_F(ChromeSigninClientSignoutTest, AllAllowed) {
+  std::unique_ptr<TestingProfile> profile = TestingProfile::Builder().Build();
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+  EXPECT_FALSE(profile->IsMainProfile());
+#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(ENABLE_SUPERVISED_USERS)
+  EXPECT_FALSE(profile->IsChild());
+#endif
+
+  CreateClient(profile.get());
+
+  EXPECT_TRUE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
+#if BUILDFLAG(IS_ANDROID)
+  EXPECT_TRUE(client_->IsRevokeSyncConsentAllowed());
+#endif
+}
+
+TEST_F(ChromeSigninClientSignoutTest, ChildProfile) {
+  TestingProfile::Builder builder;
+  builder.SetIsSupervisedProfile();
+  std::unique_ptr<TestingProfile> profile = builder.Build();
+  EXPECT_TRUE(profile->IsChild());
+
+  CreateClient(profile.get());
+#if BUILDFLAG(IS_ANDROID)
+  EXPECT_FALSE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
+#else
+  EXPECT_TRUE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
+#endif
+  EXPECT_TRUE(client_->IsRevokeSyncConsentAllowed());
 }
 
 class ChromeSigninClientSignoutSourceTest
@@ -241,58 +283,65 @@ class ChromeSigninClientSignoutSourceTest
 };
 
 // Returns true if signout can be disallowed by policy for the given source.
-bool IsSignoutDisallowedByPolicy(
-    Profile* profile,
+bool IsAlwaysAllowedSignoutSources(
     signin_metrics::ProfileSignout signout_source) {
-  auto* identity_manager =
-      IdentityManagerFactory::GetForProfileIfExists(profile);
-  if (identity_manager &&
-      !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
-    return false;
-  }
-
   switch (signout_source) {
     // NOTE: SIGNOUT_TEST == SIGNOUT_PREF_CHANGED.
-    case signin_metrics::ProfileSignout::SIGNOUT_PREF_CHANGED:
-    case signin_metrics::ProfileSignout::GOOGLE_SERVICE_NAME_PATTERN_CHANGED:
-    case signin_metrics::ProfileSignout::SIGNIN_PREF_CHANGED_DURING_SIGNIN:
-    case signin_metrics::ProfileSignout::USER_CLICKED_SIGNOUT_SETTINGS:
-    case signin_metrics::ProfileSignout::SERVER_FORCED_DISABLE:
-    case signin_metrics::ProfileSignout::TRANSFER_CREDENTIALS:
+    case signin_metrics::ProfileSignout::kPrefChanged:
+    case signin_metrics::ProfileSignout::kGoogleServiceNamePatternChanged:
+    case signin_metrics::ProfileSignout::kUserClickedSignoutSettings:
+    case signin_metrics::ProfileSignout::kServerForcedDisable:
+    case signin_metrics::ProfileSignout::kAuthenticationFailedWithForceSignin:
+    case signin_metrics::ProfileSignout::kSigninNotAllowedOnProfileInit:
+    case signin_metrics::ProfileSignout::kSigninRetriggeredFromWebSignin:
     case signin_metrics::ProfileSignout::
-        AUTHENTICATION_FAILED_WITH_FORCE_SIGNIN:
-    case signin_metrics::ProfileSignout::SIGNIN_NOT_ALLOWED_ON_PROFILE_INIT:
-    case signin_metrics::ProfileSignout::USER_TUNED_OFF_SYNC_FROM_DICE_UI:
-      return true;
-    case signin_metrics::ProfileSignout::ACCOUNT_REMOVED_FROM_DEVICE:
+        kUserClickedSignoutFromClearBrowsingDataPage:
     case signin_metrics::ProfileSignout::
-        IOS_ACCOUNT_REMOVED_FROM_DEVICE_AFTER_RESTORE:
-      // TODO(msarda): Add more of the above cases to this "false" branch.
-      // For now only ACCOUNT_REMOVED_FROM_DEVICE is here to preserve the status
-      // quo. Additional internal sources of sign-out will be moved here in a
-      // follow up CL.
+        kIosAccountRemovedFromDeviceAfterRestore:
+    case signin_metrics::ProfileSignout::kUserDeletedAccountCookies:
+    case signin_metrics::ProfileSignout::kGaiaCookieUpdated:
+    case signin_metrics::ProfileSignout::kAccountReconcilorReconcile:
+    case signin_metrics::ProfileSignout::kUserClickedSignoutProfileMenu:
+    case signin_metrics::ProfileSignout::kAccountEmailUpdated:
+    case signin_metrics::ProfileSignout::kSigninManagerUpdateUPA:
       return false;
-    case signin_metrics::ProfileSignout::ABORT_SIGNIN:
-      // Allow signout because data has not been synced yet.
-      return false;
-    case signin_metrics::ProfileSignout::FORCE_SIGNOUT_ALWAYS_ALLOWED_FOR_TEST:
-      // Allow signout for tests that want to force it.
-      return false;
-    case signin_metrics::ProfileSignout::ACCOUNT_ID_MIGRATION:
-      // Allowed to force finish the account id migration.
-      return false;
-    case signin_metrics::ProfileSignout::USER_DELETED_ACCOUNT_COOKIES:
-    case signin_metrics::ProfileSignout::MOBILE_IDENTITY_CONSISTENCY_ROLLBACK:
-      // There's no special-casing for these in ChromeSigninClient, as they only
-      // happen when there's no sync account and policies aren't enforced.
-      // PrimaryAccountManager won't actually invoke PreSignOut in this case,
-      // thus it is fine for ChromeSigninClient to not have any special-casing.
+
+    case signin_metrics::ProfileSignout::kAccountRemovedFromDevice:
+    // Allow signout because data has not been synced yet.
+    case signin_metrics::ProfileSignout::kAbortSignin:
+    // Allow signout for tests that want to force it.
+    case signin_metrics::ProfileSignout::kForceSignoutAlwaysAllowedForTest:
+    case signin_metrics::ProfileSignout::kUserClickedRevokeSyncConsentSettings:
+    case signin_metrics::ProfileSignout::
+        kUserClickedSignoutFromUserPolicyNotificationDialog:
       return true;
-    case signin_metrics::ProfileSignout::NUM_PROFILE_SIGNOUT_METRICS:
-      NOTREACHED();
-      return false;
   }
 }
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutMainProfile) {
+  signin_metrics::ProfileSignout signout_source = GetParam();
+
+  TestingProfile::Builder builder;
+  builder.SetIsMainProfile(true);
+  std::unique_ptr<TestingProfile> profile = builder.Build();
+
+  CreateClient(profile.get());
+  ASSERT_FALSE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
+
+  SigninClient::SignoutDecision signout_decision =
+      IsAlwaysAllowedSignoutSources(signout_source)
+          ? SigninClient::SignoutDecision::ALLOW
+          : SigninClient::SignoutDecision::CLEAR_PRIMARY_ACCOUNT_DISALLOWED;
+  signin_metrics::SignoutDelete delete_metric =
+      signin_metrics::SignoutDelete::kIgnoreMetric;
+  EXPECT_CALL(*client_,
+              SignOutCallback(signout_source, delete_metric, signout_decision))
+      .Times(1);
+  PreSignOut(signout_source, delete_metric);
+}
+#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutAllowed) {
   signin_metrics::ProfileSignout signout_source = GetParam();
@@ -302,22 +351,24 @@ TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutAllowed) {
   std::unique_ptr<TestingProfile> profile = builder.Build();
 
   CreateClient(profile.get());
-  ASSERT_TRUE(signin_util::IsUserSignoutAllowedForProfile(profile.get()));
+  ASSERT_TRUE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
+  ASSERT_TRUE(client_->IsRevokeSyncConsentAllowed());
 
   // Verify IdentityManager gets callback indicating sign-out is always allowed.
   signin_metrics::SignoutDelete delete_metric =
       signin_metrics::SignoutDelete::kIgnoreMetric;
-  EXPECT_CALL(
-      *client_,
-      SignOutCallback(signout_source, delete_metric,
-                      SigninClient::SignoutDecision::ALLOW_SIGNOUT))
+  EXPECT_CALL(*client_, SignOutCallback(signout_source, delete_metric,
+                                        SigninClient::SignoutDecision::ALLOW))
       .Times(1);
 
   PreSignOut(signout_source, delete_metric);
 }
 
-#if defined(OS_WIN) || defined(OS_LINUX) || defined(OS_CHROMEOS) || \
-    defined(OS_MAC)
+// TODO(crbug.com/1369588): Enable |ChromeSigninClientSignoutSourceTest| test
+// suite on Android.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
+    BUILDFLAG(IS_MAC)
 TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutDisallowed) {
   signin_metrics::ProfileSignout signout_source = GetParam();
 
@@ -327,16 +378,17 @@ TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutDisallowed) {
 
   CreateClient(profile.get());
 
-  ASSERT_TRUE(signin_util::IsUserSignoutAllowedForProfile(profile.get()));
-  signin_util::SetUserSignoutAllowedForProfile(profile.get(), false);
-  ASSERT_FALSE(signin_util::IsUserSignoutAllowedForProfile(profile.get()));
+  client_->set_is_clear_primary_account_allowed_for_testing(
+      SigninClient::SignoutDecision::CLEAR_PRIMARY_ACCOUNT_DISALLOWED);
+  ASSERT_FALSE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
 
   // Verify IdentityManager gets callback indicating sign-out is disallowed iff
   // the source of the sign-out is a user-action.
   SigninClient::SignoutDecision signout_decision =
-      IsSignoutDisallowedByPolicy(profile.get(), signout_source)
-          ? SigninClient::SignoutDecision::DISALLOW_SIGNOUT
-          : SigninClient::SignoutDecision::ALLOW_SIGNOUT;
+      IsAlwaysAllowedSignoutSources(signout_source)
+          ? SigninClient::SignoutDecision::ALLOW
+          : SigninClient::SignoutDecision::CLEAR_PRIMARY_ACCOUNT_DISALLOWED;
   signin_metrics::SignoutDelete delete_metric =
       signin_metrics::SignoutDelete::kIgnoreMetric;
   EXPECT_CALL(*client_,
@@ -346,7 +398,7 @@ TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutDisallowed) {
   PreSignOut(signout_source, delete_metric);
 }
 
-TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutDisallowedWithSync) {
+TEST_P(ChromeSigninClientSignoutSourceTest, RevokeSyncDisallowed) {
   signin_metrics::ProfileSignout signout_source = GetParam();
 
   TestingProfile::Builder builder;
@@ -355,48 +407,18 @@ TEST_P(ChromeSigninClientSignoutSourceTest, UserSignoutDisallowedWithSync) {
 
   CreateClient(profile.get());
 
-  ASSERT_TRUE(signin_util::IsUserSignoutAllowedForProfile(profile.get()));
-  signin_util::SetUserSignoutAllowedForProfile(profile.get(), false);
-  ASSERT_FALSE(signin_util::IsUserSignoutAllowedForProfile(profile.get()));
+  client_->set_is_clear_primary_account_allowed_for_testing(
+      SigninClient::SignoutDecision::REVOKE_SYNC_DISALLOWED);
+  ASSERT_FALSE(
+      client_->IsClearPrimaryAccountAllowed(/*has_sync_account=*/false));
+  ASSERT_FALSE(client_->IsRevokeSyncConsentAllowed());
 
   // Verify IdentityManager gets callback indicating sign-out is disallowed iff
   // the source of the sign-out is a user-action.
   SigninClient::SignoutDecision signout_decision =
-      IsSignoutDisallowedByPolicy(profile.get(), signout_source)
-          ? SigninClient::SignoutDecision::DISALLOW_SIGNOUT
-          : SigninClient::SignoutDecision::ALLOW_SIGNOUT;
-  signin_metrics::SignoutDelete delete_metric =
-      signin_metrics::SignoutDelete::kIgnoreMetric;
-  identity_test_env()->MakePrimaryAccountAvailable("bob@example.com",
-                                                   signin::ConsentLevel::kSync);
-  EXPECT_CALL(*client_,
-              SignOutCallback(signout_source, delete_metric, signout_decision))
-      .Times(1);
-
-  PreSignOut(signout_source, delete_metric);
-}
-
-TEST_P(ChromeSigninClientSignoutSourceTest,
-       UserSignoutDisallowedAccountManagementAccepted) {
-  base::test::ScopedFeatureList features(kAccountPoliciesLoadedWithoutSync);
-  signin_metrics::ProfileSignout signout_source = GetParam();
-
-  TestingProfile::Builder builder;
-  builder.SetGuestSession();
-  std::unique_ptr<TestingProfile> profile = builder.Build();
-
-  CreateClient(profile.get());
-
-  ASSERT_TRUE(signin_util::IsUserSignoutAllowedForProfile(profile.get()));
-  signin_util::SetUserSignoutAllowedForProfile(profile.get(), false);
-  ASSERT_FALSE(signin_util::IsUserSignoutAllowedForProfile(profile.get()));
-
-  // Verify IdentityManager gets callback indicating sign-out is disallowed iff
-  // the source of the sign-out is a user-action.
-  SigninClient::SignoutDecision signout_decision =
-      IsSignoutDisallowedByPolicy(profile.get(), signout_source)
-          ? SigninClient::SignoutDecision::DISALLOW_SIGNOUT
-          : SigninClient::SignoutDecision::ALLOW_SIGNOUT;
+      IsAlwaysAllowedSignoutSources(signout_source)
+          ? SigninClient::SignoutDecision::ALLOW
+          : SigninClient::SignoutDecision::REVOKE_SYNC_DISALLOWED;
   signin_metrics::SignoutDelete delete_metric =
       signin_metrics::SignoutDelete::kIgnoreMetric;
   EXPECT_CALL(*client_,
@@ -408,31 +430,41 @@ TEST_P(ChromeSigninClientSignoutSourceTest,
 #endif
 
 const signin_metrics::ProfileSignout kSignoutSources[] = {
-    signin_metrics::ProfileSignout::SIGNOUT_PREF_CHANGED,
-    signin_metrics::ProfileSignout::GOOGLE_SERVICE_NAME_PATTERN_CHANGED,
-    signin_metrics::ProfileSignout::SIGNIN_PREF_CHANGED_DURING_SIGNIN,
-    signin_metrics::ProfileSignout::USER_CLICKED_SIGNOUT_SETTINGS,
-    signin_metrics::ProfileSignout::ABORT_SIGNIN,
-    signin_metrics::ProfileSignout::SERVER_FORCED_DISABLE,
-    signin_metrics::ProfileSignout::TRANSFER_CREDENTIALS,
-    signin_metrics::ProfileSignout::AUTHENTICATION_FAILED_WITH_FORCE_SIGNIN,
-    signin_metrics::ProfileSignout::USER_TUNED_OFF_SYNC_FROM_DICE_UI,
-    signin_metrics::ProfileSignout::ACCOUNT_REMOVED_FROM_DEVICE,
-    signin_metrics::ProfileSignout::SIGNIN_NOT_ALLOWED_ON_PROFILE_INIT,
-    signin_metrics::ProfileSignout::FORCE_SIGNOUT_ALWAYS_ALLOWED_FOR_TEST,
-    signin_metrics::ProfileSignout::USER_DELETED_ACCOUNT_COOKIES,
-    signin_metrics::ProfileSignout::MOBILE_IDENTITY_CONSISTENCY_ROLLBACK,
-    signin_metrics::ProfileSignout::ACCOUNT_ID_MIGRATION,
+    signin_metrics::ProfileSignout::kPrefChanged,
+    signin_metrics::ProfileSignout::kGoogleServiceNamePatternChanged,
+    signin_metrics::ProfileSignout::kUserClickedSignoutSettings,
+    signin_metrics::ProfileSignout::kAbortSignin,
+    signin_metrics::ProfileSignout::kServerForcedDisable,
+    signin_metrics::ProfileSignout::kAuthenticationFailedWithForceSignin,
+    signin_metrics::ProfileSignout::kAccountRemovedFromDevice,
+    signin_metrics::ProfileSignout::kSigninNotAllowedOnProfileInit,
+    signin_metrics::ProfileSignout::kForceSignoutAlwaysAllowedForTest,
+    signin_metrics::ProfileSignout::kUserDeletedAccountCookies,
+    signin_metrics::ProfileSignout::kIosAccountRemovedFromDeviceAfterRestore,
+    signin_metrics::ProfileSignout::kUserClickedRevokeSyncConsentSettings,
+    signin_metrics::ProfileSignout::kUserClickedSignoutProfileMenu,
+    signin_metrics::ProfileSignout::kSigninRetriggeredFromWebSignin,
     signin_metrics::ProfileSignout::
-        IOS_ACCOUNT_REMOVED_FROM_DEVICE_AFTER_RESTORE,
+        kUserClickedSignoutFromUserPolicyNotificationDialog,
+    signin_metrics::ProfileSignout::kAccountEmailUpdated,
+    signin_metrics::ProfileSignout::
+        kUserClickedSignoutFromClearBrowsingDataPage,
+    signin_metrics::ProfileSignout::kGaiaCookieUpdated,
+    signin_metrics::ProfileSignout::kAccountReconcilorReconcile,
+    signin_metrics::ProfileSignout::kSigninManagerUpdateUPA,
 };
-static_assert(base::size(kSignoutSources) ==
-                  signin_metrics::ProfileSignout::NUM_PROFILE_SIGNOUT_METRICS,
-              "kSignoutSources should enumerate all ProfileSignout values");
+// kNumberOfObsoleteSignoutSources should be updated when a ProfileSignout
+// value is deprecated.
+const int kNumberOfObsoleteSignoutSources = 6;
+static_assert(std::size(kSignoutSources) + kNumberOfObsoleteSignoutSources ==
+                  static_cast<int>(signin_metrics::ProfileSignout::kMaxValue) +
+                      1,
+              "kSignoutSources should enumerate all ProfileSignout values that "
+              "are not obsolete");
 
 INSTANTIATE_TEST_SUITE_P(AllSignoutSources,
                          ChromeSigninClientSignoutSourceTest,
                          testing::ValuesIn(kSignoutSources));
 
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH)

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,17 +21,18 @@ class TabRestoreService;
 // snapshot from disk and memory. This class also records of history for
 // non-incognito Browser's WebStates.
 class ClosingWebStateObserverBrowserAgent
-    : BrowserObserver,
+    : public BrowserObserver,
       public BrowserUserData<ClosingWebStateObserverBrowserAgent>,
-      WebStateListObserver {
+      public WebStateListObserver {
  public:
   ClosingWebStateObserverBrowserAgent();
   ~ClosingWebStateObserverBrowserAgent() override;
 
  private:
-  explicit ClosingWebStateObserverBrowserAgent(Browser* browser);
   friend class BrowserUserData<ClosingWebStateObserverBrowserAgent>;
   BROWSER_USER_DATA_KEY_DECL();
+
+  explicit ClosingWebStateObserverBrowserAgent(Browser* browser);
 
   // Records history for a given non-incognito WebState and does not record
   // history if the tab has no navigation or has only presented the NTP or the
@@ -46,10 +47,6 @@ class ClosingWebStateObserverBrowserAgent
                           web::WebState* old_web_state,
                           web::WebState* new_web_state,
                           int index) override;
-
-  void WillDetachWebStateAt(WebStateList* web_state_list,
-                            web::WebState* web_state,
-                            int index) override;
 
   void WillCloseWebStateAt(WebStateList* web_state_list,
                            web::WebState* web_state,

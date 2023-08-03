@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -427,7 +427,7 @@ static const GpuDriverBugWorkarounds workarounds_cases[] = {
     // No extra workarounds.
     GpuDriverBugWorkarounds(),
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     // Regression tests for https://crbug.com/768324
     //
     // TODO(kainino): The #if is added because this case does not pass on Mac

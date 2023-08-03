@@ -1,10 +1,10 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/webrtc/media_stream_device_permission_context.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
@@ -20,7 +20,7 @@
 #include "content/public/test/web_contents_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "components/permissions/permission_request_manager.h"
 #endif
 
@@ -106,7 +106,7 @@ class MediaStreamDevicePermissionContextTests
   // ChromeRenderViewHostTestHarness:
   void SetUp() override {
     ChromeRenderViewHostTestHarness::SetUp();
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     infobars::ContentInfoBarManager::CreateForWebContents(web_contents());
 #else
     permissions::PermissionRequestManager::CreateForWebContents(web_contents());

@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "ash/test/ash_test_base.h"
+#include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/models/menu_model.h"
@@ -106,7 +107,7 @@ class MessageCenterUiControllerTest : public AshTestBase {
         new message_center::Notification(
             message_center::NOTIFICATION_TYPE_SIMPLE, id,
             u"Test Web Notification", u"Notification message body.",
-            gfx::Image(), u"www.test.org", GURL(), notifier_id,
+            ui::ImageModel(), u"www.test.org", GURL(), notifier_id,
             message_center::RichNotificationData(),
             new TestNotificationDelegate()));
     message_center::Notification* notification_ptr = notification.get();
@@ -115,7 +116,7 @@ class MessageCenterUiControllerTest : public AshTestBase {
   }
   std::unique_ptr<MockDelegate> delegate_;
   std::unique_ptr<MessageCenterUiController> ui_controller_;
-  message_center::MessageCenter* message_center_;
+  raw_ptr<message_center::MessageCenter, ExperimentalAsh> message_center_;
 };
 
 TEST_F(MessageCenterUiControllerTest, BasicMessageCenter) {

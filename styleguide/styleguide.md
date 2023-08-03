@@ -3,6 +3,7 @@
 ## Main style guides
 
 *   [Chromium C++ style guide](c++/c++.md)
+    *   [Modern C++ use](c++/c++-features.md) for allowed/banned features.
     *   See also: [C++ Dos and Don'ts](c++/c++-dos-and-donts.md) for Chromium
         best-practices.
 *   [Chromium Objective-C style guide](objective-c/objective-c.md)
@@ -13,7 +14,7 @@
     for build files.
     *   See also: [Writing GN templates](../build/docs/writing_gn_templates.md)
         for Chromium best-practices.
-*   [Markdown guide](https://www.chromium.org/developers/markdown-documentation)
+*   [Markdown style guide](markdown/markdown.md)
 
 Chromium also uses these languages to a lesser degree:
 

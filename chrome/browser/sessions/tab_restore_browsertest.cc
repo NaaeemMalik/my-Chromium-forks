@@ -1,12 +1,12 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
@@ -14,8 +14,8 @@
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
-#include "chrome/browser/profiles/profile_keep_alive_types.h"
-#include "chrome/browser/profiles/scoped_profile_keep_alive.h"
+#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
+#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/sessions/session_restore_test_helper.h"
 #include "chrome/browser/sessions/tab_loader_tester.h"
 #include "chrome/browser/sessions/tab_restore_service_factory.h"
@@ -27,6 +27,7 @@
 #include "chrome/browser/ui/browser_live_tab_context.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -121,7 +122,7 @@ class TabRestoreTest : public InProcessBrowserTest {
     content::WebContentsDestroyedWatcher destroyed_watcher(
         browser()->tab_strip_model()->GetWebContentsAt(index));
     browser()->tab_strip_model()->CloseWebContentsAt(
-        index, TabStripModel::CLOSE_CREATE_HISTORICAL_TAB);
+        index, TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
     destroyed_watcher.Wait();
   }
 
@@ -254,17 +255,15 @@ class TabRestoreTest : public InProcessBrowserTest {
   }
 
   void GoBack(Browser* browser) {
-    content::WindowedNotificationObserver observer(
-        content::NOTIFICATION_LOAD_STOP,
-        content::NotificationService::AllSources());
+    content::LoadStopObserver observer(
+        browser->tab_strip_model()->GetActiveWebContents());
     chrome::GoBack(browser, WindowOpenDisposition::CURRENT_TAB);
     observer.Wait();
   }
 
   void GoForward(Browser* browser) {
-    content::WindowedNotificationObserver observer(
-        content::NOTIFICATION_LOAD_STOP,
-        content::NotificationService::AllSources());
+    content::LoadStopObserver observer(
+        browser->tab_strip_model()->GetActiveWebContents());
     chrome::GoForward(browser, WindowOpenDisposition::CURRENT_TAB);
     observer.Wait();
   }
@@ -275,9 +274,7 @@ class TabRestoreTest : public InProcessBrowserTest {
         !tab->IsLoading())
       return;
 
-    content::WindowedNotificationObserver observer(
-        content::NOTIFICATION_LOAD_STOP,
-        content::Source<content::NavigationController>(controller));
+    content::LoadStopObserver observer(tab);
     observer.Wait();
   }
 
@@ -396,7 +393,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, DISABLED_BasicRestoreFromClosedWindow) {
   EXPECT_EQ(url1_, web_contents->GetURL());
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Flakily times out: http://crbug.com/171503
 #define MAYBE_DontLoadRestoredTab DISABLED_DontLoadRestoredTab
 #else
@@ -631,7 +628,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, RestoreGroupInNewWindow) {
 
 // https://crbug.com/1196530: Test is flaky on Linux, disabled for
 // investigation.
-#if defined(OS_LINUX)
+#if BUILDFLAG(IS_LINUX)
 #define MAYBE_RestoreGroupWithUnloadHandlerRejected \
   DISABLED_RestoreGroupWithUnloadHandlerRejected
 #else
@@ -857,9 +854,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, RestoreWithExistingSiteInstance) {
   // Navigate to another same-site URL.
   content::WebContents* tab =
       browser()->tab_strip_model()->GetWebContentsAt(tab_count - 1);
-  content::WindowedNotificationObserver observer(
-      content::NOTIFICATION_LOAD_STOP,
-      content::NotificationService::AllSources());
+  content::LoadStopObserver observer(tab);
   static_cast<content::WebContentsDelegate*>(browser())->OpenURLFromTab(
       tab, content::OpenURLParams(http_url2, content::Referrer(),
                                   WindowOpenDisposition::CURRENT_TAB,
@@ -888,7 +883,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, RestoreWithExistingSiteInstance) {
 }
 
 // See crbug.com/248574
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #define MAYBE_RestoreCrossSiteWithExistingSiteInstance \
   DISABLED_RestoreCrossSiteWithExistingSiteInstance
 #else
@@ -992,11 +987,10 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, RestoreWindow) {
   EXPECT_EQ(url1_, restored_tab->GetURL());
 }
 
-// https://crbug.com/825305: Timeout flakiness on Win7 Tests (dbg)(1) bot and
-// Mac10.13 Tests (dbg) and PASS/FAIL flakiness on Linux Chromium OS ASan LSan
-// Tests (1) bot.
+// https://crbug.com/825305: Timeout flakiness on Mac10.13 Tests (dbg) and
+// PASS/FAIL flakiness on Linux Chromium OS ASan LSan Tests (1) bot.
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    !defined(NDEBUG)
+    (!defined(NDEBUG) && !BUILDFLAG(IS_WIN))
 #define MAYBE_RestoreTabWithSpecialURL DISABLED_RestoreTabWithSpecialURL
 #else
 #define MAYBE_RestoreTabWithSpecialURL RestoreTabWithSpecialURL
@@ -1020,16 +1014,16 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, MAYBE_RestoreTabWithSpecialURL) {
   EnsureTabFinishedRestoring(tab);
 
   // See if content is as expected.
-  EXPECT_GT(ui_test_utils::FindInPage(tab, u"webkit", true, false, NULL, NULL),
-            0);
+  EXPECT_GT(
+      ui_test_utils::FindInPage(tab, u"webkit", true, false, nullptr, nullptr),
+      0);
 }
 
 // https://crbug.com/667932: Flakiness on linux_chromium_asan_rel_ng bot.
-// https://crbug.com/825305: Timeout flakiness on Win7 Tests (dbg)(1) and
-// Mac10.13 Tests (dbg) bots.
+// https://crbug.com/825305: Timeout flakiness on Mac10.13 Tests (dbg) bots.
 // Also fails on Linux Tests (dbg).
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
-    !defined(NDEBUG)
+    (!defined(NDEBUG) && !BUILDFLAG(IS_WIN))
 #define MAYBE_RestoreTabWithSpecialURLOnBack DISABLED_RestoreTabWithSpecialURLOnBack
 #else
 #define MAYBE_RestoreTabWithSpecialURLOnBack RestoreTabWithSpecialURLOnBack
@@ -1062,8 +1056,9 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, MAYBE_RestoreTabWithSpecialURLOnBack) {
 
   // Go back, and see if content is as expected.
   GoBack(browser());
-  EXPECT_GT(ui_test_utils::FindInPage(tab, u"webkit", true, false, NULL, NULL),
-            0);
+  EXPECT_GT(
+      ui_test_utils::FindInPage(tab, u"webkit", true, false, nullptr, nullptr),
+      0);
 }
 
 IN_PROC_BROWSER_TEST_F(TabRestoreTest, PRE_RestoreOnStartup) {
@@ -1112,7 +1107,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest,
 }
 
 // Test is flaky on Win. https://crbug.com/1241761.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #define MAYBE_TabsFromRestoredWindowsAreLoadedGradually \
   DISABLED_TabsFromRestoredWindowsAreLoadedGradually
 #else
@@ -1612,12 +1607,13 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest,
             browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
 }
 
-// Check that TabManager.TimeSinceTabClosedUntilRestored histogram is recorded
+// Check that TabRestore.Tab.TimeBetweenClosedAndRestored histogram is recorded
 // on tab restore.
-IN_PROC_BROWSER_TEST_F(TabRestoreTest, TimeSinceTabClosedRecorded) {
+IN_PROC_BROWSER_TEST_F(TabRestoreTest,
+                       TimeBetweenTabClosedAndRestoredRecorded) {
   base::HistogramTester histogram_tester;
-  const char kTimeSinceTabClosedUntilRestored[] =
-      "TabManager.TimeSinceTabClosedUntilRestored";
+  const char kTimeBetweenTabClosedAndRestored[] =
+      "TabRestore.Tab.TimeBetweenClosedAndRestored";
 
   int starting_tab_count = browser()->tab_strip_model()->count();
   AddSomeTabs(browser(), 3);
@@ -1627,22 +1623,24 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, TimeSinceTabClosedRecorded) {
   CloseTab(closed_tab_index);
 
   EXPECT_EQ(
-      histogram_tester.GetAllSamples(kTimeSinceTabClosedUntilRestored).size(),
+      histogram_tester.GetAllSamples(kTimeBetweenTabClosedAndRestored).size(),
       0U);
 
+  // Restore the tab. This should record the kTimeBetweenTabClosedAndRestored
+  // histogram.
   RestoreTab(0, closed_tab_index);
-
   EXPECT_EQ(
-      histogram_tester.GetAllSamples(kTimeSinceTabClosedUntilRestored).size(),
+      histogram_tester.GetAllSamples(kTimeBetweenTabClosedAndRestored).size(),
       1U);
 }
 
-// Check that TabManager.TimeSinceWindowClosedUntilRestored histogram is
+// Check that TabRestore.Window.TimeBetweenClosedAndRestored histogram is
 // recorded on window restore.
-IN_PROC_BROWSER_TEST_F(TabRestoreTest, TimeSinceWindowClosedRecorded) {
+IN_PROC_BROWSER_TEST_F(TabRestoreTest,
+                       TimeBetweenWindowClosedAndRestoredRecorded) {
   base::HistogramTester histogram_tester;
-  const char kTimeSinceWindowClosedUntilRestored[] =
-      "TabManager.TimeSinceWindowClosedUntilRestored";
+  const char kTimeBetweenWindowClosedAndRestored[] =
+      "TabRestore.Window.TimeBetweenClosedAndRestored";
 
   // Create a new window.
   ui_test_utils::NavigateToURLWithDisposition(
@@ -1661,60 +1659,42 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, TimeSinceWindowClosedRecorded) {
   // Close the window.
   CloseBrowserSynchronously(browser());
 
-  EXPECT_EQ(histogram_tester.GetAllSamples(kTimeSinceWindowClosedUntilRestored)
+  EXPECT_EQ(histogram_tester.GetAllSamples(kTimeBetweenWindowClosedAndRestored)
                 .size(),
             0U);
 
-  // Restore the window.
+  // Restore the window. This should record kTimeBetweenWindowClosedAndRestored
+  // histogram.
   content::WindowedNotificationObserver load_stop_observer(
       content::NOTIFICATION_LOAD_STOP,
       content::NotificationService::AllSources());
   chrome::RestoreTab(active_browser_list_->get(0));
 
-  EXPECT_EQ(histogram_tester.GetAllSamples(kTimeSinceWindowClosedUntilRestored)
+  EXPECT_EQ(histogram_tester.GetAllSamples(kTimeBetweenWindowClosedAndRestored)
                 .size(),
             1U);
 }
 
-// Check that TabManager.TimeSinceTablosedUntilRestored histogram is not
-// recorded on window restore.
+// // Check that TabRestore.Group.TimeBetweenClosedAndRestored histogram is
+// recorded on group restore.
 IN_PROC_BROWSER_TEST_F(TabRestoreTest,
-                       TimeSinceTabClosedNotRecordedOnWindowRestore) {
+                       TimeBetweenGroupClosedAndRestoredRecorded) {
   base::HistogramTester histogram_tester;
-  const char kTimeSinceTabClosedUntilRestored[] =
-      "TabManager.TimeSinceTabClosedUntilRestored";
+  const char kTimeBetweenGroupClosedAndRestored[] =
+      "TabRestore.Group.TimeBetweenClosedAndRestored";
 
-  // Create a new window.
-  ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL(chrome::kChromeUINewTabURL),
-      WindowOpenDisposition::NEW_WINDOW,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_BROWSER);
+  AddSomeTabs(browser(), 3);
+  tab_groups::TabGroupId group =
+      browser()->tab_strip_model()->AddToNewGroup({1, 2});
+  CloseGroup(group);
 
-  // Create two more tabs, one with url1, the other url2.
-  ui_test_utils::NavigateToURLWithDisposition(
-      browser(), url1_, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
-  ui_test_utils::NavigateToURLWithDisposition(
-      browser(), url2_, WindowOpenDisposition::NEW_FOREGROUND_TAB,
-      ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
-
-  // Close the window.
-  CloseBrowserSynchronously(browser());
+  // Restore closed group. This should record kTimeBetweenGroupClosedAndRestored
+  // histogram.
+  ASSERT_NO_FATAL_FAILURE(RestoreGroup(group, 0, 1));
 
   EXPECT_EQ(
-      histogram_tester.GetAllSamples(kTimeSinceTabClosedUntilRestored).size(),
-      0U);
-
-  // Restore the window.
-  content::WindowedNotificationObserver load_stop_observer(
-      content::NOTIFICATION_LOAD_STOP,
-      content::NotificationService::AllSources());
-  chrome::RestoreTab(active_browser_list_->get(0));
-
-  // Check that TabManager.TimeSinceTablosedUntilRestored was not recorded.
-  EXPECT_EQ(
-      histogram_tester.GetAllSamples(kTimeSinceTabClosedUntilRestored).size(),
-      0U);
+      histogram_tester.GetAllSamples(kTimeBetweenGroupClosedAndRestored).size(),
+      1U);
 }
 
 IN_PROC_BROWSER_TEST_F(TabRestoreTest, PRE_PRE_RestoreAfterMultipleRestarts) {
@@ -1775,7 +1755,7 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, BackToAboutBlank) {
     old_popup = popup_observer.GetWebContents();
     EXPECT_EQ(1, browser()->tab_strip_model()->active_index());
     EXPECT_EQ(initial_origin,
-              old_popup->GetMainFrame()->GetLastCommittedOrigin());
+              old_popup->GetPrimaryMainFrame()->GetLastCommittedOrigin());
     EXPECT_TRUE(WaitForLoadStop(old_popup));
   }
 
@@ -1787,9 +1767,9 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, BackToAboutBlank) {
     ASSERT_TRUE(ExecJs(tab1, "w.location.href = 'about:blank';"));
     nav_observer.Wait();
     EXPECT_EQ(GURL(url::kAboutBlankURL),
-              old_popup->GetMainFrame()->GetLastCommittedURL());
+              old_popup->GetPrimaryMainFrame()->GetLastCommittedURL());
     EXPECT_EQ(initial_origin,
-              old_popup->GetMainFrame()->GetLastCommittedOrigin());
+              old_popup->GetPrimaryMainFrame()->GetLastCommittedOrigin());
   }
 
   // Navigate the popup to another site.
@@ -1801,8 +1781,9 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, BackToAboutBlank) {
         old_popup, content::JsReplace("location = $1", other_url)));
     nav_observer.Wait();
   }
-  EXPECT_EQ(other_url, old_popup->GetMainFrame()->GetLastCommittedURL());
-  EXPECT_EQ(other_origin, old_popup->GetMainFrame()->GetLastCommittedOrigin());
+  EXPECT_EQ(other_url, old_popup->GetPrimaryMainFrame()->GetLastCommittedURL());
+  EXPECT_EQ(other_origin,
+            old_popup->GetPrimaryMainFrame()->GetLastCommittedOrigin());
   ASSERT_TRUE(old_popup->GetController().CanGoBack());
 
   // Close the popup.
@@ -1819,8 +1800,9 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, BackToAboutBlank) {
     EXPECT_EQ(2, browser()->tab_strip_model()->count());
     new_popup = restored_tab_observer.GetWebContents();
   }
-  EXPECT_EQ(other_url, new_popup->GetMainFrame()->GetLastCommittedURL());
-  EXPECT_EQ(other_origin, new_popup->GetMainFrame()->GetLastCommittedOrigin());
+  EXPECT_EQ(other_url, new_popup->GetPrimaryMainFrame()->GetLastCommittedURL());
+  EXPECT_EQ(other_origin,
+            new_popup->GetPrimaryMainFrame()->GetLastCommittedOrigin());
   ASSERT_TRUE(new_popup->GetController().CanGoBack());
   int reopened_tab_index = browser()->tab_strip_model()->active_index();
   EXPECT_EQ(1, reopened_tab_index);
@@ -1828,9 +1810,9 @@ IN_PROC_BROWSER_TEST_F(TabRestoreTest, BackToAboutBlank) {
   // Navigate the popup back to about:blank.
   GoBack(browser());
   EXPECT_EQ(GURL(url::kAboutBlankURL),
-            new_popup->GetMainFrame()->GetLastCommittedURL());
+            new_popup->GetPrimaryMainFrame()->GetLastCommittedURL());
   EXPECT_EQ(initial_origin,
-            new_popup->GetMainFrame()->GetLastCommittedOrigin());
+            new_popup->GetPrimaryMainFrame()->GetLastCommittedOrigin());
 }
 
 // Ensures group IDs are regenerated for restored windows so that we don't split

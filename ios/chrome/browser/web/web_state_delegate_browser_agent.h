@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,10 +40,6 @@ class WebStateDelegateBrowserAgent
   WebStateDelegateBrowserAgent(const WebStateDelegateBrowserAgent&) = delete;
   WebStateDelegateBrowserAgent& operator=(const WebStateDelegateBrowserAgent&) =
       delete;
-
-  // Factory.
-  static void CreateForBrowser(Browser* browser,
-                               TabInsertionBrowserAgent* tab_insertion_agent);
 
   // Sets the UI providers to be used for WebStateDelegate tasks that require
   // them.
@@ -97,6 +93,11 @@ class WebStateDelegateBrowserAgent
       base::OnceCallback<void(bool)> callback) override;
   web::JavaScriptDialogPresenter* GetJavaScriptDialogPresenter(
       web::WebState* source) override;
+  void HandlePermissionsDecisionRequest(
+      web::WebState* source,
+      NSArray<NSNumber*>* permissions,
+      web::WebStatePermissionDecisionHandler handler) override
+      API_AVAILABLE(ios(15.0));
   void OnAuthRequired(web::WebState* source,
                       NSURLProtectionSpace* protection_space,
                       NSURLCredential* proposed_credential,
@@ -121,6 +122,9 @@ class WebStateDelegateBrowserAgent
   TabInsertionBrowserAgent* tab_insertion_agent_ = nullptr;
 
   OverlayJavaScriptDialogPresenter java_script_dialog_presenter_;
+
+  // The browser associated with this agent.
+  Browser* browser_;
 
   // Scoped observations of Browser, WebStateList and WebStates.
   base::ScopedObservation<Browser, BrowserObserver> browser_observation_{this};

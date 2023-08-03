@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@
 #include <ostream>
 #include <string>
 
-#include "base/compiler_specific.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "net/base/address_family.h"
 #include "net/base/ip_address.h"
 #include "net/base/net_export.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 // Replicate these from Windows headers to avoid pulling net/sys_addrinfo.h.
 // Doing that transitively brings in windows.h. Including windows.h pollutes the
@@ -24,7 +25,7 @@
 // Similarly, just pull in the minimal header necessary on non-Windows platforms
 // to help with build performance.
 struct sockaddr;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 typedef int socklen_t;
 #else
 #include <sys/socket.h>
@@ -37,6 +38,9 @@ namespace net {
 //  * Port
 class NET_EXPORT IPEndPoint {
  public:
+  // Nullopt if `value` is malformed to be serialized to IPEndPoint.
+  static absl::optional<IPEndPoint> FromValue(const base::Value& value);
+
   IPEndPoint();
   ~IPEndPoint();
   IPEndPoint(const IPAddress& address, uint16_t port);
@@ -65,15 +69,15 @@ class NET_EXPORT IPEndPoint {
   //    size of data in |address| available.  On output, it is the size of
   //    the address that was copied into |address|.
   // Returns true on success, false on failure.
-  bool ToSockAddr(struct sockaddr* address,
-                  socklen_t* address_length) const WARN_UNUSED_RESULT;
+  [[nodiscard]] bool ToSockAddr(struct sockaddr* address,
+                                socklen_t* address_length) const;
 
   // Convert from a sockaddr struct.
   // |address| is the address.
   // |address_length| is the length of |address|.
   // Returns true on success, false on failure.
-  bool FromSockAddr(const struct sockaddr* address,
-                    socklen_t address_length) WARN_UNUSED_RESULT;
+  [[nodiscard]] bool FromSockAddr(const struct sockaddr* address,
+                                  socklen_t address_length);
 
   // Returns value as a string (e.g. "127.0.0.1:80"). Returns the empty string
   // when |address_| is invalid (the port will be ignored). This function will
@@ -88,6 +92,8 @@ class NET_EXPORT IPEndPoint {
   bool operator<(const IPEndPoint& that) const;
   bool operator==(const IPEndPoint& that) const;
   bool operator!=(const IPEndPoint& that) const;
+
+  base::Value ToValue() const;
 
  private:
   IPAddress address_;

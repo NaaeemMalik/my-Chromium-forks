@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,21 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/notreached.h"
 #include "base/task/sequenced_task_runner.h"
-#include "base/threading/sequenced_task_runner_handle.h"
+#include "components/sync/base/model_type.h"
 #include "components/sync/driver/configure_context.h"
 #include "components/sync/driver/data_type_encryption_handler.h"
 #include "components/sync/driver/data_type_manager_observer.h"
 #include "components/sync/driver/data_type_status_table.h"
 #include "components/sync/engine/data_type_activation_response.h"
-#include "components/sync/engine/data_type_debug_info_listener.h"
+#include "components/sync/protocol/model_type_state_helper.h"
 
 namespace syncer {
 
@@ -47,22 +47,60 @@ ConfigureReason GetReasonForProgrammaticReconfigure(
              : ConfigureReason::CONFIGURE_REASON_PROGRAMMATIC;
 }
 
+// Divides |types| into sets by their priorities and return the sets from
+// high priority to low priority.
+base::queue<ModelTypeSet> PrioritizeTypes(const ModelTypeSet& types) {
+  // Control types are usually configured before all other types during
+  // initialization of sync engine even before data type manager gets
+  // constructed. However, listing control types here with the highest priority
+  // makes the behavior consistent also for various flows for restarting sync
+  // such as migrating all data types or reconfiguring sync in ephemeral mode
+  // when all local data is wiped.
+  const ModelTypeSet control_types = Intersection(ControlTypes(), types);
+
+  // Priority types are particularly important and/or urgent, and should be
+  // downloaded and applied before regular types.
+  const ModelTypeSet high_priority_types =
+      Intersection(HighPriorityUserTypes(), types);
+
+  // *Low*-priority types are less important, and/or typically contain more data
+  // than other data types, and so should be downloaded last so as not to slow
+  // down the initial sync for other types.
+  const ModelTypeSet low_priority_types =
+      Intersection(LowPriorityUserTypes(), types);
+
+  // Regular types are everything that's not control, priority, or low-priority.
+  const ModelTypeSet regular_types = Difference(
+      types,
+      Union(Union(control_types, high_priority_types), low_priority_types));
+
+  base::queue<ModelTypeSet> result;
+  if (!control_types.Empty())
+    result.push(control_types);
+  if (!high_priority_types.Empty())
+    result.push(high_priority_types);
+  if (!regular_types.Empty())
+    result.push(regular_types);
+  if (!low_priority_types.Empty())
+    result.push(low_priority_types);
+
+  // Could be empty in case of purging for migration, sync nothing, etc.
+  // Configure empty set to purge data from backend.
+  if (result.empty())
+    result.push(ModelTypeSet());
+
+  return result;
+}
+
 }  // namespace
 
-DataTypeManagerImpl::AssociationTypesInfo::AssociationTypesInfo() = default;
-DataTypeManagerImpl::AssociationTypesInfo::AssociationTypesInfo(
-    const AssociationTypesInfo& other) = default;
-DataTypeManagerImpl::AssociationTypesInfo::~AssociationTypesInfo() = default;
-
 DataTypeManagerImpl::DataTypeManagerImpl(
-    const WeakHandle<DataTypeDebugInfoListener>& debug_info_listener,
     const DataTypeController::TypeMap* controllers,
     const DataTypeEncryptionHandler* encryption_handler,
     ModelTypeConfigurer* configurer,
     DataTypeManagerObserver* observer)
     : configurer_(configurer),
       controllers_(controllers),
-      debug_info_listener_(debug_info_listener),
       model_load_manager_(controllers, this),
       observer_(observer),
       encryption_handler_(encryption_handler) {
@@ -76,13 +114,14 @@ DataTypeManagerImpl::DataTypeManagerImpl(
   // Check if any of the controllers are already in a FAILED state, and if so,
   // mark them accordingly in the status table.
   DataTypeStatusTable::TypeErrorMap existing_errors;
-  for (const auto& kv : *controllers_) {
-    ModelType type = kv.first;
-    const DataTypeController* controller = kv.second.get();
+  for (const auto& [type, controller] : *controllers_) {
     DataTypeController::State state = controller->state();
     DCHECK(state == DataTypeController::NOT_RUNNING ||
            state == DataTypeController::STOPPING ||
-           state == DataTypeController::FAILED);
+           state == DataTypeController::FAILED)
+        << " actual=" << DataTypeController::StateToString(state) << " for "
+        << ModelTypeToDebugString(type);
+
     if (state == DataTypeController::FAILED) {
       existing_errors[type] =
           SyncError(FROM_HERE, SyncError::DATATYPE_ERROR,
@@ -94,17 +133,26 @@ DataTypeManagerImpl::DataTypeManagerImpl(
 
 DataTypeManagerImpl::~DataTypeManagerImpl() = default;
 
-void DataTypeManagerImpl::Configure(ModelTypeSet desired_types,
+void DataTypeManagerImpl::Configure(ModelTypeSet preferred_types,
                                     const ConfigureContext& context) {
-  desired_types.PutAll(ControlTypes());
+  preferred_types.PutAll(ControlTypes());
 
   ModelTypeSet allowed_types = ControlTypes();
   // Add types with controllers.
-  for (const auto& kv : *controllers_) {
-    allowed_types.Put(kv.first);
+  // TODO(crbug.com/1430450): `preferred_types` should already only contain
+  // types with controllers. Can we CHECK() this instead?
+  for (const auto& [type, controller] : *controllers_) {
+    allowed_types.Put(type);
+
+    // Ensure that the initial precondition state is accurate, and clear
+    // existing metadata if necessary. Note that this happens for *all* data
+    // types, not just the preferred ones!
+    // TODO(crbug.com/897628): For non-preferred types, metadata should probably
+    // be cleared independent of the precondition state.
+    DataTypePreconditionChanged(type);
   }
 
-  ConfigureImpl(Intersection(desired_types, allowed_types), context);
+  ConfigureImpl(Intersection(preferred_types, allowed_types), context);
 }
 
 void DataTypeManagerImpl::DataTypePreconditionChanged(ModelType type) {
@@ -115,7 +163,7 @@ void DataTypeManagerImpl::DataTypePreconditionChanged(ModelType type) {
 
   switch (controllers_->find(type)->second->GetPreconditionState()) {
     case DataTypeController::PreconditionState::kPreconditionsMet:
-      if (last_requested_types_.Has(type)) {
+      if (preferred_types_.Has(type)) {
         // Only reconfigure if the type is both ready and desired. This will
         // internally also update ready state of all other requested types.
         ForceReconfiguration();
@@ -124,14 +172,14 @@ void DataTypeManagerImpl::DataTypePreconditionChanged(ModelType type) {
 
     case DataTypeController::PreconditionState::kMustStopAndClearData:
       model_load_manager_.StopDatatype(
-          type, ShutdownReason::DISABLE_SYNC_AND_CLEAR_DATA,
+          type, SyncStopMetadataFate::CLEAR_METADATA,
           SyncError(FROM_HERE, syncer::SyncError::DATATYPE_POLICY_ERROR,
                     "Datatype preconditions not met.", type));
       break;
 
     case DataTypeController::PreconditionState::kMustStopAndKeepData:
       model_load_manager_.StopDatatype(
-          type, ShutdownReason::STOP_SYNC_AND_KEEP_DATA,
+          type, SyncStopMetadataFate::KEEP_METADATA,
           SyncError(FROM_HERE, syncer::SyncError::UNREADY_ERROR,
                     "Data type is unready.", type));
       break;
@@ -150,15 +198,15 @@ void DataTypeManagerImpl::ResetDataTypeErrors() {
 }
 
 void DataTypeManagerImpl::PurgeForMigration(ModelTypeSet undesired_types) {
-  ModelTypeSet remainder = Difference(last_requested_types_, undesired_types);
+  ModelTypeSet remainder = Difference(preferred_types_, undesired_types);
   last_requested_context_.reason = CONFIGURE_REASON_MIGRATION;
   ConfigureImpl(remainder, last_requested_context_);
 }
 
-void DataTypeManagerImpl::ConfigureImpl(ModelTypeSet desired_types,
+void DataTypeManagerImpl::ConfigureImpl(ModelTypeSet preferred_types,
                                         const ConfigureContext& context) {
   DCHECK_NE(context.reason, CONFIGURE_REASON_UNKNOWN);
-  DVLOG(1) << "Configuring for " << ModelTypeSetToString(desired_types)
+  DVLOG(1) << "Configuring for " << ModelTypeSetToDebugString(preferred_types)
            << " with reason " << context.reason;
   if (state_ == STOPPING) {
     // You can not set a configuration while stopping.
@@ -172,27 +220,35 @@ void DataTypeManagerImpl::ConfigureImpl(ModelTypeSet desired_types,
     DCHECK_EQ(context.cache_guid, last_requested_context_.cache_guid);
   }
 
-  // TODO(zea): consider not performing a full configuration once there's a
-  // reliable way to determine if the requested set of enabled types matches the
-  // current set.
-
-  last_requested_types_ = desired_types;
+  preferred_types_ = preferred_types;
   last_requested_context_ = context;
 
   // Only proceed if we're in a steady state or retrying.
-  if (state_ != STOPPED && state_ != CONFIGURED && state_ != RETRYING) {
-    DVLOG(1) << "Received configure request while configuration in flight. "
-             << "Postponing until current configuration complete.";
-    needs_reconfigure_ = true;
-    return;
-  }
+  switch (state_) {
+    case STOPPING:
+      // Handled earlier in this function.
+      NOTREACHED_NORETURN();
 
-  Restart();
+    case STOPPED:
+    case CONFIGURED:
+    case RETRYING:
+      // Proceed with the configuration now.
+      Restart();
+      break;
+
+    case CONFIGURING:
+      // A configuration is ongoing and can't be interrupted, so let's just
+      // postpone the logic until the in-flight configuration is completed.
+      DVLOG(1) << "Received configure request while configuration in flight. "
+               << "Postponing until current configuration complete.";
+      needs_reconfigure_ = true;
+      break;
+  }
 }
 
 void DataTypeManagerImpl::ConnectDataTypes() {
-  for (ModelType type : last_enabled_types_) {
-    const auto& dtc_iter = controllers_->find(type);
+  for (ModelType type : preferred_types_without_errors_) {
+    auto dtc_iter = controllers_->find(type);
     if (dtc_iter == controllers_->end()) {
       continue;
     }
@@ -217,10 +273,12 @@ void DataTypeManagerImpl::ConnectDataTypes() {
       // currently possible for PROXY_TABS and, on Android, for PASSWORDS.
       DCHECK(!activation_response->type_processor);
       downloaded_types_.Put(type);
+      configured_proxy_types_.Put(type);
       continue;
     }
 
-    if (activation_response->model_type_state.initial_sync_done()) {
+    if (IsInitialSyncDone(
+            activation_response->model_type_state.initial_sync_state())) {
       downloaded_types_.Put(type);
     } else {
       downloaded_types_.Remove(type);
@@ -238,9 +296,9 @@ ModelTypeSet DataTypeManagerImpl::GetDataTypesInState(
     DataTypeConfigState state,
     const DataTypeConfigStateMap& state_map) {
   ModelTypeSet types;
-  for (const auto& kv : state_map) {
-    if (kv.second == state)
-      types.Put(kv.first);
+  for (const auto& [type, config_state] : state_map) {
+    if (config_state == state)
+      types.Put(type);
   }
   return types;
 }
@@ -258,8 +316,8 @@ DataTypeManagerImpl::DataTypeConfigStateMap
 DataTypeManagerImpl::BuildDataTypeConfigStateMap(
     const ModelTypeSet& types_being_configured) const {
   // 1. Get the failed types (due to fatal, crypto, and unready errors).
-  // 2. Add the difference between last_requested_types_ and the failed types
-  //    as CONFIGURE_INACTIVE.
+  // 2. Add the difference between preferred_types_ and the failed types as
+  //    CONFIGURE_INACTIVE.
   // 3. Flip |types_being_configured| to CONFIGURE_ACTIVE.
   // 4. Set non-enabled user types as DISABLED.
   // 5. Set the fatal, crypto, and unready types to their respective states.
@@ -268,7 +326,7 @@ DataTypeManagerImpl::BuildDataTypeConfigStateMap(
       data_type_status_table_.GetCryptoErrorTypes();
   // Types with unready errors do not count as unready if they've been disabled.
   const ModelTypeSet unready_types = Intersection(
-      data_type_status_table_.GetUnreadyErrorTypes(), last_requested_types_);
+      data_type_status_table_.GetUnreadyErrorTypes(), preferred_types_);
 
   const ModelTypeSet enabled_types = GetEnabledTypes();
 
@@ -276,9 +334,9 @@ DataTypeManagerImpl::BuildDataTypeConfigStateMap(
       Difference(Union(UserTypes(), ControlTypes()), enabled_types);
   const ModelTypeSet to_configure =
       Intersection(enabled_types, types_being_configured);
-  DVLOG(1) << "Enabling: " << ModelTypeSetToString(enabled_types);
-  DVLOG(1) << "Configuring: " << ModelTypeSetToString(to_configure);
-  DVLOG(1) << "Disabling: " << ModelTypeSetToString(disabled_types);
+  DVLOG(1) << "Enabling: " << ModelTypeSetToDebugString(enabled_types);
+  DVLOG(1) << "Configuring: " << ModelTypeSetToDebugString(to_configure);
+  DVLOG(1) << "Disabling: " << ModelTypeSetToDebugString(disabled_types);
 
   DataTypeConfigStateMap config_state_map;
   SetDataTypesState(CONFIGURE_INACTIVE, enabled_types, &config_state_map);
@@ -299,7 +357,7 @@ void DataTypeManagerImpl::Restart() {
   if (reason == CONFIGURE_REASON_RECONFIGURATION ||
       reason == CONFIGURE_REASON_NEW_CLIENT ||
       reason == CONFIGURE_REASON_NEWLY_ENABLED_DATA_TYPE) {
-    for (ModelType type : last_requested_types_) {
+    for (ModelType type : preferred_types_) {
       UMA_HISTOGRAM_ENUMERATION("Sync.ConfigureDataTypes",
                                 ModelTypeHistogramValue(type));
     }
@@ -308,7 +366,7 @@ void DataTypeManagerImpl::Restart() {
   // Check for new or resolved data type crypto errors.
   if (encryption_handler_->HasCryptoError()) {
     ModelTypeSet encrypted_types = encryption_handler_->GetEncryptedDataTypes();
-    encrypted_types.RetainAll(last_requested_types_);
+    encrypted_types.RetainAll(preferred_types_);
     encrypted_types.RemoveAll(data_type_status_table_.GetCryptoErrorTypes());
     DataTypeStatusTable::TypeErrorMap crypto_errors =
         GenerateCryptoErrorsForTypes(encrypted_types);
@@ -317,11 +375,9 @@ void DataTypeManagerImpl::Restart() {
     data_type_status_table_.ResetCryptoErrors();
   }
 
-  UpdatePreconditionErrors(last_requested_types_);
+  UpdatePreconditionErrors();
 
-  last_enabled_types_ = GetEnabledTypes();
   last_restart_time_ = base::Time::Now();
-  configuration_stats_.clear();
 
   DCHECK(state_ == STOPPED || state_ == CONFIGURED || state_ == RETRYING);
 
@@ -336,11 +392,16 @@ void DataTypeManagerImpl::Restart() {
   if (old_state == STOPPED || old_state == CONFIGURED)
     NotifyStart();
 
-  configuration_types_queue_ = PrioritizeTypes(last_enabled_types_);
+  // Compute `preferred_types_without_errors_` after NotifyStart() to be sure to
+  // provide consistent values to ModelLoadManager. (Namely, observers may
+  // trigger another reconfiguration which may change the value of
+  // `preferred_types_`.)
+  preferred_types_without_errors_ = GetEnabledTypes();
+  configuration_types_queue_ = PrioritizeTypes(preferred_types_without_errors_);
 
-  model_load_manager_.Initialize(
-      /*desired_types=*/last_enabled_types_,
-      /*preferred_types=*/last_requested_types_, last_requested_context_);
+  model_load_manager_.Configure(
+      /*preferred_types_without_errors=*/preferred_types_without_errors_,
+      /*preferred_types=*/preferred_types_, last_requested_context_);
 }
 
 void DataTypeManagerImpl::OnAllDataTypesReadyForConfigure() {
@@ -357,57 +418,23 @@ void DataTypeManagerImpl::OnAllDataTypesReadyForConfigure() {
   ConnectDataTypes();
 
   // Propagate the state of PROXY_TABS to the sync engine.
-  const auto& dtc_iter = controllers_->find(PROXY_TABS);
+  auto dtc_iter = controllers_->find(PROXY_TABS);
   if (dtc_iter != controllers_->end()) {
     configurer_->SetProxyTabsDatatypeEnabled(dtc_iter->second->state() ==
                                              DataTypeController::RUNNING);
   }
 
-  StartNextConfiguration(/*higher_priority_types_before=*/ModelTypeSet());
+  StartNextConfiguration();
 }
 
-base::queue<ModelTypeSet> DataTypeManagerImpl::PrioritizeTypes(
-    const ModelTypeSet& types) {
-  // Control types are usually configured before all other types during
-  // initialization of sync engine even before data type manager gets
-  // constructed. However, listing control types here with the highest priority
-  // makes the behavior consistent also for various flows for restarting sync
-  // such as migrating all data types or reconfiguring sync in ephemeral mode
-  // when all local data is wiped.
-  ModelTypeSet control_types = ControlTypes();
-  control_types.RetainAll(types);
-
-  ModelTypeSet priority_types = PriorityUserTypes();
-  priority_types.RetainAll(types);
-
-  ModelTypeSet regular_types =
-      Difference(types, Union(control_types, priority_types));
-
-  base::queue<ModelTypeSet> result;
-  if (!control_types.Empty())
-    result.push(control_types);
-  if (!priority_types.Empty())
-    result.push(priority_types);
-  if (!regular_types.Empty())
-    result.push(regular_types);
-
-  // Could be empty in case of purging for migration, sync nothing, etc.
-  // Configure empty set to purge data from backend.
-  if (result.empty())
-    result.push(ModelTypeSet());
-
-  return result;
-}
-
-void DataTypeManagerImpl::UpdatePreconditionErrors(
-    const ModelTypeSet& desired_types) {
-  for (ModelType type : desired_types) {
+void DataTypeManagerImpl::UpdatePreconditionErrors() {
+  for (ModelType type : preferred_types_) {
     UpdatePreconditionError(type);
   }
 }
 
 bool DataTypeManagerImpl::UpdatePreconditionError(ModelType type) {
-  const auto& iter = controllers_->find(type);
+  auto iter = controllers_->find(type);
   if (iter == controllers_->end())
     return false;
 
@@ -458,8 +485,8 @@ void DataTypeManagerImpl::ProcessReconfigure() {
 
   // An attempt was made to reconfigure while we were already configuring.
   // This can be because a passphrase was accepted or the user changed the
-  // set of desired types. Either way, |last_requested_types_| will contain
-  // the most recent set of desired types, so we just call configure.
+  // set of desired types. Either way, |preferred_types_| will contain the most
+  // recent set of desired types, so we just call configure.
   // Note: we do this whether or not GetControllersNeedingStart is true,
   // because we may need to stop datatypes.
   DVLOG(1) << "Reconfiguring due to previous configure attempt occurring while"
@@ -471,18 +498,17 @@ void DataTypeManagerImpl::ProcessReconfigure() {
   // types may be reset before the purging was performed.
   state_ = RETRYING;
   needs_reconfigure_ = false;
-  ConfigureImpl(last_requested_types_, last_requested_context_);
+  ConfigureImpl(preferred_types_, last_requested_context_);
 }
 
 void DataTypeManagerImpl::ConfigurationCompleted(
-    AssociationTypesInfo association_types_info,
-    ModelTypeSet configured_types,
     ModelTypeSet succeeded_configuration_types,
     ModelTypeSet failed_configuration_types) {
-  // Note: |configured_types| are the types we requested to configure. Some of
-  // them might have been downloaded already. |succeeded_configuration_types|
-  // are the ones that were actually downloaded just now.
   DCHECK_EQ(CONFIGURING, state_);
+
+  // |succeeded_configuration_types| are the types that were actually downloaded
+  // just now (i.e. initial sync was just completed for them).
+  downloaded_types_.PutAll(succeeded_configuration_types);
 
   if (!failed_configuration_types.Empty()) {
     DataTypeStatusTable::TypeErrorMap errors;
@@ -504,51 +530,26 @@ void DataTypeManagerImpl::ConfigurationCompleted(
   }
 
   DCHECK(!configuration_types_queue_.empty());
-  DCHECK(configuration_types_queue_.front() == configured_types);
   configuration_types_queue_.pop();
-
-  association_types_info.first_sync_types = succeeded_configuration_types;
-  association_types_info.download_ready_time = base::Time::Now();
-  RecordConfigurationStats(association_types_info);
 
   if (configuration_types_queue_.empty()) {
     state_ = CONFIGURED;
-    NotifyDone(ConfigureResult(OK, last_requested_types_));
+    NotifyDone(ConfigureResult(OK, preferred_types_));
     return;
   }
 
-  StartNextConfiguration(/*higher_priority_types_before=*/configured_types);
+  StartNextConfiguration();
 }
 
-void DataTypeManagerImpl::StartNextConfiguration(
-    ModelTypeSet higher_priority_types_before) {
+void DataTypeManagerImpl::StartNextConfiguration() {
   if (configuration_types_queue_.empty())
     return;
 
-  AssociationTypesInfo association_types_info;
-  association_types_info.types = configuration_types_queue_.front();
-  association_types_info.download_start_time = base::Time::Now();
-  association_types_info.higher_priority_types_before =
-      higher_priority_types_before;
-
-  // The engine's state was initially derived from the types detected to have
-  // been downloaded in the database. Afterwards it is modified only by this
-  // function. We expect |downloaded_types_| to remain consistent because
-  // configuration requests are never aborted; they are retried until they
-  // succeed or the engine is shut down.
-  //
-  // Only one configure is allowed at a time. This is guaranteed by our callers.
-  // The sync engine requests one configure as it is initializing and waits for
-  // it to complete. After engine initialization, all configurations pass
-  // through the DataTypeManager, and we are careful to never send a new
-  // configure request until the current request succeeds.
-  configurer_->ConfigureDataTypes(
-      PrepareConfigureParams(association_types_info));
+  configurer_->ConfigureDataTypes(PrepareConfigureParams());
 }
 
 ModelTypeConfigurer::ConfigureParams
-DataTypeManagerImpl::PrepareConfigureParams(
-    const AssociationTypesInfo& association_types_info) {
+DataTypeManagerImpl::PrepareConfigureParams() {
   // Divide up the types into their corresponding actions:
   // - Types which are newly enabled are downloaded.
   // - Types which have encountered a cryptographer error (crypto_types) are
@@ -587,33 +588,24 @@ DataTypeManagerImpl::PrepareConfigureParams(
   // |DataTypeActivationResponse::skip_engine_connection|).
   DCHECK(ProtocolTypes().HasAll(types_to_download));
 
-  // Already (optimistically) update the |downloaded_types_|, so that the next
-  // time we get here, it has the correct value.
-  downloaded_types_.PutAll(active_types);
   // Assume that disabled types are not downloaded anymore - if they get
   // re-enabled, we'll want to re-download them as well.
   downloaded_types_.RemoveAll(disabled_types);
   force_redownload_types_.RemoveAll(types_to_download);
 
-  ModelTypeSet types_to_purge;
-  // If we're using transport-only mode, don't clear any old data. The reason is
-  // that if a user temporarily disables Sync, we don't want to wipe (and later
-  // redownload) all their data, just because Sync restarted in transport-only
-  // mode.
   // TODO(crbug.com/1142771): "Purging" logic is only implemented for NIGORI -
   // verify whether it is actually needed at all.
-  if (last_requested_context_.sync_mode == SyncMode::kFull) {
-    types_to_purge = Difference(ModelTypeSet::All(), downloaded_types_);
-    types_to_purge.RemoveAll(inactive_types);
-    types_to_purge.RemoveAll(unready_types);
-  }
+  ModelTypeSet types_to_purge = ModelTypeSet::All();
+  types_to_purge.RemoveAll(downloaded_types_);
+  types_to_purge.RemoveAll(active_types);
+  types_to_purge.RemoveAll(inactive_types);
+  types_to_purge.RemoveAll(unready_types);
+
   DCHECK(Intersection(active_types, types_to_purge).Empty());
 
   DCHECK(Intersection(downloaded_types_, crypto_types).Empty());
-  // |downloaded_types_| was already updated to include all enabled types.
-  DCHECK(downloaded_types_.HasAll(types_to_download));
 
-  DVLOG(1) << "Types " << ModelTypeSetToString(types_to_download)
+  DVLOG(1) << "Types " << ModelTypeSetToDebugString(types_to_download)
            << " added; calling ConfigureDataTypes";
 
   ModelTypeConfigurer::ConfigureParams params;
@@ -622,93 +614,54 @@ DataTypeManagerImpl::PrepareConfigureParams(
   params.to_purge = types_to_purge;
   params.ready_task =
       base::BindOnce(&DataTypeManagerImpl::ConfigurationCompleted,
-                     weak_ptr_factory_.GetWeakPtr(), association_types_info,
-                     configuration_types_queue_.front());
+                     weak_ptr_factory_.GetWeakPtr());
   params.is_sync_feature_enabled =
       last_requested_context_.sync_mode == SyncMode::kFull;
 
   return params;
 }
 
-void DataTypeManagerImpl::RecordConfigurationStats(
-    const AssociationTypesInfo& association_types_info) {
-  DCHECK(state_ == CONFIGURING);
-
-  ModelTypeSet same_priority_types_configured_before;
-  for (ModelType type : association_types_info.types) {
-    if (ProtocolTypes().Has(type)) {
-      RecordConfigurationStatsImpl(association_types_info, type,
-                                   same_priority_types_configured_before);
-      same_priority_types_configured_before.Put(type);
-    }
-  }
-}
-
 void DataTypeManagerImpl::OnSingleDataTypeWillStop(ModelType type,
                                                    const SyncError& error) {
   // No-op if the type is not connected.
   configurer_->DisconnectDataType(type);
+  configured_proxy_types_.Remove(type);
 
+  // If the type is newly-failed (i.e. has not already failed before), then
+  // reconfigure.
+  bool should_reconfigure =
+      error.IsSet() && !data_type_status_table_.GetFailedTypes().Has(type);
   if (error.IsSet()) {
+    // Update the status table with the new error either way.
     data_type_status_table_.UpdateFailedDataType(type, error);
+  }
+  if (should_reconfigure) {
     needs_reconfigure_ = true;
     last_requested_context_.reason =
         GetReasonForProgrammaticReconfigure(last_requested_context_.reason);
     // Do this asynchronously so the ModelLoadManager has a chance to
     // finish stopping this type, otherwise Disconnect() and Stop()
     // end up getting called twice on the controller.
-    base::SequencedTaskRunnerHandle::Get()->PostTask(
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&DataTypeManagerImpl::ProcessReconfigure,
                                   weak_ptr_factory_.GetWeakPtr()));
   }
 }
 
-void DataTypeManagerImpl::RecordConfigurationStatsImpl(
-    const AssociationTypesInfo& association_types_info,
-    ModelType type,
-    ModelTypeSet same_priority_types_configured_before) {
-  if (!debug_info_listener_.IsInitialized())
+void DataTypeManagerImpl::Stop(SyncStopMetadataFate metadata_fate) {
+  if (state_ == STOPPED) {
     return;
-
-  DCHECK_EQ(configuration_stats_.count(type), 0u);
-
-  configuration_stats_[type].model_type = type;
-  if (association_types_info.types.Has(type)) {
-    configuration_stats_[type].download_wait_time =
-        association_types_info.download_start_time - last_restart_time_;
-    if (association_types_info.first_sync_types.Has(type)) {
-      configuration_stats_[type].download_time =
-          association_types_info.download_ready_time -
-          association_types_info.download_start_time;
-    }
-    configuration_stats_[type].high_priority_types_configured_before =
-        association_types_info.higher_priority_types_before;
-    configuration_stats_[type].same_priority_types_configured_before =
-        same_priority_types_configured_before;
   }
-}
-
-void DataTypeManagerImpl::Stop(ShutdownReason reason) {
-  if (state_ == STOPPED)
-    return;
 
   bool need_to_notify = state_ == CONFIGURING;
-  StopImpl(reason);
 
-  if (need_to_notify) {
-    ConfigureResult result(ABORTED, last_requested_types_);
-    NotifyDone(result);
-  }
-}
-
-void DataTypeManagerImpl::StopImpl(ShutdownReason reason) {
   state_ = STOPPING;
 
-  // Invalidate weak pointer to drop configuration callbacks.
+  // Invalidate weak pointers to drop configuration callbacks.
   weak_ptr_factory_.InvalidateWeakPtrs();
 
   // Stop all data types.
-  model_load_manager_.Stop(reason);
+  model_load_manager_.Stop(metadata_fate);
 
   // Individual data type controllers might still be STOPPING, but we don't
   // reflect that in |state_| because, for all practical matters, the manager is
@@ -716,6 +669,11 @@ void DataTypeManagerImpl::StopImpl(ShutdownReason reason) {
   // TODO(mastiz): Reconsider waiting in STOPPING state until all datatypes have
   // stopped.
   state_ = STOPPED;
+
+  if (need_to_notify) {
+    ConfigureResult result(ABORTED, preferred_types_);
+    NotifyDone(result);
+  }
 }
 
 void DataTypeManagerImpl::NotifyStart() {
@@ -740,19 +698,6 @@ void DataTypeManagerImpl::NotifyDone(const ConfigureResult& raw_result) {
     case DataTypeManager::OK:
       DVLOG(1) << "NotifyDone called with result: OK";
       base::UmaHistogramLongTimes(prefix_uma + ".OK", configure_time);
-      if (debug_info_listener_.IsInitialized() &&
-          !configuration_stats_.empty()) {
-        std::vector<DataTypeConfigurationStats> stats;
-        for (auto& type_and_stat : configuration_stats_) {
-          // Note: |configuration_stats_| gets cleared below, so it's okay to
-          // destroy its contents here.
-          stats.push_back(std::move(type_and_stat.second));
-        }
-        debug_info_listener_.Call(
-            FROM_HERE, &DataTypeDebugInfoListener::OnDataTypeConfigureComplete,
-            stats);
-      }
-      configuration_stats_.clear();
       break;
     case DataTypeManager::ABORTED:
       DVLOG(1) << "NotifyDone called with result: ABORTED";
@@ -766,17 +711,25 @@ void DataTypeManagerImpl::NotifyDone(const ConfigureResult& raw_result) {
 }
 
 ModelTypeSet DataTypeManagerImpl::GetActiveDataTypes() const {
-  if (state_ != CONFIGURED)
+  if (state_ != CONFIGURED) {
     return ModelTypeSet();
+  }
   return GetEnabledTypes();
+}
+
+ModelTypeSet DataTypeManagerImpl::GetTypesWithPendingDownloadForInitialSync()
+    const {
+  if (state_ != CONFIGURING) {
+    return ModelTypeSet();
+  }
+
+  return Difference(GetEnabledTypes(), downloaded_types_);
 }
 
 ModelTypeSet DataTypeManagerImpl::GetPurgedDataTypes() const {
   ModelTypeSet purged_types;
 
-  for (const auto& kv : *controllers_) {
-    ModelType type = kv.first;
-    const DataTypeController* controller = kv.second.get();
+  for (const auto& [type, controller] : *controllers_) {
     // TODO(crbug.com/897628): NOT_RUNNING doesn't necessarily mean the sync
     // metadata was cleared, if KEEP_METADATA was used when stopping.
     if (controller->state() == DataTypeController::NOT_RUNNING) {
@@ -787,13 +740,19 @@ ModelTypeSet DataTypeManagerImpl::GetPurgedDataTypes() const {
   return purged_types;
 }
 
+ModelTypeSet DataTypeManagerImpl::GetActiveProxyDataTypes() const {
+  if (state_ != CONFIGURED) {
+    return ModelTypeSet();
+  }
+  return configured_proxy_types_;
+}
+
 DataTypeManager::State DataTypeManagerImpl::state() const {
   return state_;
 }
 
 ModelTypeSet DataTypeManagerImpl::GetEnabledTypes() const {
-  return Difference(last_requested_types_,
-                    data_type_status_table_.GetFailedTypes());
+  return Difference(preferred_types_, data_type_status_table_.GetFailedTypes());
 }
 
 }  // namespace syncer

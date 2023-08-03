@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,29 +49,6 @@ int GetLazyImageLoadingViewportDistanceThresholdPx(const Document& document) {
       return settings->GetLazyImageLoadingDistanceThresholdPx3G();
     case WebEffectiveConnectionType::kType4G:
       return settings->GetLazyImageLoadingDistanceThresholdPx4G();
-  }
-  NOTREACHED();
-  return 0;
-}
-
-int GetFirstKFullyLoadCount(const Document& document) {
-  const Settings* settings = document.GetSettings();
-  if (!settings)
-    return 0;
-
-  switch (GetNetworkStateNotifier().EffectiveType()) {
-    case WebEffectiveConnectionType::kTypeOffline:
-      return 0;
-    case WebEffectiveConnectionType::kTypeUnknown:
-      return settings->GetLazyImageFirstKFullyLoadUnknown();
-    case WebEffectiveConnectionType::kTypeSlow2G:
-      return settings->GetLazyImageFirstKFullyLoadSlow2G();
-    case WebEffectiveConnectionType::kType2G:
-      return settings->GetLazyImageFirstKFullyLoad2G();
-    case WebEffectiveConnectionType::kType3G:
-      return settings->GetLazyImageFirstKFullyLoad3G();
-    case WebEffectiveConnectionType::kType4G:
-      return settings->GetLazyImageFirstKFullyLoad4G();
   }
   NOTREACHED();
   return 0;
@@ -170,8 +147,11 @@ void RecordVisibleLoadTimeForImage(
 
 }  // namespace
 
-LazyLoadImageObserver::LazyLoadImageObserver(const Document& document)
-    : count_remaining_images_fully_loaded_(GetFirstKFullyLoadCount(document)) {}
+LazyLoadImageObserver::LazyLoadImageObserver(const Document& root_document) {
+  use_viewport_distance_threshold_ =
+      !RuntimeEnabledFeatures::DelayOutOfViewportLazyImagesEnabled() ||
+      root_document.LoadEventFinished();
+}
 
 void LazyLoadImageObserver::StartMonitoringNearViewport(
     Document* root_document,
@@ -180,25 +160,10 @@ void LazyLoadImageObserver::StartMonitoringNearViewport(
   DCHECK(RuntimeEnabledFeatures::LazyImageLoadingEnabled());
 
   if (!lazy_load_intersection_observer_) {
-    lazy_load_intersection_observer_ = IntersectionObserver::Create(
-        {Length::Fixed(
-            GetLazyImageLoadingViewportDistanceThresholdPx(*root_document))},
-        {std::numeric_limits<float>::min()}, root_document,
-        WTF::BindRepeating(&LazyLoadImageObserver::LoadIfNearViewport,
-                           WrapWeakPersistent(this)),
-        LocalFrameUkmAggregator::kLazyLoadIntersectionObserver);
+    CreateLazyLoadIntersectionObserver(root_document);
   }
   lazy_load_intersection_observer_->observe(element);
 
-  if (deferral_message == DeferralMessage::kLoadEventsDeferred &&
-      !is_load_event_deferred_intervention_shown_) {
-    is_load_event_deferred_intervention_shown_ = true;
-    root_document->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
-        mojom::ConsoleMessageSource::kIntervention,
-        mojom::ConsoleMessageLevel::kInfo,
-        "Images loaded lazily and replaced with placeholders. Load events are "
-        "deferred. See https://crbug.com/954323"));
-  }
   if (deferral_message == DeferralMessage::kMissingDimensionForLazy) {
     UseCounter::Count(root_document,
                       WebFeature::kLazyLoadImageMissingDimensionsForLazy);
@@ -206,13 +171,39 @@ void LazyLoadImageObserver::StartMonitoringNearViewport(
 }
 
 void LazyLoadImageObserver::StopMonitoring(Element* element) {
-  if (lazy_load_intersection_observer_)
+  if (lazy_load_intersection_observer_) {
     lazy_load_intersection_observer_->unobserve(element);
+  }
+}
+
+bool LazyLoadImageObserver::LoadAllImagesAndBlockLoadEvent() {
+  if (!lazy_load_intersection_observer_) {
+    return false;
+  }
+  bool resources_have_started_loading = false;
+  HeapVector<Member<Element>> to_be_unobserved;
+  for (const IntersectionObservation* observation :
+       lazy_load_intersection_observer_->Observations()) {
+    Element* element = observation->Target();
+    if (auto* image_element = DynamicTo<HTMLImageElement>(element)) {
+      const_cast<HTMLImageElement*>(image_element)
+          ->LoadDeferredImageBlockingLoad();
+      resources_have_started_loading = true;
+    }
+    if (const ComputedStyle* style = element->GetComputedStyle()) {
+      style->LoadDeferredImages(element->GetDocument());
+      resources_have_started_loading = true;
+    }
+    to_be_unobserved.push_back(element);
+  }
+  for (Element* element : to_be_unobserved)
+    lazy_load_intersection_observer_->unobserve(element);
+  return resources_have_started_loading;
 }
 
 void LazyLoadImageObserver::LoadIfNearViewport(
     const HeapVector<Member<IntersectionObserverEntry>>& entries) {
-  DCHECK(!entries.IsEmpty());
+  DCHECK(!entries.empty());
 
   for (auto entry : entries) {
     Element* element = entry->target();
@@ -231,14 +222,14 @@ void LazyLoadImageObserver::LoadIfNearViewport(
         // Check that style was null because it was not computed since the
         // element was in an invisible subtree.
         DCHECK(style || IsElementInInvisibleSubTree(*element));
-        image_element->LoadDeferredImage();
+        image_element->LoadDeferredImageFromMicrotask();
         lazy_load_intersection_observer_->unobserve(element);
       }
     }
     if (!entry->isIntersecting())
       continue;
     if (image_element)
-      image_element->LoadDeferredImage();
+      image_element->LoadDeferredImageFromMicrotask();
 
     // Load the background image if the element has one deferred.
     if (const ComputedStyle* style = element->GetComputedStyle())
@@ -288,7 +279,7 @@ void LazyLoadImageObserver::OnLoadFinished(HTMLImageElement* image_element) {
 
 void LazyLoadImageObserver::OnVisibilityChanged(
     const HeapVector<Member<IntersectionObserverEntry>>& entries) {
-  DCHECK(!entries.IsEmpty());
+  DCHECK(!entries.empty());
 
   for (auto entry : entries) {
     auto* image_element = DynamicTo<HTMLImageElement>(entry->target());
@@ -333,12 +324,45 @@ void LazyLoadImageObserver::OnVisibilityChanged(
   }
 }
 
-bool LazyLoadImageObserver::IsFullyLoadableFirstKImageAndDecrementCount() {
-  if (count_remaining_images_fully_loaded_ > 0) {
-    count_remaining_images_fully_loaded_--;
-    return true;
+void LazyLoadImageObserver::DocumentOnLoadFinished(Document* root_document) {
+  if (!RuntimeEnabledFeatures::DelayOutOfViewportLazyImagesEnabled()) {
+    return;
   }
-  return false;
+  if (use_viewport_distance_threshold_) {
+    return;
+  }
+
+  use_viewport_distance_threshold_ = true;
+
+  if (lazy_load_intersection_observer_) {
+    // Intersection observer doesn't support dynamic margin changes so we just
+    // create a new one.
+    CreateLazyLoadIntersectionObserver(root_document);
+  }
+}
+
+void LazyLoadImageObserver::CreateLazyLoadIntersectionObserver(
+    Document* root_document) {
+  int viewport_threshold =
+      use_viewport_distance_threshold_
+          ? GetLazyImageLoadingViewportDistanceThresholdPx(*root_document)
+          : 0;
+  IntersectionObserver* new_observer = IntersectionObserver::Create(
+      {Length::Fixed(viewport_threshold)}, {std::numeric_limits<float>::min()},
+      root_document,
+      WTF::BindRepeating(&LazyLoadImageObserver::LoadIfNearViewport,
+                         WrapWeakPersistent(this)),
+      LocalFrameUkmAggregator::kLazyLoadIntersectionObserver);
+
+  if (lazy_load_intersection_observer_) {
+    for (const IntersectionObservation* observation :
+         lazy_load_intersection_observer_->Observations()) {
+      new_observer->observe(observation->Target());
+    }
+    lazy_load_intersection_observer_->disconnect();
+  }
+
+  lazy_load_intersection_observer_ = new_observer;
 }
 
 void LazyLoadImageObserver::Trace(Visitor* visitor) const {

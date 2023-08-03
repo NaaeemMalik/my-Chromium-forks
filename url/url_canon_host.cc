@@ -1,11 +1,9 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <unordered_set>
-
 #include "base/check.h"
-#include "base/metrics/histogram_macros.h"
+#include "base/cpu_reduction_experiment.h"
 #include "url/url_canon.h"
 #include "url/url_canon_internal.h"
 
@@ -107,7 +105,7 @@ const unsigned char kHostCharLookup4Ipfs[0x80] = {
     0};
 
 // RFC1034 maximum FQDN length.
-constexpr int kMaxHostLength = 253;
+constexpr size_t kMaxHostLength = 253;
 
 // Generous padding to account for the fact that UTS#46 normalization can cause
 // a long string to actually shrink and fit within the 253 character RFC1034
@@ -117,9 +115,9 @@ constexpr int kMaxHostLength = 253;
 // sufficient for all normally-encountered, non-abusive hostname strings.
 constexpr int kMaxHostBufferLength = kMaxHostLength * 5;
 
-const int kTempHostBufferLen = 1024;
-typedef RawCanonOutputT<char, kTempHostBufferLen> StackBuffer;
-typedef RawCanonOutputT<char16_t, kTempHostBufferLen> StackBufferW;
+constexpr size_t kTempHostBufferLen = 1024;
+using StackBuffer = RawCanonOutputT<char, kTempHostBufferLen>;
+using StackBufferW = RawCanonOutputT<char16_t, kTempHostBufferLen>;
 
 // Scans a host name and fills in the output flags according to what we find.
 // |has_non_ascii| will be true if there are any non-7-bit characters, and
@@ -163,16 +161,14 @@ void ScanHostname(const CHAR* spec,
 // The return value indicates if the output is a potentially valid host name.
 template <typename INCHAR, typename OUTCHAR>
 bool DoSimpleHost(const INCHAR* host,
-                  int host_len,
+                  size_t host_len,
                   CanonOutputT<OUTCHAR>* output,
                   bool* has_non_ascii,
                   bool is_ipfs) {
   *has_non_ascii = false;
 
-  std::unordered_set<char> escaped_chars_to_measure;
-
   bool success = true;
-  for (int i = 0; i < host_len; ++i) {
+  for (size_t i = 0; i < host_len; ++i) {
     unsigned int source = host[i];
     if (source == '%') {
       // Unescape first, if possible.
@@ -201,7 +197,6 @@ bool DoSimpleHost(const INCHAR* host,
       } else if (replacement == kEsc) {
         // This character is valid but should be escaped.
         AppendEscapedChar(source, output);
-        escaped_chars_to_measure.insert(source);
       } else {
         // Common case, the given character is valid in a hostname, the lookup
         // table tells us the canonical representation of that character (lower
@@ -214,16 +209,6 @@ bool DoSimpleHost(const INCHAR* host,
       // cast char16->char only if input string was converted to ASCII.
       output->push_back(static_cast<OUTCHAR>(source));
       *has_non_ascii = true;
-    }
-  }
-  if (success) {
-    bool did_escape = !escaped_chars_to_measure.empty();
-    UMA_HISTOGRAM_BOOLEAN("URL.Host.DidEscape", did_escape);
-    if (did_escape) {
-      for (char c : escaped_chars_to_measure) {
-        UMA_HISTOGRAM_ENUMERATION("URL.Host.EscapeChar",
-                                  EscapedHostCharToEnum(c));
-      }
     }
   }
   return success;
@@ -294,12 +279,12 @@ bool DoComplexHost(const char* host,
                    bool is_ipfs) {
   // Save the current position in the output. We may write stuff and rewind it
   // below, so we need to know where to rewind to.
-  int begin_length = output->length();
+  size_t begin_length = output->length();
 
   // Points to the UTF-8 data we want to convert. This will either be the
   // input or the unescaped version written to |*output| if necessary.
   const char* utf8_source;
-  int utf8_source_len;
+  size_t utf8_source_len;
   bool are_all_escaped_valid = true;
   if (has_escaped) {
     // Unescape before converting to UTF-16 for IDN. We write this into the
@@ -340,7 +325,7 @@ bool DoComplexHost(const char* host,
   if (!ConvertUTF8ToUTF16(utf8_source, utf8_source_len, &utf16)) {
     // In this error case, the input may or may not be the output.
     StackBuffer utf8;
-    for (int i = 0; i < utf8_source_len; i++)
+    for (size_t i = 0; i < utf8_source_len; i++)
       utf8.push_back(utf8_source[i]);
     output->set_length(begin_length);
     AppendInvalidNarrowString(utf8.data(), 0, utf8.length(), output);
@@ -358,7 +343,7 @@ bool DoComplexHost(const char* host,
 // the backend, so we just pass through. The has_escaped flag should be set if
 // the input string requires unescaping.
 bool DoComplexHost(const char16_t* host,
-                   int host_len,
+                   size_t host_len,
                    bool has_non_ascii,
                    bool has_escaped,
                    CanonOutput* output,
@@ -416,7 +401,7 @@ void DoHost(const CHAR* spec,
             CanonOutput* output,
             CanonHostInfo* host_info,
             bool is_ipfs) {
-  if (host.len <= 0) {
+  if (host.is_empty()) {
     // Empty hosts don't need anything.
     host_info->family = CanonHostInfo::NEUTRAL;
     host_info->out_host = Component();

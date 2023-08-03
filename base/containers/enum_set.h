@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "base/check.h"
 #include "base/check_op.h"
 #include "base/memory/raw_ptr.h"
 
@@ -47,6 +48,10 @@ class EnumSet {
       std::is_enum<E>::value,
       "First template parameter of EnumSet must be an enumeration type");
   using enum_underlying_type = std::underlying_type_t<E>;
+
+  static constexpr bool InRange(E value) {
+    return (value >= MinEnumValue) && (value <= MaxEnumValue);
+  }
 
   static constexpr enum_underlying_type GetUnderlyingValue(E value) {
     return static_cast<enum_underlying_type>(value);
@@ -95,7 +100,7 @@ class EnumSet {
   class Iterator {
    public:
     Iterator() : enums_(nullptr), i_(kValueCount) {}
-    ~Iterator() {}
+    ~Iterator() = default;
 
     bool operator==(const Iterator& other) const { return i_ == other.i_; }
 
@@ -143,16 +148,19 @@ class EnumSet {
       return i;
     }
 
-    raw_ptr<const EnumBitSet> enums_;
+    raw_ptr<const EnumBitSet, DanglingUntriaged> enums_;
     size_t i_;
   };
 
-  EnumSet() {}
+  EnumSet() = default;
 
   ~EnumSet() = default;
 
   static constexpr uint64_t single_val_bitstring(E val) {
-    return 1ULL << (ToIndex(val));
+    const uint64_t bitstring = 1;
+    const size_t shift_amount = ToIndex(val);
+    CHECK_LT(shift_amount, sizeof(bitstring) * 8);
+    return bitstring << shift_amount;
   }
 
   template <class... T>
@@ -175,6 +183,7 @@ class EnumSet {
 
   // Returns an EnumSet with all the values from start to end, inclusive.
   static constexpr EnumSet FromRange(E start, E end) {
+    CHECK_LE(start, end);
     return EnumSet(EnumBitSet(
         ((single_val_bitstring(end)) - (single_val_bitstring(start))) |
         (single_val_bitstring(end))));
@@ -218,8 +227,8 @@ class EnumSet {
 
   // Adds all values in the given range to our set, inclusive.
   void PutRange(E start, E end) {
+    CHECK_LE(start, end);
     size_t endIndexInclusive = ToIndex(end);
-    DCHECK_LE(ToIndex(start), endIndexInclusive);
     for (size_t current = ToIndex(start); current <= endIndexInclusive;
          ++current) {
       enums_.set(current);
@@ -244,6 +253,15 @@ class EnumSet {
   // Removes all values from our set.
   void Clear() { enums_.reset(); }
 
+  // Conditionally puts or removes `value`, based on `should_be_present`.
+  void PutOrRemove(E value, bool should_be_present) {
+    if (should_be_present) {
+      Put(value);
+    } else {
+      Remove(value);
+    }
+  }
+
   // Returns true iff the given value is in range and a member of our set.
   constexpr bool Has(E value) const {
     return InRange(value) && enums_[ToIndex(value)];
@@ -252,6 +270,11 @@ class EnumSet {
   // Returns true iff the given set is a subset of our set.
   bool HasAll(EnumSet other) const {
     return (enums_ & other.enums_) == other.enums_;
+  }
+
+  // Returns true if the given set contains any value of our set.
+  bool HasAny(EnumSet other) const {
+    return (enums_ & other.enums_).count() > 0;
   }
 
   // Returns true iff our set is empty.
@@ -288,17 +311,14 @@ class EnumSet {
   // some minor optimizations.
   explicit constexpr EnumSet(EnumBitSet enums) : enums_(enums) {
     static_assert(kValueCount <= 64,
-                  "Max number of enum values is 64 for constexpr ");
-  }
-
-  static constexpr bool InRange(E value) {
-    return (value >= MinEnumValue) && (value <= MaxEnumValue);
+                  "Max number of enum values is 64 for constexpr constructor");
   }
 
   // Converts a value to/from an index into |enums_|.
-
   static constexpr size_t ToIndex(E value) {
-    return GetUnderlyingValue(value) - GetUnderlyingValue(MinEnumValue);
+    CHECK(InRange(value));
+    return static_cast<size_t>(GetUnderlyingValue(value)) -
+           static_cast<size_t>(GetUnderlyingValue(MinEnumValue));
   }
 
   static E FromIndex(size_t i) {

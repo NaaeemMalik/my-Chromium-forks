@@ -1,15 +1,21 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import SwiftUI
 
+@available(iOS 15, *)
 struct OverflowMenuView: View {
   enum Dimensions {
     static let destinationListHeight: CGFloat = 123
   }
 
-  @EnvironmentObject var model: OverflowMenuModel
+  var model: OverflowMenuModel
+
+  var uiConfiguration: OverflowMenuUIConfiguration
+
+  weak var metricsHandler: PopupMenuMetricsHandler?
+
   var body: some View {
     VStack(
       alignment: .leading,
@@ -17,10 +23,18 @@ struct OverflowMenuView: View {
       // include proper spacing.
       spacing: 0
     ) {
-      OverflowMenuDestinationList(destinations: model.destinations)
-        .frame(height: Dimensions.destinationListHeight)
+      OverflowMenuDestinationList(
+        destinations: model.destinations, metricsHandler: metricsHandler,
+        uiConfiguration: uiConfiguration
+      ).frame(height: Dimensions.destinationListHeight)
       Divider()
-      OverflowMenuActionList(actionGroups: model.actionGroups)
+      OverflowMenuActionList(actionGroups: model.actionGroups, metricsHandler: metricsHandler)
+      // Add a spacer on iPad to make sure there's space below the list.
+      if uiConfiguration.presentingViewControllerHorizontalSizeClass == .regular
+        && uiConfiguration.presentingViewControllerVerticalSizeClass == .regular
+      {
+        Spacer()
+      }
     }.background(Color(.systemGroupedBackground).edgesIgnoringSafeArea(.all))
   }
 }

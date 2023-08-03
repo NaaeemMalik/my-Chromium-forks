@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_payment_method_data.h"
 #include "third_party/blink/renderer/modules/event_modules.h"
 #include "third_party/blink/renderer/modules/service_worker/extendable_event.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace WTF {
 class AtomicString;
@@ -55,10 +55,10 @@ class MODULES_EXPORT CanMakePaymentEvent final : public ExtendableEvent {
   void Trace(Visitor*) const override;
 
  private:
-  String top_origin_;
-  String payment_request_origin_;
-  HeapVector<Member<PaymentMethodData>> method_data_;
-  HeapVector<Member<PaymentDetailsModifier>> modifiers_;
+  const String top_origin_;
+  const String payment_request_origin_;
+  const HeapVector<Member<PaymentMethodData>> method_data_;
+  const HeapVector<Member<PaymentDetailsModifier>> modifiers_;
 
   Member<CanMakePaymentRespondWithObserver> observer_;
 };

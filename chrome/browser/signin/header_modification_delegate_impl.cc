@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "chrome/browser/signin/chrome_signin_helper.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/common/pref_names.h"
+#include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/public/base/signin_pref_names.h"
 #include "components/signin/public/identity_manager/account_info.h"
@@ -35,7 +35,7 @@
 
 namespace signin {
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 HeaderModificationDelegateImpl::HeaderModificationDelegateImpl(
     Profile* profile,
     bool incognito_enabled)
@@ -82,7 +82,7 @@ void HeaderModificationDelegateImpl::ProcessRequest(
 #endif
 
   ConsentLevel consent_level = ConsentLevel::kSync;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   consent_level = ConsentLevel::kSignin;
 #endif
 
@@ -95,12 +95,12 @@ void HeaderModificationDelegateImpl::ProcessRequest(
       identity_manager->FindExtendedAccountInfo(account).is_child_account;
 
   int incognito_mode_availability =
-      prefs->GetInteger(prefs::kIncognitoModeAvailability);
-#if defined(OS_ANDROID)
+      prefs->GetInteger(policy::policy_prefs::kIncognitoModeAvailability);
+#if BUILDFLAG(IS_ANDROID)
   incognito_mode_availability =
       incognito_enabled_
           ? incognito_mode_availability
-          : static_cast<int>(IncognitoModePrefs::Availability::kDisabled);
+          : static_cast<int>(policy::IncognitoModeAvailability::kDisabled);
 #endif
 
   FixAccountConsistencyRequestHeader(
@@ -134,7 +134,7 @@ bool HeaderModificationDelegateImpl::ShouldIgnoreGuestWebViewRequest(
     return true;
 
   if (extensions::WebViewRendererState::GetInstance()->IsGuest(
-          contents->GetMainFrame()->GetProcess()->GetID())) {
+          contents->GetPrimaryMainFrame()->GetProcess()->GetID())) {
     auto identity_api_config =
         extensions::WebAuthFlow::GetWebViewPartitionConfig(
             extensions::WebAuthFlow::GET_AUTH_TOKEN,

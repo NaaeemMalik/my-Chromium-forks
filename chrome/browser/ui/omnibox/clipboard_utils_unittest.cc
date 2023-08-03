@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -69,7 +69,7 @@ TEST_F(ClipboardUtilsTest, GetClipboardText) {
 
 // Bookmark clipboard apparently not supported on Linux.
 // See TODO on ClipboardText.BookmarkTest.
-#if !defined(OS_POSIX) || defined(OS_MAC)
+#if !BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_MAC)
   const std::u16string kTitle(u"The Example Company");
   // Can we pull a bookmark off the clipboard?
   {
@@ -92,7 +92,8 @@ TEST_F(ClipboardUtilsTest, GetClipboardText) {
   {
     const std::u16string kMarkup(u"<strong>Hi!</string>");
     ui::ScopedClipboardWriter clipboard_writer(ui::ClipboardBuffer::kCopyPaste);
-    clipboard_writer.WriteHTML(kMarkup, kURL);
+    clipboard_writer.WriteHTML(kMarkup, kURL,
+                               ui::ClipboardContentType::kSanitized);
   }
   EXPECT_TRUE(GetClipboardText(/*notify_if_restricted=*/false).empty());
 }

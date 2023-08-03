@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,11 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/test/ash_test_helper.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller_test_api.h"
-#include "base/bind.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -184,7 +185,7 @@ class KeyboardControllerImplTest : public AshTestBase {
   }
 
   void SetKeyboardConfigToPref(const base::Value& value) {
-    base::Value features(base::Value::Type::DICTIONARY);
+    base::Value features(base::Value::Type::DICT);
     features.SetKey("auto_complete_enabled", value.Clone());
     features.SetKey("auto_correct_enabled", value.Clone());
     features.SetKey("handwriting_enabled", value.Clone());
@@ -269,7 +270,7 @@ TEST_F(KeyboardControllerImplTest,
   keyboard_controller()->SetEnableFlag(KeyboardEnableFlag::kExtensionEnabled);
 
   // Set the policy for virtual keyboard features.
-  base::Value features(base::Value::Type::DICTIONARY);
+  base::Value features(base::Value::Type::DICT);
   PrefService* prefs =
       Shell::Get()->session_controller()->GetLastActiveUserPrefService();
   prefs->Set(prefs::kAccessibilityVirtualKeyboardFeatures, features);
@@ -770,6 +771,44 @@ TEST_F(KeyboardControllerImplTest, SwipeUpDoesntHideKeyboardInClamshellMode) {
                                              num_scroll_steps);
 
   EXPECT_FALSE(keyboard::IsKeyboardHiding());
+}
+
+TEST_F(KeyboardControllerImplTest, RecordsKeyRepeatSettings) {
+  // Initially expect no user preferences recorded.
+  base::HistogramTester histogram_tester;
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatDelay", /*count=*/0u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatEnabled", /*count=*/0u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatInterval", /*count=*/0u);
+
+  SimulateUserLogin("user1");
+
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatDelay", /*count=*/1u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatEnabled", /*count=*/1u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatInterval", /*count=*/1u);
+
+  SimulateUserLogin("user2");
+
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatDelay", /*count=*/2u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatEnabled", /*count=*/2u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatInterval", /*count=*/2u);
+
+  SimulateUserLogin("user1");
+
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatDelay", /*count=*/2u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatEnabled", /*count=*/2u);
+  histogram_tester.ExpectTotalCount(
+      "ChromeOS.Settings.Device.KeyboardAutoRepeatInterval", /*count=*/2u);
 }
 
 }  // namespace ash

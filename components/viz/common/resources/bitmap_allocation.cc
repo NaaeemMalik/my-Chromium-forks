@@ -1,10 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/viz/common/resources/bitmap_allocation.h"
 
 #include <stdint.h>
+
+#include <limits>
 
 #include "base/debug/alias.h"
 #include "base/logging.h"
@@ -21,9 +23,9 @@ namespace viz {
 namespace {
 // Collect extra information for debugging bitmap creation failures.
 void CollectMemoryUsageAndDie(const gfx::Size& size,
-                              ResourceFormat format,
+                              SharedImageFormat format,
                               size_t alloc_size) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   DWORD last_error = GetLastError();
   base::debug::Alias(&last_error);
 #endif
@@ -42,10 +44,12 @@ void CollectMemoryUsageAndDie(const gfx::Size& size,
 namespace bitmap_allocation {
 
 base::MappedReadOnlyRegion AllocateSharedBitmap(const gfx::Size& size,
-                                                ResourceFormat format) {
-  DCHECK(IsBitmapFormatSupported(format));
+                                                SharedImageFormat format) {
+  DCHECK(format.IsBitmapFormatSupported())
+      << "(format = " << format.ToString() << ")";
   size_t bytes = 0;
-  if (!ResourceSizes::MaybeSizeInBytes(size, format, &bytes)) {
+  if (!ResourceSizes::MaybeSizeInBytes(size, format.resource_format(),
+                                       &bytes)) {
     DLOG(ERROR) << "AllocateMappedBitmap with size that overflows";
     CollectMemoryUsageAndDie(size, format, std::numeric_limits<int>::max());
   }

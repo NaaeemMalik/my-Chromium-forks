@@ -4,6 +4,7 @@
 <translation id="1002108253973310084">An incompatible protocol version was detected. Please make sure that you have the latest version of the software installed on both computers and try again.</translation>
 <translation id="1008557486741366299">Not Now</translation>
 <translation id="1201402288615127009">Next</translation>
+<translation id="1296511125400541222">Copyright 2023 The Chromium Authors. All rights reserved.</translation>
 <translation id="1297009705180977556">Error connecting to <ph name="HOSTNAME" /></translation>
 <translation id="1450760146488584666">The requested object does not exist.</translation>
 <translation id="1480046233931937785">Credits</translation>
@@ -26,7 +27,6 @@ If '<ph name="SERVICE_SCRIPT_NAME" />' is already ticked, untick it and then tic
 <translation id="225614027745146050">Welcome</translation>
 <translation id="2320166752086256636">Hide keyboard</translation>
 <translation id="2329392777730037872">Failed to open <ph name="URL" /> on the client.</translation>
-<translation id="2333212046079545895">Copyright 2021 Google LLC. All rights reserved.</translation>
 <translation id="2359808026110333948">Continue</translation>
 <translation id="2366718077645204424">Unable to reach the host. This is probably due to the configuration of the network you are using.</translation>
 <translation id="2370754117186920852"><ph name="OPTIONAL_OFFLINE_REASON" />  Last seen online <ph name="RELATIVE_TIMESTAMP" />.</translation>
@@ -76,7 +76,6 @@ If '<ph name="SERVICE_SCRIPT_NAME" />' is already ticked, untick it and then tic
 <translation id="4405930547258349619">Core Library</translation>
 <translation id="443560535555262820">Open Accessibility Preferences</translation>
 <translation id="4450893287417543264">Don't show again</translation>
-<translation id="4512952200932940229">Copyright 2021 The Chromium Authors. All rights reserved.</translation>
 <translation id="4513946894732546136">Feedback</translation>
 <translation id="4563926062592110512">Client disconnected: <ph name="CLIENT_USERNAME" />.</translation>
 <translation id="4618411825115957973"><ph name="URL_FORWARDER_NAME" /> is not configured correctly. Please choose a different default web browser and then enable URL forwarding again.</translation>
@@ -90,6 +89,7 @@ If '<ph name="SERVICE_SCRIPT_NAME" />' is already ticked, untick it and then tic
 <translation id="4808503597364150972">Please enter your PIN for <ph name="HOSTNAME" />.</translation>
 <translation id="4812684235631257312">Host</translation>
 <translation id="4867841927763172006">Send PrtScn</translation>
+<translation id="4960795469833295568">Copyright 2023 Google LLC. All rights reserved.</translation>
 <translation id="4974476491460646149">Connection closed for <ph name="HOSTNAME" /></translation>
 <translation id="4985296110227979402">You need to first set up your computer for remote access</translation>
 <translation id="4987330545941822761">Chrome Remote Desktop cannot determine the browser to open URLs locally. Please choose it from the list below.</translation>

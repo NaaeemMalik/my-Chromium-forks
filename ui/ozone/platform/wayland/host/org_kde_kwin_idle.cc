@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/logging.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
+#include "ui/ozone/platform/wayland/host/wayland_seat.h"
 
 namespace ui {
 
@@ -56,7 +57,8 @@ void OrgKdeKwinIdle::Instantiate(WaylandConnection* connection,
                                  uint32_t name,
                                  const std::string& interface,
                                  uint32_t version) {
-  DCHECK_EQ(interface, kInterfaceName);
+  CHECK_EQ(interface, kInterfaceName) << "Expected \"" << kInterfaceName
+                                      << "\" but got \"" << interface << "\"";
 
   if (connection->org_kde_kwin_idle_ ||
       !wl::CanBind(interface, version, kMinVersion, kMinVersion)) {
@@ -85,7 +87,7 @@ absl::optional<base::TimeDelta> OrgKdeKwinIdle::GetIdleTime() const {
   if (!idle_timeout_) {
     idle_timeout_ =
         std::make_unique<Timeout>(org_kde_kwin_idle_get_idle_timeout(
-            idle_.get(), connection_->seat(), kIdleThresholdMs));
+            idle_.get(), connection_->seat()->wl_object(), kIdleThresholdMs));
   }
   return idle_timeout_->GetIdleTime();
 }

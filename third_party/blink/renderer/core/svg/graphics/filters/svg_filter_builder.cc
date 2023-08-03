@@ -105,8 +105,8 @@ void SVGFilterGraphNodeMap::Trace(Visitor* visitor) const {
 
 SVGFilterBuilder::SVGFilterBuilder(FilterEffect* source_graphic,
                                    SVGFilterGraphNodeMap* node_map,
-                                   const PaintFlags* fill_flags,
-                                   const PaintFlags* stroke_flags)
+                                   const cc::PaintFlags* fill_flags,
+                                   const cc::PaintFlags* stroke_flags)
     : node_map_(node_map) {
   builtin_effects_.insert(FilterInputKeywords::GetSourceGraphic(),
                           source_graphic);
@@ -197,7 +197,7 @@ void SVGFilterBuilder::BuildGraph(Filter* filter,
 
 void SVGFilterBuilder::Add(const AtomicString& id, FilterEffect* effect) {
   DCHECK(effect);
-  if (id.IsEmpty()) {
+  if (id.empty()) {
     last_effect_ = effect;
     return;
   }
@@ -210,7 +210,7 @@ void SVGFilterBuilder::Add(const AtomicString& id, FilterEffect* effect) {
 }
 
 FilterEffect* SVGFilterBuilder::GetEffectById(const AtomicString& id) const {
-  if (!id.IsEmpty()) {
+  if (!id.empty()) {
     auto builtin_it = builtin_effects_.find(id);
     if (builtin_it != builtin_effects_.end())
       return builtin_it->value;

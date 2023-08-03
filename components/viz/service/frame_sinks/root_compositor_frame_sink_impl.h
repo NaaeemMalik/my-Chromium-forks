@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/read_only_shared_memory_region.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "components/viz/common/surfaces/frame_sink_id.h"
@@ -22,6 +23,7 @@
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "services/viz/privileged/mojom/compositing/begin_frame_observer.mojom.h"
 #include "services/viz/privileged/mojom/compositing/display_private.mojom.h"
 #include "services/viz/privileged/mojom/compositing/frame_sink_manager.mojom.h"
 #include "services/viz/public/mojom/compositing/compositor_frame_sink.mojom.h"
@@ -67,18 +69,21 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
 
   // mojom::DisplayPrivate:
   void SetDisplayVisible(bool visible) override;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   void DisableSwapUntilResize(DisableSwapUntilResizeCallback callback) override;
 #endif
   void Resize(const gfx::Size& size) override;
   void SetDisplayColorMatrix(const gfx::Transform& color_matrix) override;
   void SetDisplayColorSpaces(
       const gfx::DisplayColorSpaces& display_color_spaces) override;
+#if BUILDFLAG(IS_MAC)
+  void SetVSyncDisplayID(int64_t display_id) override;
+#endif
   void SetOutputIsSecure(bool secure) override;
   void SetDisplayVSyncParameters(base::TimeTicks timebase,
                                  base::TimeDelta interval) override;
   void ForceImmediateDrawAndSwapIfPossible() override;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   void SetVSyncPaused(bool paused) override;
   void UpdateRefreshRate(float refresh_rate) override;
   void SetSupportedRefreshRates(
@@ -88,14 +93,18 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
 #endif
   void AddVSyncParameterObserver(
       mojo::PendingRemote<mojom::VSyncParameterObserver> observer) override;
-
   void SetDelegatedInkPointRenderer(
       mojo::PendingReceiver<gfx::mojom::DelegatedInkPointRenderer> receiver)
       override;
+  void SetStandaloneBeginFrameObserver(
+      mojo::PendingRemote<mojom::BeginFrameObserver> observer) override;
+  void SetMaxVrrInterval(
+      absl::optional<base::TimeDelta> max_vrr_interval) override;
 
   // mojom::CompositorFrameSink:
   void SetNeedsBeginFrame(bool needs_begin_frame) override;
   void SetWantsAnimateOnlyBeginFrames() override;
+  void SetWantsBeginFrameAcks() override;
   void SubmitCompositorFrame(
       const LocalSurfaceId& local_surface_id,
       CompositorFrame frame,
@@ -113,13 +122,16 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
       SubmitCompositorFrameSyncCallback callback) override;
   void InitializeCompositorFrameSinkType(
       mojom::CompositorFrameSinkType type) override;
-#if defined(OS_ANDROID)
+  void BindLayerContext(mojom::PendingLayerContextPtr context) override;
+#if BUILDFLAG(IS_ANDROID)
   void SetThreadIds(const std::vector<int32_t>& thread_ids) override;
 #endif
 
   base::ScopedClosureRunner GetCacheBackBufferCb();
 
  private:
+  class StandaloneBeginFrameObserver;
+
   RootCompositorFrameSinkImpl(
       FrameSinkManagerImpl* frame_sink_manager,
       const FrameSinkId& frame_sink_id,
@@ -131,7 +143,6 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
       std::unique_ptr<SyntheticBeginFrameSource> synthetic_begin_frame_source,
       std::unique_ptr<ExternalBeginFrameSource> external_begin_frame_source,
       std::unique_ptr<Display> display,
-      bool use_preferred_interval_for_video,
       bool hw_support_for_multiple_refresh_rates,
       bool apply_simple_frame_rate_throttling);
 
@@ -143,6 +154,7 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
   void DisplayDidReceiveCALayerParams(
       const gfx::CALayerParams& ca_layer_params) override;
   void DisplayDidCompleteSwapWithSize(const gfx::Size& pixel_size) override;
+  void DisplayAddChildWindowToBrowser(gpu::SurfaceHandle child_window) override;
   void SetWideColorEnabled(bool enabled) override;
   void SetPreferredFrameInterval(base::TimeDelta interval) override;
   base::TimeDelta GetPreferredFrameIntervalForFrameSinkId(
@@ -156,7 +168,7 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
   mojo::AssociatedReceiver<mojom::CompositorFrameSink>
       compositor_frame_sink_receiver_;
   // |display_client_| may be NullRemote on platforms that do not use it.
-  mojo::Remote<mojom::DisplayClient> display_client_;
+  [[maybe_unused]] mojo::Remote<mojom::DisplayClient> display_client_;
   mojo::AssociatedReceiver<mojom::DisplayPrivate> display_private_receiver_;
 
   std::unique_ptr<VSyncParameterListener> vsync_listener_;
@@ -175,6 +187,9 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
   // to the BFS.
   std::unique_ptr<Display> display_;
 
+  std::unique_ptr<StandaloneBeginFrameObserver>
+      standalone_begin_frame_observer_;
+
   // |use_preferred_interval_| indicates if we should use the preferred interval
   // from FrameRateDecider to tick.
   bool use_preferred_interval_ = false;
@@ -189,13 +204,19 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   gfx::Size last_swap_pixel_size_;
 #endif
 
+#if BUILDFLAG(IS_APPLE)
   gfx::CALayerParams last_ca_layer_params_;
 
-#if defined(OS_ANDROID)
+  // Used to force a call to OnDisplayReceivedCALayerParams() even if the params
+  // did not change.
+  base::TimeTicks next_forced_ca_layer_params_update_time_;
+#endif
+
+#if BUILDFLAG(IS_ANDROID)
   // Let client control whether it wants `DidCompleteSwapWithSize`.
   bool enable_swap_competion_callback_ = false;
 #endif

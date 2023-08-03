@@ -1,12 +1,14 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_TASK_SEQUENCE_MANAGER_TIME_DOMAIN_H_
 #define BASE_TASK_SEQUENCE_MANAGER_TIME_DOMAIN_H_
 
+#include "base/base_export.h"
 #include "base/check.h"
-#include "base/task/sequence_manager/lazy_now.h"
+#include "base/memory/raw_ptr_exclusion.h"
+#include "base/task/common/lazy_now.h"
 #include "base/task/sequence_manager/tasks.h"
 #include "base/time/tick_clock.h"
 #include "base/values.h"
@@ -29,14 +31,6 @@ class BASE_EXPORT TimeDomain : public TickClock {
   TimeDomain& operator=(const TimeDomain&) = delete;
   ~TimeDomain() override = default;
 
-  // Returns the desired ready time based on the predetermined `next_wake_up`,
-  // is_null() if ready immediately, or is_max() to ignore the wake-up. This is
-  // typically aligned with `next_wake_up.time` but virtual time domains may
-  // elect otherwise. Can be called from main thread only.
-  // TODO(857101): Pass `lazy_now` by reference.
-  virtual TimeTicks GetNextDelayedTaskTime(WakeUp next_wake_up,
-                                           LazyNow* lazy_now) const = 0;
-
   // Invoked when the thread reaches idle. Gives an opportunity to a virtual
   // time domain impl to fast-forward time and return true to indicate that
   // there's more work to run. If RunLoop::QuitWhenIdle has been called then
@@ -45,7 +39,7 @@ class BASE_EXPORT TimeDomain : public TickClock {
                                         bool quit_when_idle_requested) = 0;
 
   // Debug info.
-  Value AsValue() const;
+  Value::Dict AsValue() const;
 
  protected:
   TimeDomain() = default;
@@ -53,7 +47,7 @@ class BASE_EXPORT TimeDomain : public TickClock {
   virtual const char* GetName() const = 0;
 
   // Tells SequenceManager that internal policy might have changed to
-  // re-evaluate GetNextDelayedTaskTime()/MaybeFastForwardToWakeUp().
+  // re-evaluate MaybeFastForwardToWakeUp().
   void NotifyPolicyChanged();
 
   // Called when the TimeDomain is assigned to a SequenceManagerImpl.
@@ -65,7 +59,10 @@ class BASE_EXPORT TimeDomain : public TickClock {
  private:
   friend class internal::SequenceManagerImpl;
 
-  internal::SequenceManagerImpl* sequence_manager_ = nullptr;  // Not owned.
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION internal::SequenceManagerImpl* sequence_manager_ =
+      nullptr;  // Not owned.
 };
 
 }  // namespace sequence_manager

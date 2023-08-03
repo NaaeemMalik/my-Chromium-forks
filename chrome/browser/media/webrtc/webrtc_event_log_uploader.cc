@@ -1,13 +1,14 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/media/webrtc/webrtc_event_log_uploader.h"
 
-#include "base/bind.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/strings/stringprintf.h"
+#include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
@@ -34,17 +35,17 @@ const char kBoundary[] = "----**--yradnuoBgoLtrapitluMklaTelgooG--**----";
 constexpr size_t kExpectedMimeOverheadBytes = 1000;  // Intentional overshot.
 
 // TODO(crbug.com/817495): Eliminate the duplication with other uploaders.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 const char kProduct[] = "Chrome";
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
 const char kProduct[] = "Chrome_Mac";
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
 const char kProduct[] = "Chrome_ChromeOS";
-#elif defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
 const char kProduct[] = "Chrome_Linux";
-#elif defined(OS_ANDROID)
+#elif BUILDFLAG(IS_ANDROID)
 const char kProduct[] = "Chrome_Android";
-#elif defined(OS_FUCHSIA)
+#elif BUILDFLAG(IS_FUCHSIA)
 const char kProduct[] = "Chrome_Fuchsia";
 #else
 #error Platform not supported.

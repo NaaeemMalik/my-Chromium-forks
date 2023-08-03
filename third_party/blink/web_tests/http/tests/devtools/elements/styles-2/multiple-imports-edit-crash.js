@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
   await TestRunner.loadHTML(`
     <head>
       <style>
-        @import url(../../styles/resources/multiple-imports-edit-crash-1.css);
-        @import url(../../styles/resources/multiple-imports-edit-crash-2.css);
-        @import url(../../styles/resources/multiple-imports-edit-crash-1.css);
+        @import url(../styles/resources/multiple-imports-edit-crash-1.css);
+        @import url(../styles/resources/multiple-imports-edit-crash-2.css);
+        @import url(../styles/resources/multiple-imports-edit-crash-1.css);
         #inspected {
             color: green;
         }
@@ -42,7 +42,7 @@
   ElementsTestRunner.nodeWithId('inspected', nodeFound);
 
   function nodeFound(node) {
-    TestRunner.cssModel.matchedStylesPromise(node.id).then(matchedStylesCallback);
+    TestRunner.cssModel.getMatchedStyles(node.id).then(matchedStylesCallback);
   }
 
   var styleSheetId;

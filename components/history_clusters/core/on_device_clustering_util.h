@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,24 @@
 
 namespace history_clusters {
 
-// Merges |duplicate_visit| into |canonical_visit|.
+// Moves |duplicate_visit| into |canonical_visit|'s list of duplicate visits.
+// |duplicate_visit| should be considered invalid after this call.
 void MergeDuplicateVisitIntoCanonicalVisit(
-    const history::ClusterVisit& duplicate_visit,
+    history::ClusterVisit&& duplicate_visit,
     history::ClusterVisit& canonical_visit);
 
-// Calculates all the visits within |cluster| that are considered
-// "duplicates" and stores their ids in |duplicate_visit_ids|.
-base::flat_set<history::VisitID> CalculateAllDuplicateVisitsForCluster(
-    const history::Cluster& cluster);
+// Whether the visit is considered a noisy visit (i.e. high engagement,
+// non-SRP).
+bool IsNoisyVisit(const history::ClusterVisit& visit);
+
+// Appends the visits from |cluster1| to the visits in |cluster2|.
+//
+// |cluster2|'s visits will be cleared in this operation.'
+void AppendClusterVisits(history::Cluster& cluster1,
+                         history::Cluster& cluster2);
+
+// Removes clusters without visits from |clusters|.
+void RemoveEmptyClusters(std::vector<history::Cluster>* clusters);
 
 // Whether the visit is considered a noisy visit (i.e. high engagement,
 // non-SRP).

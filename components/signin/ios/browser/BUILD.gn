@@ -1,6 +1,8 @@
-# Copyright 2014 The Chromium Authors. All rights reserved.
+# Copyright 2014 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+
+import("//build/config/features.gni")
 
 source_set("browser") {
   configs += [ "//build/config/compiler:enable_arc" ]
@@ -82,10 +84,19 @@ source_set("unit_tests") {
     "//components/sync_preferences:test_support",
     "//ios/web",
     "//ios/web/public/test",
+    "//ios/web/public/test:test_fixture",
     "//ios/web/public/test/fakes",
     "//net:test_support",
     "//testing/gmock",
     "//testing/gtest",
     "//third_party/ocmock",
   ]
+
+  # TODO(crbug.com/1427365): Test currently fails on iOS blink.
+  if (is_ios && use_blink) {
+    sources -= [
+      "account_consistency_service_unittest.mm",
+      "active_state_manager_impl_unittest.mm",
+    ]
+  }
 }

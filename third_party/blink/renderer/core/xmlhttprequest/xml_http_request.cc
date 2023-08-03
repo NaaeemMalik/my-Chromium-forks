@@ -30,6 +30,8 @@
 #include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
+#include "net/base/mime_util.h"
+#include "services/network/public/cpp/header_util.h"
 #include "services/network/public/mojom/trust_tokens.mojom-shared.h"
 #include "third_party/blink/public/common/blob/blob_utils.h"
 #include "third_party/blink/public/common/features.h"
@@ -37,6 +39,7 @@
 #include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink.h"
 #include "third_party/blink/public/platform/web_url_request.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_private_token.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_arraybuffer_arraybufferview_blob_document_formdata_urlsearchparams_usvstring.h"
 #include "third_party/blink/renderer/core/dom/document_init.h"
 #include "third_party/blink/renderer/core/dom/document_parser.h"
@@ -44,17 +47,18 @@
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/dom/xml_document.h"
 #include "third_party/blink/renderer/core/editing/serializers/serialization.h"
+#include "third_party/blink/renderer/core/event_target_names.h"
 #include "third_party/blink/renderer/core/events/progress_event.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/core/fetch/trust_token_issuance_authorization.h"
+#include "third_party/blink/renderer/core/fetch/attribution_reporting_to_mojom.h"
 #include "third_party/blink/renderer/core/fetch/trust_token_to_mojom.h"
 #include "third_party/blink/renderer/core/fileapi/blob.h"
 #include "third_party/blink/renderer/core/fileapi/file.h"
+#include "third_party/blink/renderer/core/fileapi/file_reader_client.h"
 #include "third_party/blink/renderer/core/fileapi/file_reader_loader.h"
-#include "third_party/blink/renderer/core/fileapi/file_reader_loader_client.h"
 #include "third_party/blink/renderer/core/fileapi/public_url_manager.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
-#include "third_party/blink/renderer/core/frame/deprecation.h"
+#include "third_party/blink/renderer/core/frame/deprecation/deprecation.h"
 #include "third_party/blink/renderer/core/frame/frame.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/page_dismissal_scope.h"
@@ -239,34 +243,40 @@ bool ValidateOpenArguments(const AtomicString& method,
 
 class XMLHttpRequest::BlobLoader final
     : public GarbageCollected<XMLHttpRequest::BlobLoader>,
-      public FileReaderLoaderClient {
+      public FileReaderClient {
  public:
   BlobLoader(XMLHttpRequest* xhr, scoped_refptr<BlobDataHandle> handle)
       : xhr_(xhr),
-        loader_(std::make_unique<FileReaderLoader>(
-            FileReaderLoader::kReadByClient,
+        loader_(MakeGarbageCollected<FileReaderLoader>(
             this,
             xhr->GetExecutionContext()->GetTaskRunner(
                 TaskType::kFileReading))) {
     loader_->Start(std::move(handle));
   }
 
-  // FileReaderLoaderClient functions.
-  void DidStartLoading() override {}
-  void DidReceiveDataForClient(const char* data, unsigned length) override {
+  // FileReaderClient functions.
+  FileErrorCode DidStartLoading(uint64_t) override {
+    return FileErrorCode::kOK;
+  }
+  FileErrorCode DidReceiveData(const char* data, unsigned length) override {
     DCHECK_LE(length, static_cast<unsigned>(INT_MAX));
     xhr_->DidReceiveData(data, length);
+    return FileErrorCode::kOK;
   }
   void DidFinishLoading() override { xhr_->DidFinishLoadingFromBlob(); }
   void DidFail(FileErrorCode error) override { xhr_->DidFailLoadingFromBlob(); }
 
   void Cancel() { loader_->Cancel(); }
 
-  void Trace(Visitor* visitor) const { visitor->Trace(xhr_); }
+  void Trace(Visitor* visitor) const override {
+    FileReaderClient::Trace(visitor);
+    visitor->Trace(xhr_);
+    visitor->Trace(loader_);
+  }
 
  private:
   Member<XMLHttpRequest> xhr_;
-  std::unique_ptr<FileReaderLoader> loader_;
+  Member<FileReaderLoader> loader_;
 };
 
 XMLHttpRequest* XMLHttpRequest::Create(ScriptState* script_state) {
@@ -285,7 +295,8 @@ XMLHttpRequest* XMLHttpRequest::Create(ExecutionContext* context) {
 XMLHttpRequest::XMLHttpRequest(ExecutionContext* context,
                                v8::Isolate* isolate,
                                scoped_refptr<const DOMWrapperWorld> world)
-    : ExecutionContextLifecycleObserver(context),
+    : ActiveScriptWrappable<XMLHttpRequest>({}),
+      ExecutionContextLifecycleObserver(context),
       progress_event_throttle_(
           MakeGarbageCollected<XMLHttpRequestProgressEventThrottle>(this)),
       isolate_(isolate),
@@ -324,15 +335,6 @@ v8::Local<v8::String> XMLHttpRequest::responseText(
 v8::Local<v8::String> XMLHttpRequest::ResponseJSONSource() {
   DCHECK_EQ(response_type_code_, kResponseTypeJSON);
 
-  const auto& head = response_body_head_;
-  if (state_ == kDone && !error_ && head.size() >= 2) {
-    if ((head[0] == 0xfe && head[1] == 0xff) ||
-        (head[0] == 0xff && head[1] == 0xfe)) {
-      Deprecation::CountDeprecation(GetExecutionContext(),
-                                    WebFeature::kXHRJSONEncodingDetection);
-    }
-  }
-
   if (error_ || state_ != kDone)
     return v8::Local<v8::String>();
   return response_text_.V8Value(isolate_);
@@ -353,6 +355,7 @@ void XMLHttpRequest::InitResponseDocument() {
   auto* document = To<LocalDOMWindow>(GetExecutionContext())->document();
   DocumentInit init = DocumentInit::Create()
                           .WithExecutionContext(GetExecutionContext())
+                          .WithAgent(*GetExecutionContext()->GetAgent())
                           .WithURL(response_.ResponseUrl());
   if (is_html) {
     response_document_ = MakeGarbageCollected<HTMLDocument>(init);
@@ -362,7 +365,7 @@ void XMLHttpRequest::InitResponseDocument() {
 
   // FIXME: Set Last-Modified.
   response_document_->SetContextFeatures(document->GetContextFeatures());
-  response_document_->SetMimeType(FinalResponseMIMETypeWithFallback());
+  response_document_->SetMimeType(GetResponseMIMEType());
 }
 
 Document* XMLHttpRequest::responseXML(ExceptionState& exception_state) {
@@ -407,7 +410,7 @@ Blob* XMLHttpRequest::ResponseBlob() {
 
   if (!response_blob_) {
     auto blob_data = std::make_unique<BlobData>();
-    blob_data->SetContentType(FinalResponseMIMETypeWithFallback().LowerASCII());
+    blob_data->SetContentType(GetResponseMIMEType().LowerASCII());
     size_t size = 0;
     if (binary_response_builder_ && binary_response_builder_->size()) {
       for (const auto& span : *binary_response_builder_)
@@ -608,6 +611,10 @@ void XMLHttpRequest::setWithCredentials(bool value,
   with_credentials_ = value;
 }
 
+void XMLHttpRequest::setDeprecatedBrowsingTopics(bool value) {
+  deprecated_browsing_topics_ = value;
+}
+
 void XMLHttpRequest::open(const AtomicString& method,
                           const String& url_string,
                           ExceptionState& exception_state) {
@@ -760,8 +767,13 @@ bool XMLHttpRequest::InitSend(ExceptionState& exception_state) {
         return false;
       }
     }
-    v8::Isolate* isolate = v8::Isolate::GetCurrent();
-    if (isolate && v8::MicrotasksScope::IsRunningMicrotasks(isolate)) {
+    v8::Isolate* isolate = GetExecutionContext()->GetIsolate();
+    v8::MicrotaskQueue* microtask_queue =
+        ToMicrotaskQueue(GetExecutionContext());
+    if (isolate &&
+        ((microtask_queue && microtask_queue->IsRunningMicrotasks()) ||
+         (!microtask_queue &&
+          v8::MicrotasksScope::IsRunningMicrotasks(isolate)))) {
       UseCounter::Count(GetExecutionContext(),
                         WebFeature::kDuring_Microtask_SyncXHR);
     }
@@ -857,7 +869,7 @@ void XMLHttpRequest::send(Blob* body, ExceptionState& exception_state) {
   if (AreMethodAndURLValidForSend()) {
     if (!HasContentTypeRequestHeader()) {
       const String& blob_type = FetchUtils::NormalizeHeaderValue(body->type());
-      if (!blob_type.IsEmpty() && ParsedContentType(blob_type).IsValid()) {
+      if (!blob_type.empty() && ParsedContentType(blob_type).IsValid()) {
         SetRequestHeaderInternal(http_names::kContentType,
                                  AtomicString(blob_type));
       }
@@ -867,7 +879,7 @@ void XMLHttpRequest::send(Blob* body, ExceptionState& exception_state) {
     http_body = EncodedFormData::Create();
     if (body->HasBackingFile()) {
       auto* file = To<File>(body);
-      if (!file->GetPath().IsEmpty())
+      if (!file->GetPath().empty())
         http_body->AppendFile(file->GetPath(), file->LastModifiedTime());
       else
         NOTREACHED();
@@ -1053,14 +1065,21 @@ void XMLHttpRequest::CreateRequest(scoped_refptr<EncodedFormData> http_body,
   request.SetMode(upload_events
                       ? network::mojom::RequestMode::kCorsWithForcedPreflight
                       : network::mojom::RequestMode::kCors);
+  request.SetTargetAddressSpace(network::mojom::IPAddressSpace::kUnknown);
   request.SetCredentialsMode(
       with_credentials_ ? network::mojom::CredentialsMode::kInclude
                         : network::mojom::CredentialsMode::kSameOrigin);
+  request.SetBrowsingTopics(deprecated_browsing_topics_);
+  if (deprecated_browsing_topics_) {
+    UseCounter::Count(&execution_context, WebFeature::kTopicsAPIXhr);
+  }
+
   request.SetSkipServiceWorker(world_ && world_->IsIsolatedWorld());
-  request.SetExternalRequestStateFromRequestorAddressSpace(
-      execution_context.AddressSpace());
   if (trust_token_params_)
     request.SetTrustTokenParams(*trust_token_params_);
+
+  request.SetAttributionReportingEligibility(
+      attribution_reporting_eligibility_);
 
   probe::WillLoadXHR(&execution_context, method_, url_, async_,
                      request_headers_, with_credentials_);
@@ -1112,22 +1131,20 @@ void XMLHttpRequest::CreateRequest(scoped_refptr<EncodedFormData> http_body,
     UseCounter::Count(&execution_context, WebFeature::kXMLHttpRequestSynchronous);
     if (auto* window = DynamicTo<LocalDOMWindow>(GetExecutionContext())) {
       if (Frame* frame = window->GetFrame()) {
-        if (frame->IsMainFrame()) {
-          UseCounter::Count(&execution_context,
-                            WebFeature::kXMLHttpRequestSynchronousInMainFrame);
-        } else if (frame->IsCrossOriginToMainFrame()) {
+        if (frame->IsCrossOriginToOutermostMainFrame()) {
           UseCounter::Count(
               &execution_context,
               WebFeature::kXMLHttpRequestSynchronousInCrossOriginSubframe);
+        } else if (frame->IsMainFrame()) {
+          UseCounter::Count(&execution_context,
+                            WebFeature::kXMLHttpRequestSynchronousInMainFrame);
         } else {
           UseCounter::Count(
               &execution_context,
               WebFeature::kXMLHttpRequestSynchronousInSameOriginSubframe);
         }
       }
-      if (PageDismissalScope::IsActive() &&
-          !RuntimeEnabledFeatures::AllowSyncXHRInPageDismissalEnabled(
-              &execution_context)) {
+      if (PageDismissalScope::IsActive()) {
         HandleNetworkError();
         ThrowForLoadFailureIfNeeded(exception_state,
                                     "Synchronous XHR in page dismissal. See "
@@ -1161,6 +1178,8 @@ void XMLHttpRequest::CreateRequest(scoped_refptr<EncodedFormData> http_body,
       UMA_HISTOGRAM_MEDIUM_TIMES("XHR.Sync.BlockingTime.WorkerThread",
                                  blocking_time);
     }
+
+    probe::DidFinishSyncXHR(&execution_context, blocking_time);
 
     ThrowForLoadFailureIfNeeded(exception_state, String());
   }
@@ -1313,8 +1332,8 @@ void XMLHttpRequest::HandleDidCancel() {
 
   pending_abort_event_ = PostCancellableTask(
       *GetExecutionContext()->GetTaskRunner(TaskType::kNetworking), FROM_HERE,
-      WTF::Bind(&XMLHttpRequest::HandleRequestError, WrapPersistent(this),
-                DOMExceptionCode::kAbortError, event_type_names::kAbort));
+      WTF::BindOnce(&XMLHttpRequest::HandleRequestError, WrapPersistent(this),
+                    DOMExceptionCode::kAbortError, event_type_names::kAbort));
 }
 
 void XMLHttpRequest::HandleRequestError(DOMExceptionCode exception_code,
@@ -1360,8 +1379,17 @@ void XMLHttpRequest::overrideMimeType(const AtomicString& mime_type,
   }
 
   mime_type_override_ = "application/octet-stream";
-  if (ParsedContentType(mime_type).IsValid())
-    mime_type_override_ = mime_type;
+  if (!ParsedContentType(mime_type).IsValid()) {
+    return;
+  }
+
+  if (!net::ExtractMimeTypeFromMediaType(mime_type.Utf8(),
+                                         /*accept_comma_separated=*/false)
+           .has_value()) {
+    return;
+  }
+
+  mime_type_override_ = mime_type;
 }
 
 // https://xhr.spec.whatwg.org/#the-setrequestheader()-method
@@ -1394,9 +1422,10 @@ void XMLHttpRequest::setRequestHeader(const AtomicString& name,
     return;
   }
 
-  // "5. Terminate these steps if |name| is a forbidden header name."
+  // "5. Terminate these steps if (|name|, |value|) is a forbidden request
+  //      header."
   // No script (privileged or not) can set unsafe headers.
-  if (cors::IsForbiddenHeaderName(name)) {
+  if (cors::IsForbiddenRequestHeader(name, value)) {
     LogConsoleError(GetExecutionContext(),
                     "Refused to set unsafe header \"" + name + "\"");
     return;
@@ -1417,8 +1446,8 @@ void XMLHttpRequest::SetRequestHeaderInternal(const AtomicString& name,
   }
 }
 
-void XMLHttpRequest::setTrustToken(const TrustToken* trust_token,
-                                   ExceptionState& exception_state) {
+void XMLHttpRequest::setPrivateToken(const PrivateToken* trust_token,
+                                     ExceptionState& exception_state) {
   // These precondition checks are copied from |setRequestHeader|.
   if (state_ != kOpened || send_flag_) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
@@ -1427,37 +1456,29 @@ void XMLHttpRequest::setTrustToken(const TrustToken* trust_token,
   }
 
   auto params = network::mojom::blink::TrustTokenParams::New();
-  if (!ConvertTrustTokenToMojom(*trust_token, &exception_state, params.get())) {
+  if (!ConvertTrustTokenToMojomAndCheckPermissions(
+          *trust_token, GetExecutionContext(), &exception_state,
+          params.get())) {
     DCHECK(exception_state.HadException());
     return;
   }
 
-  bool operation_requires_permissions_policy =
-      params->type ==
-          network::mojom::blink::TrustTokenOperationType::kRedemption ||
-      params->type == network::mojom::blink::TrustTokenOperationType::kSigning;
-  if (operation_requires_permissions_policy &&
-      !GetExecutionContext()->IsFeatureEnabled(
-          mojom::blink::PermissionsPolicyFeature::kTrustTokenRedemption)) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kNotAllowedError,
-        "Trust Tokens redemption and signing require the "
-        "trust-token-redemption Permissions Policy feature.");
-    return;
-  }
-
-  if (params->type ==
-          network::mojom::blink::TrustTokenOperationType::kIssuance &&
-      !IsTrustTokenIssuanceAvailableInExecutionContext(
-          *GetExecutionContext())) {
-    exception_state.ThrowDOMException(
-        DOMExceptionCode::kNotAllowedError,
-        "Trust Tokens issuance is disabled except in "
-        "contexts with the TrustTokens Origin Trial enabled.");
-    return;
-  }
-
   trust_token_params_ = std::move(params);
+}
+
+void XMLHttpRequest::setAttributionReporting(
+    const AttributionReportingRequestOptions* options,
+    ExceptionState& exception_state) {
+  // These precondition checks are copied from |setRequestHeader|.
+  if (state_ != kOpened || send_flag_) {
+    exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
+                                      "The object's state must be OPENED.");
+    return;
+  }
+
+  attribution_reporting_eligibility_ =
+      ConvertAttributionReportingRequestOptionsToMojom(
+          *options, *GetExecutionContext(), exception_state);
 }
 
 bool XMLHttpRequest::HasContentTypeRequestHeader() const {
@@ -1488,11 +1509,7 @@ String XMLHttpRequest::getAllResponseHeaders() const {
        it != response_.HttpHeaderFields().end(); ++it) {
     // Hide any headers whose name is a forbidden response-header name.
     // This is required for all kinds of filtered responses.
-    //
-    // TODO: Consider removing canLoadLocalResources() call.
-    // crbug.com/567527
-    if (FetchUtils::IsForbiddenResponseHeaderName(it->key) &&
-        !GetExecutionContext()->GetSecurityOrigin()->CanLoadLocalResources()) {
+    if (FetchUtils::IsForbiddenResponseHeaderName(it->key)) {
       continue;
     }
 
@@ -1527,9 +1544,7 @@ const AtomicString& XMLHttpRequest::getResponseHeader(
   if (state_ < kHeadersReceived || error_)
     return g_null_atom;
 
-  // See comment in getAllResponseHeaders above.
-  if (FetchUtils::IsForbiddenResponseHeaderName(name) &&
-      !GetExecutionContext()->GetSecurityOrigin()->CanLoadLocalResources()) {
+  if (FetchUtils::IsForbiddenResponseHeaderName(name)) {
     LogConsoleError(GetExecutionContext(),
                     "Refused to get unsafe header \"" + name + "\"");
     return g_null_atom;
@@ -1552,23 +1567,33 @@ const AtomicString& XMLHttpRequest::getResponseHeader(
   return response_.HttpHeaderField(name);
 }
 
-AtomicString XMLHttpRequest::FinalResponseMIMEType() const {
-  AtomicString overridden_type =
-      ExtractMIMETypeFromMediaType(mime_type_override_);
-  if (!overridden_type.IsEmpty())
-    return overridden_type;
+AtomicString XMLHttpRequest::FinalResponseMIMETypeInternal() const {
+  absl::optional<std::string> overridden_type =
+      net::ExtractMimeTypeFromMediaType(mime_type_override_.Utf8(),
+                                        /*accept_comma_separated=*/false);
+  if (overridden_type.has_value()) {
+    return AtomicString::FromUTF8(overridden_type->c_str());
+  }
 
   if (response_.IsHTTP()) {
-    return ExtractMIMETypeFromMediaType(
-        response_.HttpHeaderField(http_names::kContentType));
+    AtomicString header = response_.HttpHeaderField(http_names::kContentType);
+    absl::optional<std::string> extracted_type =
+        net::ExtractMimeTypeFromMediaType(header.Utf8(),
+                                          /*accept_comma_separated=*/true);
+    if (extracted_type.has_value()) {
+      return AtomicString::FromUTF8(extracted_type->c_str());
+    }
+
+    return g_empty_atom;
   }
 
   return response_.MimeType();
 }
 
-AtomicString XMLHttpRequest::FinalResponseMIMETypeWithFallback() const {
-  AtomicString final_type = FinalResponseMIMEType();
-  if (!final_type.IsEmpty())
+// https://xhr.spec.whatwg.org/#response-body
+AtomicString XMLHttpRequest::GetResponseMIMEType() const {
+  AtomicString final_type = FinalResponseMIMETypeInternal();
+  if (!final_type.empty())
     return final_type;
 
   return AtomicString("text/xml");
@@ -1586,7 +1611,7 @@ WTF::TextEncoding XMLHttpRequest::FinalResponseCharset() const {
   // it. [spec text]
   String override_response_charset =
       ExtractCharsetFromMediaType(mime_type_override_);
-  if (!override_response_charset.IsEmpty())
+  if (!override_response_charset.empty())
     label = override_response_charset;
 
   // 4. If label is null, then return null. [spec text]
@@ -1627,11 +1652,11 @@ void XMLHttpRequest::UpdateContentTypeAndCharset(
 }
 
 bool XMLHttpRequest::ResponseIsXML() const {
-  return MIMETypeRegistry::IsXMLMIMEType(FinalResponseMIMETypeWithFallback());
+  return MIMETypeRegistry::IsXMLMIMEType(GetResponseMIMEType());
 }
 
 bool XMLHttpRequest::ResponseIsHTML() const {
-  return EqualIgnoringASCIICase(FinalResponseMIMEType(), "text/html");
+  return EqualIgnoringASCIICase(FinalResponseMIMETypeInternal(), "text/html");
 }
 
 int XMLHttpRequest::status() const {
@@ -1718,20 +1743,17 @@ void XMLHttpRequest::DidFinishLoading(uint64_t identifier) {
 
 void XMLHttpRequest::DidFinishLoadingInternal() {
   if (response_document_parser_) {
-    // |DocumentParser::finish()| tells the parser that we have reached end of
-    // the data.  When using |HTMLDocumentParser|, which works asynchronously,
-    // we do not have the complete document just after the
-    // |DocumentParser::finish()| call.  Wait for the parser to call us back in
-    // |notifyParserStopped| to progress state.
     response_document_parser_->Finish();
-    DCHECK(response_document_);
+    // The remaining logic lives in `XMLHttpRequest::NotifyParserStopped()`
+    // which is called by `DocumentParser::Finish()` synchronously or
+    // asynchronously.
     return;
   }
 
   if (decoder_) {
     auto text = decoder_->Flush();
 
-    if (!text.IsEmpty() && !response_text_overflow_) {
+    if (!text.empty() && !response_text_overflow_) {
       response_text_.Concat(isolate_, text);
       response_text_overflow_ = response_text_.IsEmpty();
     }
@@ -1793,7 +1815,7 @@ void XMLHttpRequest::EndLoading() {
 
   if (auto* window = DynamicTo<LocalDOMWindow>(GetExecutionContext())) {
     LocalFrame* frame = window->GetFrame();
-    if (frame && cors::IsOkStatus(status()))
+    if (frame && network::IsSuccessfulStatus(status()))
       frame->GetPage()->GetChromeClient().AjaxSucceeded(frame);
   }
 }
@@ -1837,10 +1859,8 @@ void XMLHttpRequest::ParseDocumentChunk(const char* data, unsigned len) {
     if (!response_document_)
       return;
 
-    response_document_parser_ = response_document_->ImplicitOpen(
-        RuntimeEnabledFeatures::ForceSynchronousHTMLParsingEnabled()
-            ? kAllowDeferredParsing
-            : kAllowAsynchronousParsing);
+    response_document_parser_ =
+        response_document_->ImplicitOpen(kAllowDeferredParsing);
     response_document_parser_->AddClient(this);
   }
   DCHECK(response_document_parser_);
@@ -1876,7 +1896,7 @@ std::unique_ptr<TextResourceDecoder> XMLHttpRequest::CreateDecoder() const {
     case kResponseTypeDefault:
       if (ResponseIsXML())
         return std::make_unique<TextResourceDecoder>(decoder_options_for_xml);
-      FALLTHROUGH;
+      [[fallthrough]];
     case kResponseTypeText:
       return std::make_unique<TextResourceDecoder>(TextResourceDecoderOptions(
           TextResourceDecoderOptions::kPlainTextContent, UTF8Encoding()));
@@ -1915,13 +1935,6 @@ void XMLHttpRequest::DidReceiveData(const char* data, unsigned len) {
   if (!len)
     return;
 
-  // Store the first few bytes of the response body so that we can check the BOM
-  // later.
-  for (wtf_size_t i = 0;
-       i < len && response_body_head_.size() < kResponseBodyHeadSize; ++i) {
-    response_body_head_.push_back(static_cast<uint8_t>(data[i]));
-  }
-
   if (response_type_code_ == kResponseTypeDocument && ResponseIsHTML()) {
     ParseDocumentChunk(data, len);
   } else if (response_type_code_ == kResponseTypeDefault ||
@@ -1932,7 +1945,7 @@ void XMLHttpRequest::DidReceiveData(const char* data, unsigned len) {
       decoder_ = CreateDecoder();
 
     auto text = decoder_->Decode(data, len);
-    if (!text.IsEmpty() && !response_text_overflow_) {
+    if (!text.empty() && !response_text_overflow_) {
       response_text_.Concat(isolate_, text);
       response_text_overflow_ = response_text_.IsEmpty();
     }
@@ -1996,7 +2009,7 @@ void XMLHttpRequest::DidDownloadToBlob(scoped_refptr<BlobDataHandle> blob) {
     // HandleNetworkError();
   } else {
     // Fix content type if overrides or fallbacks are in effect.
-    String mime_type = FinalResponseMIMETypeWithFallback().LowerASCII();
+    String mime_type = GetResponseMIMEType().LowerASCII();
     if (blob->GetType() != mime_type) {
       auto blob_size = blob->size();
       auto blob_data = std::make_unique<BlobData>();
@@ -2079,6 +2092,10 @@ void XMLHttpRequest::Trace(Visitor* visitor) const {
   ThreadableLoaderClient::Trace(visitor);
   DocumentParserClient::Trace(visitor);
   ExecutionContextLifecycleObserver::Trace(visitor);
+}
+
+bool XMLHttpRequest::HasRequestHeaderForTesting(AtomicString name) const {
+  return request_headers_.Contains(name);
 }
 
 std::ostream& operator<<(std::ostream& ostream, const XMLHttpRequest* xhr) {

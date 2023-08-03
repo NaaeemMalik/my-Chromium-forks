@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,8 +26,8 @@ CONTENT_EXPORT void ReRegisterContentSchemesForTests();
 
 // See comment in ContentClient::AddAdditionalSchemes for explanations. These
 // getters can be invoked on any thread.
-const std::vector<std::string>& GetSavableSchemes();
-const std::vector<std::string>& GetServiceWorkerSchemes();
+CONTENT_EXPORT const std::vector<std::string>& GetSavableSchemes();
+CONTENT_EXPORT const std::vector<std::string>& GetServiceWorkerSchemes();
 
 }  // namespace content
 

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,6 @@
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "base/threading/thread_id_name_manager.h"
-#include "build/build_config.h"
 
 namespace heap_profiling {
 class HeapProfilerControllerTest;
@@ -42,7 +41,7 @@ class BASE_EXPORT SamplingHeapProfiler
     // Total size attributed to the sample.
     size_t total;
     // Type of the allocator.
-    PoissonAllocationSampler::AllocatorType allocator;
+    base::allocator::dispatcher::AllocationSubsystem allocator;
     // Context as provided by the allocation hook.
     const char* context = nullptr;
     // Name of the thread that made the sampled allocation.
@@ -60,6 +59,17 @@ class BASE_EXPORT SamplingHeapProfiler
     uint32_t ordinal;
   };
 
+  // On Android this is logged to UMA - keep in sync AndroidStackUnwinder in
+  // enums.xml.
+  enum class StackUnwinder {
+    DEPRECATED_kNotChecked,
+    kDefault,
+    DEPRECATED_kCFIBacktrace,
+    kUnavailable,
+    kFramePointers,
+    kMaxValue = kFramePointers,
+  };
+
   // Starts collecting allocation samples. Returns the current profile_id.
   // This value can then be passed to |GetSamples| to retrieve only samples
   // recorded since the corresponding |Start| invocation.
@@ -69,7 +79,7 @@ class BASE_EXPORT SamplingHeapProfiler
   void Stop();
 
   // Sets sampling interval in bytes.
-  void SetSamplingInterval(size_t sampling_interval);
+  void SetSamplingInterval(size_t sampling_interval_bytes);
 
   // Enables recording thread name that made the sampled allocation.
   void SetRecordThreadNames(bool value);
@@ -109,7 +119,7 @@ class BASE_EXPORT SamplingHeapProfiler
   void SampleAdded(void* address,
                    size_t size,
                    size_t total,
-                   PoissonAllocationSampler::AllocatorType type,
+                   base::allocator::dispatcher::AllocationSubsystem type,
                    const char* context) override;
   void SampleRemoved(void* address) override;
 
@@ -144,10 +154,8 @@ class BASE_EXPORT SamplingHeapProfiler
   // Whether it should record thread names.
   std::atomic<bool> record_thread_names_{false};
 
-#if defined(OS_ANDROID)
-  // Whether to use CFI unwinder or default unwinder.
-  std::atomic<bool> use_default_unwinder_{false};
-#endif
+  // Which unwinder to use.
+  std::atomic<StackUnwinder> unwinder_{StackUnwinder::kDefault};
 
   friend class heap_profiling::HeapProfilerControllerTest;
   friend class NoDestructor<SamplingHeapProfiler>;

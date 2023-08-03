@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/common/content_features.h"
+#include "content/public/test/back_forward_cache_util.h"
 #include "content/public/test/navigation_simulator.h"
 #include "content/test/test_render_frame_host.h"
 #include "content/test/test_render_view_host.h"
@@ -66,7 +67,7 @@ class OpenColorChooserDelegate : public WebContentsDelegate {
 
 class ColorChooserUnitTest : public RenderViewHostImplTestHarness {};
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 // The ColorChooser is only available/called on Android.
 TEST_F(ColorChooserUnitTest, ColorChooserCallsEndOnNavigatingAway) {
   GURL kUrl1("https://foo.com");
@@ -107,21 +108,16 @@ class ColorChooserTestWithBackForwardCache : public ColorChooserUnitTest {
  public:
   ColorChooserTestWithBackForwardCache() {
     scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kBackForwardCache, {GetFeatureParams()}}},
-        // Allow BackForwardCache for all devices regardless of their memory.
-        /*disabled_features=*/{features::kBackForwardCacheMemoryControls});
-  }
-
- protected:
-  base::FieldTrialParams GetFeatureParams() {
-    return {{"TimeToLiveInBackForwardCacheInSeconds", "3600"}};
+        GetDefaultEnabledBackForwardCacheFeaturesForTesting(
+            /*ignore_outstanding_network_request=*/false),
+        GetDefaultDisabledBackForwardCacheFeaturesForTesting());
   }
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 // The ColorChooser is only available/called on Android.
 TEST_F(ColorChooserTestWithBackForwardCache,
        ColorChooserCallsEndOnEnteringBackForwardCache) {
@@ -141,7 +137,7 @@ TEST_F(ColorChooserTestWithBackForwardCache,
 
   // Navigate to A.
   NavigationSimulator::NavigateAndCommitFromBrowser(contents(), kUrl1);
-  RenderFrameHostImpl* rfh_a = contents()->GetMainFrame();
+  RenderFrameHostImpl* rfh_a = contents()->GetPrimaryMainFrame();
 
   mojo::PendingRemote<blink::mojom::ColorChooserClient> pending_client;
   mojo::Remote<blink::mojom::ColorChooser> pending_remote;

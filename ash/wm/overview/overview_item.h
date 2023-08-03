@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,13 @@
 #include <memory>
 
 #include "ash/ash_export.h"
+#include "ash/scoped_animation_disabler.h"
 #include "ash/wm/overview/overview_session.h"
 #include "ash/wm/overview/scoped_overview_transform_window.h"
 #include "ash/wm/window_state_observer.h"
+#include "base/cancelable_callback.h"
 #include "base/gtest_prod_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/aura/scoped_window_event_targeting_blocker.h"
@@ -20,10 +23,6 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/views/controls/button/button.h"
-
-namespace ui {
-class Shadow;
-}  // namespace ui
 
 namespace views {
 class Widget;
@@ -34,6 +33,7 @@ class DragWindowController;
 class OverviewGrid;
 class OverviewItemView;
 class RoundedLabelWidget;
+class SystemShadow;
 
 // This class represents an item in overview mode.
 class ASH_EXPORT OverviewItem : public aura::WindowObserver,
@@ -48,6 +48,8 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
 
   ~OverviewItem() override;
 
+  SystemShadow* shadow() { return shadow_.get(); }
+
   aura::Window* GetWindow();
 
   // Returns true if |target| is contained in this OverviewItem.
@@ -59,15 +61,17 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   void OnMovingWindowToAnotherDesk();
 
   // Restores and animates the managed window to its non overview mode state.
-  // If |reset_transform| equals false, the window's transform will not be
-  // reset to identity transform when exiting overview mode. It's needed when
-  // dragging an Arc app window in overview mode to put it in split screen. In
-  // this case the restore of its transform needs to be deferred until the Arc
-  // app window is snapped successfully, otherwise the animation will look very
-  // ugly (the Arc app window enlarges itself to maximized window bounds and
-  // then shrinks to its snapped window bounds). Note if the window's transform
-  // is not reset here, it must be reset by someone else at some point.
-  void RestoreWindow(bool reset_transform);
+  // Doesn't animate if |was_saved_desk_library_showing| is true. If
+  // |reset_transform| equals false, the window's transform will not be reset to
+  // identity transform when exiting overview mode. It's needed when dragging an
+  // Arc app window in overview mode to put it in split screen. In this case the
+  // restore of its transform needs to be deferred until the Arc app window is
+  // snapped successfully, otherwise the animation will look very ugly (the Arc
+  // app window enlarges itself to maximized window bounds and then shrinks to
+  // its snapped window bounds). Note if the window's transform is not reset
+  // here, it must be reset by someone else at some point.
+  void RestoreWindow(bool reset_transform,
+                     bool was_saved_desk_library_showing = false);
 
   // Ensures that a possibly minimized window becomes visible after restore.
   void EnsureVisible();
@@ -76,13 +80,16 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   void Shutdown();
 
   // Hides the overview item. This is used to hide any overview items that may
-  // be present when entering the desk templates UI.
-  void HideForDesksTemplatesGrid();
+  // be present when entering the saved desk library. Animates `item_widget_`
+  // and the windows in the transient tree to 0 opacity if `animate` is true,
+  // otherwise just sets them to 0 opacity.
+  void HideForSavedDeskLibrary(bool animate);
 
-  // This shows overview items that were hidden by the desk templates grid.
-  // Called when exiting the desk templates UI and going back to the overview
-  // grid.
-  void RevertHideForDesksTemplatesGrid();
+  // This shows overview items that were hidden by the saved desk library.
+  // Called when exiting the saved desk library and going back to the overview
+  // grid. Fades the overview items in if `animate` is true, otherwise shows
+  // them immediately.
+  void RevertHideForSavedDeskLibrary(bool animate);
 
   // Dispatched before beginning window overview. This will do any necessary
   // one time actions such as restoring minimized windows.
@@ -100,6 +107,10 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
 
   // Returns the transformed bound of |transform_window_|.
   gfx::RectF GetTransformedBounds() const;
+
+  // Returns the target bounds of `window_`. Same as `target_bounds_`, with some
+  // insets.
+  gfx::RectF GetWindowTargetBoundsWithInsets() const;
 
   // Sets the bounds of this overview item to |target_bounds| in the
   // |root_window_| root window. The bounds change will be animated as specified
@@ -120,11 +131,11 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
 
   // Shows the cannot snap warning if currently in splitview, and the associated
   // window cannot be snapped.
-  void UpdateCannotSnapWarningVisibility();
+  void UpdateCannotSnapWarningVisibility(bool animate);
 
   // Hides the cannot snap warning (if it was showing) until the next call to
   // |UpdateCannotSnapWarningVisibility|.
-  void HideCannotSnapWarning();
+  void HideCannotSnapWarning(bool animate);
 
   // Called when a OverviewItem on any grid is dragged. Hides the close button
   // when a drag is started, and reshows it when a drag is finished.
@@ -174,6 +185,9 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
 
   // Updates the rounded corners and shadow on this overview window item.
   void UpdateRoundedCornersAndShadow();
+
+  // Updates the shadow type while being dragged and dropped.
+  void UpdateShadowTypeForDrag(bool is_dragging);
 
   // Called when the starting animation is completed, or called immediately
   // if there was no starting animation.
@@ -252,10 +266,7 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
     should_restack_on_animation_end_ = val;
   }
 
-  void set_animating_to_close(bool val) { animating_to_close_ = val; }
   bool animating_to_close() const { return animating_to_close_; }
-
-  void set_disable_mask(bool disable) { disable_mask_ = disable; }
 
   void set_unclipped_size(absl::optional<gfx::Size> unclipped_size) {
     unclipped_size_ = unclipped_size;
@@ -272,17 +283,17 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   RoundedLabelWidget* cannot_snap_widget_for_testing() {
     return cannot_snap_widget_.get();
   }
+
   void set_target_bounds_for_testing(const gfx::RectF& target_bounds) {
     target_bounds_ = target_bounds;
+  }
+  void set_animating_to_close_for_testing(bool val) {
+    animating_to_close_ = val;
   }
 
  private:
   friend class OverviewTestBase;
   FRIEND_TEST_ALL_PREFIXES(SplitViewOverviewSessionTest, Clipping);
-
-  // Returns the target bounds of |window_|. Same as |target_bounds_|, with some
-  // insets.
-  gfx::RectF GetWindowTargetBoundsWithInsets() const;
 
   // The shadow should match the size of the transformed window or preview
   // window if unclipped.
@@ -322,6 +333,11 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   // using |animation_type|.
   void AnimateOpacity(float opacity, OverviewAnimationType animation_type);
 
+  // Returns the type of animation to use for an item that manages a minimized
+  // window.
+  OverviewAnimationType GetExitOverviewAnimationTypeForMinimizedWindow(
+      OverviewEnterExitType type);
+
   // Called before dragging. Scales up the window a little bit to indicate its
   // selection and stacks the window at the top of the Z order in order to keep
   // it visible while dragging around.
@@ -343,15 +359,23 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   void HandleTapEvent();
   void HandleGestureEndEvent();
 
+  void HideWindowInOverview();
+  void ShowWindowInOverview();
+
   // Returns the list of windows that we want to slide up or down when swiping
   // on the shelf in tablet mode.
   aura::Window::Windows GetWindowsForHomeGesture();
 
   // The root window this item is being displayed on.
-  aura::Window* root_window_;
+  raw_ptr<aura::Window, ExperimentalAsh> root_window_;
 
   // The contained Window's wrapper.
   ScopedOverviewTransformWindow transform_window_;
+
+  // Used to block events from reaching the item widget when the overview item
+  // has been hidden.
+  std::unique_ptr<aura::ScopedWindowEventTargetingBlocker>
+      item_widget_event_blocker_;
 
   // The target bounds this overview item is fit within. When in splitview,
   // |item_widget_| is fit within these bounds, but the window itself is
@@ -370,7 +394,7 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
 
   // The view associated with |item_widget_|. Contains a title, close button and
   // maybe a backdrop. Forwards certain events to |this|.
-  OverviewItemView* overview_item_view_ = nullptr;
+  raw_ptr<OverviewItemView, ExperimentalAsh> overview_item_view_ = nullptr;
 
   // A widget with text that may show up on top of |transform_window_| to notify
   // users this window cannot be snapped.
@@ -382,11 +406,11 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
 
   // Pointer to the Overview that owns the OverviewGrid containing |this|.
   // Guaranteed to be non-null for the lifetime of |this|.
-  OverviewSession* overview_session_;
+  raw_ptr<OverviewSession, ExperimentalAsh> overview_session_;
 
   // Pointer to the OverviewGrid that contains |this|. Guaranteed to be non-null
   // for the lifetime of |this|.
-  OverviewGrid* overview_grid_;
+  raw_ptr<OverviewGrid, ExperimentalAsh> overview_grid_;
 
   // True when the item is dragged and dropped on another desk's mini view. This
   // causes it to restore its transform immediately without any animations,
@@ -417,9 +441,6 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   // True if this overview item is currently being dragged around.
   bool is_being_dragged_ = false;
 
-  // True to always disable mask regardless of the state.
-  bool disable_mask_ = false;
-
   bool prepared_for_overview_ = false;
 
   // This has a value when there is a snapped window, or a window about to be
@@ -434,16 +455,19 @@ class ASH_EXPORT OverviewItem : public aura::WindowObserver,
   // The shadow around the overview window. Shadows the original window, not
   // |item_widget_|. Done here instead of on the original window because of the
   // rounded edges mask applied on entering overview window.
-  std::unique_ptr<ui::Shadow> shadow_;
+  std::unique_ptr<SystemShadow> shadow_;
 
   // Cached values of the item bounds so that they do not have to be calculated
   // on each scroll update. Will be nullopt unless a grid scroll is underway.
   absl::optional<gfx::RectF> scrolling_bounds_ = absl::nullopt;
 
-  // Used to block events from reaching the item widget when the overview item
-  // has been hidden.
-  std::unique_ptr<aura::ScopedWindowEventTargetingBlocker>
-      item_widget_event_blocker_;
+  // Disable animations on the contained window while it is being managed by the
+  // overview item.
+  ScopedAnimationDisabler animation_disabler_;
+
+  // Cancellable callback to ensure that we are not going to hide the window
+  // after reverting the hide.
+  base::CancelableOnceClosure hide_window_in_overview_callback_;
 
   base::WeakPtrFactory<OverviewItem> weak_ptr_factory_{this};
 };

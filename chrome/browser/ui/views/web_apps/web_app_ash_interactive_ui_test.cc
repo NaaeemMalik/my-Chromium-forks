@@ -1,7 +1,8 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
@@ -12,7 +13,7 @@
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_menu_button.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_toolbar_button_container.h"
 #include "chrome/browser/ui/web_applications/web_app_controller_browsertest.h"
-#include "chrome/browser/web_applications/web_application_info.h"
+#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chromeos/ui/frame/immersive/immersive_fullscreen_controller_test_api.h"
 #include "content/public/test/browser_test.h"
@@ -27,9 +28,9 @@ class WebAppAshInteractiveUITest : public web_app::WebAppControllerBrowserTest {
 
   ~WebAppAshInteractiveUITest() override = default;
 
-  // InProcessBrowserTest override:
+  // web_app::WebAppControllerBrowserTest override:
   void SetUpOnMainThread() override {
-    auto web_app_info = std::make_unique<WebApplicationInfo>();
+    auto web_app_info = std::make_unique<WebAppInstallInfo>();
     web_app_info->start_url = GURL("https://test.org");
     web_app::AppId app_id = InstallWebApp(std::move(web_app_info));
 
@@ -65,8 +66,8 @@ class WebAppAshInteractiveUITest : public web_app::WebAppControllerBrowserTest {
     EXPECT_FALSE(menu_button->IsMenuShowing());
   }
 
-  BrowserView* browser_view_ = nullptr;
-  ImmersiveModeController* controller_ = nullptr;
+  raw_ptr<BrowserView, ExperimentalAsh> browser_view_ = nullptr;
+  raw_ptr<ImmersiveModeController, ExperimentalAsh> controller_ = nullptr;
 };
 
 // Test that the web app menu button opens a menu on click.
@@ -81,9 +82,9 @@ IN_PROC_BROWSER_TEST_F(WebAppAshInteractiveUITest,
   chrome::ToggleFullscreenMode(browser());
   waiter.Wait();
 
-  std::unique_ptr<ImmersiveRevealedLock> revealed_lock(
+  std::unique_ptr<ImmersiveRevealedLock> revealed_lock =
       controller_->GetRevealedLock(
-          ImmersiveModeControllerChromeos::ANIMATE_REVEAL_NO));
+          ImmersiveModeControllerChromeos::ANIMATE_REVEAL_NO);
 
   CheckWebAppMenuClickable();
 }

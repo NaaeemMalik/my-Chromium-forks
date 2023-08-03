@@ -44,17 +44,18 @@ enum MediaStreamTrackState {
     attribute EventHandler onunmute;
     readonly attribute MediaStreamTrackState readyState;
     attribute EventHandler onended;
-    // https://wicg.github.io/capture-handle/
-    [RuntimeEnabled = CaptureHandle] attribute EventHandler oncapturehandlechange;
+    // https://w3c.github.io/mediacapture-handle/identity/
+    [RuntimeEnabled=CaptureHandle] attribute EventHandler oncapturehandlechange;
+    [RuntimeEnabled=MediaCaptureConfigurationChange] attribute EventHandler onconfigurationchange;
 
-    [CallWith=ScriptState] MediaStreamTrack clone();
+    [CallWith=ExecutionContext] MediaStreamTrack clone();
     [ImplementedAs=stopTrack, CallWith=ExecutionContext] void stop();
 
     MediaTrackCapabilities getCapabilities();
     MediaTrackConstraints getConstraints();
     MediaTrackSettings getSettings();
-    // https://wicg.github.io/capture-handle/
+    // https://w3c.github.io/mediacapture-handle/identity/
     [RuntimeEnabled=CaptureHandle, MeasureAs=CaptureHandle] CaptureHandle? getCaptureHandle();
 
-    [CallWith=ScriptState] Promise<void> applyConstraints(optional MediaTrackConstraints constraints = {});
+    [CallWith=ScriptState, Measure] Promise<void> applyConstraints(optional MediaTrackConstraints constraints = {});
 };

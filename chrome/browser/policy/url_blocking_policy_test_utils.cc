@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,7 @@ UrlBlockingPolicyTest::~UrlBlockingPolicyTest() = default;
 void UrlBlockingPolicyTest::CheckURLIsBlockedInWebContents(
     content::WebContents* web_contents,
     const GURL& url) {
-  EXPECT_EQ(url, web_contents->GetURL());
+  EXPECT_EQ(url, web_contents->GetLastCommittedURL());
 
   std::u16string blocked_page_title;
   if (url.has_host()) {
@@ -37,14 +37,13 @@ void UrlBlockingPolicyTest::CheckURLIsBlockedInWebContents(
   EXPECT_EQ(blocked_page_title, web_contents->GetTitle());
 
   // Verify that the expected error page is being displayed.
-  bool result = false;
-  EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
-      web_contents,
-      "var textContent = document.body.textContent;"
-      "var hasError = textContent.indexOf('ERR_BLOCKED_BY_ADMINISTRATOR') >= 0;"
-      "domAutomationController.send(hasError);",
-      &result));
-  EXPECT_TRUE(result);
+  EXPECT_EQ(true,
+            content::EvalJs(
+                web_contents,
+                "var textContent = document.body.textContent;"
+                "var hasError = "
+                "textContent.indexOf('ERR_BLOCKED_BY_ADMINISTRATOR') >= 0;"
+                "hasError;"));
 }
 
 void UrlBlockingPolicyTest::CheckURLIsBlocked(Browser* browser,

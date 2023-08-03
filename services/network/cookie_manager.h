@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,8 @@
 
 #include "base/component_export.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
+#include "base/synchronization/lock.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -27,7 +29,7 @@ class URLRequestContext;
 class GURL;
 
 namespace network {
-class FirstPartySets;
+class FirstPartySetsAccessDelegate;
 class SessionCleanupCookieStore;
 
 // Wrap a cookie store in an implementation of the mojo cookie interface.
@@ -36,11 +38,11 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) CookieManager
  public:
   // Construct a CookieService that can serve mojo requests for the underlying
   // cookie store.  |url_request_context->cookie_store()| must outlive this
-  // object. `*first_party_sets` must outlive
+  // object. `*first_party_sets_access_delegate` must outlive
   // `url_request_context->cookie_store()`.
   CookieManager(
       net::URLRequestContext* url_request_context,
-      const FirstPartySets* first_party_sets,
+      FirstPartySetsAccessDelegate* const first_party_sets_access_delegate,
       scoped_refptr<SessionCleanupCookieStore> session_cleanup_cookie_store,
       mojom::CookieManagerParamsPtr params);
 
@@ -102,6 +104,10 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) CookieManager
   void SetStorageAccessGrantSettings(
       const ContentSettingsForOneType& settings,
       SetStorageAccessGrantSettingsCallback callback) override;
+  void SetAllStorageAccessSettings(
+      const ContentSettingsForOneType& standard_settings,
+      const ContentSettingsForOneType& top_level_settings,
+      SetAllStorageAccessSettingsCallback callback) override;
 
   // Configures |out| based on |params|. (This doesn't honor
   // allow_file_scheme_cookies, which affects the cookie store rather than the
@@ -143,6 +149,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) CookieManager
   // Note: RestrictedCookieManager and CookieAccessDelegate store pointers to
   // |cookie_settings_|.
   CookieSettings cookie_settings_;
+
+  base::WeakPtrFactory<CookieManager> weak_factory_{this};
 };
 
 COMPONENT_EXPORT(NETWORK_SERVICE)

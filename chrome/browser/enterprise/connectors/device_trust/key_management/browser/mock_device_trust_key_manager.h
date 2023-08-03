@@ -1,4 +1,4 @@
-// Copyright (c) 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,10 @@ class MockDeviceTrustKeyManager : public DeviceTrustKeyManager {
 
   MOCK_METHOD(void, StartInitialization, (), (override));
 
-  MOCK_METHOD(void, StartKeyRotation, (const std::string&), (override));
+  MOCK_METHOD(void,
+              RotateKey,
+              (const std::string&, base::OnceCallback<void(KeyRotationResult)>),
+              (override));
 
   MOCK_METHOD(void,
               ExportPublicKeyAsync,
@@ -35,6 +38,8 @@ class MockDeviceTrustKeyManager : public DeviceTrustKeyManager {
               GetLoadedKeyMetadata,
               (),
               (const, override));
+
+  MOCK_METHOD(bool, HasPermanentFailure, (), (const, override));
 };
 
 }  // namespace test

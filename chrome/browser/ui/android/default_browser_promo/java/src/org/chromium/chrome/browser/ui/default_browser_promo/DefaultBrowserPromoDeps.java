@@ -1,11 +1,10 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.ui.default_browser_promo;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.role.RoleManager;
 import android.content.Context;
 import android.content.Intent;
@@ -120,7 +119,6 @@ public class DefaultBrowserPromoDeps {
     }
 
     boolean doesManageDefaultAppsSettingsActivityExist() {
-        if (getSDKInt() < Build.VERSION_CODES.N) return false;
         ResolveInfo info = PackageManagerUtils.resolveActivity(
                 new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS), 0);
         return info != null && info.match != 0;
@@ -150,11 +148,11 @@ public class DefaultBrowserPromoDeps {
     }
 
     @SuppressLint("NewApi")
-    boolean isRoleAvailable(Activity activity) {
+    boolean isRoleAvailable(Context context) {
         if (getSDKInt() < Build.VERSION_CODES.Q) {
             return false;
         }
-        RoleManager roleManager = (RoleManager) activity.getSystemService(Context.ROLE_SERVICE);
+        RoleManager roleManager = (RoleManager) context.getSystemService(Context.ROLE_SERVICE);
         if (roleManager == null) return false;
         boolean isRoleAvailable = roleManager.isRoleAvailable(RoleManager.ROLE_BROWSER);
         boolean isRoleHeld = roleManager.isRoleHeld(RoleManager.ROLE_BROWSER);

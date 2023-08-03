@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include "base/values.h"
 #include "chromeos/components/quick_answers/utils/quick_answers_utils.h"
 
-namespace ash {
 namespace quick_answers {
 namespace {
 
@@ -28,16 +27,17 @@ constexpr char kAverageScoreTemplate[] = "%.1f";
 }  // namespace
 
 // Extract |quick_answer| from knowledge panel entity result.
-bool KpEntityResultParser::Parse(const Value* result,
+bool KpEntityResultParser::Parse(const Value::Dict& result,
                                  QuickAnswer* quick_answer) {
-  const auto* entity = result->FindPath(kKnowledgeEntityPath);
+  const auto* entity = result.FindDictByDottedPath(kKnowledgeEntityPath);
   if (!entity) {
     LOG(ERROR) << "Can't find the knowledge panel entity.";
     return false;
   }
 
-  const auto average_score = entity->FindDoublePath(kScorePath);
-  const auto* aggregated_count = entity->FindStringPath(kRatingCountPath);
+  const auto average_score = entity->FindDoubleByDottedPath(kScorePath);
+  const auto* aggregated_count =
+      entity->FindStringByDottedPath(kRatingCountPath);
 
   if (average_score.has_value() && aggregated_count) {
     const auto& answer = BuildKpEntityTitleText(
@@ -47,7 +47,7 @@ bool KpEntityResultParser::Parse(const Value* result,
         std::make_unique<QuickAnswerResultText>(answer));
   } else {
     const std::string* localized_known_for_reason =
-        entity->FindStringPath(kKnownForReasonPath);
+        entity->FindStringByDottedPath(kKnownForReasonPath);
     if (!localized_known_for_reason) {
       LOG(ERROR) << "Can't find the localized known for reason field.";
       return false;
@@ -62,4 +62,3 @@ bool KpEntityResultParser::Parse(const Value* result,
 }
 
 }  // namespace quick_answers
-}  // namespace ash

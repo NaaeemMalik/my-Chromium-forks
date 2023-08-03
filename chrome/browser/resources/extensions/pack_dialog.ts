@@ -1,17 +1,20 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'gtx://resources/cr_elements/cr_input/cr_input.m.js';
-import 'gtx://resources/cr_elements/shared_style_css.m.js';
-import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import 'gtx://resources/cr_elements/cr_input/cr_input.js';
+import 'gtx://resources/cr_elements/cr_shared_style.css.js';
+import 'gtx://resources/cr_elements/cr_shared_vars.css.js';
 import './pack_dialog_alert.js';
 import './strings.m.js';
 
-import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import {CrInputElement} from 'gtx://resources/cr_elements/cr_input/cr_input.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+
+import {getTemplate} from './pack_dialog.html.js';
 
 export interface PackDialogDelegate {
   /**
@@ -27,26 +30,27 @@ export interface PackDialogDelegate {
   choosePrivateKeyPath(): Promise<string>;
 
   /** Packs the extension into a .crx. */
-  packExtension(
-      rootPath: string, keyPath: string, flag?: number,
-      callback?:
-          (response: chrome.developerPrivate.PackDirectoryResponse) => void):
-      void;
+  packExtension(rootPath: string, keyPath: string, flag?: number):
+      Promise<chrome.developerPrivate.PackDirectoryResponse>;
 }
 
-interface ExtensionsPackDialogElement {
+export interface ExtensionsPackDialogElement {
   $: {
     dialog: CrDialogElement,
+    keyFileBrowse: HTMLElement,
+    keyFile: CrInputElement,
+    rootDirBrowse: HTMLElement,
+    rootDir: CrInputElement,
   };
 }
 
-class ExtensionsPackDialogElement extends PolymerElement {
+export class ExtensionsPackDialogElement extends PolymerElement {
   static get is() {
     return 'extensions-pack-dialog';
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -68,7 +72,7 @@ class ExtensionsPackDialogElement extends PolymerElement {
   private keyFile_: string;
   private lastResponse_: chrome.developerPrivate.PackDirectoryResponse|null;
 
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
     this.$.dialog.showModal();
   }
@@ -89,13 +93,13 @@ class ExtensionsPackDialogElement extends PolymerElement {
     });
   }
 
-  private onCancelTap_() {
+  private onCancelClick_() {
     this.$.dialog.cancel();
   }
 
-  private onConfirmTap_() {
-    this.delegate.packExtension(
-        this.packDirectory_, this.keyFile_, 0, this.onPackResponse_.bind(this));
+  private onConfirmClick_() {
+    this.delegate.packExtension(this.packDirectory_, this.keyFile_, 0)
+        .then(response => this.onPackResponse_(response));
   }
 
   /**
@@ -125,12 +129,20 @@ class ExtensionsPackDialogElement extends PolymerElement {
     if (this.shadowRoot!.querySelector(
                             'extensions-pack-dialog-alert')!.returnValue ===
         'success') {
-      this.delegate.packExtension(
-          this.lastResponse_!.item_path, this.lastResponse_!.pem_path,
-          this.lastResponse_!.override_flags, this.onPackResponse_.bind(this));
+      this.delegate
+          .packExtension(
+              this.lastResponse_!.item_path, this.lastResponse_!.pem_path,
+              this.lastResponse_!.override_flags)
+          .then(response => this.onPackResponse_(response));
     }
 
     this.lastResponse_ = null;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'extensions-pack-dialog': ExtensionsPackDialogElement;
   }
 }
 

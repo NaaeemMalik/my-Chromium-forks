@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,13 +30,6 @@ class MODULES_EXPORT ImageBitmapRenderingContextBase
 
   void Trace(Visitor*) const override;
 
-  // TODO(juanmihd): Remove this method crbug.com/941579
-  HTMLCanvasElement* canvas() const {
-    if (Host()->IsOffscreenCanvas())
-      return nullptr;
-    return static_cast<HTMLCanvasElement*>(Host());
-  }
-
   bool CanCreateCanvas2dResourceProvider() const;
   V8UnionHTMLCanvasElementOrOffscreenCanvas* getHTMLOrOffscreenCanvas() const;
 
@@ -46,7 +39,8 @@ class MODULES_EXPORT ImageBitmapRenderingContextBase
   // If SetImage receives a null imagebitmap, it will Reset the internal bitmap
   // to a black and transparent bitmap.
   void SetImage(ImageBitmap*);
-  scoped_refptr<StaticBitmapImage> GetImage() final;
+  scoped_refptr<StaticBitmapImage> GetImage(
+      CanvasResourceProvider::FlushReason) final;
 
   void SetUV(const gfx::PointF& left_top, const gfx::PointF& right_bottom);
   bool IsComposited() const final { return true; }
@@ -64,6 +58,8 @@ class MODULES_EXPORT ImageBitmapRenderingContextBase
   bool IsPaintable() const final;
 
  protected:
+  void Dispose() override;
+
   Member<ImageLayerBridge> image_layer_bridge_;
 
   // This function resets the internal image resource to a image of the same

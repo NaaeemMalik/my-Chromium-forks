@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/scoped_observation.h"
@@ -20,11 +20,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/common/extensions/webstore_install_result.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/skia/include/core/SkBitmap.h"
-
-namespace base {
-class DictionaryValue;
-}
 
 namespace extensions {
 class Extension;
@@ -104,9 +101,6 @@ class WebstoreStandaloneInstaller
   // extension's icon?
   virtual bool ShouldShowPostInstallUI() const = 0;
 
-  // Should pop up an "App installed" bubble after installation?
-  virtual bool ShouldShowAppInstalledBubble() const = 0;
-
   // In the very least this should return a dummy WebContents (required
   // by some calls even when no prompt or other UI is shown). A non-dummy
   // WebContents is required if the prompt returned by CreateInstallPromt()
@@ -152,7 +146,7 @@ class WebstoreStandaloneInstaller
   }
   Profile* profile() const { return profile_; }
   const std::string& id() const { return id_; }
-  const base::DictionaryValue* manifest() const { return manifest_.get(); }
+  const base::Value::Dict& manifest() const { return manifest_.value(); }
   const Extension* localized_extension_for_display() const {
     return localized_extension_for_display_.get();
   }
@@ -178,16 +172,15 @@ class WebstoreStandaloneInstaller
 
   void OnWebstoreResponseParseSuccess(
       const std::string& extension_id,
-      std::unique_ptr<base::DictionaryValue> webstore_data) override;
+      const base::Value::Dict& webstore_data) override;
 
   void OnWebstoreResponseParseFailure(const std::string& extension_id,
                                       const std::string& error) override;
 
   // WebstoreInstallHelper::Delegate interface implementation.
-  void OnWebstoreParseSuccess(
-      const std::string& id,
-      const SkBitmap& icon,
-      std::unique_ptr<base::DictionaryValue> parsed_manifest) override;
+  void OnWebstoreParseSuccess(const std::string& id,
+                              const SkBitmap& icon,
+                              base::Value::Dict parsed_manifest) override;
   void OnWebstoreParseFailure(const std::string& id,
                               InstallHelperResultCode result_code,
                               const std::string& error_message) override;
@@ -231,8 +224,7 @@ class WebstoreStandaloneInstaller
   std::string localized_user_count_;
   double average_rating_{0.0};
   int rating_count_{0};
-  std::unique_ptr<base::DictionaryValue> webstore_data_;
-  std::unique_ptr<base::DictionaryValue> manifest_;
+  absl::optional<base::Value::Dict> manifest_;
   SkBitmap icon_;
 
   // Active install registered with the InstallTracker.

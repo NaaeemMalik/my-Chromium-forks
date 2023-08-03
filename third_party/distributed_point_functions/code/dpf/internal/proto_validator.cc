@@ -14,6 +14,7 @@
 
 #include "dpf/internal/proto_validator.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "dpf/internal/value_type_helpers.h"
 #include "dpf/status_macros.h"
@@ -51,22 +52,7 @@ absl::StatusOr<bool> ParametersAreEqual(const DpfParameters& lhs,
                        GetDefaultSecurityParameter(lhs))))) {
     return false;
   }
-  if (lhs.has_value_type() && rhs.has_value_type()) {
-    return ValueTypesAreEqual(lhs.value_type(), rhs.value_type());
-  }
-
-  // Legacy element_bitsize support.
-  if (!lhs.has_value_type() && rhs.has_value_type()) {
-    ValueType lhs_value_type;
-    lhs_value_type.mutable_integer()->set_bitsize(lhs.element_bitsize());
-    return ValueTypesAreEqual(lhs_value_type, rhs.value_type());
-  }
-  if (lhs.has_value_type() && !rhs.has_value_type()) {
-    ValueType rhs_value_type;
-    rhs_value_type.mutable_integer()->set_bitsize(rhs.element_bitsize());
-    return ValueTypesAreEqual(lhs.value_type(), rhs_value_type);
-  }
-  return lhs.element_bitsize() == rhs.element_bitsize();
+  return ValueTypesAreEqual(lhs.value_type(), rhs.value_type());
 }
 
 absl::Status ValidateIntegerType(const ValueType::Integer& type) {
@@ -130,15 +116,10 @@ absl::StatusOr<std::unique_ptr<ProtoValidator>> ProtoValidator::Create(
   int tree_levels_needed = 0;
   for (int i = 0; i < static_cast<int>(parameters.size()); ++i) {
     int log_bits_needed;
-    if (parameters[i].has_value_type()) {
-      DPF_ASSIGN_OR_RETURN(int bits_needed,
-                           BitsNeeded(parameters[i].value_type(),
-                                      parameters[i].security_parameter()));
-      log_bits_needed = static_cast<int>(std::ceil(std::log2(bits_needed)));
-    } else {
-      log_bits_needed =
-          static_cast<int>(std::log2(parameters[i].element_bitsize()));
-    }
+    DPF_ASSIGN_OR_RETURN(int bits_needed,
+                         BitsNeeded(parameters[i].value_type(),
+                                    parameters[i].security_parameter()));
+    log_bits_needed = static_cast<int>(std::ceil(std::log2(bits_needed)));
 
     // The tree level depends on the domain size and the element size. A single
     // AES block can fit 128 = 2^7 bits, so usually tree_level ==
@@ -175,6 +156,9 @@ absl::Status ProtoValidator::ValidateParameters(
       return absl::InvalidArgumentError(
           "`log_domain_size` must be non-negative");
     }
+    if (log_domain_size > 128) {
+      return absl::InvalidArgumentError("`log_domain_size` must be <= 128");
+    }
     if (i > 0 && log_domain_size <= previous_log_domain_size) {
       return absl::InvalidArgumentError(
           "`log_domain_size` fields must be in ascending order in "
@@ -184,6 +168,8 @@ absl::Status ProtoValidator::ValidateParameters(
 
     if (parameters[i].has_value_type()) {
       DPF_RETURN_IF_ERROR(ValidateValueType(parameters[i].value_type()));
+    } else {
+      return absl::InvalidArgumentError("`value_type` is required");
     }
 
     if (std::isnan(parameters[i].security_parameter())) {
@@ -221,6 +207,7 @@ absl::Status ProtoValidator::ValidateDpfKey(const DpfKey& key) const {
       // last_level_output_correction.
       continue;
     }
+    DCHECK(hierarchy_to_tree_[i] < key.correction_words_size());
     if (key.correction_words(hierarchy_to_tree_[i])
             .value_correction()
             .empty()) {
@@ -255,10 +242,10 @@ absl::Status ProtoValidator::ValidateEvaluationContext(
         "This context has already been fully evaluated");
   }
   if (!ctx.partial_evaluations().empty() &&
-      ctx.partial_evaluations_level() >= ctx.previous_hierarchy_level()) {
+      ctx.partial_evaluations_level() > ctx.previous_hierarchy_level()) {
     return absl::InvalidArgumentError(
-        "ctx.previous_hierarchy_level must be less than "
-        "ctx.partial_evaluations_level");
+        "ctx.partial_evaluations_level must be less than or equal to "
+        "ctx.previous_hierarchy_level");
   }
   return absl::OkStatus();
 }

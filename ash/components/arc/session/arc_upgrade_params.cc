@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ UpgradeParams::PackageCacheMode GetPackagesCacheMode() {
   // Set packages cache mode coming from autotests.
   const std::string packages_cache_mode_string =
       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-          chromeos::switches::kArcPackagesCacheMode);
+          ash::switches::kArcPackagesCacheMode);
   if (packages_cache_mode_string == kPackagesCacheModeSkipCopy)
     return UpgradeParams::PackageCacheMode::SKIP_SETUP_COPY_ON_INIT;
   if (packages_cache_mode_string == kPackagesCacheModeCopy)
@@ -35,9 +35,13 @@ UpgradeParams::UpgradeParams()
           !base::FeatureList::IsEnabled(arc::kBootCompletedBroadcastFeature)),
       packages_cache_mode(GetPackagesCacheMode()),
       skip_gms_core_cache(base::CommandLine::ForCurrentProcess()->HasSwitch(
-          chromeos::switches::kArcDisableGmsCoreCache)),
-      enable_arc_nearby_share(
-          base::FeatureList::IsEnabled(arc::kEnableArcNearbyShare)) {}
+          ash::switches::kArcDisableGmsCoreCache)),
+      skip_tts_cache(base::CommandLine::ForCurrentProcess()->HasSwitch(
+          ash::switches::kArcDisableTtsCache)),
+      enable_priority_app_lmk_delay(
+          base::FeatureList::IsEnabled(kPriorityAppLmkDelay)),
+      priority_app_lmk_delay_second(kPriorityAppLmkDelaySecond.Get()),
+      priority_app_lmk_delay_list(kPriorityAppLmkDelayList.Get()) {}
 
 UpgradeParams::UpgradeParams(const UpgradeParams& other) = default;
 UpgradeParams::UpgradeParams(UpgradeParams&& other) = default;

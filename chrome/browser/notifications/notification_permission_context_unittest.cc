@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <memory>
 #include <string>
 
-#include "base/bind.h"
 #include "base/command_line.h"
+#include "base/functional/bind.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/test/scoped_mock_time_message_loop_task_runner.h"
@@ -31,9 +31,9 @@
 #include "third_party/blink/public/mojom/permissions/permission_status.mojom.h"
 #include "url/gurl.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/build_info.h"
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/extension_service.h"
@@ -87,13 +87,14 @@ class TestNotificationPermissionContext : public NotificationPermissionContext {
                            permissions::BrowserPermissionCallback callback,
                            bool persist,
                            ContentSetting content_setting,
-                           bool is_one_time) override {
+                           bool is_one_time,
+                           bool is_final_decision) override {
     permission_set_count_++;
     last_permission_set_persisted_ = persist;
     last_permission_set_setting_ = content_setting;
     NotificationPermissionContext::NotifyPermissionSet(
         id, requesting_origin, embedder_origin, std::move(callback), persist,
-        content_setting, /*is_one_time=*/false);
+        content_setting, /*is_one_time=*/false, is_final_decision);
   }
 
   int permission_set_count_;
@@ -206,7 +207,7 @@ TEST_F(NotificationPermissionContextTest, CrossOriginPermissionChecks) {
 
 // Now block permission for |requesting_origin|.
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // On Android O+, permission must be reset before it can be blocked. This is
   // because granting a permission on O+ creates a system-managed notification
   // channel which determines the value of the content setting, so it is not
@@ -217,7 +218,7 @@ TEST_F(NotificationPermissionContextTest, CrossOriginPermissionChecks) {
       base::android::SDK_VERSION_OREO) {
     context.ResetPermission(requesting_origin, requesting_origin);
   }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
   UpdateContentSetting(&context, requesting_origin, requesting_origin,
                        CONTENT_SETTING_BLOCK);
@@ -273,13 +274,13 @@ TEST_F(NotificationPermissionContextTest, WebNotificationsTopLevelOriginOnly) {
                 .content_setting);
 
   // Requesting permission for different origins should fail.
-  permissions::PermissionRequestID fake_id(
-      0 /* render_process_id */, 0 /* render_frame_id */,
+  permissions::PermissionRequestID request_id(
+      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
       permissions::PermissionRequestID::RequestLocalId());
 
   ContentSetting result = CONTENT_SETTING_DEFAULT;
-  context.DecidePermission(web_contents(), fake_id, requesting_origin,
-                           embedding_origin, true /* user_gesture */,
+  context.DecidePermission(request_id, requesting_origin, embedding_origin,
+                           true /* user_gesture */,
                            base::BindOnce(&StoreContentSetting, &result));
 
   ASSERT_EQ(result, CONTENT_SETTING_BLOCK);
@@ -328,7 +329,7 @@ TEST_F(NotificationPermissionContextTest, SecureOriginRequirement) {
                 .content_setting);
 }
 
-#if defined(OS_MAC) && defined(ARCH_CPU_ARM64)
+#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
 // Bulk-disabled for arm64 bot stabilization: https://crbug.com/1154345
 #define MAYBE_TestDenyInIncognitoAfterDelay \
   DISABLED_TestDenyInIncognitoAfterDelay
@@ -344,8 +345,7 @@ TEST_F(NotificationPermissionContextTest, MAYBE_TestDenyInIncognitoAfterDelay) {
   NavigateAndCommit(url);
 
   const permissions::PermissionRequestID id(
-      web_contents()->GetMainFrame()->GetProcess()->GetID(),
-      web_contents()->GetMainFrame()->GetRoutingID(),
+      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
       permissions::PermissionRequestID::RequestLocalId());
 
   base::TestMockTimeTaskRunner* task_runner = SwitchToMockTime();
@@ -355,8 +355,8 @@ TEST_F(NotificationPermissionContextTest, MAYBE_TestDenyInIncognitoAfterDelay) {
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.RequestPermission(
-      web_contents(), id, url, true /* user_gesture */, base::DoNothing());
+  permission_context.RequestPermission(id, url, true /* user_gesture */,
+                                       base::DoNothing());
 
   // Should be blocked after 1-2 seconds, but the timer is reset whenever the
   // tab is not visible, so these 500ms never add up to >= 1 second.
@@ -412,12 +412,10 @@ TEST_F(NotificationPermissionContextTest, TestParallelDenyInIncognito) {
   web_contents()->WasShown();
 
   const permissions::PermissionRequestID id1(
-      web_contents()->GetMainFrame()->GetProcess()->GetID(),
-      web_contents()->GetMainFrame()->GetRoutingID(),
+      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
       permissions::PermissionRequestID::RequestLocalId(1));
   const permissions::PermissionRequestID id2(
-      web_contents()->GetMainFrame()->GetProcess()->GetID(),
-      web_contents()->GetMainFrame()->GetRoutingID(),
+      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
       permissions::PermissionRequestID::RequestLocalId(2));
 
   base::TestMockTimeTaskRunner* task_runner = SwitchToMockTime();
@@ -427,10 +425,10 @@ TEST_F(NotificationPermissionContextTest, TestParallelDenyInIncognito) {
   ASSERT_EQ(CONTENT_SETTING_DEFAULT,
             permission_context.last_permission_set_setting());
 
-  permission_context.RequestPermission(
-      web_contents(), id1, url, true /* user_gesture */, base::DoNothing());
-  permission_context.RequestPermission(
-      web_contents(), id2, url, true /* user_gesture */, base::DoNothing());
+  permission_context.RequestPermission(id1, url, true /* user_gesture */,
+                                       base::DoNothing());
+  permission_context.RequestPermission(id2, url, true /* user_gesture */,
+                                       base::DoNothing());
 
   EXPECT_EQ(0, permission_context.permission_set_count());
   EXPECT_EQ(CONTENT_SETTING_ASK,

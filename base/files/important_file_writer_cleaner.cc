@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,14 @@
 #include <iterator>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/no_destructor.h"
 #include "base/process/process.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
-#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 
@@ -24,7 +25,7 @@ namespace base {
 namespace {
 
 base::Time GetUpperBoundTime() {
-#if defined(OS_ANDROID) || defined(OS_IOS) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS) || BUILDFLAG(IS_FUCHSIA)
   // If process creation time is not available then use instance creation
   // time as the upper-bound for old files. Modification times may be
   // rounded-down to coarse-grained increments, e.g. FAT has 2s granularity,
@@ -67,8 +68,9 @@ void ImportantFileWriterCleaner::AddDirectory(const FilePath& directory) {
 void ImportantFileWriterCleaner::Initialize() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   AutoLock scoped_lock(task_runner_lock_);
-  DCHECK(!task_runner_ || task_runner_ == SequencedTaskRunnerHandle::Get());
-  task_runner_ = SequencedTaskRunnerHandle::Get();
+  DCHECK(!task_runner_ ||
+         task_runner_ == SequencedTaskRunner::GetCurrentDefault());
+  task_runner_ = SequencedTaskRunner::GetCurrentDefault();
 }
 
 void ImportantFileWriterCleaner::Start() {

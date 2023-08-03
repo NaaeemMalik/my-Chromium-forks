@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,10 @@
 #include <memory>
 
 #include "base/memory/ref_counted.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/unguessable_token.h"
 #include "cc/layers/video_frame_provider.h"
+#include "content/common/content_export.h"
 #include "content/renderer/media/win/dcomp_texture_host.h"
 #include "gpu/command_buffer/common/mailbox.h"
 #include "gpu/ipc/common/gpu_channel.mojom.h"
@@ -33,12 +34,12 @@ namespace content {
 // Threading Model: This class is created/constructed on the render main thread,
 // IsLost() is also called on the main task runner. Other than that, the class
 // lives and is destructed on the media task runner.
-class DCOMPTextureFactory
+class CONTENT_EXPORT DCOMPTextureFactory
     : public base::RefCountedThreadSafe<DCOMPTextureFactory> {
  public:
   static scoped_refptr<DCOMPTextureFactory> Create(
       scoped_refptr<gpu::GpuChannelHost> channel,
-      scoped_refptr<base::SingleThreadTaskRunner> media_task_runner);
+      scoped_refptr<base::SequencedTaskRunner> media_task_runner);
 
   // Create the DCOMPTextureHost object. This internally creates a
   // gpu::DCOMPTexture and returns its route_id. If this route_id is invalid
@@ -52,17 +53,19 @@ class DCOMPTextureFactory
 
   gpu::SharedImageInterface* SharedImageInterface();
 
- private:
-  friend class base::RefCountedThreadSafe<DCOMPTextureFactory>;
+ protected:
   DCOMPTextureFactory(
       scoped_refptr<gpu::GpuChannelHost> channel,
-      scoped_refptr<base::SingleThreadTaskRunner> media_task_runner);
+      scoped_refptr<base::SequencedTaskRunner> media_task_runner);
   DCOMPTextureFactory(const DCOMPTextureFactory&) = delete;
   DCOMPTextureFactory& operator=(const DCOMPTextureFactory&) = delete;
-  ~DCOMPTextureFactory();
+  virtual ~DCOMPTextureFactory();
+
+ private:
+  friend class base::RefCountedThreadSafe<DCOMPTextureFactory>;
 
   scoped_refptr<gpu::GpuChannelHost> channel_;
-  scoped_refptr<base::SingleThreadTaskRunner> media_task_runner_;
+  scoped_refptr<base::SequencedTaskRunner> media_task_runner_;
   std::unique_ptr<gpu::ClientSharedImageInterface> shared_image_interface_;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@ import static org.junit.Assert.fail;
 import static org.chromium.net.CronetTestRule.getContext;
 
 import android.os.ConditionVariable;
-import android.support.test.runner.AndroidJUnit4;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import org.junit.After;
@@ -22,7 +22,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.TestUrlRequestCallback.ResponseStep;
@@ -79,7 +78,6 @@ public class GetStatusTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testSimpleGet() throws Exception {
         String url = NativeTestServer.getEchoMethodURL();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -138,10 +136,9 @@ public class GetStatusTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testInvalidLoadState() throws Exception {
         try {
-            UrlRequestBase.convertLoadState(LoadState.WAITING_FOR_APPCACHE);
+            UrlRequestBase.convertLoadState(LoadState.OBSOLETE_WAITING_FOR_APPCACHE);
             fail();
         } catch (IllegalArgumentException e) {
             // Expected because LoadState.WAITING_FOR_APPCACHE is not mapped.
@@ -154,7 +151,6 @@ public class GetStatusTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     // Regression test for crbug.com/606872.
     @OnlyRunNativeCronet
     public void testGetStatusForUpload() throws Exception {

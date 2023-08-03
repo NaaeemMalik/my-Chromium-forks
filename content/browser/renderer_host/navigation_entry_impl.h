@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,13 +29,15 @@
 #include "content/public/browser/ssl_status.h"
 #include "net/base/isolation_info.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/common/loader/previews_state.h"
 #include "third_party/blink/public/common/page_state/page_state.h"
 #include "third_party/blink/public/mojom/navigation/navigation_params.mojom-forward.h"
 #include "url/origin.h"
 
 namespace blink {
 struct FramePolicy;
+namespace scheduler {
+class TaskAttributionId;
+}  // namespace scheduler
 }  // namespace blink
 
 namespace content {
@@ -43,7 +45,6 @@ namespace content {
 class FrameTreeNode;
 class NavigationEntryRestoreContext;
 class NavigationEntryRestoreContextImpl;
-class WebBundleNavigationInfo;
 class SubresourceWebBundleNavigationInfo;
 
 class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
@@ -105,6 +106,7 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
       const GURL& url,
       const Referrer& referrer,
       const absl::optional<url::Origin>& initiator_origin,
+      const absl::optional<GURL>& initiator_base_url,
       const std::u16string& title,
       ui::PageTransition transition_type,
       bool is_renderer_initiated,
@@ -124,7 +126,7 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
   const GURL& GetURL() override;
   void SetBaseURLForDataURL(const GURL& url) override;
   const GURL& GetBaseURLForDataURL() override;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   void SetDataURLAsString(
       scoped_refptr<base::RefCountedString> data_url) override;
   const scoped_refptr<const base::RefCountedString>& GetDataURLAsString()
@@ -207,20 +209,21 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
       const GURL& dest_url,
       blink::mojom::ReferrerPtr dest_referrer,
       blink::mojom::NavigationType navigation_type,
-      blink::PreviewsState previews_state,
       base::TimeTicks navigation_start,
       base::TimeTicks input_start);
   blink::mojom::CommitNavigationParamsPtr ConstructCommitNavigationParams(
       const FrameNavigationEntry& frame_entry,
       const GURL& original_url,
-      const absl::optional<url::Origin>& origin_to_commit,
       const std::string& original_method,
       const base::flat_map<std::string, bool>& subframe_unique_names,
       bool intended_as_new_entry,
       int pending_offset_to_send,
       int current_offset_to_send,
       int current_length_to_send,
-      const blink::FramePolicy& frame_policy);
+      const blink::FramePolicy& frame_policy,
+      bool ancestor_or_self_has_cspee,
+      absl::optional<blink::scheduler::TaskAttributionId>
+          soft_navigation_heuristics_task_id);
 
   // Once a navigation entry is committed, we should no longer track several
   // pieces of non-persisted state, as documented on the members below.
@@ -249,19 +252,19 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
       UpdatePolicy update_policy,
       int64_t item_sequence_number,
       int64_t document_sequence_number,
-      const std::string& app_history_key,
+      const std::string& navigation_api_key,
       SiteInstanceImpl* site_instance,
       scoped_refptr<SiteInstanceImpl> source_site_instance,
       const GURL& url,
       const absl::optional<url::Origin>& origin,
       const Referrer& referrer,
       const absl::optional<url::Origin>& initiator_origin,
+      const absl::optional<GURL>& initiator_base_url,
       const std::vector<GURL>& redirect_chain,
       const blink::PageState& page_state,
       const std::string& method,
       int64_t post_id,
       scoped_refptr<network::SharedURLLoaderFactory> blob_url_loader_factory,
-      std::unique_ptr<WebBundleNavigationInfo> web_bundle_navigation_info,
       std::unique_ptr<SubresourceWebBundleNavigationInfo>
           subresource_web_bundle_navigation_info,
       std::unique_ptr<PolicyContainerPolicies> policy_container_policies);
@@ -269,6 +272,13 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
   // Returns the FrameNavigationEntry corresponding to |frame_tree_node|, if
   // there is one in this NavigationEntry.
   FrameNavigationEntry* GetFrameEntry(FrameTreeNode* frame_tree_node) const;
+
+  // Calls |on_frame_entry| for each FrameNavigationEntry in this
+  // NavigationEntry. More efficient than calling GetFrameEntry() N times while
+  // iterating over the current tree of FrameTreeNodes.
+  using FrameEntryIterationCallback =
+      base::FunctionRef<void(FrameNavigationEntry*)>;
+  void ForEachFrameEntry(FrameEntryIterationCallback on_frame_entry);
 
   // Returns a map of frame unique names to |is_about_blank| for immediate
   // children of the TreeNode associated with |frame_tree_node|.  The renderer
@@ -286,7 +296,8 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
 
   // Walks the tree of FrameNavigationEntries to find entries with |origin| so
   // their isolation status can be registered.
-  void RegisterExistingOriginToPreventOptInIsolation(const url::Origin& origin);
+  void RegisterExistingOriginAsHavingDefaultIsolation(
+      const url::Origin& origin);
 
   // Removes any subframe FrameNavigationEntries that match the unique name of
   // |frame_tree_node|, and all of their children. There should be at most one,
@@ -298,6 +309,13 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
   // |frame_tree_node|.
   void RemoveEntryForFrame(FrameTreeNode* frame_tree_node,
                            bool only_if_different_position);
+
+  // Update NotRestoredReasons for |navigation_request| which should be a
+  // cross-document main frame navigation and is not served from back/forward
+  // cache. This will create a metrics object if there is none, which can happen
+  // when doing a session restore.
+  void UpdateBackForwardCacheNotRestoredReasons(
+      NavigationRequest* navigation_request);
 
   void set_unique_id(int unique_id) { unique_id_ = unique_id; }
 
@@ -423,6 +441,10 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
     return back_forward_cache_metrics_.get();
   }
 
+  scoped_refptr<BackForwardCacheMetrics> TakeBackForwardCacheMetrics() {
+    return std::move(back_forward_cache_metrics_);
+  }
+
   void set_back_forward_cache_metrics(
       scoped_refptr<BackForwardCacheMetrics> metrics) {
     DCHECK(metrics);
@@ -538,7 +560,7 @@ class CONTENT_EXPORT NavigationEntryImpl : public NavigationEntry {
   // persisted by Android WebView.
   GURL base_url_for_data_url_;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Used for passing really big data URLs from browser to renderers. Only used
   // and persisted by Android WebView.
   scoped_refptr<const base::RefCountedString> data_url_as_string_;

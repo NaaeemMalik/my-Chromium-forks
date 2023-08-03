@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,9 @@
 #include "ash/ambient/model/ambient_backend_model_observer.h"
 #include "ash/ambient/ui/ambient_background_image_view.h"
 #include "ash/ash_export.h"
+#include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/timer/timer.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/views/view.h"
 
@@ -23,7 +25,8 @@ class ImageSkia;
 namespace ash {
 
 class AmbientBackgroundImageView;
-class AmbientViewDelegate;
+class AmbientViewDelegateImpl;
+class JitterCalculator;
 struct PhotoWithDetails;
 
 // View to display photos in ambient mode.
@@ -33,7 +36,9 @@ class ASH_EXPORT PhotoView : public views::View,
  public:
   METADATA_HEADER(PhotoView);
 
-  explicit PhotoView(AmbientViewDelegate* delegate);
+  explicit PhotoView(AmbientViewDelegateImpl* delegate,
+                     bool peripheral_ui_visible = true);
+
   PhotoView(const PhotoView&) = delete;
   PhotoView& operator=(PhotoView&) = delete;
   ~PhotoView() override;
@@ -44,12 +49,15 @@ class ASH_EXPORT PhotoView : public views::View,
   // ui::ImplicitAnimationObserver:
   void OnImplicitAnimationsCompleted() override;
 
+  JitterCalculator* GetJitterCalculatorForTesting();
+
  private:
   friend class AmbientAshTestBase;
 
   void Init();
 
   void UpdateImage(const PhotoWithDetails& image);
+  void OnImageCycleComplete();
 
   void StartTransitionAnimation();
 
@@ -58,15 +66,24 @@ class ASH_EXPORT PhotoView : public views::View,
 
   gfx::ImageSkia GetVisibleImageForTesting();
 
+  // Flag to set the peripheral ui visibility, true by default.
+  const bool peripheral_ui_visible_ = true;
+
   // Note that we should be careful when using |delegate_|, as there is no
   // strong guarantee on the life cycle.
-  AmbientViewDelegate* const delegate_ = nullptr;
+  const raw_ptr<AmbientViewDelegateImpl, ExperimentalAsh> delegate_ = nullptr;
 
   // Image containers used for animation. Owned by view hierarchy.
   std::array<AmbientBackgroundImageView*, 2> image_views_{nullptr, nullptr};
 
+  const std::unique_ptr<JitterCalculator> glanceable_info_jitter_calculator_;
+
   // The index of |image_views_| to update the next image.
   int image_index_ = 0;
+
+  // Fires when the next photo should be prepared, which ultimately leads to
+  // it being rendered in this view.
+  base::OneShotTimer photo_refresh_timer_;
 
   base::ScopedObservation<AmbientBackendModel, AmbientBackendModelObserver>
       scoped_backend_model_observer_{this};

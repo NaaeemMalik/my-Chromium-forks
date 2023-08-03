@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,12 +26,12 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.DropdownPopupWindowInterface;
-import org.chromium.ui.R;
 
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,7 +58,7 @@ public class AutofillPopupWithKeyboardTest {
     @Test
     @MediumTest
     @Feature({"autofill-keyboard"})
-    @DisabledTest
+    @DisabledTest(message = "crbug.com/921062")
     public void testShowAutofillPopupAndKeyboardimultaneously() throws TimeoutException {
         mActivityTestRule.startMainActivityWithURL(UrlUtils.encodeHtmlDataUri("<html><head>"
                 + "<meta name=\"viewport\""

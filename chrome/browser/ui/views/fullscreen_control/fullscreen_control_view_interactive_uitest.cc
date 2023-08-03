@@ -1,14 +1,14 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 #include <utility>
 
-#include "base/callback.h"
 #include "base/containers/flat_set.h"
+#include "base/functional/callback.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_bubble_type.h"
@@ -122,8 +122,8 @@ class FullscreenControlViewTest : public InProcessBrowserTest {
   void EnterActiveTabFullscreen() {
     FullscreenNotificationObserver fullscreen_observer(browser());
     auto* delegate = static_cast<content::WebContentsDelegate*>(browser());
-    delegate->EnterFullscreenModeForTab(GetActiveWebContents()->GetMainFrame(),
-                                        {});
+    delegate->EnterFullscreenModeForTab(
+        GetActiveWebContents()->GetPrimaryMainFrame(), {});
     fullscreen_observer.Wait();
     ASSERT_TRUE(delegate->IsFullscreenForTabOrPending(GetActiveWebContents()));
   }
@@ -158,7 +158,7 @@ class FullscreenControlViewTest : public InProcessBrowserTest {
   void RunLoopUntilVisibilityChanges() {
     base::RunLoop run_loop;
     SetPopupVisibilityChangedCallback(run_loop.QuitClosure());
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE, run_loop.QuitClosure(), kPopupEventTimeout);
     run_loop.Run();
   }
@@ -194,7 +194,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControlViewTest,
 // These four tests which cover the mouse/touch fullscreen UI are covering
 // behavior that doesn't exist on Mac - Mac has its own native fullscreen exit
 // UI. See IsExitUiEnabled() in FullscreenControlHost.
-#if !defined(OS_MAC)
+#if !BUILDFLAG(IS_MAC)
 
 // Disabled on Lacros due to flaky. crbug.com/1254453
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
@@ -230,8 +230,16 @@ IN_PROC_BROWSER_TEST_F(FullscreenControlViewTest, MAYBE_MouseExitFullscreen) {
   ASSERT_FALSE(browser_view->IsFullscreen());
 }
 
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+#define MAYBE_MouseExitFullscreen_TimeoutAndRetrigger \
+  DISABLED_MouseExitFullscreen_TimeoutAndRetrigger
+#else
+#define MAYBE_MouseExitFullscreen_TimeoutAndRetrigger \
+  MouseExitFullscreen_TimeoutAndRetrigger
+#endif
+// Flaky on lacros: https://crbug.com/1254453
 IN_PROC_BROWSER_TEST_F(FullscreenControlViewTest,
-                       MouseExitFullscreen_TimeoutAndRetrigger) {
+                       MAYBE_MouseExitFullscreen_TimeoutAndRetrigger) {
   EnterActiveTabFullscreenAndFinishPromptAnimation();
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   ASSERT_TRUE(browser_view->IsFullscreen());
@@ -534,7 +542,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControlViewTest,
 
   base::RunLoop show_run_loop;
   SetPopupVisibilityChangedCallback(show_run_loop.QuitClosure());
-  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE, show_run_loop.QuitClosure(), kPopupEventTimeout);
 
   // Send a key press event to show the popup.
@@ -548,7 +556,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControlViewTest,
 
   base::RunLoop hide_run_loop;
   SetPopupVisibilityChangedCallback(hide_run_loop.QuitClosure());
-  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE, hide_run_loop.QuitClosure(), kPopupEventTimeout);
 
   // Send a key press event to hide the popup.

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,10 @@
 
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/sequence_checker.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chromecast/mojo/binder_factory.h"
 #include "chromecast/mojo/mojom/remote_interfaces.mojom.h"
 #include "mojo/public/cpp/bindings/generic_pending_receiver.h"
@@ -129,7 +130,8 @@ class InterfaceBundle final : private mojom::RemoteInterfaces {
   bool TryBindReceiver(mojo::GenericPendingReceiver& receiver) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     if (local_interfaces_.HasInterface(*receiver.interface_name())) {
-      local_interfaces_.Bind(*receiver.interface_name(), receiver.PassPipe());
+      std::string interface_name = *receiver.interface_name();
+      local_interfaces_.Bind(interface_name, receiver.PassPipe());
       return true;
     }
     return false;

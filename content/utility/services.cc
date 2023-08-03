@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,41 +7,38 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/metrics/field_trial_params.h"
-#include "base/no_destructor.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/lazy_instance.h"
+#include "base/task/single_thread_task_runner.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "components/services/storage/public/mojom/storage_service.mojom.h"
 #include "components/services/storage/storage_service_impl.h"
 #include "content/child/child_process.h"
-#include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/utility/content_utility_client.h"
 #include "content/public/utility/utility_thread.h"
 #include "content/services/auction_worklet/auction_worklet_service_impl.h"
 #include "content/services/auction_worklet/public/mojom/auction_worklet_service.mojom.h"
 #include "device/vr/buildflags/buildflags.h"
+#include "media/base/media_switches.h"
 #include "media/gpu/buildflags.h"
 #include "media/media_buildflags.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "mojo/public/cpp/bindings/service_factory.h"
+#include "services/accessibility/buildflags.h"
 #include "services/audio/service_factory.h"
 #include "services/data_decoder/data_decoder_service.h"
 #include "services/network/network_service.h"
-#include "services/service_manager/public/cpp/binder_registry.h"
 #include "services/tracing/public/mojom/tracing_service.mojom.h"
 #include "services/tracing/tracing_service.h"
 #include "services/video_capture/public/mojom/video_capture_service.mojom.h"
 #include "services/video_capture/video_capture_service_impl.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "base/mac/mach_logging.h"
 #include "sandbox/mac/system_services.h"
 #include "sandbox/policy/sandbox.h"
-#elif defined(OS_ANDROID)
-#include "content/common/android/cpu_affinity_setter.h"
 #endif
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
@@ -57,33 +54,33 @@
 #endif  // BUILDFLAG(ENABLE_CDM_HOST_VERIFICATION)
 #endif  // BUILDFLAG(ENABLE_LIBRARY_CDMS)
 
-#if BUILDFLAG(ENABLE_VR) && !defined(OS_ANDROID)
+#if BUILDFLAG(ENABLE_VR) && !BUILDFLAG(IS_ANDROID)
 #include "content/services/isolated_xr_device/xr_device_service.h"  // nogncheck
 #include "device/vr/public/mojom/isolated_xr_service.mojom.h"       // nogncheck
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #include "sandbox/win/src/sandbox.h"
 extern sandbox::TargetServices* g_utility_target_services;
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#include "media/mojo/services/mojo_video_encode_accelerator_provider_factory.h"
 #include "sandbox/linux/services/libc_interceptor.h"
 #include "sandbox/policy/mojom/sandbox.mojom.h"
 #include "sandbox/policy/sandbox_type.h"
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && \
-    (BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && BUILDFLAG(IS_CHROMEOS)
 #include "services/shape_detection/public/mojom/shape_detection_service.mojom.h"  // nogncheck
 #include "services/shape_detection/shape_detection_service.h"  // nogncheck
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING) && BUILDFLAG(IS_CHROMEOS_ASH)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "media/mojo/mojom/media_foundation_service.mojom.h"  // nogncheck
 #include "media/mojo/services/media_foundation_service_broker.h"  // nogncheck
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_CHROMEOS_ASH) && \
     (BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC))
@@ -91,17 +88,40 @@ extern sandbox::TargetServices* g_utility_target_services;
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH) && (BUILDFLAG(USE_VAAPI) ||
         // BUILDFLAG(USE_V4L2_CODEC))
 
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)) && \
+    (BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC))
+#include "media/mojo/services/stable_video_decoder_factory_process_service.h"  // nogncheck
+#endif  // (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)) &&
+        // (BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC))
+
+#if BUILDFLAG(ENABLE_ACCESSIBILITY_SERVICE)
+#if BUILDFLAG(SUPPORTS_OS_ACCESSIBILITY_SERVICE)
+#include "services/accessibility/os_accessibility_service.h"  // nogncheck
+#else  // BUILDFLAG(SUPPORTS_OS_ACCESSIBILITY_SERVICE)
+#include "services/accessibility/browser_accessibility_service.h"  // nogncheck
+#endif  // BUILDFLAG(SUPPORTS_OS_ACCESSIBILITY_SERVICE)
+#include "services/accessibility/public/mojom/accessibility_service.mojom.h"  // nogncheck
+#include "ui/accessibility/accessibility_features.h"
+#endif  // BUILDFLAG(ENABLE_ACCESSIBILITY_SERVICE)
+
+#if BUILDFLAG(IS_LINUX)
+#include "media/capture/capture_switches.h"
+#include "services/viz/public/cpp/gpu/gpu.h"
+#endif  // BUILDFLAG(IS_LINUX)
+
 namespace content {
+base::LazyInstance<NetworkBinderCreationCallback>::Leaky
+    g_network_binder_creation_callback_for_testing = LAZY_INSTANCE_INITIALIZER;
 
 namespace {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 void EnsureSandboxedWin() {
   // |g_utility_target_services| can be null if --no-sandbox is specified.
   if (g_utility_target_services)
     g_utility_target_services->LowerToken();
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
 std::unique_ptr<media::CdmAuxiliaryHelper> CreateCdmHelper(
@@ -115,7 +135,7 @@ class ContentCdmServiceClient final : public media::CdmService::Client {
   ~ContentCdmServiceClient() override = default;
 
   void EnsureSandboxed() override {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     EnsureSandboxedWin();
 #endif
   }
@@ -146,24 +166,19 @@ class UtilityThreadVideoCaptureServiceImpl final
                                 std::move(ui_task_runner)) {}
 
  private:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   base::win::ScopedCOMInitializer com_initializer_{
       base::win::ScopedCOMInitializer::kMTA};
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 };
 
 auto RunNetworkService(
     mojo::PendingReceiver<network::mojom::NetworkService> receiver) {
-#if defined(OS_ANDROID)
-  if (base::GetFieldTrialParamByFeatureAsBool(
-          features::kBigLittleScheduling,
-          features::kBigLittleSchedulingNetworkMainBigParam, false)) {
-    SetCpuAffinityForCurrentThread(base::CpuAffinityMode::kBigCoresOnly);
-  }
-#endif
-
   auto binders = std::make_unique<service_manager::BinderRegistry>();
-  GetContentClient()->utility()->RegisterNetworkBinders(binders.get());
+  if (g_network_binder_creation_callback_for_testing.Get()) {
+    std::move(g_network_binder_creation_callback_for_testing.Get())
+        .Run(binders.get());
+  }
   return std::make_unique<network::NetworkService>(
       std::move(binders), std::move(receiver),
       /*delay_initialization_until_set_client=*/true);
@@ -172,12 +187,12 @@ auto RunNetworkService(
 auto RunAuctionWorkletService(
     mojo::PendingReceiver<auction_worklet::mojom::AuctionWorkletService>
         receiver) {
-  return std::make_unique<auction_worklet::AuctionWorkletServiceImpl>(
+  return auction_worklet::AuctionWorkletServiceImpl::CreateForService(
       std::move(receiver));
 }
 
 auto RunAudio(mojo::PendingReceiver<audio::mojom::AudioService> receiver) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // Don't connect to launch services when running sandboxed
   // (https://crbug.com/874785).
   if (sandbox::policy::Sandbox::IsProcessSandboxed()) {
@@ -206,7 +221,7 @@ auto RunAudio(mojo::PendingReceiver<audio::mojom::AudioService> receiver) {
       << "task_policy_set TASK_QOS_POLICY";
 #endif
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   auto* command_line = base::CommandLine::ForCurrentProcess();
   if (sandbox::policy::SandboxTypeFromCommandLine(*command_line) ==
       sandbox::mojom::Sandbox::kNoSandbox) {
@@ -216,19 +231,21 @@ auto RunAudio(mojo::PendingReceiver<audio::mojom::AudioService> receiver) {
   }
 #endif
 
-#if defined(OS_WIN)
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kAudioProcessHighPriority)) {
+#if BUILDFLAG(IS_WIN)
+  auto* command_line = base::CommandLine::ForCurrentProcess();
+  if (command_line->HasSwitch(switches::kAudioProcessHighPriority)) {
     auto success =
         ::SetPriorityClass(::GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
     DCHECK(success);
   }
-#endif
-  return audio::CreateStandaloneService(std::move(receiver));
+#endif  // BUILDFLAG(IS_WIN)
+
+  return audio::CreateStandaloneService(
+      std::move(receiver),
+      /*run_audio_processing=*/media::IsChromeWideEchoCancellationEnabled());
 }
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && \
-    (BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && BUILDFLAG(IS_CHROMEOS)
 auto RunShapeDetectionService(
     mojo::PendingReceiver<shape_detection::mojom::ShapeDetectionService>
         receiver) {
@@ -252,7 +269,18 @@ auto RunDataDecoder(
       std::move(receiver));
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(ENABLE_ACCESSIBILITY_SERVICE)
+auto RunAccessibilityService(
+    mojo::PendingReceiver<ax::mojom::AccessibilityService> receiver) {
+#if BUILDFLAG(SUPPORTS_OS_ACCESSIBILITY_SERVICE)
+  return std::make_unique<ax::OSAccessibilityService>(std::move(receiver));
+#else   // BUILDFLAG(SUPPORTS_OS_ACCESSIBILITY_SERVICE)
+  return std::make_unique<ax::BrowserAccessibilityService>(std::move(receiver));
+#endif  // BUILDFLAG(SUPPORTS_OS_ACCESSIBILITY_SERVICE)
+}
+#endif  // BUILDFLAG(ENABLE_ACCESSIBILITY_SERVICE)
+
+#if BUILDFLAG(IS_WIN)
 std::unique_ptr<media::MediaFoundationServiceBroker>
 RunMediaFoundationServiceBroker(
     mojo::PendingReceiver<media::mojom::MediaFoundationServiceBroker>
@@ -260,7 +288,7 @@ RunMediaFoundationServiceBroker(
   return std::make_unique<media::MediaFoundationServiceBroker>(
       std::move(receiver), base::BindOnce(&EnsureSandboxedWin));
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 auto RunStorageService(
     mojo::PendingReceiver<storage::mojom::StorageService> receiver) {
@@ -275,11 +303,23 @@ auto RunTracing(
 
 auto RunVideoCapture(
     mojo::PendingReceiver<video_capture::mojom::VideoCaptureService> receiver) {
-  return std::make_unique<UtilityThreadVideoCaptureServiceImpl>(
-      std::move(receiver), base::ThreadTaskRunnerHandle::Get());
+  auto service = std::make_unique<UtilityThreadVideoCaptureServiceImpl>(
+      std::move(receiver), base::SingleThreadTaskRunner::GetCurrentDefault());
+#if BUILDFLAG(IS_LINUX)
+  if (switches::IsVideoCaptureUseGpuMemoryBufferEnabled()) {
+    mojo::PendingRemote<viz::mojom::Gpu> remote_gpu;
+    content::UtilityThread::Get()->BindHostReceiver(
+        remote_gpu.InitWithNewPipeAndPassReceiver());
+    std::unique_ptr<viz::Gpu> viz_gpu =
+        viz::Gpu::Create(std::move(remote_gpu),
+                         content::UtilityThread::Get()->GetIOTaskRunner());
+    service->SetVizGpu(std::move(viz_gpu));
+  }
+#endif  // BUILDFLAG(IS_LINUX)
+  return service;
 }
 
-#if BUILDFLAG(ENABLE_VR) && !defined(OS_ANDROID)
+#if BUILDFLAG(ENABLE_VR) && !BUILDFLAG(IS_ANDROID)
 auto RunXrDeviceService(
     mojo::PendingReceiver<device::mojom::XRDeviceService> receiver) {
   return std::make_unique<device::XrDeviceService>(
@@ -297,7 +337,34 @@ auto RunOOPArcVideoAcceleratorFactoryService(
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH) && (BUILDFLAG(USE_VAAPI) ||
         // BUILDFLAG(USE_V4L2_CODEC))
 
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)) && \
+    (BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC))
+auto RunStableVideoDecoderFactoryProcessService(
+    mojo::PendingReceiver<
+        media::stable::mojom::StableVideoDecoderFactoryProcess> receiver) {
+  return std::make_unique<media::StableVideoDecoderFactoryProcessService>(
+      std::move(receiver));
+}
+#endif  // (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)) &&
+        // (BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC))
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+auto RunVideoEncodeAcceleratorProviderFactory(
+    mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProviderFactory>
+        receiver) {
+  auto factory =
+      std::make_unique<media::MojoVideoEncodeAcceleratorProviderFactory>();
+  factory->BindReceiver(std::move(receiver));
+  return factory;
+}
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
 }  // namespace
+
+void SetNetworkBinderCreationCallbackForTesting(  // IN-TEST
+    NetworkBinderCreationCallback callback) {
+  g_network_binder_creation_callback_for_testing.Get() = std::move(callback);
+}
 
 void RegisterIOThreadServices(mojo::ServiceFactory& services) {
   // The network service runs on the IO thread because it needs a message
@@ -317,8 +384,7 @@ void RegisterMainThreadServices(mojo::ServiceFactory& services) {
   services.Add(RunTracing);
   services.Add(RunVideoCapture);
 
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && \
-    (BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING) && BUILDFLAG(IS_CHROMEOS)
   services.Add(RunShapeDetectionService);
 #endif
 
@@ -326,11 +392,11 @@ void RegisterMainThreadServices(mojo::ServiceFactory& services) {
   services.Add(RunCdmServiceBroker);
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   services.Add(RunMediaFoundationServiceBroker);
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
-#if BUILDFLAG(ENABLE_VR) && !defined(OS_ANDROID)
+#if BUILDFLAG(ENABLE_VR) && !BUILDFLAG(IS_ANDROID)
   services.Add(RunXrDeviceService);
 #endif
 
@@ -339,6 +405,21 @@ void RegisterMainThreadServices(mojo::ServiceFactory& services) {
   services.Add(RunOOPArcVideoAcceleratorFactoryService);
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH) && (BUILDFLAG(USE_VAAPI) ||
         // BUILDFLAG(USE_V4L2_CODEC))
+
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)) && \
+    (BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC))
+  services.Add(RunStableVideoDecoderFactoryProcessService);
+#endif  // (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_ASH)) &&
+        // (BUILDFLAG(USE_VAAPI) || BUILDFLAG(USE_V4L2_CODEC))
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+  services.Add(RunVideoEncodeAcceleratorProviderFactory);
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(ENABLE_ACCESSIBILITY_SERVICE)
+  if (::features::IsAccessibilityServiceEnabled())
+    services.Add(RunAccessibilityService);
+#endif  // BUILDFLAG(ENABLE_ACCESSIBILITY_SERVICE)
 
   // Add new main-thread services above this line.
   GetContentClient()->utility()->RegisterMainThreadServices(services);

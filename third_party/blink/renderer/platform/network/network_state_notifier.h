@@ -28,7 +28,9 @@
 
 #include <memory>
 
+#include "base/notreached.h"
 #include "base/rand_util.h"
+#include "base/synchronization/lock.h"
 #include "base/task/single_thread_task_runner.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/platform/web_connection_type.h"
@@ -40,6 +42,8 @@
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/threading_primitives.h"
 
+#include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -124,13 +128,13 @@ class PLATFORM_EXPORT NetworkStateNotifier {
   NetworkStateNotifier& operator=(const NetworkStateNotifier&) = delete;
 
   ~NetworkStateNotifier() {
-    DCHECK(connection_observers_.IsEmpty());
-    DCHECK(on_line_state_observers_.IsEmpty());
+    DCHECK(connection_observers_.empty());
+    DCHECK(on_line_state_observers_.empty());
   }
 
   // Can be called on any thread.
   bool OnLine() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     DCHECK(state.on_line_initialized);
     return state.on_line;
@@ -140,7 +144,7 @@ class PLATFORM_EXPORT NetworkStateNotifier {
   // whose typical performance is most similar to the measured performance of
   // the network in use.
   WebEffectiveConnectionType EffectiveType() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     // TODO (tbansal): Add a DCHECK to check that |state.on_line_initialized| is
     // true once https://crbug.com/728771 is fixed.
@@ -150,7 +154,7 @@ class PLATFORM_EXPORT NetworkStateNotifier {
   // Returns the current HTTP RTT estimate. If the estimate is unavailable, the
   // returned optional value is null.
   absl::optional<base::TimeDelta> HttpRtt() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     // TODO (tbansal): Add a DCHECK to check that |state.on_line_initialized| is
     // true once https://crbug.com/728771 is fixed.
@@ -160,7 +164,7 @@ class PLATFORM_EXPORT NetworkStateNotifier {
   // Returns the current transport RTT estimate. If the estimate is unavailable,
   // the returned optional value is null.
   absl::optional<base::TimeDelta> TransportRtt() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     DCHECK(state.on_line_initialized);
     return state.transport_rtt;
@@ -169,7 +173,7 @@ class PLATFORM_EXPORT NetworkStateNotifier {
   // Returns the current throughput estimate (in megabits per second). If the
   // estimate is unavailable, the returned optional value is null.
   absl::optional<double> DownlinkThroughputMbps() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     // TODO (tbansal): Add a DCHECK to check that |state.on_line_initialized| is
     // true once https://crbug.com/728771 is fixed.
@@ -180,7 +184,7 @@ class PLATFORM_EXPORT NetworkStateNotifier {
   // The returned value does not account for any holdback experiments that may
   // be enabled.
   bool SaveDataEnabled() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     // TODO (tbansal): Add a DCHECK to check that |state.on_line_initialized| is
     // true once https://crbug.com/728771 is fixed.
@@ -191,7 +195,7 @@ class PLATFORM_EXPORT NetworkStateNotifier {
 
   // Can be called on any thread.
   WebConnectionType ConnectionType() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     DCHECK(state.connection_initialized);
     return state.type;
@@ -219,7 +223,7 @@ class PLATFORM_EXPORT NetworkStateNotifier {
 
   // Can be called on any thread.
   double MaxBandwidth() const {
-    MutexLocker locker(mutex_);
+    base::AutoLock locker(lock_);
     const NetworkState& state = has_override_ ? override_ : state_;
     DCHECK(state.connection_initialized);
     return state.max_bandwidth_mbps;
@@ -314,13 +318,6 @@ class PLATFORM_EXPORT NetworkStateNotifier {
  private:
   friend class NetworkStateObserverHandle;
 
-  struct ObserverList {
-    ObserverList() : iterating(false) {}
-    bool iterating;
-    Vector<NetworkStateObserver*> observers;
-    Vector<wtf_size_t> zeroed_observers;  // Indices in observers that are 0.
-  };
-
   // This helper scope issues required notifications when mutating the state if
   // something has changed.  It's only possible to mutate the state on the main
   // thread.  Note that ScopedNotifier must be destroyed when not holding a lock
@@ -339,45 +336,30 @@ class PLATFORM_EXPORT NetworkStateNotifier {
 
   // The ObserverListMap is cross-thread accessed, adding/removing Observers
   // running on a task runner.
-  using ObserverListMap = HashMap<scoped_refptr<base::SingleThreadTaskRunner>,
-                                  std::unique_ptr<ObserverList>>;
+  using ObserverListMap = HashMap<NetworkStateObserver*,
+                                  scoped_refptr<base::SingleThreadTaskRunner>>;
 
   void NotifyObservers(ObserverListMap&, ObserverType, const NetworkState&);
-  void NotifyObserversOnTaskRunner(ObserverListMap*,
-                                   ObserverType,
-                                   scoped_refptr<base::SingleThreadTaskRunner>,
-                                   const NetworkState&);
-
+  void NotifyObserverOnTaskRunner(MayBeDangling<NetworkStateObserver>,
+                                  ObserverType,
+                                  const NetworkState&);
+  ObserverListMap& GetObserverMapFor(ObserverType);
   void AddObserverToMap(ObserverListMap&,
                         NetworkStateObserver*,
                         scoped_refptr<base::SingleThreadTaskRunner>);
   void RemoveObserver(ObserverType,
                       NetworkStateObserver*,
                       scoped_refptr<base::SingleThreadTaskRunner>);
-  void RemoveObserverFromMap(ObserverListMap&,
-                             NetworkStateObserver*,
-                             scoped_refptr<base::SingleThreadTaskRunner>);
-
-  ObserverList* LockAndFindObserverList(
-      ObserverListMap&,
-      scoped_refptr<base::SingleThreadTaskRunner>);
-
-  // Removed observers are nulled out in the list in case the list is being
-  // iterated over. Once done iterating, call this to clean up nulled
-  // observers.
-  void CollectZeroedObservers(ObserverListMap&,
-                              ObserverList*,
-                              scoped_refptr<base::SingleThreadTaskRunner>);
 
   // A random number by which the RTT and downlink estimates are multiplied
   // with. The returned random multiplier is a function of the hostname.
   // Adding this noise reduces the chances of cross-origin fingerprinting.
   double GetRandomMultiplier(const String& host) const;
 
-  mutable Mutex mutex_;
-  NetworkState state_ GUARDED_BY(mutex_);
-  bool has_override_ GUARDED_BY(mutex_);
-  NetworkState override_ GUARDED_BY(mutex_);
+  mutable base::Lock lock_;
+  NetworkState state_ GUARDED_BY(lock_);
+  bool has_override_ GUARDED_BY(lock_);
+  NetworkState override_ GUARDED_BY(lock_);
 
   ObserverListMap connection_observers_;
   ObserverListMap on_line_state_observers_;

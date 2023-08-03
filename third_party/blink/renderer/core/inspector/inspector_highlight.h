@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,16 @@
 #include "third_party/blink/renderer/core/dom/pseudo_element.h"
 #include "third_party/blink/renderer/core/inspector/node_content_visibility_state.h"
 #include "third_party/blink/renderer/core/inspector/protocol/dom.h"
-#include "third_party/blink/renderer/platform/geometry/float_quad.h"
 #include "third_party/blink/renderer/platform/geometry/layout_rect.h"
 #include "third_party/blink/renderer/platform/graphics/color.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
+#include "ui/gfx/geometry/quad_f.h"
 
 namespace blink {
 
 class Color;
 
-enum class ColorFormat { kRgb, kHex, kHsl };
+enum class ColorFormat { kRgb, kHex, kHsl, kHwb };
 enum class ContrastAlgorithm { kAa, kAaa, kApca };
 
 struct CORE_EXPORT LineStyle {
@@ -197,7 +197,7 @@ class InspectorHighlightBase {
                   const Color& fill_color,
                   const Color& outline_color,
                   const String& name = String());
-  void AppendQuad(const FloatQuad&,
+  void AppendQuad(const gfx::QuadF&,
                   const Color& fill_color,
                   const Color& outline_color = Color::kTransparent,
                   const String& name = String());
@@ -206,10 +206,10 @@ class InspectorHighlightBase {
 
  protected:
   static bool BuildNodeQuads(Node*,
-                             FloatQuad* content,
-                             FloatQuad* padding,
-                             FloatQuad* border,
-                             FloatQuad* margin);
+                             gfx::QuadF* content,
+                             gfx::QuadF* padding,
+                             gfx::QuadF* border,
+                             gfx::QuadF* margin);
   std::unique_ptr<protocol::ListValue> highlight_paths_;
   float scale_;
 };
@@ -255,7 +255,7 @@ class CORE_EXPORT InspectorHighlight : public InspectorHighlightBase {
   std::unique_ptr<protocol::DictionaryValue> AsProtocolValue() const override;
 
  private:
-  static bool BuildSVGQuads(Node*, Vector<FloatQuad>& quads);
+  static bool BuildSVGQuads(Node*, Vector<gfx::QuadF>& quads);
   void AppendNodeHighlight(Node*, const InspectorHighlightConfig&);
   void AppendPathsForShapeOutside(Node*, const InspectorHighlightConfig&);
 
@@ -319,6 +319,14 @@ BuildIsolatedElementInfo(Element& element,
                          const InspectorIsolationModeHighlightConfig& config,
                          float scale);
 
+void CORE_EXPORT
+AppendStyleInfo(Node* node,
+                protocol::DictionaryValue* element_info,
+                const InspectorHighlightContrastInfo& node_contrast,
+                const ContrastAlgorithm& contrast_algorithm);
+
+std::unique_ptr<protocol::DictionaryValue> CORE_EXPORT
+BuildElementInfo(Element* element);
 }  // namespace blink
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_INSPECTOR_INSPECTOR_HIGHLIGHT_H_

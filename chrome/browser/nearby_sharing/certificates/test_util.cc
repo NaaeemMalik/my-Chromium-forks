@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 
 #include "base/no_destructor.h"
 #include "chrome/browser/nearby_sharing/certificates/constants.h"
-#include "chrome/browser/nearby_sharing/proto/timestamp.pb.h"
+#include "chromeos/ash/components/nearby/common/proto/timestamp.pb.h"
 #include "device/bluetooth/public/cpp/bluetooth_address.h"
 
 namespace {

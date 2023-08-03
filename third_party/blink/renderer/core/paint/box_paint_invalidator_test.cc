@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@
 #include "third_party/blink/renderer/core/paint/paint_invalidator.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_layer.h"
 #include "third_party/blink/renderer/platform/graphics/paint/raster_invalidation_tracking.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
@@ -58,7 +57,7 @@ class BoxPaintInvalidatorTest : public PaintAndRasterInvalidationTest {
     GetDocument().View()->UpdateLifecycleToLayoutClean(
         DocumentUpdateReason::kTest);
 
-    EXPECT_EQ(PaintInvalidationReason::kGeometry,
+    EXPECT_EQ(PaintInvalidationReason::kLayout,
               ComputePaintInvalidationReason(box, paint_offset));
   }
 
@@ -115,7 +114,7 @@ TEST_P(BoxPaintInvalidatorTest, ComputePaintInvalidationReasonEmptyContent) {
 
   // Paint offset change.
   auto old_paint_offset = paint_offset + PhysicalOffset(10, 20);
-  EXPECT_EQ(PaintInvalidationReason::kGeometry,
+  EXPECT_EQ(PaintInvalidationReason::kLayout,
             ComputePaintInvalidationReason(box, old_paint_offset));
 
   // Size change.
@@ -161,15 +160,20 @@ TEST_P(BoxPaintInvalidatorTest, ComputePaintInvalidationReasonBasic) {
   GetDocument().View()->UpdateLifecycleToLayoutClean(
       DocumentUpdateReason::kTest);
 
-  EXPECT_EQ(PaintInvalidationReason::kGeometry,
+  EXPECT_EQ(PaintInvalidationReason::kLayout,
             ComputePaintInvalidationReason(box, paint_offset));
 
-  // Should use the existing full paint invalidation reason regardless of
-  // geometry change.
-  box.SetShouldDoFullPaintInvalidation(PaintInvalidationReason::kStyle);
-  EXPECT_EQ(PaintInvalidationReason::kStyle,
+  // Computed kLayout has higher priority than the non-geometry paint
+  // invalidation reason on the LayoutBox.
+  box.SetShouldDoFullPaintInvalidationWithoutLayoutChange(
+      PaintInvalidationReason::kStyle);
+  EXPECT_EQ(PaintInvalidationReason::kLayout,
             ComputePaintInvalidationReason(box, paint_offset));
-  EXPECT_EQ(PaintInvalidationReason::kStyle,
+
+  // If the LayoutBox has a geometry paint invalidation reason, the reason is
+  // returned directly without checking geometry change.
+  box.SetShouldDoFullPaintInvalidation(PaintInvalidationReason::kSVGResource);
+  EXPECT_EQ(PaintInvalidationReason::kSVGResource,
             ComputePaintInvalidationReason(box, paint_offset));
 }
 
@@ -231,7 +235,7 @@ TEST_P(BoxPaintInvalidatorTest, ComputePaintInvalidationReasonOutline) {
   EXPECT_THAT(GetRasterInvalidationTracking()->Invalidations(),
               UnorderedElementsAre(RasterInvalidationInfo{
                   object->Id(), object->DebugName(), gfx::Rect(0, 0, 72, 142),
-                  PaintInvalidationReason::kStyle}));
+                  PaintInvalidationReason::kLayout}));
   GetDocument().View()->SetTracksRasterInvalidations(false);
 
   GetDocument().View()->SetTracksRasterInvalidations(true);
@@ -241,7 +245,7 @@ TEST_P(BoxPaintInvalidatorTest, ComputePaintInvalidationReasonOutline) {
   EXPECT_THAT(GetRasterInvalidationTracking()->Invalidations(),
               UnorderedElementsAre(RasterInvalidationInfo{
                   object->Id(), object->DebugName(), gfx::Rect(0, 0, 122, 142),
-                  PaintInvalidationReason::kGeometry}));
+                  PaintInvalidationReason::kLayout}));
   GetDocument().View()->SetTracksRasterInvalidations(false);
 }
 

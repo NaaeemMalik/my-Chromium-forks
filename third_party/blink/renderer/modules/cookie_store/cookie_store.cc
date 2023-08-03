@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/containers/contains.h"
+#include "net/base/features.h"
 #include "net/cookies/canonical_cookie.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "services/network/public/mojom/restricted_cookie_manager.mojom-blink.h"
@@ -20,6 +21,7 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_cookie_store_get_options.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/modules/cookie_store/cookie_change_event.h"
 #include "third_party/blink/renderer/modules/event_modules.h"
@@ -29,7 +31,6 @@
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
@@ -66,15 +67,16 @@ network::mojom::blink::CookieManagerGetOptionsPtr ToBackendOptions(
 std::unique_ptr<net::CanonicalCookie> ToCanonicalCookie(
     const KURL& cookie_url,
     const CookieInit* options,
-    ExceptionState& exception_state) {
+    ExceptionState& exception_state,
+    net::CookieInclusionStatus& status_out) {
   const String& name = options->name();
   const String& value = options->value();
-  if (name.IsEmpty() && value.Contains('=')) {
+  if (name.empty() && value.Contains('=')) {
     exception_state.ThrowTypeError(
         "Cookie value cannot contain '=' if the name is empty");
     return nullptr;
   }
-  if (name.IsEmpty() && value.IsEmpty()) {
+  if (name.empty() && value.empty()) {
     exception_state.ThrowTypeError(
         "Cookie name and value both cannot be empty");
     return nullptr;
@@ -110,7 +112,7 @@ std::unique_ptr<net::CanonicalCookie> ToCanonicalCookie(
   }
 
   String path = options->path();
-  if (!path.IsEmpty()) {
+  if (!path.empty()) {
     if (name.StartsWith("__Host-") && path != "/") {
       exception_state.ThrowTypeError(
           "Cookies with \"__Host-\" prefix cannot have a non-\"/\" path");
@@ -134,7 +136,7 @@ std::unique_ptr<net::CanonicalCookie> ToCanonicalCookie(
   // The Cookie Store API can only set secure cookies, so it is unusable on
   // insecure origins. file:// are excluded too for consistency with
   // document.cookie.
-  if (!network::IsUrlPotentiallyTrustworthy(cookie_url) ||
+  if (!network::IsUrlPotentiallyTrustworthy(GURL(cookie_url)) ||
       base::Contains(url::GetLocalSchemes(), cookie_url.Protocol().Ascii())) {
     exception_state.ThrowTypeError(
         "Cannot modify a secure cookie on insecure origin");
@@ -158,13 +160,23 @@ std::unique_ptr<net::CanonicalCookie> ToCanonicalCookie(
     cookie_partition_key = net::CookiePartitionKey::FromScript();
   }
 
-  // TODO(crbug.com/1144187): Add support for SameParty attribute.
-  return net::CanonicalCookie::CreateSanitizedCookie(
-      cookie_url, name.Utf8(), value.Utf8(), domain.Utf8(), path.Utf8(),
-      base::Time() /*creation*/, expires, base::Time() /*last_access*/,
-      true /*secure*/, false /*http_only*/, same_site,
-      net::CookiePriority::COOKIE_PRIORITY_DEFAULT, false /*same_party*/,
-      cookie_partition_key);
+  std::unique_ptr<net::CanonicalCookie> cookie =
+      net::CanonicalCookie::CreateSanitizedCookie(
+          GURL(cookie_url), name.Utf8(), value.Utf8(), domain.Utf8(),
+          path.Utf8(), base::Time() /*creation*/, expires,
+          base::Time() /*last_access*/, true /*secure*/, false /*http_only*/,
+          same_site, net::CookiePriority::COOKIE_PRIORITY_DEFAULT,
+          /*same_party=*/false, cookie_partition_key, &status_out);
+
+  // TODO(crbug.com/1310444): Improve serialization validation comments and
+  // associate them with ExceptionState codes.
+  if (!status_out.IsInclude()) {
+    exception_state.ThrowTypeError(
+        "Cookie was malformed and could not be stored, due to problem(s) while "
+        "parsing.");
+  }
+
+  return cookie;
 }
 
 const KURL DefaultCookieURL(ExecutionContext* execution_context) {
@@ -219,7 +231,11 @@ net::SiteForCookies DefaultSiteForCookies(ExecutionContext* execution_context) {
     return window->document()->SiteForCookies();
 
   auto* scope = To<ServiceWorkerGlobalScope>(execution_context);
-  return net::SiteForCookies::FromUrl(scope->Url());
+  const blink::BlinkStorageKey& key = scope->storage_key();
+  if (key.IsFirstPartyContext()) {
+    return net::SiteForCookies::FromUrl(GURL(scope->Url()));
+  }
+  return net::SiteForCookies();
 }
 
 scoped_refptr<SecurityOrigin> DefaultTopFrameOrigin(
@@ -232,20 +248,17 @@ scoped_refptr<SecurityOrigin> DefaultTopFrameOrigin(
     return window->document()->TopFrameOrigin()->IsolatedCopy();
   }
 
-  // TODO(crbug.com/1225444): This is a temporary solution until we can plumb
-  // BlinkStorageKey to ServiceWorkerGlobalScope. Once we do the top-frame
-  // origin should be BlinkStorageKey's top-frame site.
   auto* scope = To<ServiceWorkerGlobalScope>(execution_context);
   return SecurityOrigin::CreateFromUrlOrigin(url::Origin::Create(
-      net::SchemefulSite(scope->GetSecurityOrigin()->ToUrlOrigin()).GetURL()));
+      net::SchemefulSite(scope->storage_key().GetTopLevelSite()).GetURL()));
 }
 
 }  // namespace
 
 CookieStore::CookieStore(
     ExecutionContext* execution_context,
-    mojo::Remote<network::mojom::blink::RestrictedCookieManager> backend)
-    : ExecutionContextLifecycleObserver(execution_context),
+    HeapMojoRemote<network::mojom::blink::RestrictedCookieManager> backend)
+    : ExecutionContextClient(execution_context),
       backend_(std::move(backend)),
       change_listener_receiver_(this, execution_context),
       default_cookie_url_(DefaultCookieURL(execution_context)),
@@ -345,12 +358,9 @@ ScriptPromise CookieStore::Delete(ScriptState* script_state,
 
 void CookieStore::Trace(Visitor* visitor) const {
   visitor->Trace(change_listener_receiver_);
+  visitor->Trace(backend_);
   EventTargetWithInlineData::Trace(visitor);
-  ExecutionContextLifecycleObserver::Trace(visitor);
-}
-
-void CookieStore::ContextDestroyed() {
-  backend_.reset();
+  ExecutionContextClient::Trace(visitor);
 }
 
 const AtomicString& CookieStore::InterfaceName() const {
@@ -358,7 +368,7 @@ const AtomicString& CookieStore::InterfaceName() const {
 }
 
 ExecutionContext* CookieStore::GetExecutionContext() const {
-  return ExecutionContextLifecycleObserver::GetExecutionContext();
+  return ExecutionContextClient::GetExecutionContext();
 }
 
 void CookieStore::RemoveAllEventListeners() {
@@ -371,7 +381,7 @@ void CookieStore::OnCookieChange(
     network::mojom::blink::CookieChangeInfoPtr change) {
   HeapVector<Member<CookieListItem>> changed, deleted;
   CookieChangeEvent::ToEventInfo(change, changed, deleted);
-  if (changed.IsEmpty() && deleted.IsEmpty()) {
+  if (changed.empty() && deleted.empty()) {
     // The backend only reported OVERWRITE events, which are dropped.
     return;
   }
@@ -423,11 +433,12 @@ ScriptPromise CookieStore::DoRead(
     return ScriptPromise();
   }
 
-  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(
+      script_state, exception_state.GetContext());
   backend_->GetAllForUrl(
       cookie_url, default_site_for_cookies_, default_top_frame_origin_,
-      std::move(backend_options),
-      WTF::Bind(backend_result_converter, WrapPersistent(resolver)));
+      context->HasStorageAccess(), std::move(backend_options),
+      WTF::BindOnce(backend_result_converter, WrapPersistent(resolver)));
   return resolver->Promise();
 }
 
@@ -463,7 +474,7 @@ void CookieStore::GetAllForUrlToGetResult(
     return;
   ScriptState::Scope scope(script_state);
 
-  if (backend_cookies.IsEmpty()) {
+  if (backend_cookies.empty()) {
     resolver->Resolve(v8::Null(script_state->GetIsolate()));
     return;
   }
@@ -486,12 +497,17 @@ ScriptPromise CookieStore::DoWrite(ScriptState* script_state,
     return ScriptPromise();
   }
 
+  net::CookieInclusionStatus status;
   std::unique_ptr<net::CanonicalCookie> canonical_cookie =
-      ToCanonicalCookie(default_cookie_url_, options, exception_state);
+      ToCanonicalCookie(default_cookie_url_, options, exception_state, status);
+
   if (!canonical_cookie) {
     DCHECK(exception_state.HadException());
     return ScriptPromise();
   }
+  // Since a canonical cookie exists, the status should have no exclusion
+  // reasons associated with it.
+  DCHECK(status.IsInclude());
 
   if (!backend_) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
@@ -499,12 +515,14 @@ ScriptPromise CookieStore::DoWrite(ScriptState* script_state,
     return ScriptPromise();
   }
 
-  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(
+      script_state, exception_state.GetContext());
   backend_->SetCanonicalCookie(
       *std::move(canonical_cookie), default_cookie_url_,
       default_site_for_cookies_, default_top_frame_origin_,
-      WTF::Bind(&CookieStore::OnSetCanonicalCookieResult,
-                WrapPersistent(resolver)));
+      context->HasStorageAccess(), status,
+      WTF::BindOnce(&CookieStore::OnSetCanonicalCookieResult,
+                    WrapPersistent(resolver)));
   return resolver->Promise();
 }
 
@@ -519,7 +537,7 @@ void CookieStore::OnSetCanonicalCookieResult(ScriptPromiseResolver* resolver,
   if (!backend_success) {
     resolver->Reject(V8ThrowDOMException::CreateOrEmpty(
         script_state->GetIsolate(), DOMExceptionCode::kUnknownError,
-        "An unknown error occured while writing the cookie."));
+        "An unknown error occurred while writing the cookie."));
     return;
   }
   resolver->Resolve();
@@ -534,6 +552,7 @@ void CookieStore::StartObserving() {
       GetExecutionContext()->GetTaskRunner(TaskType::kDOMManipulation);
   backend_->AddChangeListener(
       default_cookie_url_, default_site_for_cookies_, default_top_frame_origin_,
+      GetExecutionContext()->HasStorageAccess(),
       change_listener_receiver_.BindNewPipeAndPassRemote(task_runner), {});
 }
 

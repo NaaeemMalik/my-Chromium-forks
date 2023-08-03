@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.webauthn;
 
-import android.annotation.TargetApi;
 import android.app.KeyguardManager;
 import android.app.Notification;
 import android.app.PendingIntent;
@@ -13,7 +12,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -23,6 +21,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.fragment.app.Fragment;
@@ -34,6 +33,8 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.NativeMethods;
+import org.chromium.base.task.PostTask;
+import org.chromium.base.task.TaskTraits;
 import org.chromium.chrome.browser.notifications.NotificationConstants;
 import org.chromium.chrome.browser.notifications.NotificationWrapperBuilderFactory;
 import org.chromium.chrome.browser.notifications.channels.ChromeChannelDefinitions;
@@ -71,8 +72,6 @@ public class CableAuthenticatorModuleProvider extends Fragment implements OnClic
             "org.chromium.chrome.browser.webauth.authenticator.CableAuthenticatorActivity";
     private static final String SECRET_KEY =
             "org.chromium.chrome.modules.cablev2_authenticator.Secret";
-    private static final String METRICS_KEY =
-            "org.chromium.chrome.modules.cablev2_authenticator.MetricsEnabled";
 
     private View mErrorView;
 
@@ -87,6 +86,7 @@ public class CableAuthenticatorModuleProvider extends Fragment implements OnClic
         ((TextView) mErrorView.findViewById(R.id.error_code))
                 .setText(getResources().getString(
                         R.string.cablev2_error_code, INSTALL_FAILURE_ERROR_CODE));
+
         ((TextView) mErrorView.findViewById(R.id.error_description))
                 .setText(getResources().getString(R.string.cablev2_error_generic));
 
@@ -96,9 +96,15 @@ public class CableAuthenticatorModuleProvider extends Fragment implements OnClic
             Cablev2AuthenticatorModule.install((success) -> {
                 if (!success) {
                     Log.e(TAG, "Failed to install caBLE DFM");
-                    final ViewGroup v = (ViewGroup) getView();
-                    v.removeAllViews();
-                    v.addView(mErrorView);
+                    // This can either happen synchronously or asynchronously.
+                    // If it happens synchronously then `onCreateView` hasn't
+                    // completed and there's no `View` to update. Thus
+                    // post a task to ensure an asynchronous context.
+                    PostTask.postTask(TaskTraits.UI_DEFAULT, () -> {
+                        final ViewGroup v = (ViewGroup) getView();
+                        v.removeAllViews();
+                        v.addView(mErrorView);
+                    });
                     return;
                 }
                 showModule();
@@ -146,8 +152,6 @@ public class CableAuthenticatorModuleProvider extends Fragment implements OnClic
         arguments.putLong(
                 REGISTRATION_KEY, CableAuthenticatorModuleProviderJni.get().getRegistration());
         arguments.putByteArray(SECRET_KEY, CableAuthenticatorModuleProviderJni.get().getSecret());
-        arguments.putBoolean(METRICS_KEY,
-                CableAuthenticatorModuleProviderJni.get().isMetricsAndCrashReportingEnabled());
         fragment.setArguments(arguments);
         transaction.replace(getId(), fragment);
         // This fragment is deliberately not added to the back-stack here so
@@ -220,8 +224,9 @@ public class CableAuthenticatorModuleProvider extends Fragment implements OnClic
 
     @CalledByNative
     public static boolean canDeviceSupportCable() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N
-                || BluetoothAdapter.getDefaultAdapter() == null) {
+        // This function will be run on a background thread.
+
+        if (BluetoothAdapter.getDefaultAdapter() == null) {
             return false;
         }
 
@@ -232,7 +237,7 @@ public class CableAuthenticatorModuleProvider extends Fragment implements OnClic
 
     // canDeviceSupportCable has checked that the system is >= N (API level 24)
     // before calling this function.
-    @TargetApi(24)
+    @RequiresApi(24)
     private static boolean hasScreenLockConfigured() {
         KeyguardManager km =
                 (KeyguardManager) ContextUtils.getApplicationContext().getSystemService(
@@ -256,8 +261,5 @@ public class CableAuthenticatorModuleProvider extends Fragment implements OnClic
         byte[] getSecret();
         // freeEvent releases resources used by the given event.
         void freeEvent(long event);
-        // isMetricsCollectionEnabled returns true if the user has opted into
-        // metrics collection. This enables logging for server-linked sign-ins.
-        boolean isMetricsAndCrashReportingEnabled();
     }
 }

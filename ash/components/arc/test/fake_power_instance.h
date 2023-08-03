@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,8 +35,6 @@ class FakePowerInstance : public mojom::PowerInstance {
   SuspendCallback GetSuspendCallback();
 
   // mojom::PowerInstance overrides:
-  void InitDeprecated(
-      mojo::PendingRemote<mojom::PowerHost> host_remote) override;
   void Init(mojo::PendingRemote<mojom::PowerHost> host_remote,
             InitCallback callback) override;
   void SetInteractive(bool enabled) override;

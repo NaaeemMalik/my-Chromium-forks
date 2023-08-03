@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "ipc/ipc_channel_proxy.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/synchronization/lock.h"
 #endif
 
@@ -142,7 +142,7 @@ class CONTENT_EXPORT BrowserMessageFilter
   // classes. Internal keeps a reference to this class, which is why there's a
   // weak pointer back. This class could outlive Internal based on what the
   // child class does in its OnDestruct method.
-  raw_ptr<Internal> internal_ = nullptr;
+  raw_ptr<Internal, DanglingUntriaged> internal_ = nullptr;
 
   raw_ptr<IPC::Sender> sender_ = nullptr;
   base::Process peer_process_;

@@ -1,10 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/sharing_hub/sharing_hub_bubble_util.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
@@ -43,7 +43,7 @@ TitleWithBackButtonView::TitleWithBackButtonView(
           views::Builder<views::ImageButton>(
               views::CreateVectorImageButtonWithNativeTheme(
                   std::move(back_callback), vector_icons::kBackArrowIcon))
-              .SetTooltipText(l10n_util::GetStringUTF16(IDS_TOOLTIP_BACK))
+              .SetTooltipText(l10n_util::GetStringUTF16(IDS_ACCNAME_BACK))
               .SetAccessibleName(l10n_util::GetStringUTF16(IDS_ACCNAME_BACK))
               .CustomConfigure(base::BindOnce([](views::ImageButton* view) {
                 view->SizeToPreferredSize();

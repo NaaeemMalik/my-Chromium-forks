@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,9 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "components/feedback/feedback_common.h"
 #include "components/feedback/feedback_uploader.h"
@@ -25,7 +26,8 @@ namespace feedback {
 
 class FeedbackData : public FeedbackCommon {
  public:
-  FeedbackData(FeedbackUploader* uploader, TracingManager* tracing_manager);
+  FeedbackData(base::WeakPtr<feedback::FeedbackUploader> uploader,
+               TracingManager* tracing_manager);
 
   FeedbackData(const FeedbackData&) = delete;
   FeedbackData& operator=(const FeedbackData&) = delete;
@@ -39,6 +41,9 @@ class FeedbackData : public FeedbackCommon {
   // Sets the histograms for this instance and kicks off its
   // compression.
   void SetAndCompressHistograms(std::string histograms);
+
+  // Kicks off compression of the autofill metadata for this instance.
+  void CompressAutofillMetadata();
 
   // Sets the attached file data and kicks off its compression.
   void AttachAndCompressFileData(std::string attached_filedata);
@@ -114,13 +119,15 @@ class FeedbackData : public FeedbackCommon {
 
   SEQUENCE_CHECKER(sequence_checker_);
 
-  const raw_ptr<feedback::FeedbackUploader> uploader_ = nullptr;  // Not owned.
+  // The uploader_ is tied to a profile. When the profile is deleted, the
+  // uploader_ will be destroyed.
+  base::WeakPtr<feedback::FeedbackUploader> uploader_;
 
   std::string attached_filename_ GUARDED_BY_CONTEXT(sequence_checker_);
   std::string attached_file_uuid_ GUARDED_BY_CONTEXT(sequence_checker_);
   std::string screenshot_uuid_ GUARDED_BY_CONTEXT(sequence_checker_);
 
-  const raw_ptr<TracingManager> tracing_manager_ = nullptr;  // Not owned.
+  base::WeakPtr<TracingManager> tracing_manager_;
   int trace_id_ GUARDED_BY_CONTEXT(sequence_checker_) = 0;
 
   int pending_op_count_ GUARDED_BY_CONTEXT(sequence_checker_) = 1;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "components/feature_engagement/internal/proto/feature_event.pb.h"
 #include "components/feature_engagement/public/configuration.h"
 #include "components/feature_engagement/public/feature_list.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace feature_engagement {
 
@@ -28,6 +29,7 @@ FeatureConfigConditionValidator::~FeatureConfigConditionValidator() = default;
 ConditionValidator::Result FeatureConfigConditionValidator::MeetsConditions(
     const base::Feature& feature,
     const FeatureConfig& config,
+    const std::vector<GroupConfig>& group_configs,
     const EventModel& event_model,
     const AvailabilityModel& availability_model,
     const DisplayLockController& display_lock_controller,
@@ -63,10 +65,38 @@ ConditionValidator::Result FeatureConfigConditionValidator::MeetsConditions(
       (event_model.GetLastSnoozeTimestamp(config.trigger.name) <
        base::Time::Now() - base::Days(config.snooze_params.snooze_interval));
 
+  result.priority_notification_ok =
+      !pending_priority_notification_.has_value() ||
+      pending_priority_notification_.value() == feature.name;
+
   result.should_show_snooze =
       result.snooze_expiration_ok &&
       event_model.GetSnoozeCount(config.trigger.name, config.trigger.window,
                                  current_day) < config.snooze_params.max_limit;
+
+  // Add on group additions
+  for (const auto& group_config : group_configs) {
+    bool valid = group_config.valid;
+    result.config_ok &= valid;
+    result.groups_ok &= valid;
+
+    bool trigger_ok = EventConfigMeetsConditions(group_config.trigger,
+                                                 event_model, current_day);
+    result.trigger_ok &= trigger_ok;
+    result.groups_ok &= trigger_ok;
+
+    for (const auto& event_config : group_config.event_configs) {
+      bool precondition_ok =
+          EventConfigMeetsConditions(event_config, event_model, current_day);
+      result.preconditions_ok &= precondition_ok;
+      result.groups_ok &= precondition_ok;
+    }
+
+    bool session_rate_ok =
+        SessionRateMeetsConditions(group_config.session_rate, feature);
+    result.session_rate_ok &= session_rate_ok;
+    result.groups_ok &= session_rate_ok;
+  }
 
   return result;
 }
@@ -113,6 +143,17 @@ bool FeatureConfigConditionValidator::EventConfigMeetsConditions(
   uint32_t event_count = event_model.GetEventCount(
       event_config.name, current_day, event_config.window);
   return event_config.comparator.MeetsCriteria(event_count);
+}
+
+void FeatureConfigConditionValidator::SetPriorityNotification(
+    const absl::optional<std::string>& feature) {
+  DCHECK(!pending_priority_notification_.has_value() || !feature.has_value());
+  pending_priority_notification_ = feature;
+}
+
+absl::optional<std::string>
+FeatureConfigConditionValidator::GetPendingPriorityNotification() {
+  return pending_priority_notification_;
 }
 
 bool FeatureConfigConditionValidator::AvailabilityMeetsConditions(

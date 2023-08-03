@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,7 +53,7 @@ class BASE_EXPORT ScopedHardwareBufferHandle {
   //
   // The caller is responsible for eventually releasing this reference to the
   // buffer object.
-  AHardwareBuffer* Take() WARN_UNUSED_RESULT;
+  [[nodiscard]] AHardwareBuffer* Take();
 
   // Creates a new handle with its own newly acquired reference to the
   // underlying buffer object. |this| must be a valid handle.
@@ -75,8 +75,8 @@ class BASE_EXPORT ScopedHardwareBufferHandle {
   //
   // This acquires a new reference to the AHardwareBuffer, with ownership passed
   // to the caller via the returned ScopedHardwareBufferHandle.
-  static ScopedHardwareBufferHandle DeserializeFromFileDescriptor(ScopedFD fd)
-      WARN_UNUSED_RESULT;
+  [[nodiscard]] static ScopedHardwareBufferHandle DeserializeFromFileDescriptor(
+      ScopedFD fd);
 
  private:
   // Assumes ownership of an existing reference to |buffer|. This does NOT

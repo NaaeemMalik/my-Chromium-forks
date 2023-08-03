@@ -105,6 +105,56 @@ else
 fi
 ```
 
+#### Choosing renderer to debug by URL
+
+In most cases you'll want to debug the renderer which is loading a particular
+site. If you want a script which will automatically debug the renderer which has
+visited a given target URL and continue all other renderers, you can use the
+following:
+
+```sh
+./third_party/blink/tools/debug_renderer out/Default/content_shell https://example.domain/path
+```
+
+The script also supports specifying a different URL than the navigation URL.
+This is useful when the renderer you want to debug is not the top frame but one
+of the subframes on the page. For example, you could debug a particular subframe
+on a page with:
+
+```sh
+./third_party/blink/tools/debug_renderer -d https://subframe.url/path out/Default/content_shell https://example.domain/path
+```
+
+However, if you need more fine-grained control over which renderers to debug
+you can run chrome or content_shell directly with the
+`--wait-for-debugger-on-navigation` flag which will pause each renderer at the
+point of navigation (when the URL is known).
+
+This will result in a series of lines such as the following in the output:
+```
+...:content_switches_internal.cc(119)] Renderer url="https://example.domain/path" (PID) paused waiting for debugger to attach. Send SIGUSR1 to unpause.
+```
+
+You can signal the renderers you aren't interested in to continue running with:
+```sh
+kill -s SIGUSR1 <pid>
+```
+
+And debug the renderer you are interested in debugging with:
+```sh
+gdb -p <pid>
+```
+
+#### Debugging run_web_tests.py renderers
+
+The `debug_renderer` script can also be used to debug the renderer running
+a web test. To do so, simply call `run_web_tests.py` from `debug_renderer.py`
+with all of the standard arguments for `run_web_tests.py`. For example:
+
+```sh
+./third_party/blink/tools/debug_renderer ./third_party/blink/tools/run_web_tests.py [run_web_test args]
+```
+
 #### Selective breakpoints
 
 When debugging both the browser and renderer process, you might want to have
@@ -261,39 +311,35 @@ You can use [rr](https://rr-project.org) for time travel debugging, so you
 can also step or execute backwards. This works by first recording a trace
 and then debugging based on that.
 
-Using reasonably current versions of rr is best since rr requires
-occasional small feature additions to keep support parts of the
-Linux system call API surface that rr users are using for the first time.
-The latest release version is often but not always good enough,
-but if not you can install it by compiling
+You need an up-to-date version of rr, since rr is frequently updated to support
+new parts of the Linux system call API surface that Chromium uses. If you have
+any issues with the latest release version, try compiling rr
 [from source](https://github.com/rr-debugger/rr/wiki/Building-And-Installing).
 
 Once installed, you can use it like this:
 ```
-rr record out/Debug/content_shell --single-process --no-sandbox --disable-hang-monitor --single-process  --disable-seccomp-sandbox --disable-setuid-sandbox
+rr record out/Debug/content_shell --single-process
 rr replay
-(gdb) c
-(gdb) break blink::NGBlockNode::Layout
-(gdb) rc # reverse-continue to the last Layout call
-(gdb) jsdbg # run JsDbg as described above to find the interesting object
-(gdb) watch -l box_->frame_rect_.size_.width_.value_
-(gdb) rc # reverse-continue to the last time the width was changed
-(gdb) rn # reverse-next to the previous line
-(gdb) reverse-fin # run to where this function was called from
+(rr) c
+(rr) break blink::NGBlockNode::Layout
+(rr) rc # reverse-continue to the last Layout call
+(rr) jsdbg # run JsDbg as described above to find the interesting object
+(rr) watch -l box_->frame_rect_.size_.width_.value_
+(rr) rc # reverse-continue to the last time the width was changed
+(rr) rn # reverse-next to the previous line
+(rr) reverse-fin # run to where this function was called from
 ```
 
 You can debug multi-process chrome using `rr -f [PID]`
-(for processes `fork()`ed from a [zygote process](zygote.md) without exec,
-which includes renderer processes)
-or `rr -p [PID]`
-(for processes that are `fork()`ed and `exec()`ed).
-To find the process
-id you can either run `rr ps` after recording, or a convenient way
-to find the correct process id is to run with `--vmodule=render_frame_impl=1`
-which will log a message on navigations. e.g.
+for processes `fork()`ed from a [zygote process](zygote.md) without exec,
+which includes renderer processes,
+or `rr -p [PID]` for other processes.
+To find the process id you can either run `rr ps` after recording, or for
+renderer processes use `--vmodule=render_frame_impl=1` which will log a
+message on navigations. Example:
 
 ```
-$ rr record out/Debug/content_shell --disable-hang-monitor --no-sandbox --disable-seccomp-sandbox --disable-setuid-sandbox --vmodule=render_frame_impl=1 https://google.com/
+$ rr record out/Debug/content_shell --disable-hang-monitor --vmodule=render_frame_impl=1 https://www.google.com/
 rr: Saving execution to trace directory `...'.
 ...
 [128515:128515:0320/164124.768687:VERBOSE1:render_frame_impl.cc(4244)] Committed provisional load: https://www.google.com/
@@ -307,22 +353,22 @@ rr replay -f 128515
 ```
 
 If you want to call debugging functions from gdb that use `LOG()`,
-such as `showTree()` or `showLayoutTree()`,
-then you'll need to disable the printing of both timestamps
-([why?](https://github.com/rr-debugger/rr/issues/2829))
-and (for rr 4.5.0 or earlier) of thread IDs
-([why?](https://bugs.chromium.org/p/chromium/issues/detail?id=1193532)),
-by changing either
-[`SetLogItems`](https://source.chromium.org/search?q=SetLogItems&sq=&ss=chromium%2Fchromium%2Fsrc)
-or the appropriate caller of it.
+then those functions need to disable the printing of timestamps using
+[`SetLogItems`](https://source.chromium.org/search?q=SetLogItems&sq=&ss=chromium%2Fchromium%2Fsrc).
+See `LayoutObject::ShowLayoutObject()` for an example of this, and
+[issue 2829](https://github.com/rr-debugger/rr/issues/2829) for why it is needed.
 
-If rr doesn't work correctly,
-the rr developers are generally quite responsive to bug reports,
+If rr doesn't work correctly, the rr developers are generally quite responsive
+to [bug reports](https://github.com/rr-debugger/rr/issues),
 especially ones that have enough information so that
 they don't have to build Chromium.
 
 See Also:
+
 * [The Chromium Chronicle #13: Time-Travel Debugging with RR](https://developer.chrome.com/blog/chromium-chronicle-13/)
+* [@davidbaron demo using rr](https://twitter.com/davidbaron/status/1473761042278887433)
+* [@davidbaron demo using pernosco](https://twitter.com/davidbaron/status/1475836824409022469)
+(Googlers: see [go/pernosco](https://goto.google.com/pernosco))
 
 ### Graphical Debugging Aid for Chromium Views
 
@@ -599,3 +645,10 @@ If you need to test something with hardware accelerated compositing
 ## Mozilla Tips
 
 https://developer.mozilla.org/en/Debugging_Mozilla_on_Linux_FAQ
+
+## Google Chrome Symbol Files
+
+Symbols for Google Chrome's official builds are available from
+`https://edgedl.me.gvt1.com/chrome/linux/symbols/google-chrome-debug-info-linux64-${VERSION}.zip`
+where ${VERSION} is any version of Google Chrome that has recently been served
+to Stable, Beta, or Unstable (Dev) channels on Linux.

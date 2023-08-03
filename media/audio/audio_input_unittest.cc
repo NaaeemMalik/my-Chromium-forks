@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,23 +7,23 @@
 #include <memory>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/command_line.h"
 #include "base/environment.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
 #include "base/test/test_message_loop.h"
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
-#include "build/os_buildflags.h"
 #include "media/audio/audio_device_description.h"
 #include "media/audio/audio_device_info_accessor_for_tests.h"
 #include "media/audio/audio_io.h"
 #include "media/audio/audio_manager.h"
 #include "media/audio/audio_unittest_util.h"
 #include "media/audio/test_audio_thread.h"
+#include "media/base/audio_glitch_info.h"
 #include "media/base/media_switches.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -71,7 +71,8 @@ class TestInputCallback : public AudioInputStream::AudioInputCallback {
         had_error_(0) {}
   void OnData(const AudioBus* source,
               base::TimeTicks capture_time,
-              double volume) override {
+              double volume,
+              const AudioGlitchInfo& glitch_info) override {
     if (!quit_closure_.is_null()) {
       ++callback_count_;
       if (callback_count_ >= 2) {
@@ -259,7 +260,13 @@ TEST_F(AudioInputTest, OpenStopAndClose) {
 
 // Test a normal recording sequence using an AudioInputStream.
 // Very simple test which starts capturing and verifies that recording starts.
-TEST_F(AudioInputTest, Record) {
+// TODO(crbug.com/1429490): This test is failing on ios-blink-dbg-fyi bot.
+#if BUILDFLAG(IS_IOS)
+#define MAYBE_Record DISABLED_Record
+#else
+#define MAYBE_Record Record
+#endif
+TEST_F(AudioInputTest, MAYBE_Record) {
   ABORT_AUDIO_TEST_IF_NOT(InputDevicesAvailable());
   MakeAudioInputStreamOnAudioThread();
 

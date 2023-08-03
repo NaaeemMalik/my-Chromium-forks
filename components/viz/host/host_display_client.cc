@@ -1,17 +1,20 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/viz/host/host_display_client.h"
 
+#include "base/task/single_thread_task_runner.h"
+#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 #include "ui/accelerated_widget_mac/ca_layer_frame_sink.h"
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
+#include <utility>
 
 #include "components/viz/common/display/use_layered_window.h"
 #include "components/viz/host/layered_window_updater_impl.h"
@@ -21,7 +24,7 @@
 namespace viz {
 
 HostDisplayClient::HostDisplayClient(gfx::AcceleratedWidget widget) {
-#if defined(OS_APPLE) || defined(OS_WIN)
+#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN)
   widget_ = widget;
 #endif
 }
@@ -33,7 +36,7 @@ mojo::PendingRemote<mojom::DisplayClient> HostDisplayClient::GetBoundRemote(
   return receiver_.BindNewPipeAndPassRemote(task_runner);
 }
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 void HostDisplayClient::OnDisplayReceivedCALayerParams(
     const gfx::CALayerParams& ca_layer_params) {
   ui::CALayerFrameSink* ca_layer_frame_sink =
@@ -45,7 +48,7 @@ void HostDisplayClient::OnDisplayReceivedCALayerParams(
 }
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 void HostDisplayClient::CreateLayeredWindowUpdater(
     mojo::PendingReceiver<mojom::LayeredWindowUpdater> receiver) {
   if (!NeedsToUseLayerWindow(widget_)) {
@@ -56,11 +59,15 @@ void HostDisplayClient::CreateLayeredWindowUpdater(
   layered_window_updater_ =
       std::make_unique<LayeredWindowUpdaterImpl>(widget_, std::move(receiver));
 }
+void HostDisplayClient::AddChildWindowToBrowser(
+    gpu::SurfaceHandle child_window) {
+  NOTREACHED();
+}
 #endif
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
 void HostDisplayClient::DidCompleteSwapWithNewSize(const gfx::Size& size) {
   NOTIMPLEMENTED();
 }

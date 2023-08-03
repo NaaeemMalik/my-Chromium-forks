@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,7 +67,7 @@ class PreferenceServiceTest : public InProcessBrowserTest {
     EXPECT_TRUE(base::PathExists(original_pref_file_));
     EXPECT_TRUE(base::CopyFile(original_pref_file_, tmp_pref_file_));
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     // Make the copy writable.  On POSIX we assume the umask allows files
     // we create to be writable.
     EXPECT_TRUE(::SetFileAttributesW(tmp_pref_file_.value().c_str(),
@@ -81,7 +81,7 @@ class PreferenceServiceTest : public InProcessBrowserTest {
   base::FilePath tmp_pref_file_;
 };
 
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 // This test verifies that the window position from the prefs file is restored
 // when the app restores.  This doesn't really make sense on Linux, where
 // the window manager might fight with you over positioning.  However, we
@@ -100,30 +100,30 @@ IN_PROC_BROWSER_TEST_F(PreferenceServiceTest, Test) {
 
   ASSERT_TRUE(root.get());
   ASSERT_TRUE(root->is_dict());
-
-  base::DictionaryValue* root_dict =
-      static_cast<base::DictionaryValue*>(root.get());
+  base::Value::Dict& root_dict = root->GetDict();
 
   // Retrieve the screen rect for the launched window
   gfx::Rect bounds = browser()->window()->GetRestoredBounds();
 
   // Retrieve the expected rect values from "Preferences"
   std::string kBrowserWindowPlacement(prefs::kBrowserWindowPlacement);
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".bottom"),
-              Optional(bounds.y() + bounds.height()));
+  EXPECT_THAT(
+      root_dict.FindIntByDottedPath(kBrowserWindowPlacement + ".bottom"),
+      Optional(bounds.y() + bounds.height()));
 
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".top"),
+  EXPECT_THAT(root_dict.FindIntByDottedPath(kBrowserWindowPlacement + ".top"),
               Optional(bounds.y()));
 
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".left"),
+  EXPECT_THAT(root_dict.FindIntByDottedPath(kBrowserWindowPlacement + ".left"),
               Optional(bounds.x()));
 
-  EXPECT_THAT(root_dict->FindIntPath(kBrowserWindowPlacement + ".right"),
+  EXPECT_THAT(root_dict.FindIntByDottedPath(kBrowserWindowPlacement + ".right"),
               Optional(bounds.x() + bounds.width()));
 
   // Find if launched window is maximized.
   bool is_window_maximized = browser()->window()->IsMaximized();
-  EXPECT_THAT(root_dict->FindBoolPath(kBrowserWindowPlacement + ".maximized"),
-              Optional(is_window_maximized));
+  EXPECT_THAT(
+      root_dict.FindBoolByDottedPath(kBrowserWindowPlacement + ".maximized"),
+      Optional(is_window_maximized));
 }
 #endif

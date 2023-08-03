@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,12 @@
 #include "base/json/values_util.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "components/safe_browsing/core/browser/db/hit_report.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 
 namespace {
@@ -125,21 +127,11 @@ void SafeBrowsingMetricsCollector::LogDailyEventMetrics() {
     if (IsBypassEventType(event_type)) {
       int bypass_count = GetEventCountSince(user_state, event_type,
                                             base::Time::Now() - base::Days(28));
-      base::UmaHistogramCounts100("SafeBrowsing.Daily.BypassCountLast28Days." +
-                                      GetUserStateMetricSuffix(user_state) +
-                                      "." +
-                                      GetEventTypeMetricSuffix(event_type),
-                                  bypass_count);
       total_bypass_count += bypass_count;
     }
     if (IsSecuritySensitiveEventType(event_type)) {
       int security_sensitive_event_count = GetEventCountSince(
           user_state, event_type, base::Time::Now() - base::Days(28));
-      base::UmaHistogramCounts100(
-          "SafeBrowsing.Daily.SecuritySensitiveCountLast28Days." +
-              GetUserStateMetricSuffix(user_state) + "." +
-              GetEventTypeMetricSuffix(event_type),
-          security_sensitive_event_count);
       total_security_sensitive_event_count += security_sensitive_event_count;
     }
   }
@@ -154,24 +146,23 @@ void SafeBrowsingMetricsCollector::LogDailyEventMetrics() {
 }
 
 void SafeBrowsingMetricsCollector::RemoveOldEventsFromPref() {
-  DictionaryPrefUpdate update(pref_service_,
+  ScopedDictPrefUpdate update(pref_service_,
                               prefs::kSafeBrowsingEventTimestamps);
-  base::DictionaryValue* mutable_state_dict = update.Get();
-  bool is_pref_valid = mutable_state_dict->is_dict();
-  base::UmaHistogramBoolean("SafeBrowsing.MetricsCollector.IsPrefValid",
-                            is_pref_valid);
-  if (!is_pref_valid) {
-    return;
-  }
+  base::Value::Dict& mutable_state_dict = update.Get();
+  size_t total_size = 0;
 
-  for (auto state_map : mutable_state_dict->DictItems()) {
-    for (auto event_map : state_map.second.DictItems()) {
-      event_map.second.EraseListValueIf([&](const auto& timestamp) {
+  for (auto state_map : mutable_state_dict) {
+    for (auto event_map : state_map.second.GetDict()) {
+      total_size += event_map.second.GetList().size();
+      event_map.second.GetList().EraseIf([&](const auto& timestamp) {
         return base::Time::Now() - PrefValueToTime(timestamp) >
                base::Days(kEventMaxDurationDay);
       });
     }
   }
+
+  base::UmaHistogramCounts1000(
+      "SafeBrowsing.MetricsCollectorEventCountAtCleanup", total_size);
 }
 
 void SafeBrowsingMetricsCollector::AddSafeBrowsingEventToPref(
@@ -183,6 +174,27 @@ void SafeBrowsingMetricsCollector::AddSafeBrowsingEventToPref(
   }
 
   AddSafeBrowsingEventAndUserStateToPref(GetUserState(), event_type);
+}
+
+void SafeBrowsingMetricsCollector::AddBypassEventToPref(
+    ThreatSource threat_source) {
+  EventType event;
+  switch (threat_source) {
+    case ThreatSource::LOCAL_PVER4:
+    case ThreatSource::REMOTE:
+      event = EventType::DATABASE_INTERSTITIAL_BYPASS;
+      break;
+    case ThreatSource::CLIENT_SIDE_DETECTION:
+      event = EventType::CSD_INTERSTITIAL_BYPASS;
+      break;
+    case ThreatSource::REAL_TIME_CHECK:
+      event = EventType::REAL_TIME_INTERSTITIAL_BYPASS;
+      break;
+    default:
+      NOTREACHED() << "Unexpected threat source.";
+      event = EventType::DATABASE_INTERSTITIAL_BYPASS;
+  }
+  AddSafeBrowsingEventToPref(event);
 }
 
 absl::optional<base::Time>
@@ -218,28 +230,17 @@ SafeBrowsingMetricsCollector::GetLatestSecuritySensitiveEventTimestamp() {
 void SafeBrowsingMetricsCollector::AddSafeBrowsingEventAndUserStateToPref(
     UserState user_state,
     EventType event_type) {
-  DictionaryPrefUpdate update(pref_service_,
+  ScopedDictPrefUpdate update(pref_service_,
                               prefs::kSafeBrowsingEventTimestamps);
-  base::DictionaryValue* mutable_state_dict = update.Get();
-
-  base::Value* event_dict =
-      mutable_state_dict->FindDictKey(UserStateToPrefKey(user_state));
-  if (!event_dict) {
-    event_dict =
-        mutable_state_dict->SetKey(UserStateToPrefKey(user_state),
-                                   base::Value(base::Value::Type::DICTIONARY));
-  }
-
-  base::Value* timestamps =
-      event_dict->FindListKey(EventTypeToPrefKey(event_type));
-  if (!timestamps) {
-    timestamps = event_dict->SetKey(EventTypeToPrefKey(event_type),
-                                    base::Value(base::Value::Type::LIST));
-  }
+  base::Value::Dict& mutable_state_dict = update.Get();
+  base::Value::Dict* event_dict =
+      mutable_state_dict.EnsureDict(UserStateToPrefKey(user_state));
+  base::Value::List* timestamps =
+      event_dict->EnsureList(EventTypeToPrefKey(event_type));
 
   // Remove the oldest timestamp if the length of the timestamps hits the limit.
-  while (timestamps->GetList().size() >= kTimestampsMaxLength) {
-    timestamps->EraseListIter(timestamps->GetList().begin());
+  while (timestamps->size() >= kTimestampsMaxLength) {
+    timestamps->erase(timestamps->begin());
   }
 
   timestamps->Append(TimeToPrefValue(base::Time::Now()));
@@ -261,29 +262,31 @@ void SafeBrowsingMetricsCollector::OnEnhancedProtectionPrefChanged() {
   }
 }
 
-const base::Value* SafeBrowsingMetricsCollector::GetSafeBrowsingEventDictionary(
+const base::Value::Dict*
+SafeBrowsingMetricsCollector::GetSafeBrowsingEventDictionary(
     UserState user_state) {
-  const base::DictionaryValue* state_dict =
-      pref_service_->GetDictionary(prefs::kSafeBrowsingEventTimestamps);
+  const base::Value::Dict& state_dict =
+      pref_service_->GetDict(prefs::kSafeBrowsingEventTimestamps);
 
-  return state_dict->FindDictKey(UserStateToPrefKey(user_state));
+  return state_dict.FindDict(UserStateToPrefKey(user_state));
 }
 
 absl::optional<SafeBrowsingMetricsCollector::Event>
 SafeBrowsingMetricsCollector::GetLatestEventFromEventType(
     UserState user_state,
     EventType event_type) {
-  const base::Value* event_dict = GetSafeBrowsingEventDictionary(user_state);
+  const base::Value::Dict* event_dict =
+      GetSafeBrowsingEventDictionary(user_state);
 
   if (!event_dict) {
     return absl::nullopt;
   }
 
-  const base::Value* timestamps =
-      event_dict->FindListKey(EventTypeToPrefKey(event_type));
+  const base::Value::List* timestamps =
+      event_dict->FindList(EventTypeToPrefKey(event_type));
 
-  if (timestamps && timestamps->GetList().size() > 0) {
-    base::Time time = PrefValueToTime(timestamps->GetList().back());
+  if (timestamps && timestamps->size() > 0) {
+    base::Time time = PrefValueToTime(timestamps->back());
     return Event(event_type, time);
   }
 
@@ -335,29 +338,10 @@ void SafeBrowsingMetricsCollector::LogEnhancedProtectionDisabledMetrics() {
 
 void SafeBrowsingMetricsCollector::
     LogThrottledEnhancedProtectionDisabledMetrics() {
-  const base::Value* event_dict =
+  const base::Value::Dict* event_dict =
       GetSafeBrowsingEventDictionary(UserState::kEnhancedProtection);
   if (!event_dict) {
     return;
-  }
-
-  for (int event_type_int = 0; event_type_int <= EventType::kMaxValue;
-       event_type_int += 1) {
-    EventType event_type = static_cast<EventType>(event_type_int);
-    if (IsBypassEventType(event_type)) {
-      base::UmaHistogramCounts100(
-          "SafeBrowsing.EsbDisabled.BypassCountLast28Days." +
-              GetEventTypeMetricSuffix(event_type),
-          GetEventCountSince(UserState::kEnhancedProtection, event_type,
-                             base::Time::Now() - base::Days(28)));
-    }
-    if (IsSecuritySensitiveEventType(event_type)) {
-      base::UmaHistogramCounts100(
-          "SafeBrowsing.EsbDisabled.SecuritySensitiveCountLast28Days." +
-              GetEventTypeMetricSuffix(event_type),
-          GetEventCountSince(UserState::kEnhancedProtection, event_type,
-                             base::Time::Now() - base::Days(28)));
-    }
   }
 
   absl::optional<SafeBrowsingMetricsCollector::Event> latest_bypass_event =
@@ -369,12 +353,6 @@ void SafeBrowsingMetricsCollector::
     base::UmaHistogramEnumeration(
         "SafeBrowsing.EsbDisabled.LastBypassEventType",
         latest_bypass_event->type);
-    base::UmaHistogramCustomTimes(
-        "SafeBrowsing.EsbDisabled.LastBypassEventInterval." +
-            GetEventTypeMetricSuffix(latest_bypass_event->type),
-        /* sample */ base::Time::Now() - latest_bypass_event->timestamp,
-        /* min */ base::Seconds(1),
-        /* max */ base::Days(1), /* buckets */ 50);
   }
 
   absl::optional<SafeBrowsingMetricsCollector::Event>
@@ -386,13 +364,6 @@ void SafeBrowsingMetricsCollector::
     base::UmaHistogramEnumeration(
         "SafeBrowsing.EsbDisabled.LastSecuritySensitiveEventType",
         latest_security_sensitive_event->type);
-    base::UmaHistogramCustomTimes(
-        "SafeBrowsing.EsbDisabled.LastSecuritySensitiveEventInterval." +
-            GetEventTypeMetricSuffix(latest_security_sensitive_event->type),
-        /* sample */ base::Time::Now() -
-            latest_security_sensitive_event->timestamp,
-        /* min */ base::Seconds(1),
-        /* max */ base::Days(1), /* buckets */ 50);
   }
 
   const absl::optional<Event> latest_enabled_event =
@@ -409,21 +380,20 @@ void SafeBrowsingMetricsCollector::
 int SafeBrowsingMetricsCollector::GetEventCountSince(UserState user_state,
                                                      EventType event_type,
                                                      base::Time since_time) {
-  const base::Value* event_dict = GetSafeBrowsingEventDictionary(user_state);
+  const base::Value::Dict* event_dict =
+      GetSafeBrowsingEventDictionary(user_state);
   if (!event_dict) {
     return 0;
   }
-  const base::Value* timestamps =
-      event_dict->FindListKey(EventTypeToPrefKey(event_type));
+  const base::Value::List* timestamps =
+      event_dict->FindList(EventTypeToPrefKey(event_type));
   if (!timestamps) {
     return 0;
   }
 
-  return std::count_if(timestamps->GetList().begin(),
-                       timestamps->GetList().end(),
-                       [&](const base::Value& timestamp) {
-                         return PrefValueToTime(timestamp) > since_time;
-                       });
+  return base::ranges::count_if(*timestamps, [&](const base::Value& timestamp) {
+    return PrefValueToTime(timestamp) > since_time;
+  });
 }
 
 UserState SafeBrowsingMetricsCollector::GetUserState() {
@@ -534,8 +504,10 @@ std::string SafeBrowsingMetricsCollector::GetTimesDisabledSuffix() {
                                   EventType::USER_STATE_ENABLED);
 
   if (!latest_enabled_event) {
-    // this code path could be possible if ESB was enabled via policy but
-    // later disabled by the user, since policy enables/disables are not tracked
+    // This code path could be possible if ESB was enabled via policy but
+    // later disabled by the user, since policy enables/disables are not
+    // tracked. It's also possible if it's been longer than kEventMaxDurationDay
+    // days since the latest enabled event.
     return "NeverEnabled";
   }
   const auto hours_since_enabled =

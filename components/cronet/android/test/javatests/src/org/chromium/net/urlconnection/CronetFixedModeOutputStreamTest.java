@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,7 @@ import static org.junit.Assert.fail;
 
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.support.test.runner.AndroidJUnit4;
-
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import org.hamcrest.Description;
@@ -25,7 +24,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetEngine;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
@@ -70,7 +68,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testConnectBeforeWrite() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -90,7 +87,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     // Regression test for crbug.com/687600.
     public void testZeroLengthWriteWithNoResponseBody() throws Exception {
@@ -108,7 +104,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testWriteAfterRequestFailed() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -139,7 +134,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testGetResponseAfterWriteFailed() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -185,7 +179,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testFixedLengthStreamingModeZeroContentLength() throws Exception {
         // Check content length is set.
@@ -215,7 +208,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testWriteLessThanContentLength() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -238,7 +230,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testWriteMoreThanContentLength() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -265,7 +256,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testWriteMoreThanContentLengthWriteOneByte() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -298,7 +288,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testFixedLengthStreamingMode() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -317,7 +306,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testFixedLengthStreamingModeWriteOneByte() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -339,7 +327,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testFixedLengthStreamingModeLargeData() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -373,7 +360,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testFixedLengthStreamingModeLargeDataWriteOneByte() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -396,7 +382,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunCronetHttpURLConnection
     public void testJavaBufferSizeLargerThanNativeBufferSize() throws Exception {
         // Set an internal buffer of size larger than the buffer size used
@@ -418,7 +403,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @CompareDefaultWithCronet
     public void testOneMassiveWrite() throws Exception {
         URL url = new URL(NativeTestServer.getEchoBodyURL());
@@ -441,23 +425,16 @@ public class CronetFixedModeOutputStreamTest {
     private static class CauseMatcher extends TypeSafeMatcher<Throwable> {
         private final Class<? extends Throwable> mType;
         private final String mExpectedMessage;
-        private final Class<? extends Throwable> mInnerCauseType;
-        private final String mInnerCauseExpectedMessage;
 
-        public CauseMatcher(Class<? extends Throwable> type, String expectedMessage,
-                Class<? extends Throwable> innerCauseType, String innerCauseExpectedMessage) {
+        public CauseMatcher(Class<? extends Throwable> type, String expectedMessage) {
             this.mType = type;
             this.mExpectedMessage = expectedMessage;
-            this.mInnerCauseType = innerCauseType;
-            this.mInnerCauseExpectedMessage = innerCauseExpectedMessage;
         }
 
         @Override
         protected boolean matchesSafely(Throwable item) {
             return item.getClass().isAssignableFrom(mType)
-                    && item.getMessage().equals(mExpectedMessage)
-                    && item.getCause().getClass().isAssignableFrom(mInnerCauseType)
-                    && item.getCause().getMessage().equals(mInnerCauseExpectedMessage);
+                    && item.getMessage().equals(mExpectedMessage);
         }
         @Override
         public void describeTo(Description description) {}
@@ -465,7 +442,6 @@ public class CronetFixedModeOutputStreamTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunCronetHttpURLConnection
     public void testRewindWithCronet() throws Exception {
         assertFalse(mTestRule.testingSystemHttpURLConnection());
@@ -476,11 +452,10 @@ public class CronetFixedModeOutputStreamTest {
         connection.setDoOutput(true);
         connection.setRequestMethod("POST");
         connection.setFixedLengthStreamingMode(TestUtil.UPLOAD_DATA.length);
-        thrown.expectMessage("Cronet Test failed.");
-        thrown.expectCause(instanceOf(CallbackExceptionImpl.class));
-        thrown.expectCause(new CauseMatcher(CallbackExceptionImpl.class,
-                "Exception received from UploadDataProvider", HttpRetryException.class,
-                "Cannot retry streamed Http body"));
+        thrown.expect(instanceOf(CallbackExceptionImpl.class));
+        thrown.expectMessage("Exception received from UploadDataProvider");
+        thrown.expectCause(
+                new CauseMatcher(HttpRetryException.class, "Cannot retry streamed Http body"));
         OutputStream out = connection.getOutputStream();
         out.write(TestUtil.UPLOAD_DATA);
         connection.getResponseCode();

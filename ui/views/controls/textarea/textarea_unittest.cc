@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -192,11 +192,11 @@ TEST_F(TextareaTest, LineSelection) {
 }
 
 // Disabled on Mac for crbug.com/1171826.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_MoveUpDownAndModifySelection DISABLED_MoveUpDownAndModifySelection
 #else
 #define MAYBE_MoveUpDownAndModifySelection MoveUpDownAndModifySelection
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 TEST_F(TextareaTest, MAYBE_MoveUpDownAndModifySelection) {
   textarea_->SetText(u"12\n34567 89");
   textarea_->SetEditableSelectionRange(gfx::Range(6));

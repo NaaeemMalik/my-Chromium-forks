@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ void SetSegmentDivPosition(blink::HTMLDivElement* segment,
   // then it will be a nullptr so we should assume zero.
   blink::LayoutBox* box = segment->GetLayoutBox();
   if (box) {
-    current_width = box->PixelSnappedWidth();
+    current_width = box->LogicalWidth().ToInt();
     current_left = box->LogicalLeft().ToInt();
   }
 
@@ -103,7 +103,8 @@ Element& MediaControlSliderElement::GetTrackElement() {
   // #shadow-root
   //   - div
   //     - div::-webkit-slider-runnable-track#track
-  Element* track = GetShadowRoot()->getElementById(AtomicString("track"));
+  Element* track =
+      GetShadowRoot()->getElementById(shadow_element_names::kIdSliderTrack);
   DCHECK(track);
   return *track;
 }

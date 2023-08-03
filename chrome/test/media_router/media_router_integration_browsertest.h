@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,12 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/media/router/providers/test/test_media_route_provider.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/media_router/media_cast_mode.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -41,11 +40,19 @@ inline std::string PrintToString(UiForBrowserTest val) {
   }
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+// Global media controls aren't supported in lacros.
+#define INSTANTIATE_MEDIA_ROUTER_INTEGRATION_BROWER_TEST_SUITE(name) \
+  INSTANTIATE_TEST_SUITE_P(/* no prefix */, name,                    \
+                           testing::Values(UiForBrowserTest::kCast), \
+                           testing::PrintToStringParamName())
+#else
 #define INSTANTIATE_MEDIA_ROUTER_INTEGRATION_BROWER_TEST_SUITE(name)    \
   INSTANTIATE_TEST_SUITE_P(                                             \
       /* no prefix */, name,                                            \
       testing::Values(UiForBrowserTest::kCast, UiForBrowserTest::kGmc), \
       testing::PrintToStringParamName())
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // Macro used to skip tests that are only supported with the Cast dialog.
 //
@@ -64,6 +71,7 @@ class MediaRouterIntegrationBrowserTest
   ~MediaRouterIntegrationBrowserTest() override;
 
   // InProcessBrowserTest Overrides
+  void SetUpCommandLine(base::CommandLine* command_line) override;
   void SetUp() override;
 
  protected:
@@ -87,18 +95,6 @@ class MediaRouterIntegrationBrowserTest
   static void ExecuteJavaScriptAPI(content::WebContents* web_contents,
                                    const std::string& script);
 
-  static int ExecuteScriptAndExtractInt(
-      const content::ToRenderFrameHost& adapter,
-      const std::string& script);
-
-  static std::string ExecuteScriptAndExtractString(
-      const content::ToRenderFrameHost& adapter,
-      const std::string& script);
-
-  static bool ExecuteScriptAndExtractBool(
-      const content::ToRenderFrameHost& adapter,
-      const std::string& script);
-
   static void ExecuteScript(const content::ToRenderFrameHost& adapter,
                             const std::string& script);
 
@@ -116,17 +112,6 @@ class MediaRouterIntegrationBrowserTest
   // |should_succeed| is true.
   virtual content::WebContents* StartSessionWithTestPageAndChooseSink();
 
-  // Opens the MR dialog and clicks through the motions of casting a
-  // file. Sets up the route provider to succeed or otherwise based on
-  // |route_success|. Note: The system dialog portion has to be mocked
-  // out as it cannot be simulated.
-  void OpenDialogAndCastFile();
-
-  // Opens the MR dialog and clicks through the motions of choosing to
-  // cast file, file returns an issue. Note: The system dialog portion
-  // has to be mocked out as it cannot be simulated.
-  void OpenDialogAndCastFileFails();
-
   void OpenTestPage(base::FilePath::StringPieceType file);
   void OpenTestPageInNewTab(base::FilePath::StringPieceType file);
   virtual GURL GetTestPageUrl(const base::FilePath& full_path);
@@ -134,8 +119,6 @@ class MediaRouterIntegrationBrowserTest
   void SetTestData(base::FilePath::StringPieceType test_data_file);
 
   bool IsRouteCreatedOnUI();
-
-  bool IsRouteClosedOnUI();
 
   // Returns true if there is an issue showing in the UI.
   bool IsUIShowingIssue();
@@ -186,8 +169,14 @@ class MediaRouterIntegrationBrowserTest
   // Wait for a specific time.
   void Wait(base::TimeDelta timeout);
 
+  void WaitUntilNoRoutes(content::WebContents* web_contents);
+
+  // Returns whether actual media route providers (as opposed to
+  // TestMediaRouteProvider) should be loaded.
+  virtual bool RequiresMediaRouteProviders() const;
+
   // Test API for manipulating the UI.
-  raw_ptr<MediaRouterUiForTestBase> test_ui_ = nullptr;
+  std::unique_ptr<MediaRouterUiForTestBase> test_ui_;
 
   // Enabled features.
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -222,7 +211,7 @@ class MediaRouterIntegrationIncognitoBrowserTest
   Browser* browser() override;
 
  private:
-  raw_ptr<Browser> incognito_browser_ = nullptr;
+  raw_ptr<Browser, DanglingUntriaged> incognito_browser_ = nullptr;
 };
 
 }  // namespace media_router

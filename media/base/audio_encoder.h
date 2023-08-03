@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "media/base/audio_bus.h"
 #include "media/base/audio_codecs.h"
 #include "media/base/audio_parameters.h"
+#include "media/base/encoder_status.h"
 #include "media/base/media_export.h"
-#include "media/base/status.h"
 #include "media/base/timestamp_constants.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
@@ -61,6 +61,19 @@ struct MEDIA_EXPORT EncodedAudioBuffer {
 // Defines an interface for audio encoders.
 class MEDIA_EXPORT AudioEncoder {
  public:
+  struct MEDIA_EXPORT OpusOptions {
+    base::TimeDelta frame_duration;
+    unsigned int complexity;
+    unsigned int packet_loss_perc;
+    bool use_in_band_fec;
+    bool use_dtx;
+  };
+
+  enum class AacOutputFormat { AAC, ADTS };
+  struct MEDIA_EXPORT AacOptions {
+    AacOutputFormat format;
+  };
+
   struct MEDIA_EXPORT Options {
     Options();
     Options(const Options&);
@@ -73,6 +86,9 @@ class MEDIA_EXPORT AudioEncoder {
     int channels;
 
     int sample_rate;
+
+    absl::optional<OpusOptions> opus;
+    absl::optional<AacOptions> aac;
   };
 
   // A sequence of codec specific bytes, commonly known as extradata.
@@ -85,7 +101,7 @@ class MEDIA_EXPORT AudioEncoder {
                                    absl::optional<CodecDescription>)>;
 
   // Signature of the callback to report errors.
-  using StatusCB = base::OnceCallback<void(Status error)>;
+  using EncoderStatusCB = base::OnceCallback<void(EncoderStatus error)>;
 
   AudioEncoder();
   AudioEncoder(const AudioEncoder&) = delete;
@@ -99,7 +115,7 @@ class MEDIA_EXPORT AudioEncoder {
   // No AudioEncoder calls should be made before |done_cb| is executed.
   virtual void Initialize(const Options& options,
                           OutputCB output_cb,
-                          StatusCB done_cb) = 0;
+                          EncoderStatusCB done_cb) = 0;
 
   // Requests contents of |audio_bus| to be encoded.
   // |capture_time| is a media time at the end of the audio piece in the
@@ -115,14 +131,27 @@ class MEDIA_EXPORT AudioEncoder {
   // including before Encode() returns.
   virtual void Encode(std::unique_ptr<AudioBus> audio_bus,
                       base::TimeTicks capture_time,
-                      StatusCB done_cb) = 0;
+                      EncoderStatusCB done_cb) = 0;
 
   // Some encoders may choose to buffer audio frames before they encode them.
   // Requests all outputs for already encoded frames to be
   // produced via |output_cb| and calls |done_cb| after that.
-  virtual void Flush(StatusCB done_cb) = 0;
+  virtual void Flush(EncoderStatusCB done_cb) = 0;
+
+  // Normally AudioEncoder implementations aren't supposed to call OutputCB and
+  // EncoderStatusCB directly from inside any of AudioEncoder's methods.
+  // This method tells AudioEncoder that all callbacks can be called directly
+  // from within its methods. It saves extra thread hops if it's known that
+  // all callbacks already point to a task runner different from
+  // the current one.
+  virtual void DisablePostedCallbacks();
 
  protected:
+  OutputCB BindCallbackToCurrentLoopIfNeeded(OutputCB&& callback);
+  EncoderStatusCB BindCallbackToCurrentLoopIfNeeded(EncoderStatusCB&& callback);
+
+  bool post_callbacks_ = true;
+
   Options options_;
 
   OutputCB output_cb_;

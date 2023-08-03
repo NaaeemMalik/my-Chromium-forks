@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,7 @@
 #include "components/sync/engine/model_type_connector.h"
 #include "components/sync/engine/nudge_handler.h"
 #include "components/sync/engine/sync_encryption_handler.h"
+#include "components/sync/engine/update_handler.h"
 
 namespace syncer {
 
@@ -59,7 +60,6 @@ class ModelTypeRegistry : public ModelTypeConnector,
   void OnPassphraseAccepted() override;
   void OnTrustedVaultKeyRequired() override;
   void OnTrustedVaultKeyAccepted() override;
-  void OnBootstrapTokenUpdated(const std::string& bootstrap_token) override;
   void OnEncryptedTypesChanged(ModelTypeSet encrypted_types,
                                bool encrypt_everything) override;
   void OnCryptographerStateChanged(Cryptographer* cryptographer,
@@ -78,8 +78,10 @@ class ModelTypeRegistry : public ModelTypeConnector,
   // applied.
   ModelTypeSet GetInitialSyncEndedTypes() const;
 
-  // Returns the update handler for |type|.
+  // Returns the update handler for |type|. If UpdateHandler of |type| doesn't
+  // exist, returns nullptr.
   const UpdateHandler* GetUpdateHandler(ModelType type) const;
+  UpdateHandler* GetMutableUpdateHandler(ModelType type);
 
   // Simple getters.
   UpdateHandlerMap* update_handler_map();

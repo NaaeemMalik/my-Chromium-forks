@@ -1,12 +1,12 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
 import 'gtx://resources/cr_elements/cr_toast/cr_toast.js';
-import 'gtx://resources/cr_elements/icons.m.js';
-import 'gtx://resources/cr_elements/shared_vars_css.m.js';
+import 'gtx://resources/cr_elements/icons.html.js';
+import 'gtx://resources/cr_elements/cr_shared_vars.css.js';
 import 'gtx://resources/mojo/mojo/public/mojom/base/big_buffer.mojom-lite.js';
 import 'gtx://resources/mojo/mojo/public/mojom/base/string16.mojom-lite.js';
 import 'gtx://resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-lite.js';
@@ -28,10 +28,11 @@ import './scanning_fonts_css.js';
 import './scanning_shared_css.js';
 import './source_select.js';
 
-import {CrContainerShadowBehavior} from 'gtx://resources/cr_elements/cr_container_shadow_behavior.m.js';
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {assert} from 'gtx://resources/ash/common/assert.js';
+import {CrContainerShadowBehavior} from 'gtx://resources/ash/common/cr_container_shadow_behavior.js';
+import {I18nBehavior} from 'gtx://resources/ash/common/i18n_behavior.js';
+import {loadTimeData} from 'gtx://resources/ash/common/load_time_data.m.js';
+import {startColorChangeUpdater} from 'gtx://resources/cr_components/color_change_listener/colors_css_updater.js';
 import {afterNextRender, html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {getScanService} from './mojo_interface_provider.js';
@@ -315,14 +316,6 @@ Polymer({
       value: 0,
     },
 
-    /** @private {boolean} */
-    scanAppMultiPageScanEnabled_: {
-      type: Boolean,
-      value: function() {
-        return loadTimeData.getBoolean('scanAppMultiPageScanEnabled');
-      }
-    },
-
     /** {boolean} */
     multiPageScanChecked: Boolean,
 
@@ -343,7 +336,7 @@ Polymer({
     showMultiPageCheckbox_: {
       type: Boolean,
       computed: 'computeShowMultiPageCheckbox_(showScanSettings_, ' +
-          'selectedSource, selectedFileType, scanAppMultiPageScanEnabled_)',
+          'selectedSource, selectedFileType)',
       reflectToAttribute: true,
     },
 
@@ -406,6 +399,18 @@ Polymer({
         /*@type {!{scanners: !ScannerArr}}*/ (response) => {
           this.onScannersReceived_(response);
         });
+  },
+
+  /** @override */
+  attached() {
+    if (loadTimeData.getBoolean('isJellyEnabledForScanningApp')) {
+      // TODO(b/276493795): After the Jelly experiment is launched, replace
+      // `cros_styles.css` with `theme/colors.css` directly in `index.html`.
+      document.querySelector('link[href*=\'cros_styles.css\']')
+          ?.setAttribute('href', 'gtx://theme/colors.css?sets=legacy,sys');
+      document.body.classList.add('jelly-enabled');
+      startColorChangeUpdater();
+    }
   },
 
   /** @override */
@@ -1254,8 +1259,8 @@ Polymer({
    * @private
    */
   computeShowMultiPageCheckbox_() {
-    return this.scanAppMultiPageScanEnabled_ && this.showScanSettings_ &&
-        this.isPDFSelected_() && this.isFlatbedSelected_();
+    return this.showScanSettings_ && this.isPDFSelected_() &&
+        this.isFlatbedSelected_();
   },
 
   /**
@@ -1286,8 +1291,6 @@ Polymer({
 
   /** @private */
   onIsMultiPageScanChange_() {
-    assert(!this.isMultiPageScan_ || this.scanAppMultiPageScanEnabled_);
-
     const nextPageNum = this.isMultiPageScan_ ? 1 : 0;
     this.browserProxy_.getPluralString('scanButtonText', nextPageNum)
         .then(

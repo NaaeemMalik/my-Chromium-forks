@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,12 @@
 #include <vector>
 
 #include "base/auto_reset.h"
-#include "base/bind.h"
-#include "base/cxx17_backports.h"
 #include "base/format_macros.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/task_environment.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/system/data_pipe_utils.h"
@@ -27,9 +25,12 @@
 #include "net/base/net_errors.h"
 #include "net/base/test_completion_callback.h"
 #include "net/http/http_response_headers.h"
+#include "net/http/http_util.h"
 #include "net/log/net_log_source.h"
 #include "net/test/gtest_util.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
+#include "net/url_request/url_request_context.h"
+#include "net/url_request/url_request_context_builder.h"
 #include "net/url_request/url_request_test_util.h"
 #include "net/websockets/websocket_frame.h"
 #include "services/network/public/cpp/server/http_connection.h"
@@ -44,7 +45,10 @@ namespace {
 
 class TestHttpClient {
  public:
-  TestHttpClient() : factory_(nullptr, &url_request_context_) {}
+  TestHttpClient()
+      : url_request_context_(
+            net::CreateTestURLRequestContextBuilder()->Build()),
+        factory_(nullptr, url_request_context_.get()) {}
 
   int ConnectAndWait(const net::IPEndPoint& address) {
     net::AddressList addresses(address);
@@ -145,7 +149,7 @@ class TestHttpClient {
     return body_size >= headers->GetContentLength();
   }
 
-  net::TestURLRequestContext url_request_context_;
+  std::unique_ptr<net::URLRequestContext> url_request_context_;
   network::SocketFactory factory_;
   scoped_refptr<net::IOBufferWithSize> read_buffer_;
   scoped_refptr<net::DrainableIOBuffer> write_buffer_;
@@ -158,9 +162,7 @@ class TestHttpClient {
 
 }  // namespace
 
-namespace network {
-
-namespace server {
+namespace network::server {
 
 class HttpServerTest : public testing::Test, public HttpServer::Delegate {
  public:
@@ -168,13 +170,17 @@ class HttpServerTest : public testing::Test, public HttpServer::Delegate {
       : task_environment_(base::test::TaskEnvironment::MainThreadType::IO),
         quit_after_request_count_(0),
         quit_on_close_connection_(-1),
-        factory_(nullptr, &url_request_context_) {}
+        url_request_context_(
+            net::CreateTestURLRequestContextBuilder()->Build()),
+        factory_(nullptr, url_request_context_.get()) {}
 
   void SetUp() override {
     int net_error = net::ERR_FAILED;
     base::RunLoop run_loop;
+    auto options = network::mojom::TCPServerSocketOptions::New();
+    options->backlog = 1;
     factory_.CreateTCPServerSocket(
-        net::IPEndPoint(net::IPAddress::IPv6Localhost(), 0), 1 /* backlog */,
+        net::IPEndPoint(net::IPAddress::IPv6Localhost(), 0), std::move(options),
         TRAFFIC_ANNOTATION_FOR_TESTS,
         server_socket_.InitWithNewPipeAndPassReceiver(),
         base::BindOnce(
@@ -204,7 +210,7 @@ class HttpServerTest : public testing::Test, public HttpServer::Delegate {
 
   void OnHttpRequest(int connection_id,
                      const HttpServerRequestInfo& info) override {
-    requests_.push_back(std::make_pair(info, connection_id));
+    requests_.emplace_back(info, connection_id);
     if (requests_.size() == quit_after_request_count_) {
       run_loop_quit_func_.Run();
     }
@@ -301,7 +307,7 @@ class HttpServerTest : public testing::Test, public HttpServer::Delegate {
   std::unique_ptr<base::RunLoop> quit_on_create_loop_;
   int quit_on_close_connection_;
 
-  net::TestURLRequestContext url_request_context_;
+  std::unique_ptr<net::URLRequestContext> url_request_context_;
   SocketFactory factory_;
   mojo::PendingRemote<mojom::TCPServerSocket> server_socket_;
 };
@@ -417,7 +423,7 @@ TEST_F(HttpServerTest, RequestWithHeaders) {
       {"HeaderWithNonASCII", ":  ", "\xf7"},
   };
   std::string headers;
-  for (size_t i = 0; i < base::size(kHeaders); ++i) {
+  for (size_t i = 0; i < std::size(kHeaders); ++i) {
     headers +=
         std::string(kHeaders[i][0]) + kHeaders[i][1] + kHeaders[i][2] + "\r\n";
   }
@@ -426,7 +432,7 @@ TEST_F(HttpServerTest, RequestWithHeaders) {
   RunUntilRequestsReceived(1);
   ASSERT_EQ("", GetRequest(0).data);
 
-  for (size_t i = 0; i < base::size(kHeaders); ++i) {
+  for (size_t i = 0; i < std::size(kHeaders); ++i) {
     std::string field = base::ToLowerASCII(std::string(kHeaders[i][0]));
     std::string value = kHeaders[i][2];
     ASSERT_EQ(1u, GetRequest(0).headers.count(field)) << field;
@@ -443,7 +449,7 @@ TEST_F(HttpServerTest, RequestWithDuplicateHeaders) {
       {"LastHeader", ": ", "5"},
   };
   std::string headers;
-  for (size_t i = 0; i < base::size(kHeaders); ++i) {
+  for (size_t i = 0; i < std::size(kHeaders); ++i) {
     headers +=
         std::string(kHeaders[i][0]) + kHeaders[i][1] + kHeaders[i][2] + "\r\n";
   }
@@ -452,7 +458,7 @@ TEST_F(HttpServerTest, RequestWithDuplicateHeaders) {
   RunUntilRequestsReceived(1);
   ASSERT_EQ("", GetRequest(0).data);
 
-  for (size_t i = 0; i < base::size(kHeaders); ++i) {
+  for (size_t i = 0; i < std::size(kHeaders); ++i) {
     std::string field = base::ToLowerASCII(std::string(kHeaders[i][0]));
     std::string value = (field == "duplicateheader") ? "2,4" : kHeaders[i][2];
     ASSERT_EQ(1u, GetRequest(0).headers.count(field)) << field;
@@ -475,7 +481,7 @@ TEST_F(HttpServerTest, HasHeaderValueTest) {
       "HeaderWithNonASCII:  \xf7",
   };
   std::string headers;
-  for (size_t i = 0; i < base::size(kHeaders); ++i) {
+  for (size_t i = 0; i < std::size(kHeaders); ++i) {
     headers += std::string(kHeaders[i]) + "\r\n";
   }
 
@@ -749,7 +755,7 @@ TEST_F(HttpServerTest, WrongProtocolRequest) {
       "GET /test \r\n\r\n",
   };
 
-  for (size_t i = 0; i < base::size(kBadProtocolRequests); ++i) {
+  for (size_t i = 0; i < std::size(kBadProtocolRequests); ++i) {
     TestHttpClient client;
     CreateConnection(&client);
 
@@ -867,6 +873,4 @@ TEST_F(CloseOnConnectHttpServerTest, ServerImmediatelyClosesConnection) {
   EXPECT_EQ(0ul, requests_.size());
 }
 
-}  // namespace server
-
-}  // namespace network
+}  // namespace network::server

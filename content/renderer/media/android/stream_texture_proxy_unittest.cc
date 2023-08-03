@@ -1,12 +1,12 @@
-// Copyright (c) 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/ignore_result.h"
+#include <tuple>
+
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/test/task_environment.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "content/renderer/media/android/stream_texture_factory.h"
 #include "content/renderer/stream_texture_host_android.h"
 #include "gpu/command_buffer/common/mailbox.h"
@@ -17,6 +17,8 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace content {
+
+namespace {
 
 // GpuChannelHost is expected to be created on the IO thread, and posts tasks to
 // setup its IPC listener, so it must be created after the thread task runner
@@ -35,6 +37,8 @@ class TestGpuChannelHost : public gpu::GpuChannelHost {
   ~TestGpuChannelHost() override {}
 };
 
+}  // namespace
+
 class StreamTextureProxyTest : public testing::Test {
  public:
   StreamTextureProxyTest()
@@ -46,7 +50,7 @@ class StreamTextureProxyTest : public testing::Test {
     // Create the StreamTextureHost with a valid |channel_|. Note that route_id
     // does not matter here for the test we are writing.
     mojo::PendingAssociatedRemote<gpu::mojom::StreamTexture> texture;
-    ignore_result(texture.InitWithNewEndpointAndPassReceiver());
+    std::ignore = texture.InitWithNewEndpointAndPassReceiver();
     texture.EnableUnassociatedUsage();
     auto host = std::make_unique<StreamTextureHost>(channel_, 1 /* route_id */,
                                                     std::move(texture));

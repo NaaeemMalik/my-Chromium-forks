@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,11 +16,16 @@
 #include "printing/metafile.h"
 #include "printing/mojom/print.mojom-forward.h"
 #include "skia/ext/platform_canvas.h"
+#include "third_party/skia/include/core/SkRefCnt.h"
 #include "ui/accessibility/ax_tree_update.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
 #endif
+
+class SkCanvas;
+class SkPicture;
+class SkStreamAsset;
 
 namespace base {
 class UnguessableToken;
@@ -63,11 +68,11 @@ class COMPONENT_EXPORT(PRINTING_METAFILE) MetafileSkia : public Metafile {
 
   printing::NativeDrawingContext context() const override;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   bool Playback(printing::NativeDrawingContext hdc,
                 const RECT* rect) const override;
   bool SafePlayback(printing::NativeDrawingContext hdc) const override;
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_APPLE)
   bool RenderPage(unsigned int page_number,
                   printing::NativeDrawingContext context,
                   const CGRect& rect,
@@ -75,11 +80,11 @@ class COMPONENT_EXPORT(PRINTING_METAFILE) MetafileSkia : public Metafile {
                   bool fit_to_page) const override;
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   bool SaveToFileDescriptor(int fd) const override;
 #else
   bool SaveTo(base::File* file) const override;
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
   // Unlike FinishPage() or FinishDocument(), this is for out-of-process
   // subframe printing. It will just serialize the content into SkPicture
@@ -125,7 +130,7 @@ class COMPONENT_EXPORT(PRINTING_METAFILE) MetafileSkia : public Metafile {
   FRIEND_TEST_ALL_PREFIXES(MetafileSkiaTest, TestMultiPictureDocumentTypefaces);
 
   // The following three functions are used for tests only.
-  void AppendPage(const SkSize& page_size, sk_sp<cc::PaintRecord> record);
+  void AppendPage(const SkSize& page_size, cc::PaintRecord record);
   void AppendSubframeInfo(uint32_t content_id,
                           const base::UnguessableToken& proxy_token,
                           sk_sp<SkPicture> subframe_pic_holder);

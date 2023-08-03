@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -157,11 +157,8 @@ void MediaCustomControlsFullscreenDetector::ReportEffectivelyFullscreen(
     return;
   }
 
-  // Picture-in-Picture can be disabled by the website when the API is enabled.
-  bool picture_in_picture_allowed =
-      !RuntimeEnabledFeatures::PictureInPictureEnabled() &&
-      !VideoElement().FastHasAttribute(
-          html_names::kDisablepictureinpictureAttr);
+  bool picture_in_picture_allowed = !VideoElement().FastHasAttribute(
+      html_names::kDisablepictureinpictureAttr);
 
   if (picture_in_picture_allowed) {
     VideoElement().SetIsEffectivelyFullscreen(
@@ -172,35 +169,60 @@ void MediaCustomControlsFullscreenDetector::ReportEffectivelyFullscreen(
   }
 }
 
+void MediaCustomControlsFullscreenDetector::UpdateDominantAndFullscreenStatus(
+    bool is_dominant_visible_content,
+    bool is_effectively_fullscreen) {
+  DCHECK(viewport_intersection_observer_);
+
+  auto update_dominant_and_fullscreen =
+      [](MediaCustomControlsFullscreenDetector* self,
+         bool is_dominant_visible_content, bool is_effectively_fullscreen) {
+        if (!self || !self->viewport_intersection_observer_)
+          return;
+
+        self->VideoElement().SetIsDominantVisibleContent(
+            is_dominant_visible_content);
+        self->ReportEffectivelyFullscreen(is_effectively_fullscreen);
+      };
+
+  // Post these updates, since callbacks from |viewport_intersection_observer_|
+  // are not allowed to synchronously modify DOM elements.
+  VideoElement()
+      .GetDocument()
+      .GetTaskRunner(TaskType::kInternalMedia)
+      ->PostTask(FROM_HERE, WTF::BindOnce(update_dominant_and_fullscreen,
+                                          WrapWeakPersistent(this),
+                                          is_dominant_visible_content,
+                                          is_effectively_fullscreen));
+}
+
 void MediaCustomControlsFullscreenDetector::OnIntersectionChanged(
     const HeapVector<Member<IntersectionObserverEntry>>& entries) {
-  if (!viewport_intersection_observer_ || entries.IsEmpty())
+  if (!viewport_intersection_observer_ || entries.empty())
     return;
 
   auto* layout = VideoElement().GetLayoutObject();
   if (!layout || entries.back()->intersectionRatio() <
                      kMinPossibleFullscreenIntersectionThreshold) {
     // Video is not shown at all.
-    VideoElement().SetIsDominantVisibleContent(false);
-    ReportEffectivelyFullscreen(false);
+    UpdateDominantAndFullscreenStatus(false, false);
     return;
   }
 
   const bool is_mostly_filling_viewport =
       entries.back()->intersectionRatio() >=
       kMostlyFillViewportIntersectionThreshold;
-  VideoElement().SetIsDominantVisibleContent(is_mostly_filling_viewport);
 
   if (!IsVideoOrParentFullscreen()) {
     // The video is outside of a fullscreen element.
     // This is definitely not a fullscreen video experience.
-    ReportEffectivelyFullscreen(false);
+    UpdateDominantAndFullscreenStatus(is_mostly_filling_viewport, false);
     return;
   }
 
   if (is_mostly_filling_viewport) {
     // Video takes most part (85%) of the screen, report fullscreen.
-    ReportEffectivelyFullscreen(true);
+    UpdateDominantAndFullscreenStatus(true, true);
     return;
   }
 
@@ -209,8 +231,9 @@ void MediaCustomControlsFullscreenDetector::OnIntersectionChanged(
   gfx::Size intersection_size = ToRoundedSize(geometry.IntersectionRect().size);
   gfx::Size root_size = ToRoundedSize(geometry.RootRect().size);
 
-  ReportEffectivelyFullscreen(IsFullscreenVideoOfDifferentRatio(
-      target_size, root_size, intersection_size));
+  UpdateDominantAndFullscreenStatus(
+      false, IsFullscreenVideoOfDifferentRatio(target_size, root_size,
+                                               intersection_size));
 }
 
 void MediaCustomControlsFullscreenDetector::TriggerObservation() {

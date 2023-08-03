@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ class TrackedPreferenceValidationDelegate;
 
 namespace safe_browsing {
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 class DownloadProtectionService;
 #endif
 class IncidentReportingService;
@@ -52,7 +52,7 @@ class ServicesDelegate {
   class ServicesCreator {
    public:
     virtual bool CanCreateDatabaseManager() = 0;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     virtual bool CanCreateDownloadProtectionService() = 0;
 #endif
     virtual bool CanCreateIncidentReportingService() = 0;
@@ -60,7 +60,7 @@ class ServicesDelegate {
     // Caller takes ownership of the returned object. Cannot use std::unique_ptr
     // because services may not be implemented for some build configs.
     virtual SafeBrowsingDatabaseManager* CreateDatabaseManager() = 0;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     virtual DownloadProtectionService* CreateDownloadProtectionService() = 0;
 #endif
     virtual IncidentReportingService* CreateIncidentReportingService() = 0;
@@ -104,16 +104,16 @@ class ServicesDelegate {
       content::DownloadManager* download_manager) = 0;
 
   // Returns nullptr for any service that is not available.
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   virtual DownloadProtectionService* GetDownloadService() = 0;
 #endif
 
   // Takes a SharedURLLoaderFactory from the BrowserProcess, for use in the
   // database manager.
-  virtual void StartOnIOThread(
+  virtual void StartOnSBThread(
       scoped_refptr<network::SharedURLLoaderFactory> browser_url_loader_factory,
       const V4ProtocolConfig& v4_config) = 0;
-  virtual void StopOnIOThread(bool shutdown) = 0;
+  virtual void StopOnSBThread(bool shutdown) = 0;
 
   virtual void CreateTelemetryService(Profile* profile) {}
   virtual void RemoveTelemetryService(Profile* profile) {}

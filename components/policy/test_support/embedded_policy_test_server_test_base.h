@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,12 @@
 #include <memory>
 #include <string>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/test/task_environment.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "components/policy/test_support/embedded_policy_test_server.h"
+#include "components/policy/test_support/remote_commands_state.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace network {
@@ -25,6 +26,7 @@ namespace policy {
 
 class ClientStorage;
 class PolicyStorage;
+class RemoteCommandsState;
 
 class EmbeddedPolicyTestServerTestBase : public testing::Test {
  public:
@@ -38,9 +40,12 @@ class EmbeddedPolicyTestServerTestBase : public testing::Test {
   void SetUp() override;
 
   // Helper functions to set request components.
+  void SetURL(const GURL& url);
+  void SetMethod(const std::string& method);
   void SetAppType(const std::string& app_type);
   void SetDeviceIdParam(const std::string& device_id);
   void SetDeviceType(const std::string& device_type);
+  void SetOAuthToken(const std::string& oauth_token);
   void SetRequestTypeParam(const std::string& request_type);
   void SetEnrollmentTokenHeader(const std::string& enrollment_token);
   void SetDeviceTokenHeader(const std::string& device_token);
@@ -63,6 +68,10 @@ class EmbeddedPolicyTestServerTestBase : public testing::Test {
   ClientStorage* client_storage() { return test_server_.client_storage(); }
 
   PolicyStorage* policy_storage() { return test_server_.policy_storage(); }
+
+  RemoteCommandsState* remote_commands_state() {
+    return test_server_.remote_commands_state();
+  }
 
  private:
   // Adds a query param to the |resource_request_|.

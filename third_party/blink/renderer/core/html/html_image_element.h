@@ -29,6 +29,7 @@
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/dom/create_element_flags.h"
+#include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/html/canvas/image_element_base.h"
 #include "third_party/blink/renderer/core/html/forms/form_associated.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
@@ -52,7 +53,8 @@ class CORE_EXPORT HTMLImageElement final
     : public HTMLElement,
       public ImageElementBase,
       public ActiveScriptWrappable<HTMLImageElement>,
-      public FormAssociated {
+      public FormAssociated,
+      public LocalFrameView::LifecycleNotificationObserver {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -100,8 +102,12 @@ class CORE_EXPORT HTMLImageElement final
   ImageResourceContent* CachedImage() const {
     return GetImageLoader().GetContent();
   }
-  void LoadDeferredImage() {
-    GetImageLoader().LoadDeferredImage(referrer_policy_);
+  void LoadDeferredImageFromMicrotask() {
+    GetImageLoader().LoadDeferredImage(/*force_blocking*/ false,
+                                       /*update_from_microtask*/ true);
+  }
+  void LoadDeferredImageBlockingLoad() {
+    GetImageLoader().LoadDeferredImage(/*force_blocking*/ true);
   }
   void SetImageForTest(ImageResourceContent* content) {
     GetImageLoader().SetImageForTest(content);
@@ -138,6 +144,8 @@ class CORE_EXPORT HTMLImageElement final
   virtual void EnsurePrimaryContent();
   bool IsCollapsed() const;
 
+  void SetAutoSizesUsecounter();
+
   // CanvasImageSource interface implementation.
   gfx::SizeF DefaultDestinationSize(
       const gfx::SizeF&,
@@ -148,7 +156,7 @@ class CORE_EXPORT HTMLImageElement final
 
   void SetIsFallbackImage() { is_fallback_image_ = true; }
 
-  FetchParameters::ResourceWidth GetResourceWidth() const;
+  absl::optional<float> GetResourceWidth() const;
   float SourceSize(Element&);
 
   void ForceReload() const;
@@ -177,13 +185,25 @@ class CORE_EXPORT HTMLImageElement final
   }
 
   // Keeps track of whether the image comes from an ad.
-  void SetIsAdRelated() { is_ad_related_ = true; }
+  void SetIsAdRelated();
   bool IsAdRelated() const override { return is_ad_related_; }
+
+  // Keeps track whether this image is an LCP element.
+  void SetIsLCPElement() { is_lcp_element_ = true; }
+  bool IsLCPElement() const { return is_lcp_element_; }
+
+  bool IsChangedShortlyAfterMouseover() const {
+    return is_changed_shortly_after_mouseover_;
+  }
 
   void InvalidateAttributeMapping();
 
+  bool IsRichlyEditableForAccessibility() const override { return false; }
+
   static bool SupportedImageType(const String& type,
                                  const HashSet<String>* disabled_image_types);
+
+  bool is_lazy_loaded() const { return is_lazy_loaded_; }
 
  protected:
   // Controls how an image element appears in the layout. See:
@@ -205,8 +225,7 @@ class CORE_EXPORT HTMLImageElement final
   void DidMoveToNewDocument(Document& old_document) override;
 
   void DidAddUserAgentShadowRoot(ShadowRoot&) override;
-  scoped_refptr<ComputedStyle> CustomStyleForLayoutObject(
-      const StyleRecalcContext&) override;
+  void AdjustStyle(ComputedStyleBuilder&) override;
 
  private:
   bool AreAuthorShadowsAllowed() const override { return false; }
@@ -226,7 +245,7 @@ class CORE_EXPORT HTMLImageElement final
   void SetLayoutDisposition(LayoutDisposition, bool force_reattach = false);
 
   void AttachLayoutTree(AttachContext&) override;
-  LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
+  LayoutObject* CreateLayoutObject(const ComputedStyle&) override;
 
   bool CanStartSelection() const override { return false; }
 
@@ -252,6 +271,9 @@ class CORE_EXPORT HTMLImageElement final
   void NotifyViewportChanged();
   void CreateMediaQueryListIfDoesNotExist();
 
+  // LocalFrameView::LifecycleNotificationObserver
+  void DidFinishLifecycleUpdate(const LocalFrameView&) override;
+
   Member<HTMLImageLoader> image_loader_;
   Member<ViewportChangeListener> listener_;
   Member<HTMLFormElement> form_;
@@ -268,11 +290,21 @@ class CORE_EXPORT HTMLImageElement final
   // placeholder image.
   bool is_legacy_format_or_unoptimized_image_ : 1;
   bool is_ad_related_ : 1;
-
-  network::mojom::ReferrerPolicy referrer_policy_;
+  bool is_lcp_element_ : 1;
+  bool is_changed_shortly_after_mouseover_ : 1;
+  bool has_sizes_attribute_in_img_or_sibling_ : 1;
+  bool is_lazy_loaded_ : 1;
 
   std::unique_ptr<LazyLoadImageObserver::VisibleLoadTimeMetrics>
       visible_load_time_metrics_;
+
+  bool image_ad_use_counter_recorded_ = false;
+
+  // The last rectangle reported to the the `PageTimingMetricsSender`.
+  // `last_reported_ad_rect_` is empty if there's no report before, or if the
+  // last report was used to signal the removal of this element (i.e. both cases
+  // will be handled the same way).
+  gfx::Rect last_reported_ad_rect_;
 };
 
 }  // namespace blink

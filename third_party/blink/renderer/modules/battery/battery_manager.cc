@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,8 +27,15 @@ ScriptPromise BatteryManager::getBattery(ScriptState* script_state,
   // Check to see if this request would be blocked according to the Battery
   // Status API specification.
   LocalDOMWindow* window = navigator.DomWindow();
-  if (!window->IsSecureContext())
-    UseCounter::Count(window, WebFeature::kBatteryStatusInsecureOrigin);
+  // TODO(crbug.com/1007264, crbug.com/1290231): remove fenced frame specific
+  // code when permission policy implements the battery status API support.
+  if (window->GetFrame()->IsInFencedFrameTree()) {
+    return ScriptPromise::RejectWithDOMException(
+        script_state,
+        DOMException::Create(
+            "getBattery is not allowed in a fenced frame tree.",
+            DOMException::GetErrorName(DOMExceptionCode::kNotAllowedError)));
+  }
   window->GetFrame()->CountUseIfFeatureWouldBeBlockedByPermissionsPolicy(
       WebFeature::kBatteryStatusCrossOrigin,
       WebFeature::kBatteryStatusSameOriginABA);
@@ -44,7 +51,8 @@ ScriptPromise BatteryManager::getBattery(ScriptState* script_state,
 BatteryManager::~BatteryManager() = default;
 
 BatteryManager::BatteryManager(Navigator& navigator)
-    : Supplement<Navigator>(navigator),
+    : ActiveScriptWrappable<BatteryManager>({}),
+      Supplement<Navigator>(navigator),
       ExecutionContextLifecycleStateObserver(navigator.DomWindow()),
       PlatformEventController(*navigator.DomWindow()),
       battery_dispatcher_(

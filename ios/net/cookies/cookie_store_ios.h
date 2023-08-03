@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,9 @@
 #include <utility>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/cancelable_callback.h"
 #include "base/containers/linked_list.h"
+#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "ios/net/cookies/cookie_cache.h"
@@ -24,6 +24,7 @@
 #include "net/cookies/cookie_change_dispatcher.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/cookies/cookie_store.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
 @class NSHTTPCookie;
@@ -84,10 +85,13 @@ class CookieStoreIOS : public net::CookieStore,
   void SetMetricsEnabled();
 
   // Implementation of the net::CookieStore interface.
-  void SetCanonicalCookieAsync(std::unique_ptr<CanonicalCookie> cookie,
-                               const GURL& source_url,
-                               const net::CookieOptions& options,
-                               SetCookiesCallback callback) override;
+  void SetCanonicalCookieAsync(
+      std::unique_ptr<CanonicalCookie> cookie,
+      const GURL& source_url,
+      const net::CookieOptions& options,
+      SetCookiesCallback callback,
+      absl::optional<net::CookieAccessResult> cookie_access_result =
+          absl::nullopt) override;
   void GetCookieListWithOptionsAsync(
       const GURL& url,
       const net::CookieOptions& options,
@@ -122,8 +126,6 @@ class CookieStoreIOS : public net::CookieStore,
   SetCookiesCallback WrapSetCallback(SetCookiesCallback callback);
   DeleteCallback WrapDeleteCallback(DeleteCallback callback);
   base::OnceClosure WrapClosure(base::OnceClosure callback);
-
-  bool metrics_enabled() { return metrics_enabled_; }
 
   net::CookieMonster* cookie_monster() { return cookie_monster_.get(); }
 
@@ -161,17 +163,18 @@ class CookieStoreIOS : public net::CookieStore,
     ~CookieChangeDispatcherIOS() override;
 
     // net::CookieChangeDispatcher
-    std::unique_ptr<CookieChangeSubscription> AddCallbackForCookie(
+    [[nodiscard]] std::unique_ptr<CookieChangeSubscription>
+    AddCallbackForCookie(
         const GURL& url,
         const std::string& name,
         const absl::optional<net::CookiePartitionKey>& cookie_partition_key,
-        CookieChangeCallback callback) override WARN_UNUSED_RESULT;
-    std::unique_ptr<CookieChangeSubscription> AddCallbackForUrl(
+        CookieChangeCallback callback) override;
+    [[nodiscard]] std::unique_ptr<CookieChangeSubscription> AddCallbackForUrl(
         const GURL& url,
         const absl::optional<net::CookiePartitionKey>& cookie_partition_key,
-        CookieChangeCallback callback) override WARN_UNUSED_RESULT;
-    std::unique_ptr<CookieChangeSubscription> AddCallbackForAllChanges(
-        CookieChangeCallback callback) override WARN_UNUSED_RESULT;
+        CookieChangeCallback callback) override;
+    [[nodiscard]] std::unique_ptr<CookieChangeSubscription>
+    AddCallbackForAllChanges(CookieChangeCallback callback) override;
 
    private:
     // Instances of this class are always members of CookieStoreIOS, so
@@ -180,10 +183,10 @@ class CookieStoreIOS : public net::CookieStore,
   };
 
   // Interface only used by CookieChangeDispatcherIOS.
-  std::unique_ptr<CookieChangeSubscription> AddCallbackForCookie(
+  [[nodiscard]] std::unique_ptr<CookieChangeSubscription> AddCallbackForCookie(
       const GURL& url,
       const std::string& name,
-      CookieChangeCallback callback) WARN_UNUSED_RESULT;
+      CookieChangeCallback callback);
 
   // Returns true if the system cookie store policy is
   // |NSHTTPCookieAcceptPolicyAlways|.
@@ -208,7 +211,6 @@ class CookieStoreIOS : public net::CookieStore,
 
   std::unique_ptr<net::CookieMonster> cookie_monster_;
   std::unique_ptr<SystemCookieStore> system_store_;
-  bool metrics_enabled_;
   base::CancelableOnceClosure flush_closure_;
 
   // Cookie notification methods.

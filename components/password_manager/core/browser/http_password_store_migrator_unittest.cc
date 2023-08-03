@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "components/password_manager/core/browser/mock_password_store_interface.h"
@@ -84,9 +85,8 @@ class MockConsumer : public HttpPasswordStoreMigrator::Consumer {
   void ProcessMigratedForms(
       std::vector<std::unique_ptr<PasswordForm>> forms) override {
     std::vector<PasswordForm*> raw_forms(forms.size());
-    std::transform(
-        forms.begin(), forms.end(), raw_forms.begin(),
-        [](const std::unique_ptr<PasswordForm>& form) { return form.get(); });
+    base::ranges::transform(forms, raw_forms.begin(),
+                            &std::unique_ptr<PasswordForm>::get);
     ProcessForms(raw_forms);
   }
 };
@@ -191,8 +191,8 @@ void HttpPasswordStoreMigratorTest::TestFullStore(bool is_hsts) {
   expected_federated_form.url = GURL("https://localhost");
   expected_federated_form.action = GURL("https://localhost");
 
-  EXPECT_CALL(store(), AddLogin(expected_form));
-  EXPECT_CALL(store(), AddLogin(expected_federated_form));
+  EXPECT_CALL(store(), AddLogin(expected_form, _));
+  EXPECT_CALL(store(), AddLogin(expected_federated_form, _));
   EXPECT_CALL(store(), RemoveLogin(form)).Times(is_hsts);
   EXPECT_CALL(store(), RemoveLogin(federated_form)).Times(is_hsts);
   EXPECT_CALL(consumer(),

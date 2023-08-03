@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,6 +29,11 @@ class SegmentationPlatformServiceAndroid : public base::SupportsUserData::Data {
                           const JavaParamRef<jobject>& j_caller,
                           const JavaParamRef<jstring>& j_segmentation_key,
                           const JavaParamRef<jobject>& j_callback);
+
+  ScopedJavaLocalRef<jobject> GetCachedSegmentResult(
+      JNIEnv* env,
+      const JavaParamRef<jobject>& jcaller,
+      const JavaParamRef<jstring>& j_segmentation_key);
 
   ScopedJavaLocalRef<jobject> GetJavaObject();
 

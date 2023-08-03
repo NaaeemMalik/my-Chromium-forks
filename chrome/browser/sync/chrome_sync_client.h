@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
+#include "build/chromeos_buildflags.h"
 #include "chrome/browser/sync/glue/extensions_activity_monitor.h"
 #include "components/browser_sync/browser_sync_client.h"
 #include "components/sync/model/model_type_store_service.h"
@@ -34,7 +35,7 @@ class SyncableService;
 
 namespace browser_sync {
 
-class ProfileSyncComponentsFactoryImpl;
+class SyncApiComponentFactoryImpl;
 
 class ChromeSyncClient : public browser_sync::BrowserSyncClient {
  public:
@@ -51,9 +52,9 @@ class ChromeSyncClient : public browser_sync::BrowserSyncClient {
   base::FilePath GetLocalSyncBackendFolder() override;
   syncer::ModelTypeStoreService* GetModelTypeStoreService() override;
   syncer::DeviceInfoSyncService* GetDeviceInfoSyncService() override;
-  bookmarks::BookmarkModel* GetBookmarkModel() override;
   favicon::FaviconService* GetFaviconService() override;
   history::HistoryService* GetHistoryService() override;
+  ReadingListModel* GetReadingListModel() override;
   send_tab_to_self::SendTabToSelfSyncService* GetSendTabToSelfSyncService()
       override;
   sync_sessions::SessionSyncService* GetSessionSyncService() override;
@@ -63,7 +64,6 @@ class ChromeSyncClient : public browser_sync::BrowserSyncClient {
   syncer::TrustedVaultClient* GetTrustedVaultClient() override;
   invalidation::InvalidationService* GetInvalidationService() override;
   syncer::SyncInvalidationsService* GetSyncInvalidationsService() override;
-  BookmarkUndoService* GetBookmarkUndoService() override;
   scoped_refptr<syncer::ExtensionsActivity> GetExtensionsActivity() override;
   base::WeakPtr<syncer::ModelTypeControllerDelegate>
   GetControllerDelegateForModelType(syncer::ModelType type) override;
@@ -78,23 +78,21 @@ class ChromeSyncClient : public browser_sync::BrowserSyncClient {
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Creates the ModelTypeController for syncer::APPS.
-  std::unique_ptr<syncer::ModelTypeController> CreateAppsModelTypeController(
-      syncer::SyncService* sync_service);
+  std::unique_ptr<syncer::ModelTypeController> CreateAppsModelTypeController();
 
   // Creates the ModelTypeController for syncer::APP_SETTINGS.
   std::unique_ptr<syncer::ModelTypeController>
   CreateAppSettingsModelTypeController(syncer::SyncService* sync_service);
 
   // Creates the ModelTypeController for syncer::WEB_APPS.
-  std::unique_ptr<syncer::ModelTypeController> CreateWebAppsModelTypeController(
-      syncer::SyncService* sync_service);
+  std::unique_ptr<syncer::ModelTypeController>
+  CreateWebAppsModelTypeController();
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
   const raw_ptr<Profile> profile_;
 
   // The sync api component factory in use by this client.
-  std::unique_ptr<browser_sync::ProfileSyncComponentsFactoryImpl>
-      component_factory_;
+  std::unique_ptr<browser_sync::SyncApiComponentFactoryImpl> component_factory_;
 
   std::unique_ptr<syncer::TrustedVaultClient> trusted_vault_client_;
 

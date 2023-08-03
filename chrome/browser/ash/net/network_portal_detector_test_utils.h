@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,13 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
+
 namespace base {
 class HistogramSamples;
 }
 
-namespace chromeos {
+namespace ash {
 
 // Checks enum values in a histogram.
 class EnumHistogramChecker {
@@ -41,9 +43,9 @@ class EnumHistogramChecker {
 
   // When not NULL, expected values are compared with actual values
   // minus base.
-  base::HistogramSamples* base_;
+  raw_ptr<base::HistogramSamples, ExperimentalAsh> base_;
 };
 
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_PORTAL_DETECTOR_TEST_UTILS_H_

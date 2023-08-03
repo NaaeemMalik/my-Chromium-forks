@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@ package org.chromium.chrome.browser.autofill;
 
 import android.app.Activity;
 import android.content.Context;
-import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.method.LinkMovementMethod;
 import android.text.style.ClickableSpan;
@@ -35,10 +35,11 @@ public abstract class AutofillSaveCardPromptBase implements ModalDialogPropertie
     protected ModalDialogManager mModalDialogManager;
     protected Context mContext;
     protected View mDialogView;
+    private SpannableStringBuilder mSpannableStringBuilder;
 
     interface AutofillSaveCardPromptBaseDelegate {
         /**
-         * Called when link in legal lines is clicked.
+         * Called when a link is clicked.
          */
         void onLinkClicked(String url);
 
@@ -109,26 +110,36 @@ public abstract class AutofillSaveCardPromptBase implements ModalDialogPropertie
             @Nullable Activity activity, @Nullable ModalDialogManager modalDialogManager) {
         if (activity == null || modalDialogManager == null) return;
 
+        if (mSpannableStringBuilder != null) {
+            TextView legalMessage = mDialogView.findViewById(R.id.legal_message);
+            legalMessage.setText(mSpannableStringBuilder);
+            legalMessage.setVisibility(View.VISIBLE);
+            legalMessage.setMovementMethod(LinkMovementMethod.getInstance());
+        }
+
         mContext = activity;
         mModalDialogManager = modalDialogManager;
         mModalDialogManager.showDialog(mDialogModel, ModalDialogManager.ModalDialogType.APP);
     }
 
-    public void setLegalMessageLine(LegalMessageLine line) {
-        SpannableString text = new SpannableString(line.text);
+    public void addLegalMessageLine(LegalMessageLine line) {
+        if (mSpannableStringBuilder == null) {
+            mSpannableStringBuilder = new SpannableStringBuilder();
+        } else {
+            // If this isn't the first line, append a new line before the legal message.
+            mSpannableStringBuilder.append("\n\n");
+        }
+        int offset = mSpannableStringBuilder.length();
+        mSpannableStringBuilder.append(line.text);
         for (final LegalMessageLine.Link link : line.links) {
             String url = link.url;
-            text.setSpan(new ClickableSpan() {
+            mSpannableStringBuilder.setSpan(new ClickableSpan() {
                 @Override
                 public void onClick(View view) {
                     mBaseDelegate.onLinkClicked(url);
                 }
-            }, link.start, link.end, Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
+            }, link.start + offset, link.end + offset, Spanned.SPAN_INCLUSIVE_EXCLUSIVE);
         }
-        TextView legalMessage = mDialogView.findViewById(R.id.legal_message);
-        legalMessage.setText(text);
-        legalMessage.setMovementMethod(LinkMovementMethod.getInstance());
-        legalMessage.setVisibility(View.VISIBLE);
     }
 
     public void dismiss(@DialogDismissalCause int dismissalCause) {

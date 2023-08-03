@@ -1,11 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/leveldb_proto/internal/shared_proto_database.h"
 
-#include "base/bind.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
 #include "build/build_config.h"
@@ -126,7 +127,7 @@ TEST_F(SharedProtoDatabaseTest, CreateClient_SucceedsWithCreate) {
 }
 
 // TODO(912117): Fix flaky test!
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 TEST_F(SharedProtoDatabaseTest, DISABLED_CreateClient_FailsWithoutCreate) {
 #else
 TEST_F(SharedProtoDatabaseTest, CreateClient_FailsWithoutCreate) {

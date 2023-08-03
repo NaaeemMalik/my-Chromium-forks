@@ -4,6 +4,7 @@
 <translation id="1002108253973310084">একটি অসঙ্গত ভার্সন শনাক্ত হয়েছে৷ আপনার কাছে উভয় কম্পিউটারেই অতিসাম্প্রতিক ভার্সন আছে কিনা তা নিশ্চিত করুন এবং আবার চেষ্টা করুন৷</translation>
 <translation id="1008557486741366299">এখনই নয়</translation>
 <translation id="1201402288615127009">পরের</translation>
+<translation id="1296511125400541222">কপিরাইট ২০২৩ The Chromium Authors. সর্বস্বত্ত্ব সংরক্ষিত।</translation>
 <translation id="1297009705180977556"><ph name="HOSTNAME" /> এর সাথে সংযুক্ত করতে ত্রুটি হয়েছে</translation>
 <translation id="1450760146488584666">অনুরোধের বস্তুটির কোনো অস্তিত্ব নেই৷</translation>
 <translation id="1480046233931937785">কৃতিত্ব</translation>
@@ -26,7 +27,6 @@
 <translation id="225614027745146050">স্বাগতম</translation>
 <translation id="2320166752086256636">কীবোর্ড লুকান</translation>
 <translation id="2329392777730037872">ক্লায়েন্টের ডিভাইসে <ph name="URL" /> খোলা যায়নি।</translation>
-<translation id="2333212046079545895">কপিরাইট ২০২১ Google LLC. সর্বস্বত্ব সংরক্ষিত।</translation>
 <translation id="2359808026110333948">চালিয়ে যান</translation>
 <translation id="2366718077645204424">হোস্টে পৌঁছাতে পারেনি৷ আপনার ব্যবহার করা নেটওয়ার্কের কনফিগারেশনের কারণে সম্ভবত এটি হয়েছে৷</translation>
 <translation id="2370754117186920852"><ph name="OPTIONAL_OFFLINE_REASON" /> অনলাইনে সর্বশেষ <ph name="RELATIVE_TIMESTAMP" /> দেখা গেছে।</translation>
@@ -76,7 +76,6 @@
 <translation id="4405930547258349619">কোর লাইব্রেরি</translation>
 <translation id="443560535555262820">অ্যাক্সেসিবিলিটি অভিরুচির প্যানেল খুলুন</translation>
 <translation id="4450893287417543264">আর দেখতে চাই না</translation>
-<translation id="4512952200932940229">কপিরাইট ২০২১ The Chromium Authors. সর্বস্বত্ত্ব সংরক্ষিত।</translation>
 <translation id="4513946894732546136">প্রতিক্রিয়া</translation>
 <translation id="4563926062592110512">ক্লায়েন্ট বিচ্ছিন্ন হয়েছে: <ph name="CLIENT_USERNAME" />৷</translation>
 <translation id="4618411825115957973"><ph name="URL_FORWARDER_NAME" /> সঠিকভাবে কনফিগার করা হয়নি। অন্য একটি ডিফল্ট ওয়েব ব্রাউজার বেছে নিয়ে URL ফরোয়ার্ড করার সুবিধা চালু করুন।</translation>
@@ -90,6 +89,7 @@
 <translation id="4808503597364150972"><ph name="HOSTNAME" />এর জন্য আপনার পিন লিখুন৷</translation>
 <translation id="4812684235631257312">হোস্ট</translation>
 <translation id="4867841927763172006">PrtScn পাঠান</translation>
+<translation id="4960795469833295568">কপিরাইট ২০২৩ Google LLC. সর্বস্বত্ব সংরক্ষিত।</translation>
 <translation id="4974476491460646149"><ph name="HOSTNAME" /> এর জন্য সংযোগ বন্ধ হয়েছে</translation>
 <translation id="4985296110227979402">দূরবর্তী অ্যাক্সেসের জন্য প্রথমে আপনার কম্পিউটার সেট-আপ করা প্রয়োজন</translation>
 <translation id="4987330545941822761">কোন ব্রাউজার দিয়ে স্থানীয়ভাবে URL খোলা হবে, Chrome রিমোট ডেস্কটপ সেটি নির্ধারণ করতে পারে না। নিচের তালিকা থেকে সেটি বেছে নিন।</translation>

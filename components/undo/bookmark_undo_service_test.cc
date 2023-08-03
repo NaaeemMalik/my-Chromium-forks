@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "components/bookmarks/browser/bookmark_model.h"
+#include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/bookmarks/test/bookmark_test_helpers.h"
 #include "components/bookmarks/test/test_bookmark_client.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -90,7 +91,8 @@ TEST_F(BookmarkUndoServiceTest, UndoBookmarkRemove) {
 
   const BookmarkNode* parent = model->other_node();
   model->AddURL(parent, 0, u"foo", GURL("http://www.bar.com"));
-  model->Remove(parent->children().front().get());
+  model->Remove(parent->children().front().get(),
+                bookmarks::metrics::BookmarkEditSource::kOther);
 
   EXPECT_EQ(2U, undo_service->undo_manager()->undo_count());
   EXPECT_EQ(0U, undo_service->undo_manager()->redo_count());
@@ -122,8 +124,9 @@ TEST_F(BookmarkUndoServiceTest, UndoBookmarkGroupedAction) {
   const BookmarkNode* n1 =
       model->AddURL(model->other_node(), 0, u"foo", GURL("http://www.foo.com"));
   undo_service->undo_manager()->StartGroupingActions();
-  model->SetTitle(n1, u"bar");
-  model->SetURL(n1, GURL("http://www.bar.com"));
+  model->SetTitle(n1, u"bar", bookmarks::metrics::BookmarkEditSource::kOther);
+  model->SetURL(n1, GURL("http://www.bar.com"),
+                bookmarks::metrics::BookmarkEditSource::kOther);
   undo_service->undo_manager()->EndGroupingActions();
 
   EXPECT_EQ(2U, undo_service->undo_manager()->undo_count());
@@ -214,8 +217,10 @@ TEST_F(BookmarkUndoServiceTest, UndoBookmarkRenameDelete) {
 
   const BookmarkNode* f1 = model->AddFolder(model->other_node(), 0, u"folder");
   model->AddURL(f1, 0, u"foo", GURL("http://www.foo.com"));
-  model->SetTitle(f1, u"Renamed");
-  model->Remove(model->other_node()->children().front().get());
+  model->SetTitle(f1, u"Renamed",
+                  bookmarks::metrics::BookmarkEditSource::kOther);
+  model->Remove(model->other_node()->children().front().get(),
+                bookmarks::metrics::BookmarkEditSource::kOther);
 
   // Undo the folder removal and ensure the folder and bookmark were restored.
   undo_service->undo_manager()->Undo();
@@ -350,7 +355,8 @@ TEST_F(BookmarkUndoServiceTest, UndoRemoveFolderWithBookmarks) {
   new_folder = model->AddFolder(parent, 0, u"folder");
   model->AddURL(new_folder, 0, u"bar", GURL("http://www.bar.com"));
 
-  model->Remove(parent->children().front().get());
+  model->Remove(parent->children().front().get(),
+                bookmarks::metrics::BookmarkEditSource::kOther);
 
   // Test that the undo restores the bookmark and folder.
   undo_service->undo_manager()->Undo();
@@ -397,7 +403,8 @@ TEST_F(BookmarkUndoServiceTest, UndoRemoveFolderWithSubfolders) {
       model->AddFolder(new_folder, 1, u"subfolder2");
   model->AddURL(sub_folder2, 0, u"bar", GURL("http://www.bar.com"));
 
-  model->Remove(parent->children()[0].get());
+  model->Remove(parent->children()[0].get(),
+                bookmarks::metrics::BookmarkEditSource::kOther);
 
   // Test that the undo restores the subfolders and their contents.
   undo_service->undo_manager()->Undo();

@@ -1,27 +1,39 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/page_info/page_info_view_factory.h"
 
+#include <memory>
+#include <string>
+
+#include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/strings/utf_string_conversions.h"
+#include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
+#include "chrome/app/vector_icons/vector_icons.h"
+#include "chrome/browser/page_info/page_info_features.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/page_info/chrome_page_info_ui_delegate.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
-#include "chrome/browser/ui/views/page_info/page_info_about_this_site_content_view.h"
+#include "chrome/browser/ui/views/page_info/page_info_ad_personalization_content_view.h"
+#include "chrome/browser/ui/views/page_info/page_info_cookies_content_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_main_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_navigation_handler.h"
 #include "chrome/browser/ui/views/page_info/page_info_permission_content_view.h"
 #include "chrome/browser/ui/views/page_info/page_info_security_content_view.h"
+#include "components/page_info/core/features.h"
 #include "components/page_info/core/proto/about_this_site_metadata.pb.h"
 #include "components/page_info/page_info.h"
 #include "components/permissions/permission_util.h"
+#include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/bubble/bubble_frame_view.h"
@@ -31,7 +43,6 @@
 #include "ui/views/controls/separator.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/flex_layout.h"
-#include "ui/views/layout/grid_layout.h"
 #include "ui/views/vector_icons.h"
 
 constexpr int PageInfoViewFactory::kMinBubbleWidth;
@@ -77,7 +88,8 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateSeparator() {
                                     DISTANCE_CONTENT_LIST_VERTICAL_MULTI) /
                                 2;
   auto separator = std::make_unique<views::Separator>();
-  separator->SetProperty(views::kMarginsKey, gfx::Insets(separator_spacing, 0));
+  separator->SetProperty(views::kMarginsKey,
+                         gfx::Insets::VH(separator_spacing, 0));
   return separator;
 }
 
@@ -89,7 +101,7 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateLabelWrapper() {
   label_wrapper->SetLayoutManager(std::make_unique<views::FlexLayout>())
       ->SetOrientation(views::LayoutOrientation::kVertical);
   label_wrapper->SetProperty(views::kMarginsKey,
-                             gfx::Insets(0, icon_label_spacing));
+                             gfx::Insets::VH(0, icon_label_spacing));
   label_wrapper->SetProperty(views::kCrossAxisAlignmentKey,
                              views::LayoutAlignment::kStretch);
   label_wrapper->SetProperty(
@@ -104,22 +116,25 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateLabelWrapper() {
 PageInfoViewFactory::PageInfoViewFactory(
     PageInfo* presenter,
     ChromePageInfoUiDelegate* ui_delegate,
-    PageInfoNavigationHandler* navigation_handler)
+    PageInfoNavigationHandler* navigation_handler,
+    PageInfoHistoryController* history_controller)
     : presenter_(presenter),
       ui_delegate_(ui_delegate),
-      navigation_handler_(navigation_handler) {}
+      navigation_handler_(navigation_handler),
+      history_controller_(history_controller) {}
 
 std::unique_ptr<views::View> PageInfoViewFactory::CreateMainPageView(
     base::OnceClosure initialized_callback) {
-  return std::make_unique<PageInfoMainView>(presenter_, ui_delegate_,
-                                            navigation_handler_,
-                                            std::move(initialized_callback));
+  return std::make_unique<PageInfoMainView>(
+      presenter_, ui_delegate_, navigation_handler_, history_controller_,
+      std::move(initialized_callback));
 }
 
 std::unique_ptr<views::View> PageInfoViewFactory::CreateSecurityPageView() {
   return std::make_unique<PageInfoSubpageView>(
       CreateSubpageHeader(
-          l10n_util::GetStringUTF16(IDS_PAGE_INFO_SECURITY_SUBPAGE_HEADER)),
+          l10n_util::GetStringUTF16(IDS_PAGE_INFO_SECURITY_SUBPAGE_HEADER),
+          presenter_->GetSiteNameOrAppNameToDisplay()),
       std::make_unique<PageInfoSecurityContentView>(
           presenter_, /*is_standalone_page=*/true));
 }
@@ -127,22 +142,37 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateSecurityPageView() {
 std::unique_ptr<views::View> PageInfoViewFactory::CreatePermissionPageView(
     ContentSettingsType type) {
   return std::make_unique<PageInfoSubpageView>(
-      CreateSubpageHeader(PageInfoUI::PermissionTypeToUIString(type)),
+      CreateSubpageHeader(PageInfoUI::PermissionTypeToUIString(type),
+                          presenter_->GetSiteNameOrAppNameToDisplay()),
       std::make_unique<PageInfoPermissionContentView>(presenter_, ui_delegate_,
                                                       type));
 }
 
-std::unique_ptr<views::View> PageInfoViewFactory::CreateAboutThisSitePageView(
-    const page_info::proto::SiteInfo& info) {
+std::unique_ptr<views::View>
+PageInfoViewFactory::CreateAdPersonalizationPageView() {
+  const auto header_id =
+      base::FeatureList::IsEnabled(privacy_sandbox::kPrivacySandboxSettings4)
+          ? IDS_PAGE_INFO_AD_PRIVACY_HEADER
+          : IDS_PAGE_INFO_AD_PERSONALIZATION_HEADER;
+  return std::make_unique<PageInfoSubpageView>(
+      CreateSubpageHeader(l10n_util::GetStringUTF16(header_id),
+                          presenter_->GetSiteNameOrAppNameToDisplay()),
+      std::make_unique<PageInfoAdPersonalizationContentView>(presenter_,
+                                                             ui_delegate_));
+}
+
+// TODO(crbug.com/1346305): Use translatable strings instead of hardcoded one.
+std::unique_ptr<views::View> PageInfoViewFactory::CreateCookiesPageView() {
   return std::make_unique<PageInfoSubpageView>(
       CreateSubpageHeader(
-          l10n_util::GetStringUTF16(IDS_PAGE_INFO_ABOUT_THIS_SITE_HEADER)),
-      std::make_unique<PageInfoAboutThisSiteContentView>(presenter_,
-                                                         ui_delegate_, info));
+          l10n_util::GetStringUTF16(IDS_PAGE_INFO_COOKIES_HEADER),
+          presenter_->GetSiteNameOrAppNameToDisplay()),
+      std::make_unique<PageInfoCookiesContentView>(presenter_));
 }
 
 std::unique_ptr<views::View> PageInfoViewFactory::CreateSubpageHeader(
-    std::u16string title) {
+    std::u16string title,
+    std::u16string subtitle) {
   ChromeLayoutProvider* layout_provider = ChromeLayoutProvider::Get();
   views::FlexSpecification stretch_specification =
       views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
@@ -162,7 +192,7 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateSubpageHeader(
   header->SetLayoutManager(std::make_unique<views::FlexLayout>())
       ->SetCrossAxisAlignment(views::LayoutAlignment::kStart)
       .SetInteriorMargin(
-          gfx::Insets(0, side_margin, bottom_margin, side_margin));
+          gfx::Insets::TLBR(0, side_margin, bottom_margin, side_margin));
   header->SetProperty(views::kFlexBehaviorKey, stretch_specification);
   wrapper->AddChildView(CreateSeparator());
 
@@ -172,7 +202,7 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateSubpageHeader(
                           base::DoNothing()),
       vector_icons::kArrowBackIcon);
   views::InstallCircleHighlightPathGenerator(back_button.get());
-  back_button->SetID(VIEW_ID_BACK_BUTTON);
+  back_button->SetID(VIEW_ID_PAGE_INFO_BACK_BUTTON);
   back_button->SetTooltipText(l10n_util::GetStringUTF16(IDS_ACCNAME_BACK));
   back_button->SetProperty(views::kInternalPaddingKey,
                            back_button->GetInsets());
@@ -183,15 +213,18 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateSubpageHeader(
       std::make_unique<views::Label>(title, views::style::CONTEXT_DIALOG_TITLE,
                                      views::style::STYLE_SECONDARY));
   title_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  auto* subtitle_label =
-      label_wrapper->AddChildView(std::make_unique<views::Label>(
-          presenter_->GetSimpleSiteName(), views::style::CONTEXT_LABEL,
-          views::style::STYLE_SECONDARY,
-          gfx::DirectionalityMode::DIRECTIONALITY_AS_URL));
-  subtitle_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  subtitle_label->SetAllowCharacterBreak(true);
-  subtitle_label->SetMultiLine(true);
-  subtitle_label->SetProperty(views::kFlexBehaviorKey, stretch_specification);
+
+  if (!subtitle.empty()) {
+    auto* subtitle_label =
+        label_wrapper->AddChildView(std::make_unique<views::Label>(
+            subtitle, views::style::CONTEXT_LABEL,
+            views::style::STYLE_SECONDARY,
+            gfx::DirectionalityMode::DIRECTIONALITY_AS_URL));
+    subtitle_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    subtitle_label->SetAllowCharacterBreak(true);
+    subtitle_label->SetMultiLine(true);
+    subtitle_label->SetProperty(views::kFlexBehaviorKey, stretch_specification);
+  }
 
   auto close_button = views::BubbleFrameView::CreateCloseButton(
       base::BindRepeating(&PageInfoNavigationHandler::CloseBubble,
@@ -208,10 +241,54 @@ std::unique_ptr<views::View> PageInfoViewFactory::CreateSubpageHeader(
 // static
 const ui::ImageModel PageInfoViewFactory::GetPermissionIcon(
     const PageInfo::PermissionInfo& info) {
+  ContentSetting setting = info.setting == CONTENT_SETTING_DEFAULT
+                               ? info.default_setting
+                               : info.setting;
+  const bool show_blocked_badge =
+      !permissions::PermissionUtil::IsGuardContentSetting(info.type)
+          ? setting == CONTENT_SETTING_BLOCK || setting == CONTENT_SETTING_ASK
+          : setting == CONTENT_SETTING_BLOCK;
+
+  if (features::IsChromeRefresh2023()) {
+    // Cr2023 does not add an additional blocked badge for block states,
+    // instead it uses a completely different icon. This icon usually has the
+    // word `Off` in the icon name.
+    const gfx::VectorIcon* icon = nullptr;
+    switch (info.type) {
+      case ContentSettingsType::COOKIES:
+        icon = &vector_icons::kCookieChromeRefreshIcon;
+        break;
+      case ContentSettingsType::POPUPS:
+        icon = &vector_icons::kLaunchChromeRefreshIcon;
+        break;
+      case ContentSettingsType::GEOLOCATION:
+        icon = show_blocked_badge ? &vector_icons::kLocationOffChromeRefreshIcon
+                                  : &vector_icons::kLocationOnChromeRefreshIcon;
+        break;
+      case ContentSettingsType::NOTIFICATIONS:
+        icon = show_blocked_badge
+                   ? &vector_icons::kNotificationsOffChromeRefreshIcon
+                   : &vector_icons::kNotificationsChromeRefreshIcon;
+        break;
+      default:
+        break;
+    }
+
+    // If there is no ChromeRefreshIcon currently defined, continue to the rest
+    // of the function.
+    if (icon != nullptr) {
+      return ui::ImageModel::FromVectorIcon(*icon, ui::kColorIcon,
+                                            GetIconSize());
+    }
+  }
+
   const gfx::VectorIcon* icon = &gfx::kNoneIcon;
   switch (info.type) {
     case ContentSettingsType::COOKIES:
       icon = &vector_icons::kCookieIcon;
+      break;
+    case ContentSettingsType::FEDERATED_IDENTITY_API:
+      icon = &vector_icons::kAccountCircleIcon;
       break;
     case ContentSettingsType::IMAGES:
       icon = &vector_icons::kPhotoIcon;
@@ -238,7 +315,7 @@ const ui::ImageModel PageInfoViewFactory::GetPermissionIcon(
     case ContentSettingsType::AUTOMATIC_DOWNLOADS:
       icon = &vector_icons::kFileDownloadIcon;
       break;
-#if BUILDFLAG(IS_CHROMEOS_ASH) || defined(OS_WIN)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
     case ContentSettingsType::PROTECTED_MEDIA_IDENTIFIER:
       icon = &vector_icons::kProtectedContentIcon;
       break;
@@ -280,10 +357,10 @@ const ui::ImageModel PageInfoViewFactory::GetPermissionIcon(
     case ContentSettingsType::AR:
       icon = &vector_icons::kVrHeadsetIcon;
       break;
-    case ContentSettingsType::WINDOW_PLACEMENT:
+    case ContentSettingsType::WINDOW_MANAGEMENT:
       icon = &vector_icons::kSelectWindowIcon;
       break;
-    case ContentSettingsType::FONT_ACCESS:
+    case ContentSettingsType::LOCAL_FONTS:
       icon = &vector_icons::kFontDownloadIcon;
       break;
     case ContentSettingsType::HID_GUARD:
@@ -295,17 +372,9 @@ const ui::ImageModel PageInfoViewFactory::GetPermissionIcon(
     default:
       // All other |ContentSettingsType|s do not have icons on desktop or are
       // not shown in the Page Info bubble.
-      NOTREACHED();
-      break;
+      NOTREACHED_NORETURN();
   }
 
-  ContentSetting setting = info.setting == CONTENT_SETTING_DEFAULT
-                               ? info.default_setting
-                               : info.setting;
-  const bool show_blocked_badge =
-      !permissions::PermissionUtil::IsGuardContentSetting(info.type)
-          ? setting == CONTENT_SETTING_BLOCK || setting == CONTENT_SETTING_ASK
-          : setting == CONTENT_SETTING_BLOCK;
   return ui::ImageModel::FromVectorIcon(
       *icon, ui::kColorIcon, GetIconSize(),
       show_blocked_badge ? &vector_icons::kBlockedBadgeIcon : nullptr);
@@ -320,7 +389,7 @@ const ui::ImageModel PageInfoViewFactory::GetChosenObjectIcon(
   // TODO(https://crbug.com/1048860): Check the connected status of devices and
   // change the icon to one that reflects that status.
   const gfx::VectorIcon* icon = &gfx::kNoneIcon;
-  switch (object.ui_info.content_settings_type) {
+  switch (object.ui_info->content_settings_type) {
     case ContentSettingsType::USB_CHOOSER_DATA:
       icon = &vector_icons::kUsbIcon;
       break;
@@ -336,8 +405,7 @@ const ui::ImageModel PageInfoViewFactory::GetChosenObjectIcon(
     default:
       // All other content settings types do not represent chosen object
       // permissions.
-      NOTREACHED();
-      break;
+      NOTREACHED_NORETURN();
   }
 
   return ui::ImageModel::FromVectorIcon(
@@ -347,8 +415,11 @@ const ui::ImageModel PageInfoViewFactory::GetChosenObjectIcon(
 
 // static
 const ui::ImageModel PageInfoViewFactory::GetValidCertificateIcon() {
-  return ui::ImageModel::FromVectorIcon(vector_icons::kCertificateIcon,
-                                        ui::kColorIcon, GetIconSize());
+  return ui::ImageModel::FromVectorIcon(
+      features::IsChromeRefresh2023()
+          ? vector_icons::kCertificateChromeRefreshIcon
+          : vector_icons::kCertificateIcon,
+      ui::kColorIcon, GetIconSize());
 }
 
 // static
@@ -360,8 +431,10 @@ const ui::ImageModel PageInfoViewFactory::GetInvalidCertificateIcon() {
 
 // static
 const ui::ImageModel PageInfoViewFactory::GetSiteSettingsIcon() {
-  return ui::ImageModel::FromVectorIcon(vector_icons::kSettingsIcon,
-                                        ui::kColorIcon);
+  return ui::ImageModel::FromVectorIcon(
+      features::IsChromeRefresh2023() ? vector_icons::kSettingsChromeRefreshIcon
+                                      : vector_icons::kSettingsIcon,
+      ui::kColorIcon);
 }
 
 // static
@@ -372,8 +445,16 @@ const ui::ImageModel PageInfoViewFactory::GetVrSettingsIcon() {
 
 // static
 const ui::ImageModel PageInfoViewFactory::GetLaunchIcon() {
-  return ui::ImageModel::FromVectorIcon(vector_icons::kLaunchIcon,
-                                        ui::kColorIconSecondary, GetIconSize());
+  return ui::ImageModel::FromVectorIcon(
+      features::IsChromeRefresh2023() ? vector_icons::kLaunchChromeRefreshIcon
+                                      : vector_icons::kLaunchIcon,
+      ui::kColorIconSecondary, GetIconSize());
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetSidePanelIcon() {
+  return ui::ImageModel::FromVectorIcon(kSidePanelIcon, ui::kColorIconSecondary,
+                                        GetIconSize());
 }
 
 // static
@@ -384,8 +465,11 @@ const ui::ImageModel PageInfoViewFactory::GetConnectionNotSecureIcon() {
 
 // static
 const ui::ImageModel PageInfoViewFactory::GetConnectionSecureIcon() {
-  return ui::ImageModel::FromVectorIcon(vector_icons::kHttpsValidIcon,
-                                        ui::kColorIcon);
+  return ui::ImageModel::FromVectorIcon(
+      features::IsChromeRefresh2023()
+          ? vector_icons::kHttpsValidChromeRefreshIcon
+          : vector_icons::kHttpsValidIcon,
+      ui::kColorIcon, GetIconSize());
 }
 
 // static
@@ -396,8 +480,41 @@ const ui::ImageModel PageInfoViewFactory::GetOpenSubpageIcon() {
 
 // static
 const ui::ImageModel PageInfoViewFactory::GetAboutThisSiteIcon() {
-  return ui::ImageModel::FromVectorIcon(views::kInfoIcon, ui::kColorIcon,
-                                        GetIconSize());
+  return ui::ImageModel::FromVectorIcon(GetAboutThisSiteVectorIcon(),
+                                        ui::kColorIcon, GetIconSize());
+}
+
+// static
+const gfx::VectorIcon& PageInfoViewFactory::GetAboutThisSiteColorVectorIcon() {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  if (page_info::IsAboutThisSiteNewIconFeatureEnabled()) {
+    return vector_icons::kPageInsightsColorIcon;
+  }
+#endif  // !BUILDFLAG(GOOGLE_CHROME_BRANDING)
+
+  return views::kInfoIcon;
+}
+
+// static
+const gfx::VectorIcon& PageInfoViewFactory::GetAboutThisSiteVectorIcon() {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+  if (page_info::IsAboutThisSiteNewIconFeatureEnabled()) {
+    return vector_icons::kPageInsightsIcon;
+  }
+#endif  // !BUILDFLAG(GOOGLE_CHROME_BRANDING)
+
+  return views::kInfoIcon;
+}
+// static
+const ui::ImageModel PageInfoViewFactory::GetHistoryIcon() {
+  return ui::ImageModel::FromVectorIcon(vector_icons::kHistoryIcon,
+                                        ui::kColorIcon, GetIconSize());
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetAdPersonalizationIcon() {
+  return ui::ImageModel::FromVectorIcon(vector_icons::kAdsClickIcon,
+                                        ui::kColorIcon, GetIconSize());
 }
 
 // static
@@ -409,4 +526,49 @@ const ui::ImageModel PageInfoViewFactory::GetManagedPermissionIcon(
           : vector_icons::kBusinessIcon;
   return ui::ImageModel::FromVectorIcon(managed_vector_icon, ui::kColorIcon,
                                         GetIconSize());
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetBlockingThirdPartyCookiesIcon() {
+  return ui::ImageModel::FromVectorIcon(views::kEyeCrossedIcon, ui::kColorIcon,
+                                        GetIconSize());
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetFpsIcon() {
+  return ui::ImageModel::FromVectorIcon(vector_icons::kTenancyIcon,
+                                        ui::kColorIcon, GetIconSize());
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetEnforcedCookieControlsIcon(
+    CookieControlsEnforcement enforcement) {
+  switch (enforcement) {
+    case CookieControlsEnforcement::kEnforcedByExtension:
+      return GetEnforcedByExtensionIcon();
+    case CookieControlsEnforcement::kEnforcedByPolicy:
+      return GetEnforcedByPolicyIcon();
+    case CookieControlsEnforcement::kEnforcedByCookieSetting:
+      return GetEnforcedBySettingsIcon();
+    case CookieControlsEnforcement::kNoEnforcement:
+      NOTREACHED_NORETURN();
+  }
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetEnforcedByPolicyIcon() {
+  return ui::ImageModel::FromVectorIcon(vector_icons::kBusinessIcon,
+                                        ui::kColorIcon, GetIconSize());
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetEnforcedByExtensionIcon() {
+  return ui::ImageModel::FromVectorIcon(vector_icons::kExtensionIcon,
+                                        ui::kColorIcon, GetIconSize());
+}
+
+// static
+const ui::ImageModel PageInfoViewFactory::GetEnforcedBySettingsIcon() {
+  return ui::ImageModel::FromVectorIcon(vector_icons::kSettingsIcon,
+                                        ui::kColorIcon, GetIconSize());
 }

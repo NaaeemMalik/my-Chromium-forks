@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -19,6 +20,7 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/task/sequenced_task_runner.h"
 #include "cc/base/unique_notifier.h"
+#include "cc/paint/target_color_params.h"
 #include "cc/raster/raster_buffer_provider.h"
 #include "cc/raster/raster_query_queue.h"
 #include "cc/raster/raster_source.h"
@@ -45,6 +47,7 @@ class TracedValue;
 
 namespace cc {
 class ImageDecodeCache;
+class TilesWithResourceIterator;
 
 class CC_EXPORT TileManagerClient {
  public:
@@ -78,20 +81,18 @@ class CC_EXPORT TileManagerClient {
   virtual std::unique_ptr<EvictionTilePriorityQueue> BuildEvictionQueue(
       TreePriority tree_priority) = 0;
 
+  // Returns an iterator over all the tiles that have a resource.
+  virtual std::unique_ptr<TilesWithResourceIterator>
+  CreateTilesWithResourceIterator() = 0;
+
   // Informs the client that due to the currently rasterizing (or scheduled to
   // be rasterized) tiles, we will be in a position that will likely require a
   // draw. This can be used to preemptively start a frame.
   virtual void SetIsLikelyToRequireADraw(bool is_likely_to_require_a_draw) = 0;
 
-  // Requests the color space into which tiles should be rasterized.
-  virtual gfx::ColorSpace GetRasterColorSpace(
+  // Requests the color parameters in which the tiles should be rasterized.
+  virtual TargetColorParams GetTargetColorParams(
       gfx::ContentColorUsage content_color_usage) const = 0;
-
-  // Return the SDR white level for rasterization. Some systems have variable
-  // white levels (e.g., Windows SDR brightness slider). This should return the
-  // level of the monitor on which the rasterized content will be displayed (and
-  // changing the SDR white level of the display will trigger a re-raster).
-  virtual float GetSDRWhiteLevel() const = 0;
 
   // Requests that a pending tree be scheduled to invalidate content on the
   // pending on active tree. This is currently used when tiles that are
@@ -182,12 +183,11 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
                     TaskGraphRunner* task_graph_runner,
                     RasterBufferProvider* raster_buffer_provider,
                     bool use_gpu_rasterization,
-                    bool use_oop_rasterization,
                     RasterQueryQueue* pending_raster_queries);
 
   // This causes any completed raster work to finalize, so that tiles get up to
   // date draw information.
-  void CheckForCompletedTasks();
+  void PrepareToDraw();
 
   // Called when the required-for-activation/required-for-draw state of tiles
   // may have changed.
@@ -220,8 +220,9 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
       ResourcePool::InUsePoolResource resource =
           resource_pool_->AcquireResource(
               tiles[i]->desired_texture_size(),
-              raster_buffer_provider_->GetResourceFormat(),
-              client_->GetRasterColorSpace(gfx::ContentColorUsage::kSRGB));
+              raster_buffer_provider_->GetFormat(),
+              client_->GetTargetColorParams(gfx::ContentColorUsage::kSRGB)
+                  .color_space);
       raster_buffer_provider_->AcquireBufferForRaster(
           resource, 0, 0,
           /*depends_on_at_raster_decodes=*/false,
@@ -230,7 +231,8 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
       // The raster here never really happened, cuz tests. So just add an
       // arbitrary sync token.
       if (resource.gpu_backing()) {
-        resource.gpu_backing()->mailbox = gpu::Mailbox::Generate();
+        resource.gpu_backing()->mailbox =
+            gpu::Mailbox::GenerateForSharedImage();
         resource.gpu_backing()->mailbox_sync_token.Set(
             gpu::GPU_IO, gpu::CommandBufferId::FromUnsafeValue(1), 1);
       }
@@ -305,7 +307,7 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
   std::unique_ptr<base::trace_event::ConvertableToTraceFormat>
   ActivationStateAsValue();
 
-  void ActivationStateAsValueInto(base::trace_event::TracedValue* state);
+  void ActivationStateAsValueInto(base::trace_event::TracedValue* state) const;
   int num_of_tiles_with_checker_images() const {
     return num_of_tiles_with_checker_images_;
   }
@@ -323,6 +325,8 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
 
   void set_active_url(const GURL& url) { active_url_ = url; }
 
+  std::string GetHungCommitDebugInfo() const;
+
  protected:
   friend class Tile;
   // Must be called by tile during destruction.
@@ -336,7 +340,7 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
     MemoryUsage(size_t memory_bytes, size_t resource_count);
 
     static MemoryUsage FromConfig(const gfx::Size& size,
-                                  viz::ResourceFormat format);
+                                  viz::SharedImageFormat format);
     static MemoryUsage FromTile(const Tile* tile);
 
     MemoryUsage& operator+=(const MemoryUsage& other);
@@ -377,12 +381,14 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
     CheckerImageTracker::ImageDecodeQueue checker_image_decode_queue;
   };
 
+  // Frees the resources of all occluded tiles.
+  void FreeResourcesForOccludedTiles();
+
   void FreeResourcesForTile(Tile* tile);
   void FreeResourcesForTileAndNotifyClientIfTileWasReadyToDraw(Tile* tile);
   scoped_refptr<TileTask> CreateRasterTask(
       const PrioritizedTile& prioritized_tile,
-      const gfx::ColorSpace& raster_color_space,
-      float sdr_white_level,
+      const TargetColorParams& target_color_params,
       PrioritizedWorkToSchedule* work_to_schedule);
 
   std::unique_ptr<EvictionTilePriorityQueue>
@@ -402,7 +408,7 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
   void MarkTilesOutOfMemory(
       std::unique_ptr<RasterTilePriorityQueue> queue) const;
 
-  viz::ResourceFormat DetermineResourceFormat(const Tile* tile) const;
+  viz::SharedImageFormat DetermineFormat(const Tile* tile) const;
 
   void DidFinishRunningTileTasksRequiredForActivation();
   void DidFinishRunningTileTasksRequiredForDraw();
@@ -415,16 +421,14 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
 
   void PartitionImagesForCheckering(
       const PrioritizedTile& prioritized_tile,
-      const gfx::ColorSpace& raster_color_space,
-      float sdr_white_level,
+      const TargetColorParams& target_color_params,
       std::vector<DrawImage>* sync_decoded_images,
       std::vector<PaintImage>* checkered_images,
       const gfx::Rect* invalidated_rect,
       base::flat_map<PaintImage::Id, size_t>* image_to_frame_index = nullptr);
   void AddCheckeredImagesToDecodeQueue(
       const PrioritizedTile& prioritized_tile,
-      const gfx::ColorSpace& raster_color_space,
-      float sdr_white_level,
+      const TargetColorParams& target_color_params,
       CheckerImageTracker::DecodeType decode_type,
       CheckerImageTracker::ImageDecodeQueue* image_decode_queue);
 
@@ -439,17 +443,18 @@ class CC_EXPORT TileManager : CheckerImageTrackerClient {
   void ScheduleCheckRasterFinishedQueries();
   void CheckRasterFinishedQueries();
 
-  raw_ptr<TileManagerClient> client_;
+  bool ShouldRasterOccludedTiles() const;
+
+  raw_ptr<TileManagerClient, DanglingUntriaged> client_;
   raw_ptr<base::SequencedTaskRunner> task_runner_;
-  raw_ptr<ResourcePool> resource_pool_;
+  raw_ptr<ResourcePool, DanglingUntriaged> resource_pool_;
   std::unique_ptr<TileTaskManager> tile_task_manager_;
-  raw_ptr<RasterBufferProvider> raster_buffer_provider_;
+  raw_ptr<RasterBufferProvider, DanglingUntriaged> raster_buffer_provider_;
   GlobalStateThatImpactsTilePriority global_state_;
   size_t scheduled_raster_task_limit_;
 
   const TileManagerSettings tile_manager_settings_;
   bool use_gpu_rasterization_;
-  bool use_oop_rasterization_;
   raw_ptr<RasterQueryQueue> pending_raster_queries_ = nullptr;
 
   std::unordered_map<Tile::Id, Tile*> tiles_;

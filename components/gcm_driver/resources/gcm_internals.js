@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@ import 'gtx://resources/js/ios/web_ui.js';
 // </if>
 
 import './strings.m.js';
-import {addWebUIListener} from 'gtx://resources/js/cr.m.js';
-import {$} from 'gtx://resources/js/util.m.js';
+
+import {addWebUiListener} from 'gtx://resources/js/cr.js';
+import {$} from 'gtx://resources/js/util_ts.js';
 
 let isRecording = false;
 let keyPressState = 0;
@@ -142,7 +143,7 @@ function clearLogs() {
 }
 
 function initialize() {
-  addWebUIListener('set-gcm-internals-info', setGcmInternalsInfo);
+  addWebUiListener('set-gcm-internals-info', setGcmInternalsInfo);
   $('recording').disabled = true;
   $('refresh').onclick = refreshAll;
   $('recording').onclick = setRecording;

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,15 +9,16 @@
 #include <memory>
 #include <utility>
 
-#include "ash/components/settings/cros_settings_names.h"
 #include "ash/constants/ash_switches.h"
-#include "base/bind.h"
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
+#include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/test/gtest_tags.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_chromeos_version_info.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
@@ -36,6 +37,7 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "chromeos/ash/components/settings/cros_settings_names.h"
 #include "components/crx_file/crx_verifier.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "content/public/test/browser_test.h"
@@ -51,8 +53,6 @@ using content::BrowserThread;
 namespace ash {
 
 namespace {
-
-using ::chromeos::InstallAttributes;
 
 // An app to test local fs data persistence across app update. V1 app writes
 // data into local fs. V2 app reads and verifies the data.
@@ -103,16 +103,16 @@ scoped_refptr<extensions::Extension> MakeKioskApp(
     const std::string& version,
     const std::string& id,
     const std::string& required_platform_version) {
-  base::DictionaryValue value;
-  value.SetString("name", name);
-  value.SetString("version", version);
-  base::ListValue scripts;
+  base::Value::Dict value;
+  value.Set("name", name);
+  value.Set("version", version);
+  base::Value::List scripts;
   scripts.Append("main.js");
-  value.SetPath("app.background.scripts", std::move(scripts));
-  value.SetBoolean("kiosk_enabled", true);
+  value.SetByDottedPath("app.background.scripts", std::move(scripts));
+  value.Set("kiosk_enabled", true);
   if (!required_platform_version.empty()) {
-    value.SetString("kiosk.required_platform_version",
-                    required_platform_version);
+    value.SetByDottedPath("kiosk.required_platform_version",
+                          required_platform_version);
   }
 
   std::string err;
@@ -134,8 +134,9 @@ class AppDataLoadWaiter : public KioskAppManagerObserver {
   ~AppDataLoadWaiter() override { manager_->RemoveObserver(this); }
 
   void Wait() {
-    if (quit_)
+    if (quit_) {
       return;
+    }
     run_loop_ = std::make_unique<base::RunLoop>();
     run_loop_->Run();
   }
@@ -154,20 +155,23 @@ class AppDataLoadWaiter : public KioskAppManagerObserver {
   // KioskAppManagerObserver overrides:
   void OnKioskAppDataChanged(const std::string& app_id) override {
     ++data_change_count_;
-    if (data_change_count_ < expected_data_change_)
+    if (data_change_count_ < expected_data_change_) {
       return;
+    }
     loaded_ = true;
     quit_ = true;
-    if (run_loop_)
+    if (run_loop_) {
       run_loop_->Quit();
+    }
   }
 
   void OnKioskAppDataLoadFailure(const std::string& app_id) override {
     ++data_load_failure_count_;
     loaded_ = false;
     quit_ = true;
-    if (run_loop_)
+    if (run_loop_) {
       run_loop_->Quit();
+    }
   }
 
   void OnKioskExtensionLoadedInCache(const std::string& app_id) override {
@@ -182,7 +186,7 @@ class AppDataLoadWaiter : public KioskAppManagerObserver {
   }
 
   std::unique_ptr<base::RunLoop> run_loop_;
-  KioskAppManager* manager_;
+  raw_ptr<KioskAppManager, ExperimentalAsh> manager_;
   bool loaded_ = false;
   bool quit_ = false;
   int data_change_count_ = 0;
@@ -193,14 +197,15 @@ class AppDataLoadWaiter : public KioskAppManagerObserver {
 // A class to wait for ExternalCache to finish putting the extension crx.
 class ExternalCachePutWaiter {
  public:
-  ExternalCachePutWaiter() {}
+  ExternalCachePutWaiter() = default;
   ExternalCachePutWaiter(const ExternalCachePutWaiter&) = delete;
   ExternalCachePutWaiter& operator=(const ExternalCachePutWaiter&) = delete;
-  ~ExternalCachePutWaiter() {}
+  ~ExternalCachePutWaiter() = default;
 
   void Wait() {
-    if (quit_)
+    if (quit_) {
       return;
+    }
     run_loop_ = std::make_unique<base::RunLoop>();
     run_loop_->Run();
   }
@@ -208,8 +213,9 @@ class ExternalCachePutWaiter {
   void OnPutExtension(const std::string& id, bool success) {
     success_ = success;
     quit_ = true;
-    if (run_loop_)
+    if (run_loop_) {
       run_loop_->Quit();
+    }
   }
 
   bool success() const { return success_; }
@@ -230,7 +236,7 @@ class KioskAppManagerTest : public InProcessBrowserTest {
         verifier_format_override_(crx_file::VerifierFormat::CRX3) {}
   KioskAppManagerTest(const KioskAppManagerTest&) = delete;
   KioskAppManagerTest& operator=(const KioskAppManagerTest&) = delete;
-  ~KioskAppManagerTest() override {}
+  ~KioskAppManagerTest() override = default;
 
   // InProcessBrowserTest overrides:
   void SetUp() override {
@@ -278,8 +284,9 @@ class KioskAppManagerTest : public InProcessBrowserTest {
 
     std::string str;
     for (size_t i = 0; i < apps.size(); ++i) {
-      if (i > 0)
+      if (i > 0) {
         str += ',';
+      }
       str += apps[i].app_id;
     }
 
@@ -317,32 +324,33 @@ class KioskAppManagerTest : public InProcessBrowserTest {
     base::FilePath icon_path =
         CopyFileToTempDir(data_dir.AppendASCII(icon_file_name));
 
-    base::DictionaryValue apps_dict;
-    apps_dict.SetString(app_id + ".name", app_name);
-    apps_dict.SetString(app_id + ".icon", icon_path.MaybeAsASCII());
-    apps_dict.SetString(app_id + ".required_platform_version",
-                        required_platform_version);
+    base::Value::Dict apps_dict;
+    apps_dict.SetByDottedPath(app_id + ".name", app_name);
+    apps_dict.SetByDottedPath(app_id + ".icon", icon_path.MaybeAsASCII());
+    apps_dict.SetByDottedPath(app_id + ".required_platform_version",
+                              required_platform_version);
 
     PrefService* local_state = g_browser_process->local_state();
-    DictionaryPrefUpdate dict_update(local_state,
+    ScopedDictPrefUpdate dict_update(local_state,
                                      KioskAppManager::kKioskDictionaryName);
-    dict_update->SetKey(KioskAppDataBase::kKeyApps, std::move(apps_dict));
+    dict_update->Set(KioskAppDataBase::kKeyApps, std::move(apps_dict));
 
     // Make the app appear in device settings.
-    base::ListValue device_local_accounts;
-    std::unique_ptr<base::DictionaryValue> entry(new base::DictionaryValue);
+    base::Value::List device_local_accounts;
+    base::Value::Dict entry;
     // Fake an account id. Note this needs to match GenerateKioskAppAccountId
     // in kiosk_app_manager.cc to make SetAutoLaunchApp work with the
     // existing app entry created here.
-    entry->SetKey(kAccountsPrefDeviceLocalAccountsKeyId,
-                  base::Value(app_id + "@kiosk-apps"));
-    entry->SetKey(kAccountsPrefDeviceLocalAccountsKeyType,
-                  base::Value(policy::DeviceLocalAccount::TYPE_KIOSK_APP));
-    entry->SetKey(kAccountsPrefDeviceLocalAccountsKeyKioskAppId,
-                  base::Value(app_id));
+    entry.Set(kAccountsPrefDeviceLocalAccountsKeyId, app_id + "@kiosk-apps");
+    entry.Set(kAccountsPrefDeviceLocalAccountsKeyType,
+              policy::DeviceLocalAccount::TYPE_KIOSK_APP);
+    entry.Set(
+        kAccountsPrefDeviceLocalAccountsKeyEphemeralMode,
+        static_cast<int>(policy::DeviceLocalAccount::EphemeralMode::kUnset));
+    entry.Set(kAccountsPrefDeviceLocalAccountsKeyKioskAppId, app_id);
     device_local_accounts.Append(std::move(entry));
     owner_settings_service_->Set(kAccountsPrefDeviceLocalAccounts,
-                                 device_local_accounts);
+                                 base::Value(std::move(device_local_accounts)));
   }
 
   bool GetCachedCrx(const std::string& app_id,
@@ -375,30 +383,31 @@ class KioskAppManagerTest : public InProcessBrowserTest {
 
     // Check data is cached in local state correctly.
     PrefService* local_state = g_browser_process->local_state();
-    const base::DictionaryValue* dict =
-        local_state->GetDictionary(KioskAppManager::kKioskDictionaryName);
+    const base::Value::Dict& dict =
+        local_state->GetDict(KioskAppManager::kKioskDictionaryName);
 
-    std::string name;
     const std::string name_key = "apps." + app_id + ".name";
-    EXPECT_TRUE(dict->GetString(name_key, &name));
-    EXPECT_EQ(expected_app_name, name);
+    const std::string* name = dict.FindStringByDottedPath(name_key);
+    ASSERT_TRUE(name);
+    EXPECT_EQ(expected_app_name, *name);
 
-    std::string icon_path_string;
     const std::string icon_path_key = "apps." + app_id + ".icon";
-    EXPECT_TRUE(dict->GetString(icon_path_key, &icon_path_string));
+    const std::string* icon_path_string =
+        dict.FindStringByDottedPath(icon_path_key);
+    ASSERT_TRUE(icon_path_string);
 
-    std::string required_platform_version;
     const std::string required_platform_version_key =
         "apps." + app_id + ".required_platform_version";
-    EXPECT_TRUE(dict->GetString(required_platform_version_key,
-                                &required_platform_version));
-    EXPECT_EQ(expected_required_platform_version, required_platform_version);
+    const std::string* required_platform_version =
+        dict.FindStringByDottedPath(required_platform_version_key);
+    ASSERT_TRUE(required_platform_version);
+    EXPECT_EQ(expected_required_platform_version, *required_platform_version);
 
     base::FilePath expected_icon_path;
     manager()->GetKioskAppIconCacheDir(&expected_icon_path);
     expected_icon_path =
         expected_icon_path.AppendASCII(app_id).AddExtension(".png");
-    EXPECT_EQ(expected_icon_path.value(), icon_path_string);
+    EXPECT_EQ(expected_icon_path.value(), *icon_path_string);
   }
 
   void RunAddNewAppTest(const std::string& id,
@@ -548,15 +557,16 @@ IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, ClearAppData) {
   SetExistingApp("app_1", "Cached App1 Name", "red16x16.png", "");
 
   PrefService* local_state = g_browser_process->local_state();
-  const base::DictionaryValue* dict =
-      local_state->GetDictionary(KioskAppManager::kKioskDictionaryName);
-  const base::DictionaryValue* apps_dict;
-  EXPECT_TRUE(dict->GetDictionary(KioskAppDataBase::kKeyApps, &apps_dict));
-  EXPECT_TRUE(apps_dict->FindKey("app_1") != nullptr);
+  const base::Value::Dict& dict =
+      local_state->GetDict(KioskAppManager::kKioskDictionaryName);
+  const base::Value::Dict* apps_dict =
+      dict.FindDict(KioskAppDataBase::kKeyApps);
+  EXPECT_TRUE(apps_dict);
+  EXPECT_TRUE(apps_dict->contains("app_1"));
 
   manager()->ClearAppData("app_1");
 
-  EXPECT_EQ(apps_dict->FindKey("app_1"), nullptr);
+  EXPECT_FALSE(apps_dict->contains("app_1"));
 }
 
 IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, UpdateAppDataFromProfile) {
@@ -573,8 +583,8 @@ IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, UpdateAppDataFromProfile) {
 
   scoped_refptr<extensions::Extension> updated_app =
       MakeKioskApp("Updated App1 Name", "2.0", "app_1", "1234");
-  manager()->UpdateAppDataFromProfile(
-      "app_1", browser()->profile(), updated_app.get());
+  manager()->UpdateAppDataFromProfile("app_1", browser()->profile(),
+                                      updated_app.get());
 
   waiter.Reset();
   waiter.Wait();
@@ -782,6 +792,11 @@ IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, RemoveApp) {
 }
 
 IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, UpdateApp) {
+  base::AddFeatureIdTagToTestResult(
+      "screenplay-0848f806-ea30-48db-8025-da0fd707a5a2");
+
+  base::HistogramTester histogram;
+
   // Add a version 1 app first.
   RunAddNewAppTest(kTestLocalFsKioskApp, "1.0.0", kTestLocalFsKioskAppName, "");
   KioskAppManager::AppList apps;
@@ -829,6 +844,11 @@ IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, UpdateApp) {
     EXPECT_TRUE(base::PathExists(v2_file_path));
   }
   EXPECT_TRUE(base::ContentsEqual(v2_file_path, new_crx_path));
+
+  histogram.ExpectUniqueSample(
+      kKioskPrimaryAppUpdateResultHistogram,
+      KioskAppManager::PrimaryAppDownloadResult::kSuccess,
+      /*expected_bucket_count=*/1);
 }
 
 IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, UpdateAndRemoveApp) {
@@ -1009,6 +1029,9 @@ IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, IsPlatformCompliant) {
 }
 
 IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, IsPlatformCompliantWithApp) {
+  base::AddFeatureIdTagToTestResult(
+      "screenplay-182c1317-2fc0-459b-b217-ec7d6de6e363");
+
   base::test::ScopedChromeOSVersionInfo version(
       "CHROMEOS_RELEASE_VERSION=1234.1.2", base::Time::Now());
 
@@ -1028,7 +1051,7 @@ IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, IsPlatformCompliantWithApp) {
       {"1234.1.1", false}, {"1234.1.3", false},
   };
 
-  for (size_t i = 0; i < base::size(kTestCases); ++i) {
+  for (size_t i = 0; i < std::size(kTestCases); ++i) {
     scoped_refptr<extensions::Extension> app = MakeKioskApp(
         "App Name", "1.0", kAppId, kTestCases[i].required_platform_version);
     EXPECT_EQ(kTestCases[i].expected_compliant,
@@ -1039,7 +1062,7 @@ IN_PROC_BROWSER_TEST_F(KioskAppManagerTest, IsPlatformCompliantWithApp) {
 
   // If an app is not auto launched with zero delay, it is always compliant.
   const char kNoneAutoLaucnhedAppId[] = "none_auto_launch_app_id";
-  for (size_t i = 0; i < base::size(kTestCases); ++i) {
+  for (size_t i = 0; i < std::size(kTestCases); ++i) {
     scoped_refptr<extensions::Extension> app =
         MakeKioskApp("App Name", "1.0", kNoneAutoLaucnhedAppId,
                      kTestCases[i].required_platform_version);

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -106,8 +107,8 @@ class ComponentActiveDirectoryPolicyService : public SchemaRegistry::Observer {
   const PolicyDomain domain_;
   const login_manager::PolicyAccountType account_type_;
   const std::string account_id_;
-  Delegate* const delegate_;
-  SchemaRegistry* const schema_registry_;
+  const raw_ptr<Delegate, ExperimentalAsh> delegate_;
+  const raw_ptr<SchemaRegistry, ExperimentalAsh> schema_registry_;
 
   // Schema map from the |schema_registry_|. Set as soon as the registry is
   // ready.

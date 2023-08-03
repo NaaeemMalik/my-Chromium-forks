@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <map>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -190,7 +190,7 @@ TEST_F(BackgroundSyncSchedulerTest, ScheduleBothTypesOfSync) {
   run_loop_2.Run();
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 TEST_F(BackgroundSyncSchedulerTest, BrowserWakeupScheduled) {
   ScheduleDelayedProcessing(GURL(kUrl_1),
                             blink::mojom::BackgroundSyncType::ONE_SHOT,

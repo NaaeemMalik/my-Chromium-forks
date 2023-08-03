@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,11 @@
 #include <map>
 #include <string>
 
+#include "base/containers/flat_map.h"
 #include "base/files/file_path.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/time/time.h"
 #include "components/component_updater/component_updater_service.h"
 #include "components/soda/soda_installer.h"
 
@@ -41,6 +43,8 @@ class SodaInstallerImpl : public SodaInstaller,
   // SodaInstaller:
   void InstallLanguage(const std::string& language,
                        PrefService* global_prefs) override;
+  void UninstallLanguage(const std::string& language,
+                         PrefService* global_prefs) override;
   std::vector<std::string> GetAvailableLanguages() const override;
 
  protected:
@@ -55,7 +59,13 @@ class SodaInstallerImpl : public SodaInstaller,
   void OnSodaLanguagePackInstalled(speech::LanguageCode language_code);
 
  private:
-  std::map<std::string, update_client::CrxUpdateItem> downloading_components_;
+  void UpdateAndNotifyOnSodaProgress(speech::LanguageCode language_code);
+
+  std::map<speech::LanguageCode, update_client::CrxUpdateItem>
+      downloading_components_;
+
+  base::Time soda_binary_install_start_time_;
+  base::flat_map<LanguageCode, base::Time> language_pack_install_start_time_;
 
   base::ScopedObservation<component_updater::ComponentUpdateService,
                           component_updater::ComponentUpdateService::Observer>

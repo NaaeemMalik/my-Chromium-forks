@@ -55,13 +55,13 @@ SQLite version upgrades tend to be extremely large changes
 to thoroughly review.
 
 **Note** SQLite tags all releases `version-<release number>`, e.g.
-`version-3.33.0`. The Chromium project prefixes all tags/branches with
-"chromium-", e.g.  `chromium-version-3.33.0`.
+`version-3.40.0`. The Chromium project prefixes all tags/branches with
+"chromium-", e.g.  `chromium-version-3.40.0`.
 
 1. Create new release branch
 
    Use the SQLite git commit hash for the release, found at
-   [sqlite/releases](https://github.com/sqlite/sqlite/releases), when creating
+   [sqlite/tags](https://github.com/sqlite/sqlite/tags), when creating
    a new release branch. For example,
    "[562fd18b9dc27216191c0a6477bba9b175f7f0d2](https://github.com/sqlite/sqlite/commit/562fd18b9dc27216191c0a6477bba9b175f7f0d2)"
    corresponds to the 3.31.1 release. The commit is used instead of the tag
@@ -78,19 +78,18 @@ to thoroughly review.
     Get the version from the [README.chromium](https://source.chromium.org/chromium/chromium/src/+/main:third_party/sqlite/README.chromium).
 
     ```sh
-    cd //third_party/sqlite/src
+    cd third_party/sqlite/src  # from //chromium/src
     git fetch origin
-    export VERSION=3.33.0
+    export VERSION=3.40.0
     git checkout -b chromium-version-$VERSION \
-        --track origin/chromum-version-$VERSION
+        --track origin/chromium-version-$VERSION
     ```
 
 3. Generate and commit the SQLite amalgamations.
 
     ```sh
-    ../scripts/generate_amalgamation.py
-    git add amalgamation
-    git add amalgamation_dev
+    ./../scripts/generate_amalgamation.py
+    git add amalgamation amalgamation_dev
     git commit -m "Amalgamations for release $VERSION"
     ```
 
@@ -113,7 +112,7 @@ to thoroughly review.
         ```sh
         roll-dep src/third_party/sqlite/src --roll-to <git hash of merged CL>
         ```
-    2. Update the version in //third_party/sqlite/README.chromium. Append the
+    2. Update the version in //third_party/sqlite/README.chromium. Amend the
        commit created by roll-dep above.
 
 ## Cherry-pick unreleased commit from SQLite.
@@ -135,8 +134,8 @@ following:
     Get the version from the [README.chromium](https://source.chromium.org/chromium/chromium/src/+/main:third_party/sqlite/README.chromium).
 
     ```sh
-    export VERSION=3.33.0
-    cd //third_party/sqlite/src
+    export VERSION=3.40.0
+    cd third_party/sqlite/src  # from //chromium/src
     git checkout -b chromium-version-$VERSION \
       --track origin/chromium-version-$VERSION
     ```
@@ -244,7 +243,7 @@ these tests are fixed, it is safe to ignore these tests when running SQLite test
 suites.
 
 ```sh
-cd //third_party/sqlite
+cd third_party/sqlite  # from //chromium/src
 ./scripts/generate_amalgamation.py --testing
 make --directory=src test | tee /tmp/test.log
 ```

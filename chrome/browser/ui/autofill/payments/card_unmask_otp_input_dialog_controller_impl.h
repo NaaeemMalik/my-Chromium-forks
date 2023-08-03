@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 #include "build/build_config.h"
 #include "chrome/browser/ui/autofill/payments/card_unmask_otp_input_dialog_controller.h"
 #include "chrome/browser/ui/autofill/payments/card_unmask_otp_input_dialog_view.h"
+#include "components/autofill/core/browser/payments/card_unmask_challenge_option.h"
 #include "components/autofill/core/browser/payments/otp_unmask_delegate.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
 namespace autofill {
@@ -22,7 +22,6 @@ enum class OtpUnmaskResult;
 
 class CardUnmaskOtpInputDialogControllerImpl
     : public CardUnmaskOtpInputDialogController,
-      public content::WebContentsObserver,
       public content::WebContentsUserData<
           CardUnmaskOtpInputDialogControllerImpl> {
  public:
@@ -33,7 +32,8 @@ class CardUnmaskOtpInputDialogControllerImpl
   ~CardUnmaskOtpInputDialogControllerImpl() override;
 
   // Show the dialog for users to type in OTPs.
-  void ShowDialog(size_t otp_length, base::WeakPtr<OtpUnmaskDelegate> delegate);
+  void ShowDialog(const CardUnmaskChallengeOption& challenge_option,
+                  base::WeakPtr<OtpUnmaskDelegate> delegate);
 
   // Invoked when the OTP verification is completed.
   void OnOtpVerificationResult(OtpUnmaskResult result);
@@ -45,9 +45,9 @@ class CardUnmaskOtpInputDialogControllerImpl
   void OnNewCodeLinkClicked() override;
   std::u16string GetWindowTitle() const override;
   std::u16string GetTextfieldPlaceholderText() const override;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   int GetExpectedOtpLength() const override;
-#endif  // OS_ANDROID
+#endif
   bool IsValidOtp(const std::u16string& otp) const override;
   FooterText GetFooterText(const std::u16string& link_text) const override;
   std::u16string GetNewCodeLinkText() const override;
@@ -65,6 +65,11 @@ class CardUnmaskOtpInputDialogControllerImpl
   explicit CardUnmaskOtpInputDialogControllerImpl(
       content::WebContents* web_contents);
 
+  raw_ptr<CardUnmaskOtpInputDialogView> dialog_view_ = nullptr;
+
+  // The challenge type of the OTP input dialog.
+  CardUnmaskChallengeOptionType challenge_type_;
+
  private:
   friend class content::WebContentsUserData<
       CardUnmaskOtpInputDialogControllerImpl>;
@@ -78,8 +83,6 @@ class CardUnmaskOtpInputDialogControllerImpl
 
   // Weak reference to the delegate. Used to handle events of the dialog.
   base::WeakPtr<OtpUnmaskDelegate> delegate_;
-
-  raw_ptr<CardUnmaskOtpInputDialogView> dialog_view_ = nullptr;
 
   // Indicates whether any temporary error has been shown on the dialog. Used
   // for logging.

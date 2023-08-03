@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright 2021 The Chromium Authors. All rights reserved.
-     Use of this source code is governed by a BSD-style license that can be
-     found in the LICENSE file. -->
+<!--
+Copyright 2021 The Chromium Authors
+Use of this source code is governed by a BSD-style license that can be
+found in the LICENSE file.
+-->
 
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
@@ -21,6 +23,7 @@
         android:layout_marginBottom="@dimen/quick_action_search_widget_medium_row_vertical_margin"
         android:background="@drawable/quick_action_search_widget_medium_search_bar_background"
         android:gravity="center_vertical"
+        android:contentDescription="@string/quick_action_search_widget_search_bar_hint"
         android:orientation="horizontal">
 
         <ImageView
@@ -31,16 +34,17 @@
             android:layout_marginBottom="@dimen/quick_action_search_widget_medium_search_bar_icon_margin"
             android:layout_marginStart="@dimen/quick_action_search_widget_medium_search_bar_icon_margin"
             android:layout_marginEnd="@dimen/quick_action_search_widget_medium_search_bar_icon_margin_text"
-            android:contentDescription="@string/accessibility_quick_action_search_widget_icon"
+            android:importantForAccessibility="no"
             android:src="@mipmap/app_icon" />
 
         <TextView
             android:id="@+id/search_bar"
-            style="@style/TextAppearance.NewTabPageSearchBoxText"
+            style="@style/TextAppearance.SearchBoxText.Widget"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center_vertical"
             android:hint="@string/quick_action_search_widget_search_bar_hint"
+            android:importantForAccessibility="no"
             android:singleLine="true"
             android:textAlignment="viewStart" />
     </LinearLayout>

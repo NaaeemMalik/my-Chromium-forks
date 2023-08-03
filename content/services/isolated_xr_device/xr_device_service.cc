@@ -1,17 +1,18 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/services/isolated_xr_device/xr_device_service.h"
 
+#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "content/services/isolated_xr_device/xr_runtime_provider.h"
 #include "content/services/isolated_xr_device/xr_service_test_hook.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/com_init_check_hook.h"
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 namespace device {
 
@@ -20,9 +21,9 @@ XrDeviceService::XrDeviceService(
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner)
     : receiver_(this, std::move(receiver)),
       io_task_runner_(std::move(io_task_runner)) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   base::win::ComInitCheckHook::DisableCOMChecksForProcess();
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 XrDeviceService::~XrDeviceService() = default;

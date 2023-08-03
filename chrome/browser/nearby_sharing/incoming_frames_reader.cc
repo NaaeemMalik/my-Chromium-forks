@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 
 #include <type_traits>
 
-#include "base/threading/sequenced_task_runner_handle.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/nearby_sharing/logging/logging.h"
-#include "chrome/browser/nearby_sharing/nearby_connection.h"
-#include "chromeos/services/nearby/public/mojom/nearby_decoder.mojom.h"
+#include "chrome/browser/nearby_sharing/public/cpp/nearby_connection.h"
+#include "chromeos/ash/services/nearby/public/mojom/nearby_decoder.mojom.h"
 
 namespace {
 
@@ -23,7 +23,7 @@ std::ostream& operator<<(std::ostream& out,
 }  // namespace
 
 IncomingFramesReader::IncomingFramesReader(
-    chromeos::nearby::NearbyProcessManager* process_manager,
+    ash::nearby::NearbyProcessManager* process_manager,
     NearbyConnection* connection)
     : process_manager_(process_manager), connection_(connection) {
   DCHECK(process_manager);
@@ -71,7 +71,7 @@ void IncomingFramesReader::ReadFrame(
 
   timeout_callback_.Reset(base::BindOnce(&IncomingFramesReader::OnTimeout,
                                          weak_ptr_factory_.GetWeakPtr()));
-  base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE, base::BindOnce(timeout_callback_.callback()), timeout);
 
   // Check in cache for frame.
@@ -86,7 +86,7 @@ void IncomingFramesReader::ReadFrame(
 }
 
 void IncomingFramesReader::OnNearbyProcessStopped(
-    chromeos::nearby::NearbyProcessManager::NearbyProcessShutdownReason) {
+    ash::nearby::NearbyProcessManager::NearbyProcessShutdownReason) {
   is_process_stopped_ = true;
   Done(absl::nullopt);
 }

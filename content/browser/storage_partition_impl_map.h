@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/supports_user_data.h"
@@ -56,15 +56,9 @@ class CONTENT_EXPORT StoragePartitionImplMap
                        base::OnceClosure on_gc_required,
                        base::OnceClosure done_callback);
 
-  // Examines the on-disk storage and removes any entires that are not listed
-  // in the |active_paths|, or in use by current entries in the storage
-  // partition.
-  //
-  // The |done| closure is executed on the calling thread when garbage
-  // collection is complete.
-  void GarbageCollect(
-      std::unique_ptr<std::unordered_set<base::FilePath>> active_paths,
-      base::OnceClosure done);
+  // See BrowserContext::GarbageCollectStoragePartitions().
+  void GarbageCollect(std::unordered_set<base::FilePath> active_paths,
+                      base::OnceClosure done);
 
   void ForEach(BrowserContext::StoragePartitionCallback callback);
 

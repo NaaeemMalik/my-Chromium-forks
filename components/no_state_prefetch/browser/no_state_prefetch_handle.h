@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
+#include "url/gurl.h"
 
 namespace prerender {
 
@@ -68,6 +69,8 @@ class NoStatePrefetchHandle : public NoStatePrefetchContents::Observer {
 
   NoStatePrefetchContents* contents() const;
 
+  const GURL& prerender_url() const;
+
   // Returns whether this NoStatePrefetchHandle represents the same prefetch as
   // the other NoStatePrefetchHandle object specified.
   bool RepresentingSamePrefetchAs(NoStatePrefetchHandle* other) const;
@@ -85,6 +88,9 @@ class NoStatePrefetchHandle : public NoStatePrefetchContents::Observer {
       NoStatePrefetchContents* no_state_prefetch_contents) override;
 
   raw_ptr<Observer> observer_;
+
+  // The prerendered URL for this handle.
+  GURL prerender_url_;
 
   base::WeakPtr<NoStatePrefetchManager::NoStatePrefetchData> prefetch_data_;
   base::WeakPtrFactory<NoStatePrefetchHandle> weak_ptr_factory_{this};

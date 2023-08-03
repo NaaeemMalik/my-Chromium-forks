@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,9 @@
 #include "third_party/blink/public/platform/modules/webrtc/webrtc_logging.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/modules/mediastream/media_stream_video_source.h"
+#include "third_party/blink/renderer/modules/mediastream/media_constraints.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util.h"
 #include "third_party/blink/renderer/modules/mediastream/media_stream_constraints_util_sets.h"
-#include "third_party/blink/renderer/platform/mediastream/media_constraints.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "third_party/blink/renderer/platform/wtf/wtf_size_t.h"
 
@@ -42,10 +42,6 @@ using DistanceVector = WTF::Vector<double>;
 // settings that are equally good at satisfying constraints:
 // device ID, noise reduction, resolution and frame rate.
 const int kNumDefaultDistanceEntries = 4;
-
-// VideoKind enum values. See https://w3c.github.io/mediacapture-depth.
-const char kVideoKindColor[] = "color";
-const char kVideoKindDepth[] = "depth";
 
 WebString ToWebString(mojom::blink::FacingMode facing_mode) {
   switch (facing_mode) {
@@ -213,9 +209,6 @@ class CandidateFormat {
     return kMinDeviceCaptureFrameRate;
   }
 
-  // Convenience accessor for video kind using Blink type.
-  WebString VideoKind() const { return GetVideoKindForFormat(format_); }
-
   // This function tries to apply |constraint_set| to this candidate format
   // and returns true if successful. If |constraint_set| cannot be satisfied,
   // false is returned, and the name of one of the constraints that
@@ -259,12 +252,6 @@ class CandidateFormat {
       return false;
     }
 
-    if (!constraint_set.video_kind.Matches(VideoKind())) {
-      UpdateFailedConstraintName(constraint_set.video_kind,
-                                 failed_constraint_name);
-      return false;
-    }
-
     resolution_set_ = resolution_intersection;
     rescale_set_ = rescale_intersection;
     constrained_frame_rate_ = constrained_frame_rate_.Intersection(
@@ -302,10 +289,10 @@ class CandidateFormat {
           static_cast<double>(track_settings_with_rescale.target_width()) /
           track_settings_with_rescale.target_height();
       DCHECK(!std::isnan(target_aspect_ratio));
-      double best_supported_frame_rate =
+      absl::optional<double> best_supported_frame_rate =
           track_settings_with_rescale.max_frame_rate();
-      if (best_supported_frame_rate == 0.0 ||
-          best_supported_frame_rate > NativeFrameRate()) {
+      if (!best_supported_frame_rate.has_value() ||
+          *best_supported_frame_rate > NativeFrameRate()) {
         best_supported_frame_rate = NativeFrameRate();
       }
 
@@ -317,7 +304,7 @@ class CandidateFormat {
           NumericValueFitness(basic_constraint_set.width,
                               track_settings_with_rescale.target_width()) +
           NumericValueFitness(basic_constraint_set.frame_rate,
-                              best_supported_frame_rate);
+                              *best_supported_frame_rate);
     }
 
     double track_fitness_without_rescale = HUGE_VAL;
@@ -332,10 +319,10 @@ class CandidateFormat {
             basic_constraint_set, resolution_set(), constrained_frame_rate(),
             format(), false /* enable_rescale */);
         DCHECK(!track_settings_without_rescale.target_size().has_value());
-        double best_supported_frame_rate =
+        absl::optional<double> best_supported_frame_rate =
             track_settings_without_rescale.max_frame_rate();
-        if (best_supported_frame_rate == 0.0 ||
-            best_supported_frame_rate > NativeFrameRate()) {
+        if (!best_supported_frame_rate.has_value() ||
+            *best_supported_frame_rate > NativeFrameRate()) {
           best_supported_frame_rate = NativeFrameRate();
         }
         track_fitness_without_rescale =
@@ -344,7 +331,7 @@ class CandidateFormat {
             NumericValueFitness(basic_constraint_set.height, NativeHeight()) +
             NumericValueFitness(basic_constraint_set.width, NativeWidth()) +
             NumericValueFitness(basic_constraint_set.frame_rate,
-                                best_supported_frame_rate);
+                                *best_supported_frame_rate);
       }
     }
 
@@ -358,19 +345,16 @@ class CandidateFormat {
         track_fitness_with_rescale += 1.0;
       }
     }
-    double fitness = StringConstraintFitnessDistance(
-        VideoKind(), basic_constraint_set.video_kind);
+
     // If rescaling and not rescaling have the same fitness, prefer not
     // rescaling.
     if (track_fitness_without_rescale <= track_fitness_with_rescale) {
-      fitness += track_fitness_without_rescale;
       *track_settings = track_settings_without_rescale;
-    } else {
-      fitness += track_fitness_with_rescale;
-      *track_settings = track_settings_with_rescale;
+      return track_fitness_without_rescale;
     }
 
-    return fitness;
+    *track_settings = track_settings_with_rescale;
+    return track_fitness_with_rescale;
   }
 
   // Returns a custom "native" fitness distance that expresses how close the
@@ -437,7 +421,7 @@ bool FacingModeSatisfiesConstraint(mojom::blink::FacingMode value,
                                    const StringConstraint& constraint) {
   WebString string_value = ToWebString(value);
   if (string_value.IsNull())
-    return constraint.Exact().IsEmpty();
+    return constraint.Exact().empty();
 
   return constraint.Matches(string_value);
 }
@@ -710,12 +694,6 @@ VideoInputDeviceCapabilities& VideoInputDeviceCapabilities::operator=(
 
 VideoInputDeviceCapabilities::~VideoInputDeviceCapabilities() = default;
 
-WebString GetVideoKindForFormat(const media::VideoCaptureFormat& format) {
-  return (format.pixel_format == media::PIXEL_FORMAT_Y16)
-             ? WebString::FromASCII(kVideoKindDepth)
-             : WebString::FromASCII(kVideoKindColor);
-}
-
 MediaStreamTrackPlatform::FacingMode ToPlatformFacingMode(
     mojom::blink::FacingMode video_facing) {
   switch (video_facing) {
@@ -740,8 +718,9 @@ VideoDeviceCaptureCapabilities& VideoDeviceCaptureCapabilities::operator=(
 // Enables debug logging of capabilities processing when picking a video.
 // TODO(crbug.com/1275617): Remove this and calls once investigation is
 // complete.
-const base::Feature kMediaStreamCapabilitiesDebugLogging{
-    "MediaStreamCapabilitiesDebugLogging", base::FEATURE_DISABLED_BY_DEFAULT};
+BASE_FEATURE(kMediaStreamCapabilitiesDebugLogging,
+             "MediaStreamCapabilitiesDebugLogging",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // TODO(crbug.com/1275617): Remove this and calls once investigation is
 // complete.

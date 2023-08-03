@@ -1,13 +1,19 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/vr/test/webxr_vr_browser_test.h"
+
 #include <cstring>
 
-#include "chrome/browser/vr/test/webxr_vr_browser_test.h"
+#include "build/build_config.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
+
+#if BUILDFLAG(ENABLE_VR)
+#include "device/vr/public/cpp/features.h"
+#endif
 
 using testing::_;
 using testing::Invoke;
@@ -40,7 +46,7 @@ void WebXrVrBrowserTestBase::EnterSessionWithUserGestureOrFail(
       "sessionInfos[sessionTypes.IMMERSIVE].currentSession != null",
       kPollTimeoutLong, web_contents);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Creating a session may take foreground from us, and Windows may not return
   // it when the session terminates. This means subsequent requests to enter an
   // immersive session may fail. The fix for testing is to call
@@ -90,7 +96,7 @@ WebXrVrRuntimelessBrowserTestSensorless::
   // WebXrOrientationSensorDevice is only defined when the enable_vr flag is
   // set.
 #if BUILDFLAG(ENABLE_VR)
-  disable_features_.push_back(device::kWebXrOrientationSensorDevice);
+  disable_features_.push_back(device::features::kWebXrOrientationSensorDevice);
 #endif  // BUILDFLAG(ENABLE_VR)
 }
 

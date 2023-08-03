@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,9 @@
 
 #include <stddef.h>
 
-#include <algorithm>
 #include <unordered_map>
 
+#include "base/ranges/algorithm.h"
 #include "build/build_config.h"
 #include "gpu/command_buffer/common/gles2_cmd_copy_texture_chromium_utils.h"
 #include "gpu/command_buffer/service/context_state.h"
@@ -710,7 +710,7 @@ void prepareUnpackBuffer(GLuint buffer[2],
   uint32_t buf_size = pixel_num * bytes_per_group;
 
   if (format == GL_RGB && type == GL_FLOAT) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     // Reading pixels to pbo with glReadPixels will cause random failures of
     // GLCopyTextureCHROMIUMES3Test.FormatCombinations in gl_tests. This is seen
     // on Nexus 5 but not Nexus 4. Read pixels to client memory, then upload to
@@ -1022,10 +1022,8 @@ void CopyTextureResourceManagerImpl::Destroy() {
   glDeleteFramebuffersEXT(1, &framebuffer_);
   framebuffer_ = 0;
 
-  std::for_each(
-      vertex_shaders_.begin(), vertex_shaders_.end(), DeleteShader);
-  std::for_each(
-      fragment_shaders_.begin(), fragment_shaders_.end(), DeleteShader);
+  base::ranges::for_each(vertex_shaders_, DeleteShader);
+  base::ranges::for_each(fragment_shaders_, DeleteShader);
 
   for (ProgramMap::const_iterator it = programs_.begin(); it != programs_.end();
        ++it) {

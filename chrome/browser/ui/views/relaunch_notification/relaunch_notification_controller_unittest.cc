@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "ash/public/cpp/update_types.h"
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/numerics/safe_conversions.h"
@@ -20,7 +20,6 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/chromeos_buildflags.h"
-#include "chrome/browser/ui/ash/system_tray_client_impl.h"
 #include "chrome/browser/upgrade_detector/upgrade_detector.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/scoped_testing_local_state.h"
@@ -33,7 +32,7 @@
 #include "ash/shell.h"
 #include "ash/test/ash_test_helper.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
-#include "components/session_manager/core/session_manager.h"
+#include "chrome/browser/ui/ash/system_tray_client_impl.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "content/public/test/browser_task_environment.h"
 #include "ui/display/manager/display_configurator.h"
@@ -927,14 +926,19 @@ class RelaunchNotificationControllerPlatformImplTest : public ::testing::Test {
 
     user_manager_ = new ash::FakeChromeUserManager();
     scoped_user_manager_ = std::make_unique<user_manager::ScopedUserManager>(
-        base::WrapUnique(user_manager_));
+        base::WrapUnique(user_manager_.get()));
 
     const char test_user_email[] = "test_user@example.com";
     const AccountId test_account_id(AccountId::FromUserEmail(test_user_email));
     user_manager_->AddUser(test_account_id);
     user_manager_->LoginUser(test_account_id);
-    session_manager_.CreateSession(test_account_id, test_user_email, false);
-    session_manager_.SetSessionState(session_manager::SessionState::ACTIVE);
+
+    // SessionManager is created by
+    // |AshTestHelper::bluetooth_config_test_helper()|.
+    session_manager::SessionManager::Get()->CreateSession(
+        test_account_id, test_user_email, false);
+    session_manager::SessionManager::Get()->SetSessionState(
+        session_manager::SessionState::ACTIVE);
 
     logger_ = std::make_unique<display::test::ActionLogger>();
     native_display_delegate_ =
@@ -945,11 +949,13 @@ class RelaunchNotificationControllerPlatformImplTest : public ::testing::Test {
   }
 
   void LockScreen() {
-    session_manager_.SetSessionState(session_manager::SessionState::LOCKED);
+    session_manager::SessionManager::Get()->SetSessionState(
+        session_manager::SessionState::LOCKED);
   }
 
   void UnLockScreen() {
-    session_manager_.SetSessionState(session_manager::SessionState::ACTIVE);
+    session_manager::SessionManager::Get()->SetSessionState(
+        session_manager::SessionState::ACTIVE);
   }
 
   void TurnDisplayOff() {
@@ -971,11 +977,11 @@ class RelaunchNotificationControllerPlatformImplTest : public ::testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   RelaunchNotificationControllerPlatformImpl impl_;
   ash::AshTestHelper ash_test_helper_;
-  session_manager::SessionManager session_manager_;
-  ash::FakeChromeUserManager* user_manager_;
+  raw_ptr<ash::FakeChromeUserManager, ExperimentalAsh> user_manager_;
   std::unique_ptr<user_manager::ScopedUserManager> scoped_user_manager_;
   std::unique_ptr<display::test::ActionLogger> logger_;
-  display::NativeDisplayDelegate* native_display_delegate_;
+  raw_ptr<display::NativeDisplayDelegate, ExperimentalAsh>
+      native_display_delegate_;
 };
 
 // SynchronousNotification
@@ -1150,8 +1156,9 @@ class RelaunchNotificationControllerPlatformImplTest
   absl::optional<RelaunchNotificationControllerPlatformImpl> impl_;
 };
 
+// Flaky on all platforms: https://crbug.com/1294032
 TEST_F(RelaunchNotificationControllerPlatformImplTest,
-       SynchronousNotification) {
+       DISABLED_SynchronousNotification) {
   // Make the UX visible to the user so that no delay will be incurred
   ASSERT_NO_FATAL_FAILURE(SetVisibility(true));
 
@@ -1176,7 +1183,13 @@ TEST_F(RelaunchNotificationControllerPlatformImplTest,
   ::testing::Mock::VerifyAndClearExpectations(&callback);
 }
 
-TEST_F(RelaunchNotificationControllerPlatformImplTest, DeferredDeadline) {
+//  Flaky on Mac: https://crbug.com/1312578
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_DeferredDeadline DISABLED_DeferredDeadline
+#else
+#define MAYBE_DeferredDeadline DeferredDeadline
+#endif
+TEST_F(RelaunchNotificationControllerPlatformImplTest, MAYBE_DeferredDeadline) {
   ::testing::StrictMock<base::MockOnceCallback<base::Time()>> callback;
 
   base::Time deadline = base::Time::FromDeltaSinceWindowsEpoch(base::Hours(1));

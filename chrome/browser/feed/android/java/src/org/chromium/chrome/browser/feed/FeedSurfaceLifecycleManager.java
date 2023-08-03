@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.ActivityState;
+import org.chromium.base.ApplicationState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.chrome.browser.feed.componentinterfaces.SurfaceCoordinator;
 
@@ -20,7 +21,8 @@ import java.lang.annotation.RetentionPolicy;
  * Manages the lifecycle of a feed surface represented by {@link FeedSurfaceCoordinator} associated
  * with an Activity.
  */
-public class FeedSurfaceLifecycleManager implements ApplicationStatus.ActivityStateListener {
+public class FeedSurfaceLifecycleManager implements ApplicationStatus.ActivityStateListener,
+                                                    ApplicationStatus.ApplicationStateListener {
     /** The different states that the Stream can be in its lifecycle. */
     // TODO(chili): Clean up unused SHOWN/HIDDEN states.
     @IntDef({SurfaceState.NOT_SPECIFIED, SurfaceState.CREATED, SurfaceState.SHOWN,
@@ -62,7 +64,15 @@ public class FeedSurfaceLifecycleManager implements ApplicationStatus.ActivitySt
         mSurfaceState = SurfaceState.CREATED;
         show();
 
+        ApplicationStatus.registerApplicationStateListener(this);
         ApplicationStatus.registerStateListenerForActivity(this, mActivity);
+    }
+
+    @Override
+    public void onApplicationStateChange(@ApplicationState int newState) {
+        if (newState == ApplicationState.HAS_STOPPED_ACTIVITIES) {
+            mCoordinator.onApplicationStopped();
+        }
     }
 
     @Override
@@ -70,6 +80,7 @@ public class FeedSurfaceLifecycleManager implements ApplicationStatus.ActivitySt
         switch (newState) {
             case ActivityState.STARTED:
             case ActivityState.RESUMED:
+                mCoordinator.onActivityResumed();
                 show();
                 break;
             case ActivityState.STOPPED:
@@ -78,7 +89,8 @@ public class FeedSurfaceLifecycleManager implements ApplicationStatus.ActivitySt
             case ActivityState.DESTROYED:
                 destroy();
                 break;
-            case ActivityState.PAUSED: // Do nothing for pause.
+            case ActivityState.PAUSED:
+                mCoordinator.onActivityPaused();
                 break;
             case ActivityState.CREATED:
             default:
@@ -127,6 +139,7 @@ public class FeedSurfaceLifecycleManager implements ApplicationStatus.ActivitySt
         // Make sure the feed is hidden before setting it to destroyed state.
         hide();
         mSurfaceState = SurfaceState.DESTROYED;
+        ApplicationStatus.unregisterApplicationStateListener(this);
         ApplicationStatus.unregisterActivityStateListener(this);
     }
 

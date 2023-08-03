@@ -1,11 +1,13 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_LINE_INFO_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_NG_INLINE_NG_LINE_INFO_H_
 
+#include "base/check_op.h"
 #include "base/dcheck_is_on.h"
+#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/ng/geometry/ng_bfc_offset.h"
 #include "third_party/blink/renderer/core/layout/ng/inline/ng_inline_item_result.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_block_break_token.h"
@@ -15,6 +17,7 @@
 namespace blink {
 
 class ComputedStyle;
+class NGInlineBreakToken;
 class NGInlineNode;
 struct NGInlineItemsData;
 
@@ -27,6 +30,8 @@ class CORE_EXPORT NGLineInfo {
   STACK_ALLOCATED();
 
  public:
+  void Reset();
+
   const NGInlineItemsData& ItemsData() const {
     DCHECK(items_data_);
     return *items_data_;
@@ -84,6 +89,17 @@ class CORE_EXPORT NGLineInfo {
   NGInlineItemResults* MutableResults() { return &results_; }
   const NGInlineItemResults& Results() const { return results_; }
 
+  const NGInlineBreakToken* BreakToken() const { return break_token_; }
+  void SetBreakToken(const NGInlineBreakToken* break_token) {
+    break_token_ = break_token;
+  }
+  HeapVector<Member<const NGBlockBreakToken>>& PropagatedBreakTokens() {
+    return propagated_break_tokens_;
+  }
+  void PropagateBreakToken(const NGBlockBreakToken* token) {
+    propagated_break_tokens_.push_back(token);
+  }
+
   void SetTextIndent(LayoutUnit indent) { text_indent_ = indent; }
   LayoutUnit TextIndent() const { return text_indent_; }
 
@@ -100,9 +116,16 @@ class CORE_EXPORT NGLineInfo {
   LayoutUnit Width() const { return width_.ClampNegativeToZero(); }
   // Same as |Width()| but returns negative value as is. Preserved trailing
   // spaces may or may not be included, depends on |ShouldHangTrailingSpaces()|.
-  LayoutUnit WidthForAlignment() const { return width_ - hang_width_; }
+  LayoutUnit WidthForAlignment() const {
+    return width_ - HangWidthForAlignment();
+  }
   // Width that hangs over the end of the line; e.g., preserved trailing spaces.
   LayoutUnit HangWidth() const { return hang_width_; }
+  // Same as |HangWidth()| but it may be 0 depending on
+  // |ShouldHangTrailingSpaces()|.
+  LayoutUnit HangWidthForAlignment() const {
+    return allow_hang_for_alignment_ ? hang_width_ : LayoutUnit();
+  }
   // Compute |Width()| from |Results()|. Used during line breaking, before
   // |Width()| is set. After line breaking, this should match to |Width()|
   // without clamping.
@@ -123,6 +146,9 @@ class CORE_EXPORT NGLineInfo {
   void SetHasOverflow(bool value = true) { has_overflow_ = value; }
 
   void SetBfcOffset(const NGBfcOffset& bfc_offset) { bfc_offset_ = bfc_offset; }
+  void SetAvailableWidth(LayoutUnit available_width) {
+    available_width_ = available_width;
+  }
   void SetWidth(LayoutUnit available_width, LayoutUnit width) {
     available_width_ = available_width;
     width_ = width;
@@ -156,10 +182,9 @@ class CORE_EXPORT NGLineInfo {
 
   // The block-in-inline layout result.
   const NGLayoutResult* BlockInInlineLayoutResult() const {
-    return block_in_inline_layout_result_.get();
+    return block_in_inline_layout_result_;
   }
-  void SetBlockInInlineLayoutResult(
-      scoped_refptr<const NGLayoutResult> layout_result) {
+  void SetBlockInInlineLayoutResult(const NGLayoutResult* layout_result) {
     block_in_inline_layout_result_ = std::move(layout_result);
   }
 
@@ -167,6 +192,41 @@ class CORE_EXPORT NGLineInfo {
   // ideographic character during "text-align:justify".
   bool MayHaveTextCombineItem() const { return may_have_text_combine_item_; }
   void SetHaveTextCombineItem() { may_have_text_combine_item_ = true; }
+
+  // Returns annotation block start adjustment base on annotation and initial
+  // letter.
+  LayoutUnit ComputeAnnotationBlockOffsetAdjustment() const;
+
+  // Returns block start adjustment for line base on annotation and initial
+  // letter.
+  LayoutUnit ComputeBlockStartAdjustment() const;
+
+  // Returns block start adjustment for initial letter box base on annotation
+  // and initial letter.
+  LayoutUnit ComputeInitialLetterBoxBlockStartAdjustment() const;
+
+  // Returns total block size of this line to check whether we should use next
+  // layout opportunity or not base on `line_height`, annotation and initial
+  // letter box.
+  LayoutUnit ComputeTotalBlockSize(
+      LayoutUnit line_height,
+      LayoutUnit annotation_overflow_block_end) const;
+
+  void SetAnnotationBlockStartAdjustment(LayoutUnit amount) {
+    DCHECK(!IsEmptyLine());
+    annotation_block_start_adjustment_ = amount;
+  }
+
+  void SetInitialLetterBlockStartAdjustment(LayoutUnit amount) {
+    DCHECK_GE(amount, LayoutUnit());
+    DCHECK(!IsEmptyLine());
+    initial_letter_box_block_start_adjustment_ = amount;
+  }
+
+  void SetInitialLetterBoxBlockSize(LayoutUnit block_size) {
+    DCHECK_GE(block_size, LayoutUnit());
+    initial_letter_box_block_size_ = block_size;
+  }
 
  private:
   ETextAlign GetTextAlign(bool is_last_line = false) const;
@@ -182,12 +242,19 @@ class CORE_EXPORT NGLineInfo {
 
   NGBfcOffset bfc_offset_;
 
-  scoped_refptr<const NGLayoutResult> block_in_inline_layout_result_;
+  const NGInlineBreakToken* break_token_ = nullptr;
+  HeapVector<Member<const NGBlockBreakToken>> propagated_break_tokens_;
+
+  const NGLayoutResult* block_in_inline_layout_result_ = nullptr;
 
   LayoutUnit available_width_;
   LayoutUnit width_;
   LayoutUnit hang_width_;
   LayoutUnit text_indent_;
+
+  LayoutUnit annotation_block_start_adjustment_;
+  LayoutUnit initial_letter_box_block_start_adjustment_;
+  LayoutUnit initial_letter_box_block_size_;
 
   unsigned start_offset_;
   unsigned end_item_index_;
@@ -213,6 +280,9 @@ class CORE_EXPORT NGLineInfo {
   // Note: To avoid scanning |NGInlineItemResults|, this variable is true
   // when |NGInlineItemResult| to |results_|.
   bool may_have_text_combine_item_ = false;
+  bool allow_hang_for_alignment_ = false;
+
+  // When adding fields, pelase ensure `Reset()` is in sync.
 };
 
 std::ostream& operator<<(std::ostream& ostream, const NGLineInfo& line_info);

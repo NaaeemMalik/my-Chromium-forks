@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,6 @@
 #include "third_party/blink/renderer/core/paint/paint_and_raster_invalidation_test.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_layer.h"
 #include "third_party/blink/renderer/platform/json/json_values.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
@@ -37,7 +36,10 @@ class ObjectPaintInvalidatorTest : public RenderingTest {
 using ::testing::ElementsAre;
 
 TEST_F(ObjectPaintInvalidatorTest, Selection) {
-  SetBodyInnerHTML("<img id='target' style='width: 100px; height: 100px'>");
+  SetBodyInnerHTML(R"HTML(
+     <img id='target' style='width: 100px; height: 100px;
+                             border: 1px solid black'>
+  )HTML");
   auto* target = GetLayoutObjectByElementId("target");
 
   // Add selection.
@@ -47,7 +49,7 @@ TEST_F(ObjectPaintInvalidatorTest, Selection) {
   const auto* invalidations =
       &GetRasterInvalidationTracking(*GetDocument().View())->Invalidations();
   ASSERT_EQ(1u, invalidations->size());
-  EXPECT_EQ(gfx::Rect(8, 8, 100, 100), (*invalidations)[0].rect);
+  EXPECT_EQ(gfx::Rect(8, 8, 102, 102), (*invalidations)[0].rect);
   EXPECT_EQ(PaintInvalidationReason::kSelection, (*invalidations)[0].reason);
   GetDocument().View()->SetTracksRasterInvalidations(false);
 
@@ -57,7 +59,7 @@ TEST_F(ObjectPaintInvalidatorTest, Selection) {
   UpdateAllLifecyclePhasesForTest();
   EXPECT_TRUE(GetRasterInvalidationTracking(*GetDocument().View())
                   ->Invalidations()
-                  .IsEmpty());
+                  .empty());
   GetDocument().View()->SetTracksRasterInvalidations(false);
 
   // Remove selection.
@@ -67,7 +69,7 @@ TEST_F(ObjectPaintInvalidatorTest, Selection) {
   invalidations =
       &GetRasterInvalidationTracking(*GetDocument().View())->Invalidations();
   ASSERT_EQ(1u, invalidations->size());
-  EXPECT_EQ(gfx::Rect(8, 8, 100, 100), (*invalidations)[0].rect);
+  EXPECT_EQ(gfx::Rect(8, 8, 102, 102), (*invalidations)[0].rect);
   EXPECT_EQ(PaintInvalidationReason::kSelection, (*invalidations)[0].reason);
   GetDocument().View()->SetTracksRasterInvalidations(false);
 }
@@ -123,6 +125,30 @@ TEST_F(ObjectPaintInvalidatorTest, VisibilityHidden) {
   UpdateAllLifecyclePhasesForTest();
   // |target| is not validated because it didn't paint anything.
   EXPECT_FALSE(IsValidDisplayItemClient(target));
+}
+
+TEST_F(ObjectPaintInvalidatorTest,
+       DirectPaintInvalidationSkipsPaintInvalidationChecking) {
+  SetBodyInnerHTML(R"HTML(
+    <div id='target' style="color: rgb(80, 230, 175);">Text</div>
+  )HTML");
+
+  auto* div = GetDocument().getElementById("target");
+  auto* text = div->firstChild();
+  const auto* object = text->GetLayoutObject();
+  ValidateDisplayItemClient(object);
+  EXPECT_TRUE(IsValidDisplayItemClient(object));
+  EXPECT_FALSE(object->ShouldCheckForPaintInvalidation());
+
+  div->setAttribute(html_names::kStyleAttr, "color: rgb(80, 100, 175)");
+  GetDocument().View()->UpdateLifecycleToLayoutClean(
+      DocumentUpdateReason::kTest);
+  EXPECT_FALSE(IsValidDisplayItemClient(object));
+  EXPECT_FALSE(object->ShouldCheckForPaintInvalidation());
+
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_TRUE(IsValidDisplayItemClient(object));
+  EXPECT_FALSE(object->ShouldCheckForPaintInvalidation());
 }
 
 }  // namespace blink

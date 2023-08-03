@@ -1,17 +1,14 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_TEST_BASE_UI_TEST_UTILS_H_
 #define CHROME_TEST_BASE_UI_TEST_UTILS_H_
 
-#include <map>
-#include <queue>
 #include <set>
 #include <string>
 #include <vector>
 
-#include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -112,8 +109,8 @@ void NavigateToURLWithPost(Browser* browser, const GURL& url);
 
 // Navigate current tab of the |browser| to |url|, simulating a user typing
 // |url| into the omnibox.
-WARN_UNUSED_RESULT content::RenderFrameHost* NavigateToURL(Browser* browser,
-                                                           const GURL& url);
+[[nodiscard]] content::RenderFrameHost* NavigateToURL(Browser* browser,
+                                                      const GURL& url);
 
 // Same as |NavigateToURL|, but:
 // - |disposition| allows to specify in which tab navigation should happen
@@ -210,46 +207,6 @@ void GetCookies(const GURL& url,
                 int* value_size,
                 std::string* value);
 
-// Similar to WindowedNotificationObserver but also provides a way of retrieving
-// the details associated with the notification.
-// Note that in order to use that class the details class should be copiable,
-// which is the case with most notifications.
-template <class U>
-class WindowedNotificationObserverWithDetails
-    : public content::WindowedNotificationObserver {
- public:
-  WindowedNotificationObserverWithDetails(
-      int notification_type,
-      const content::NotificationSource& source)
-      : content::WindowedNotificationObserver(notification_type, source) {}
-  WindowedNotificationObserverWithDetails(
-      const WindowedNotificationObserverWithDetails&) = delete;
-  WindowedNotificationObserverWithDetails& operator=(
-      const WindowedNotificationObserverWithDetails&) = delete;
-
-  // Fills |details| with the details of the notification received for |source|.
-  bool GetDetailsFor(uintptr_t source, U* details) {
-    typename std::map<uintptr_t, U>::const_iterator iter =
-        details_.find(source);
-    if (iter == details_.end())
-      return false;
-    *details = iter->second;
-    return true;
-  }
-
-  void Observe(int type,
-               const content::NotificationSource& source,
-               const content::NotificationDetails& details) override {
-    const U* details_ptr = content::Details<U>(details).ptr();
-    if (details_ptr)
-      details_[source.map_key()] = *details_ptr;
-    content::WindowedNotificationObserver::Observe(type, source, details);
-  }
-
- private:
-  std::map<uintptr_t, U> details_;
-};
-
 // Notification observer which waits for navigation events and blocks until
 // a specific URL is loaded. The URL must be an exact match.
 class UrlLoadObserver : public content::WindowedNotificationObserver {
@@ -316,7 +273,7 @@ class AllBrowserTabAddedWaiter : public TabStripModelObserver,
   base::RunLoop run_loop_;
 
   // The last tab that was added.
-  raw_ptr<content::WebContents> web_contents_ = nullptr;
+  raw_ptr<content::WebContents, DanglingUntriaged> web_contents_ = nullptr;
 };
 
 // Enumerates all history contents on the backend thread. Returns them in
@@ -356,7 +313,7 @@ class BrowserChangeObserver : public BrowserListObserver {
   void OnBrowserRemoved(Browser* browser) override;
 
  private:
-  raw_ptr<Browser> browser_;
+  raw_ptr<Browser, DanglingUntriaged> browser_;
   ChangeType type_;
   base::RunLoop run_loop_;
 };

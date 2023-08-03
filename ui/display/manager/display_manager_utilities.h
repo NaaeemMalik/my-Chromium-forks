@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@
 
 #include <vector>
 
+#include "base/functional/identity.h"
+#include "base/ranges/algorithm.h"
 #include "ui/display/display.h"
 #include "ui/display/display_layout.h"
 #include "ui/display/manager/display_manager_export.h"
@@ -15,9 +17,10 @@
 namespace gfx {
 class Rect;
 class Size;
-}
+}  // namespace gfx
 
 namespace display {
+
 class ManagedDisplayInfo;
 class ManagedDisplayMode;
 using DisplayInfoList = std::vector<ManagedDisplayInfo>;
@@ -66,39 +69,28 @@ DISPLAY_MANAGER_EXPORT bool ComputeBoundary(const Display& display_a,
                                             gfx::Rect* a_edge_in_screen,
                                             gfx::Rect* b_edge_in_screen);
 
-// Sorts id list using |CompareDisplayIds| below.
+// Sorts id list using `CompareDisplayIds()` in display.h.
 DISPLAY_MANAGER_EXPORT void SortDisplayIdList(DisplayIdList* list);
 
-// Default id generator.
-class DefaultDisplayIdGenerator {
- public:
-  int64_t operator()(int64_t id) { return id; }
-};
+// Check if the list is sorted using `CompareDisplayIds()` in display.h.
+DISPLAY_MANAGER_EXPORT bool IsDisplayIdListSorted(const DisplayIdList& list);
 
 // Generate sorted DisplayIdList from iterators.
-template <class ForwardIterator, class Generator = DefaultDisplayIdGenerator>
-DisplayIdList GenerateDisplayIdList(ForwardIterator first,
-                                    ForwardIterator last,
-                                    Generator generator = Generator()) {
+template <typename Range, typename UnaryOperation = base::identity>
+DisplayIdList GenerateDisplayIdList(Range&& range, UnaryOperation op = {}) {
   DisplayIdList list;
-  while (first != last) {
-    list.push_back(generator(*first));
-    ++first;
-  }
+  base::ranges::transform(range, std::back_inserter(list), op);
   SortDisplayIdList(&list);
   return list;
 }
 
 // Creates sorted DisplayIdList.
 DISPLAY_MANAGER_EXPORT DisplayIdList CreateDisplayIdList(const Displays& list);
+DISPLAY_MANAGER_EXPORT DisplayIdList
+CreateDisplayIdList(const DisplayInfoList& updated_displays);
 
 DISPLAY_MANAGER_EXPORT std::string DisplayIdListToString(
     const DisplayIdList& list);
-
-// Creates managed display info.
-DISPLAY_MANAGER_EXPORT display::ManagedDisplayInfo CreateDisplayInfo(
-    int64_t id,
-    const gfx::Rect& bounds);
 
 // Get the display id after the output index (8 bits) is masked out.
 DISPLAY_MANAGER_EXPORT int64_t GetDisplayIdWithoutOutputIndex(int64_t id);

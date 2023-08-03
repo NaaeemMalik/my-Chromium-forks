@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,8 +32,8 @@ class AXValidationMessage final : public AXMockObject {
   void AddChildren() override {}
   bool ComputeAccessibilityIsIgnored(IgnoredReasons* = nullptr) const override;
   void GetRelativeBounds(AXObject** out_container,
-                         FloatRect& out_bounds_in_container,
-                         skia::Matrix44& out_container_transform,
+                         gfx::RectF& out_bounds_in_container,
+                         gfx::Transform& out_container_transform,
                          bool* clips_children) const override;
   const AtomicString& LiveRegionStatus() const override;
   const AtomicString& LiveRegionRelevant() const override;

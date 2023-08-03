@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,16 @@
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/geometry/box_sides.h"
 #include "third_party/blink/renderer/core/style/nine_piece_image.h"
-#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/geometry/size_f.h"
 
-namespace blink {
+namespace gfx {
+class Outsets;
+}
 
-class IntRectOutsets;
+namespace blink {
 
 enum NinePiece {
   kMinPiece = 0,
@@ -67,7 +68,7 @@ class CORE_EXPORT NinePieceImageGrid {
                      const gfx::Vector2dF& slice_scale,
                      float zoom,
                      const gfx::Rect& border_image_area,
-                     const IntRectOutsets& border_widths,
+                     const gfx::Outsets& border_widths,
                      PhysicalBoxSides sides_to_include = PhysicalBoxSides());
 
   struct CORE_EXPORT NinePieceDrawInfo {
@@ -106,6 +107,7 @@ class CORE_EXPORT NinePieceImageGrid {
   gfx::SizeF image_size_;
   ENinePieceImageRule horizontal_tile_rule_;
   ENinePieceImageRule vertical_tile_rule_;
+  float zoom_;
   bool fill_;
 
   Edge top_;

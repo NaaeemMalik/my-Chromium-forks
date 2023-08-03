@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ import SwiftUI
 import ios_chrome_common_ui_colors_swift
 
 /// Style based on state for an OverflowMenuDestinationView.
+@available(iOS 15, *)
 struct OverflowMenuDestinationButton: ButtonStyle {
   enum Dimensions {
     static let cornerRadius: CGFloat = 13
@@ -27,6 +28,19 @@ struct OverflowMenuDestinationButton: ButtonStyle {
 
     /// The image width, which controls the width of the overall view.
     static let imageWidth: CGFloat = 54
+
+    /// The size of the Symbol in the icon.
+    static let iconSymbolSize: CGFloat = 26
+
+    /// The width of the icon, used for positioning the unread badge over the
+    /// corner.
+    static let iconWidth: CGFloat = 30
+
+    /// The width of the badge circle.
+    static let badgeWidth: CGFloat = 10
+
+    /// The width of the new label badge.
+    static let newLabelBadgeWidth: CGFloat = 20
   }
 
   /// The destination for this view.
@@ -35,22 +49,26 @@ struct OverflowMenuDestinationButton: ButtonStyle {
   /// The layout parameters for this view.
   var layoutParameters: OverflowMenuDestinationView.LayoutParameters
 
+  weak var metricsHandler: PopupMenuMetricsHandler?
+
   func makeBody(configuration: Configuration) -> some View {
+    let destinationWidth = OverflowMenuDestinationButton.destinationWidth(
+      forLayoutParameters: layoutParameters)
     Group {
       switch layoutParameters {
-      case .vertical(let iconSpacing, let iconPadding):
+      case .vertical:
         VStack {
           icon(configuration: configuration)
           text
         }
-        .frame(width: Dimensions.imageWidth + 2 * iconSpacing + 2 * iconPadding)
-      case .horizontal(let itemWidth):
+        .frame(width: destinationWidth)
+      case .horizontal:
         HStack {
           icon(configuration: configuration)
           Spacer().frame(width: Dimensions.horizontalLayoutIconSpacing)
           text
         }
-        .frame(width: itemWidth, alignment: .leading)
+        .frame(width: destinationWidth, alignment: .leading)
         // In horizontal layout, the item itself has leading and trailing
         // padding.
         .padding([.leading, .trailing], Dimensions.horizontalLayoutViewPadding)
@@ -59,10 +77,15 @@ struct OverflowMenuDestinationButton: ButtonStyle {
     .contentShape(Rectangle())
   }
 
+  /// Background color for the icon.
+  func backgroundColor(configuration: Configuration) -> Color {
+    return configuration.isPressed ? Color(.systemGray4) : .groupedSecondaryBackground
+  }
+
   /// View representing the background of the icon.
   func iconBackground(configuration: Configuration) -> some View {
     RoundedRectangle(cornerRadius: Dimensions.cornerRadius)
-      .foregroundColor(configuration.isPressed ? .cr_grey300 : .cr_groupedSecondaryBackground)
+      .foregroundColor(backgroundColor(configuration: configuration))
   }
 
   /// Icon for the destination.
@@ -77,7 +100,64 @@ struct OverflowMenuDestinationButton: ButtonStyle {
       spacing = 0
       interiorPadding = Dimensions.horizontalLayoutIconPadding
     }
-    return destination.image
+    let image =
+      (destination.systemSymbol
+      ? Image(systemName: destination.symbolName) : Image(destination.symbolName)).renderingMode(
+        .template)
+    return iconBuilder(
+      configuration: configuration, spacing: spacing, interiorPadding: interiorPadding, image: image
+    )
+  }
+
+  var newBadgeOffsetX: CGFloat {
+    return Dimensions.iconWidth - (Dimensions.newLabelBadgeWidth - 10)
+  }
+
+  var newBadgeOffsetY: CGFloat {
+    return -Dimensions.iconWidth + (Dimensions.newLabelBadgeWidth - 10)
+  }
+
+  var circleBadge: some View {
+    return Circle()
+      .frame(width: Dimensions.badgeWidth, height: Dimensions.badgeWidth)
+      .offset(
+        x: Dimensions.iconWidth - (Dimensions.badgeWidth / 2),
+        y: -Dimensions.iconWidth + (Dimensions.badgeWidth / 2))
+  }
+
+  /// Build the image to be displayed, based on the configuration of the item.
+  /// TODO(crbug.com/1315544): Remove this once only the symbols are present.
+  @ViewBuilder
+  func iconBuilder(
+    configuration: Configuration, spacing: CGFloat, interiorPadding: CGFloat, image: Image
+  ) -> some View {
+    let configuredImage =
+      image
+      .overlay {
+        if destination.badge == .error {
+          circleBadge.foregroundColor(.red500)
+        } else if destination.badge == .promo {
+          circleBadge.foregroundColor(.blue600)
+        } else if destination.badge == .new {
+          Image(systemName: "seal.fill")
+            .resizable()
+            .foregroundColor(.blue600)
+            .frame(width: Dimensions.newLabelBadgeWidth, height: Dimensions.newLabelBadgeWidth)
+            .offset(x: newBadgeOffsetX, y: newBadgeOffsetY)
+            .overlay {
+              if let newLabelString = L10nUtils.stringWithFixup(
+                messageId: IDS_IOS_NEW_LABEL_FEATURE_BADGE)
+              {
+                Text(newLabelString)
+                  .font(.system(size: 10, weight: .bold, design: .rounded))
+                  .offset(x: newBadgeOffsetX, y: newBadgeOffsetY)
+                  .scaledToFit()
+                  .foregroundColor(.primaryBackground)
+              }
+            }
+        }
+      }
+      .frame(width: Dimensions.imageWidth, height: Dimensions.imageWidth)
       .padding(interiorPadding)
       .background(iconBackground(configuration: configuration))
       .padding([.leading, .trailing], spacing)
@@ -85,6 +165,10 @@ struct OverflowMenuDestinationButton: ButtonStyle {
       // VoiceOver will occasionally read out icons it thinks it can
       // recognize.
       .accessibilityHidden(true)
+
+    configuredImage
+      .foregroundColor(.blue600).imageScale(.medium).font(
+        Font.system(size: Dimensions.iconSymbolSize, weight: .medium))
   }
 
   /// Text view for the destination.
@@ -106,9 +190,21 @@ struct OverflowMenuDestinationButton: ButtonStyle {
       .multilineTextAlignment(.center)
       .lineLimit(maximumLines)
   }
+
+  static public func destinationWidth(
+    forLayoutParameters layoutParameters: OverflowMenuDestinationView.LayoutParameters
+  ) -> CGFloat {
+    switch layoutParameters {
+    case .vertical(let iconSpacing, let iconPadding):
+      return Dimensions.imageWidth + 2 * iconSpacing + 2 * iconPadding
+    case .horizontal(let itemWidth):
+      return itemWidth
+    }
+  }
 }
 
 /// A view displaying a single destination.
+@available(iOS 15, *)
 struct OverflowMenuDestinationView: View {
 
   /// Parameters providing any necessary data to layout the view.
@@ -122,20 +218,64 @@ struct OverflowMenuDestinationView: View {
     case horizontal(itemWidth: CGFloat)
   }
 
+  enum AccessibilityIdentifier {
+    /// The addition to the `accessibilityIdentfier` for this element if it
+    /// has an error badge.
+    static let errorBadge = "errorBadge"
+
+    /// The addition to the `accessibilityIdentfier` for this element if it
+    /// has a promo badge.
+    static let promoBadge = "promoBadge"
+
+    /// The addition to the `accessibilityIdentfier` for this element if it
+    /// has a "New" badge.
+    static let newBadge = "newBadge"
+  }
+
   /// The destination for this view.
   var destination: OverflowMenuDestination
 
   /// The layout parameters for this view.
   var layoutParameters: LayoutParameters
 
+  weak var metricsHandler: PopupMenuMetricsHandler?
+
   var body: some View {
     Button(
-      action: destination.handler,
+      action: {
+        metricsHandler?.popupMenuTookAction()
+        destination.handler()
+      },
       label: {
         EmptyView()
       }
     )
+    .accessibilityIdentifier(accessibilityIdentifier)
+    .accessibilityLabel(Text(accessibilityLabel))
     .buttonStyle(
       OverflowMenuDestinationButton(destination: destination, layoutParameters: layoutParameters))
   }
+
+  var accessibilityLabel: String {
+    return [
+      destination.name,
+      destination.badge == .error
+        ? L10nUtils.stringWithFixup(
+          messageId: IDS_IOS_ITEM_ACCOUNT_ERROR_BADGE_ACCESSIBILITY_HINT) : nil,
+      destination.badge == .promo
+        ? L10nUtils.stringWithFixup(messageId: IDS_IOS_NEW_ITEM_ACCESSIBILITY_HINT) : nil,
+      destination.badge == .new
+        ? L10nUtils.stringWithFixup(messageId: IDS_IOS_TOOLS_MENU_CELL_NEW_FEATURE_BADGE) : nil,
+    ].compactMap { $0 }.joined(separator: ", ")
+  }
+
+  var accessibilityIdentifier: String {
+    return [
+      destination.accessibilityIdentifier,
+      destination.badge == .error ? AccessibilityIdentifier.errorBadge : nil,
+      destination.badge == .promo ? AccessibilityIdentifier.promoBadge : nil,
+      destination.badge == .new ? AccessibilityIdentifier.newBadge : nil,
+    ].compactMap { $0 }.joined(separator: "-")
+  }
+
 }

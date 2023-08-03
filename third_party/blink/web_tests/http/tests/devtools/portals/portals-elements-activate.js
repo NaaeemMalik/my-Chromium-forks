@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,9 +25,9 @@
     async function testActivate(next) {
       TestRunner.evaluateInPage(
           'setTimeout(() => {document.querySelector(\'portal\').activate();})');
-      const mainTarget = SDK.targetManager.mainTarget();
+      const rootTarget = SDK.targetManager.rootTarget();
       await TestRunner.waitForEvent(
-          Host.InspectorFrontendHostAPI.Events.ReattachMainTarget,
+          Host.InspectorFrontendHostAPI.Events.ReattachRootTarget,
           Host.InspectorFrontendHost.events);
       next();
     },

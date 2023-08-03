@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 #
-# Copyright 2013 The Chromium Authors. All rights reserved.
+# Copyright 2013 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
 
 import argparse
 import collections
@@ -52,7 +51,7 @@ def _ParseAsanLogLine(line):
   return AsanParsedLine(prefix=m.group('prefix'),
                         library=m.group('lib'),
                         pos=m.group('pos'),
-                        rel_address='%08x' % int(m.group('addr'), 16))
+                        rel_address=int(m.group('addr'), 16))
 
 
 def _FindASanLibraries():
@@ -102,12 +101,12 @@ def _PrintSymbolized(asan_input, arch):
     libname = _TranslateLibPath(library, asan_libs)
     lib_relative_addrs = set(i.rel_address for i in items)
     # pylint: disable=no-member
-    info_dict = symbol.SymbolInformationForSet(libname,
-                                               lib_relative_addrs,
-                                               True,
-                                               cpu_arch=arch)
-    if info_dict:
-      all_symbols[library] = info_dict
+    symbols_by_library = symbol.SymbolInformationForSet(libname,
+                                                        lib_relative_addrs,
+                                                        True,
+                                                        cpu_arch=arch)
+    if symbols_by_library:
+      all_symbols[library] = symbols_by_library
 
   for log_line in asan_log_lines:
     m = log_line.parsed
@@ -118,7 +117,10 @@ def _PrintSymbolized(asan_input, arch):
       # that usually one wants to display the last list item, not the first.
       # The code below takes the first, is this the best choice here?
       s = all_symbols[m.library][m.rel_address][0]
-      print('%s%s %s %s' % (m.prefix, m.pos, s[0], s[1]))
+      symbol_name = s[0]
+      symbol_location = s[1]
+      print('%s%s %s %s @ \'%s\'' %
+            (m.prefix, m.pos, hex(m.rel_address), symbol_name, symbol_location))
     else:
       print(log_line.raw)
 

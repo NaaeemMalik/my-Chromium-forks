@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,16 @@
 
 #include "base/command_line.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/system/sys_info.h"
 #include "build/chromeos_buildflags.h"
+#include "ui/base/ui_base_switches.h"
 #include "ui/display/display_switches.h"
 #include "ui/display/manager/managed_display_info.h"
+#include "ui/display/util/display_util.h"
 #include "ui/gfx/geometry/size_conversions.h"
 #include "ui/gfx/geometry/size_f.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chromeos/system/statistics_provider.h"
+#include "chromeos/ash/components/system/statistics_provider.h"
 #endif
 
 namespace display {
@@ -68,8 +69,12 @@ bool ForceFirstDisplayInternal() {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   // Touch view mode is only available to internal display. We force the
   // display as internal for emulator to test touch view mode.
+  // However, display mode change is only available to external display. To run
+  // tests on a different display mode from default we will need to set the flag
+  // --drm-virtual-connector-is-external.
   ret = ret ||
-        chromeos::system::StatisticsProvider::GetInstance()->IsRunningOnVm();
+        (ash::system::StatisticsProvider::GetInstance()->IsRunningOnVm() &&
+         !command_line->HasSwitch(switches::kDRMVirtualConnectorIsExternal));
 #endif
   return ret;
 }
@@ -157,14 +162,23 @@ bool ComputeBoundary(const Display& display_a,
 }
 
 DisplayIdList CreateDisplayIdList(const Displays& list) {
-  return GenerateDisplayIdList(
-      list.begin(), list.end(),
-      [](const Display& display) { return display.id(); });
+  return GenerateDisplayIdList(list, &Display::id);
+}
+
+DisplayIdList CreateDisplayIdList(const DisplayInfoList& updated_displays) {
+  return GenerateDisplayIdList(updated_displays,
+                               &display::ManagedDisplayInfo::id);
 }
 
 void SortDisplayIdList(DisplayIdList* ids) {
   std::sort(ids->begin(), ids->end(),
             [](int64_t a, int64_t b) { return CompareDisplayIds(a, b); });
+}
+
+bool IsDisplayIdListSorted(const DisplayIdList& list) {
+  return std::is_sorted(list.begin(), list.end(), [](int64_t a, int64_t b) {
+    return CompareDisplayIds(a, b);
+  });
 }
 
 std::string DisplayIdListToString(const DisplayIdList& list) {
@@ -175,13 +189,6 @@ std::string DisplayIdListToString(const DisplayIdList& list) {
     sep = ",";
   }
   return s.str();
-}
-
-display::ManagedDisplayInfo CreateDisplayInfo(int64_t id,
-                                              const gfx::Rect& bounds) {
-  display::ManagedDisplayInfo info(id, "x-" + base::NumberToString(id), false);
-  info.SetBounds(bounds);
-  return info;
 }
 
 int64_t GetDisplayIdWithoutOutputIndex(int64_t id) {

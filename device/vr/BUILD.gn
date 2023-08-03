@@ -1,4 +1,4 @@
-# Copyright 2016 The Chromium Authors. All rights reserved.
+# Copyright 2016 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -51,6 +51,8 @@ if (enable_vr) {
 
     defines = [ "IS_DEVICE_VR_BASE_IMPL" ]
     sources = [
+      "create_anchor_request.cc",
+      "create_anchor_request.h",
       "vr_device.h",
       "vr_device_base.cc",
       "vr_device_base.h",
@@ -191,12 +193,12 @@ if (enable_vr) {
         "openxr/context_provider_callbacks.h",
         "openxr/openxr_anchor_manager.cc",
         "openxr/openxr_anchor_manager.h",
-        "openxr/openxr_anchor_request.cc",
-        "openxr/openxr_anchor_request.h",
         "openxr/openxr_api_wrapper.cc",
         "openxr/openxr_api_wrapper.h",
         "openxr/openxr_controller.cc",
         "openxr/openxr_controller.h",
+        "openxr/openxr_debug_util.cc",
+        "openxr/openxr_debug_util.h",
         "openxr/openxr_device.cc",
         "openxr/openxr_device.h",
         "openxr/openxr_extension_handle.h",
@@ -208,6 +210,7 @@ if (enable_vr) {
         "openxr/openxr_interaction_profiles.h",
         "openxr/openxr_path_helper.cc",
         "openxr/openxr_path_helper.h",
+        "openxr/openxr_platform.h",
         "openxr/openxr_render_loop.cc",
         "openxr/openxr_render_loop.h",
         "openxr/openxr_scene.cc",
@@ -226,6 +229,8 @@ if (enable_vr) {
         "openxr/openxr_statics.h",
         "openxr/openxr_util.cc",
         "openxr/openxr_util.h",
+        "openxr/openxr_view_configuration.cc",
+        "openxr/openxr_view_configuration.h",
         "test/test_hook.h",
         "windows/compositor_base.cc",
         "windows/compositor_base.h",
@@ -316,8 +321,11 @@ if (enable_openxr) {
     sources = [
       "openxr/openxr_extension_helper.cc",
       "openxr/openxr_extension_helper.h",
+      "openxr/openxr_platform.h",
       "openxr/openxr_util.cc",
       "openxr/openxr_util.h",
+      "openxr/openxr_view_configuration.cc",
+      "openxr/openxr_view_configuration.h",
       "openxr/test/fake_openxr_impl_api.cc",
       "openxr/test/openxr.def",
       "openxr/test/openxr_negotiate.h",
@@ -357,6 +365,8 @@ if (enable_gvr_services) {
     sources = java_sources_needing_jni
     deps = [
       "//base:base_java",
+      "//base:jni_java",
+      "//build/android:build_java",
       "//third_party/gvr-android-sdk:gvr_common_java",
       "//ui/android:ui_java",
     ]

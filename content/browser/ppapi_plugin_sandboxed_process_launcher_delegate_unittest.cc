@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,9 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/windows_version.h"
 #include "sandbox/policy/win/sandbox_policy_feature_test.h"
-#include "sandbox/policy/win/sandbox_test_utils.h"
 #include "sandbox/policy/win/sandbox_win.h"
 #include "sandbox/win/src/app_container_base.h"
 #include "sandbox/win/src/sandbox_factory.h"
@@ -32,7 +31,7 @@ namespace content {
 namespace sandbox {
 namespace policy {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 class PpapiPluginFeatureSandboxWinTest
     : public ::sandbox::policy::SandboxFeatureTest {
  public:
@@ -53,30 +52,20 @@ TEST_P(PpapiPluginFeatureSandboxWinTest, PpapiGeneratedPolicyTest) {
   base::HandlesToInheritVector handles_to_inherit;
   ::sandbox::BrokerServices* broker =
       ::sandbox::SandboxFactory::GetBrokerServices();
-  scoped_refptr<::sandbox::TargetPolicy> policy = broker->CreatePolicy();
+  auto policy = broker->CreatePolicy();
 
-  ppapi::PpapiPermissions permissions(ppapi::Permission::PERMISSION_NONE);
-  PpapiPluginSandboxedProcessLauncherDelegate test_ppapi_delegate(permissions);
+  PpapiPluginSandboxedProcessLauncherDelegate test_ppapi_delegate;
 
   // PreSpawn
   ::sandbox::ResultCode result =
       ::sandbox::policy::SandboxWin::GeneratePolicyForSandboxedProcess(
           cmd_line, ::sandbox::policy::switches::kPpapiSandbox,
-          handles_to_inherit, &test_ppapi_delegate, policy);
+          handles_to_inherit, &test_ppapi_delegate, policy.get());
   ASSERT_EQ(::sandbox::ResultCode::SBOX_ALL_OK, result);
 
-  EXPECT_EQ(policy->GetIntegrityLevel(),
-            ::sandbox::IntegrityLevel::INTEGRITY_LEVEL_LOW);
-  EXPECT_EQ(policy->GetLockdownTokenLevel(),
-            ::sandbox::TokenLevel::USER_LOCKDOWN);
-  EXPECT_EQ(policy->GetInitialTokenLevel(),
-            ::sandbox::TokenLevel::USER_RESTRICTED_SAME_ACCESS);
-  EXPECT_EQ(policy->GetProcessMitigations(), GetExpectedMitigationFlags());
-  EXPECT_EQ(policy->GetDelayedProcessMitigations(),
-            GetExpectedDelayedMitigationFlags());
-
-  // PPapi shouldn't ever have an app container
-  EXPECT_EQ(policy->GetAppContainer().get(), nullptr);
+  ValidateSecurityLevels(policy->GetConfig());
+  ValidatePolicyFlagSettings(policy->GetConfig());
+  ValidateAppContainerSettings(policy->GetConfig());
 }
 
 INSTANTIATE_TEST_SUITE_P(

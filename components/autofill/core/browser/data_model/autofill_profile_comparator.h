@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,9 +13,7 @@
 #include "base/strings/string_piece.h"
 #include "components/autofill/core/browser/data_model/address.h"
 #include "components/autofill/core/browser/data_model/autofill_profile.h"
-#include "components/autofill/core/browser/data_model/borrowed_transliterator.h"
 #include "components/autofill/core/browser/data_model/contact_info.h"
-#include "components/autofill/core/common/autofill_l10n_util.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace autofill {
@@ -82,7 +80,8 @@ class AutofillProfileComparator {
   // settings-visible value that is different.
   static bool ProfilesHaveDifferentSettingsVisibleValues(
       const AutofillProfile& p1,
-      const AutofillProfile& p2);
+      const AutofillProfile& p2,
+      const std::string& app_locale);
 
   // Returns true if |text| is empty or contains only skippable characters. A
   // character is skippable if it is punctuation or white space.
@@ -153,7 +152,7 @@ class AutofillProfileComparator {
   // prefer the latter.
   bool MergeNames(const AutofillProfile& p1,
                   const AutofillProfile& p2,
-                  NameInfo* name_info) const;
+                  NameInfo& name_info) const;
 
   // Returns true if |full_name_2| is a variant of |full_name_1|.
   //
@@ -176,7 +175,7 @@ class AutofillProfileComparator {
   // the most recently used version of the email address.
   bool MergeEmailAddresses(const AutofillProfile& p1,
                            const AutofillProfile& p2,
-                           EmailInfo* email_info) const;
+                           EmailInfo& email_info) const;
 
   // Populates |company_info| with the result of merging the company names in
   // |p1| and |p2|. Returns true if successful. Expects that |p1| and |p2| have
@@ -187,7 +186,7 @@ class AutofillProfileComparator {
   // as a tiebreaker, prefer the most recently used version of the company name.
   bool MergeCompanyNames(const AutofillProfile& p1,
                          const AutofillProfile& p2,
-                         CompanyInfo* company_info) const;
+                         CompanyInfo& company_info) const;
 
   // Populates |phone_number| with the result of merging the phone numbers in
   // |p1| and |p2|. Returns true if successful. Expects that |p1| and |p2| have
@@ -196,7 +195,7 @@ class AutofillProfileComparator {
   // Heuristic: Populate the missing parts of each number from the other.
   bool MergePhoneNumbers(const AutofillProfile& p1,
                          const AutofillProfile& p2,
-                         PhoneNumber* phone_number) const;
+                         PhoneNumber& phone_number) const;
 
   // Populates |address| with the result of merging the addresses in |p1| and
   // |p2|. Returns true if successful. Expects that |p1| and |p2| have already
@@ -207,7 +206,16 @@ class AutofillProfileComparator {
   // more verbost city, dependent locality, and address.
   bool MergeAddresses(const AutofillProfile& p1,
                       const AutofillProfile& p2,
-                      Address* address) const;
+                      Address& address) const;
+
+  // Populates |birthdate| with the result of merging the birthdate in |p1| and
+  // |p2|. Returns true if successful. Expects that |p1| and |p2| have
+  // already been found to be mergeable.
+  //
+  // Heuristic: For each component (day, month, year), take the non empty one.
+  bool MergeBirthdates(const AutofillProfile& p1,
+                       const AutofillProfile& p2,
+                       Birthdate& birthdate) const;
 
   // App locale used when this comparator instance was created.
   const std::string app_locale() const { return app_locale_; }
@@ -295,7 +303,7 @@ class AutofillProfileComparator {
   // does not.
   //
   // Note that this method does not provide any guidance on actually merging
-  // the company names.
+  // the phone numbers.
   bool HaveMergeablePhoneNumbers(const AutofillProfile& p1,
                                  const AutofillProfile& p2) const;
 
@@ -305,19 +313,28 @@ class AutofillProfileComparator {
   // comparison heuristics are employed to determine if the addresses match.
   //
   // Note that this method does not provide any guidance on actually merging
-  // the email addresses.
+  // the addresses.
   bool HaveMergeableAddresses(const AutofillProfile& p1,
                               const AutofillProfile& p2) const;
+
+  // Returns true if |p1| and |p2| have birthdates which are equivalent for
+  // the purposes of merging the two profiles. This means that for every
+  // birthdate component (day, month, year), either one of them is empty or they
+  // are equal.
+  //
+  // Note that this method does not provide any guidance on actually merging
+  // the birthdates.
+  bool HaveMergeableBirthdates(const AutofillProfile& p1,
+                               const AutofillProfile& p2) const;
 
   // Populates |name_info| with the result of merging the Chinese, Japanese or
   // Korean names in |p1| and |p2|. Returns true if successful. Expects that
   // |p1| and |p2| have already been found to be mergeable, and have CJK names.
   bool MergeCJKNames(const AutofillProfile& p1,
                      const AutofillProfile& p2,
-                     NameInfo* info) const;
+                     NameInfo& info) const;
 
  private:
-  l10n::CaseInsensitiveCompare case_insensitive_compare_;
   const std::string app_locale_;
 };
 

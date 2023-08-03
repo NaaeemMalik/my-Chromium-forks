@@ -1,9 +1,10 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/bookmarks/chrome_bookmark_client.h"
 
+#include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/notreached.h"
@@ -45,8 +46,7 @@ ChromeBookmarkClient::ChromeBookmarkClient(
   }
 }
 
-ChromeBookmarkClient::~ChromeBookmarkClient() {
-}
+ChromeBookmarkClient::~ChromeBookmarkClient() = default;
 
 void ChromeBookmarkClient::Init(bookmarks::BookmarkModel* model) {
   if (managed_bookmark_service_)
@@ -82,24 +82,23 @@ void ChromeBookmarkClient::GetTypedCountForUrls(
           profile_, ServiceAccessType::EXPLICIT_ACCESS);
   history::URLDatabase* url_db =
       history_service ? history_service->InMemoryDatabase() : nullptr;
-  for (auto& url_typed_count_pair : *url_typed_count_map) {
-    int typed_count = 0;
+  if (!url_db)
+    return;
 
-    // If |url_db| is the InMemoryDatabase, it might not cache all URLRows, but
-    // it guarantees to contain those with |typed_count| > 0. Thus, if we cannot
-    // fetch the URLRow, it is safe to assume that its |typed_count| is 0.
+  for (auto& url_typed_count_pair : *url_typed_count_map) {
+    // The in-memory URLDatabase might not cache all URLRows, but it
+    // guarantees to contain those with `typed_count` > 0. Thus, if we cannot
+    // fetch the URLRow, it is safe to assume that its `typed_count` is 0.
     history::URLRow url_row;
     const GURL* url = url_typed_count_pair.first;
-    if (url_db && url && url_db->GetRowForURL(*url, &url_row))
-      typed_count = url_row.typed_count();
-
-    url_typed_count_pair.second = typed_count;
+    if (url && url_db->GetRowForURL(*url, &url_row))
+      url_typed_count_pair.second = url_row.typed_count();
   }
 }
 
 bool ChromeBookmarkClient::IsPermanentNodeVisibleWhenEmpty(
     bookmarks::BookmarkNode::Type type) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   const bool is_mobile = true;
 #else
   const bool is_mobile = false;
@@ -136,23 +135,19 @@ ChromeBookmarkClient::GetLoadManagedNodeCallback() {
 
 bool ChromeBookmarkClient::CanSetPermanentNodeTitle(
     const bookmarks::BookmarkNode* permanent_node) {
-  return !managed_bookmark_service_
-             ? true
-             : managed_bookmark_service_->CanSetPermanentNodeTitle(
-                   permanent_node);
+  return !managed_bookmark_service_ ||
+         managed_bookmark_service_->CanSetPermanentNodeTitle(permanent_node);
 }
 
 bool ChromeBookmarkClient::CanSyncNode(const bookmarks::BookmarkNode* node) {
-  return !managed_bookmark_service_
-             ? true
-             : managed_bookmark_service_->CanSyncNode(node);
+  return !managed_bookmark_service_ ||
+         managed_bookmark_service_->CanSyncNode(node);
 }
 
 bool ChromeBookmarkClient::CanBeEditedByUser(
     const bookmarks::BookmarkNode* node) {
-  return !managed_bookmark_service_
-             ? true
-             : managed_bookmark_service_->CanBeEditedByUser(node);
+  return !managed_bookmark_service_ ||
+         managed_bookmark_service_->CanBeEditedByUser(node);
 }
 
 std::string ChromeBookmarkClient::EncodeBookmarkSyncMetadata() {

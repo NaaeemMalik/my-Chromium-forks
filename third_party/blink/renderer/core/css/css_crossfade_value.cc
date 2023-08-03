@@ -59,9 +59,9 @@ bool CSSCrossfadeValue::HasFailedOrCanceledSubresources() const {
 }
 
 bool CSSCrossfadeValue::Equals(const CSSCrossfadeValue& other) const {
-  return DataEquivalent(from_value_, other.from_value_) &&
-         DataEquivalent(to_value_, other.to_value_) &&
-         DataEquivalent(percentage_value_, other.percentage_value_);
+  return base::ValuesEquivalent(from_value_, other.from_value_) &&
+         base::ValuesEquivalent(to_value_, other.to_value_) &&
+         base::ValuesEquivalent(percentage_value_, other.percentage_value_);
 }
 
 class CSSCrossfadeValue::ObserverProxy final
@@ -81,8 +81,9 @@ class CSSCrossfadeValue::ObserverProxy final
   bool WillRenderImage() override {
     for (const ImageResourceObserver* const_observer : Clients().Keys()) {
       auto* observer = const_cast<ImageResourceObserver*>(const_observer);
-      if (observer->WillRenderImage())
+      if (observer->WillRenderImage()) {
         return true;
+      }
     }
     return false;
   }
@@ -91,8 +92,9 @@ class CSSCrossfadeValue::ObserverProxy final
       mojom::blink::ImageAnimationPolicy& animation_policy) override {
     for (const ImageResourceObserver* const_observer : Clients().Keys()) {
       auto* observer = const_cast<ImageResourceObserver*>(const_observer);
-      if (observer->GetImageAnimationPolicy(animation_policy))
+      if (observer->GetImageAnimationPolicy(animation_policy)) {
         return true;
+      }
     }
     return false;
   }
@@ -111,8 +113,9 @@ class CSSCrossfadeValue::ObserverProxy final
 };
 
 ImageResourceObserver* CSSCrossfadeValue::GetObserverProxy() {
-  if (!observer_proxy_)
+  if (!observer_proxy_) {
     observer_proxy_ = MakeGarbageCollected<ObserverProxy>(this);
+  }
   return observer_proxy_;
 }
 

@@ -1,11 +1,11 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
-#include "base/guid.h"
 #include "base/test/task_environment.h"
+#include "base/uuid.h"
 #include "components/sync/base/client_tag_hash.h"
 #include "components/sync/engine/loopback_server/loopback_connection_manager.h"
 #include "components/sync/engine/syncer_proto_util.h"
@@ -35,7 +35,7 @@ SyncEntity NewBookmarkEntity(const std::string& url,
   SyncEntity entity;
   entity.mutable_specifics()->mutable_bookmark()->set_url(url);
   entity.set_parent_id_string(parent_id);
-  entity.set_id_string(base::GenerateGUID());
+  entity.set_id_string(base::Uuid::GenerateRandomV4().AsLowercaseString());
   return entity;
 }
 
@@ -80,10 +80,9 @@ class LoopbackServerTest : public testing::Test {
   }
 
   static bool CallPostAndProcessHeaders(ServerConnectionManager* scm,
-                                        SyncCycle* cycle,
                                         const ClientToServerMessage& msg,
                                         ClientToServerResponse* response) {
-    return SyncerProtoUtil::PostAndProcessHeaders(scm, cycle, msg, response);
+    return SyncerProtoUtil::PostAndProcessHeaders(scm, msg, response);
   }
 
  protected:
@@ -96,8 +95,7 @@ class LoopbackServerTest : public testing::Test {
         field_number);
 
     ClientToServerResponse response;
-    EXPECT_TRUE(
-        CallPostAndProcessHeaders(lcm_.get(), nullptr, request, &response));
+    EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), request, &response));
     EXPECT_EQ(SyncEnums::SUCCESS, response.error_code());
     return response;
   }
@@ -109,7 +107,7 @@ class LoopbackServerTest : public testing::Test {
     request.set_share("required");
     request.set_message_contents(ClientToServerMessage::COMMIT);
     request.set_invalidator_client_id("client_id");
-    auto* commit = request.mutable_commit();
+    sync_pb::CommitMessage* commit = request.mutable_commit();
     commit->set_cache_guid("cache_guid");
     for (const SyncEntity& entity : entity_vector) {
       *commit->add_entries() = entity;
@@ -120,8 +118,7 @@ class LoopbackServerTest : public testing::Test {
   std::string CommitVerifySuccess(const SyncEntity& entity) {
     ClientToServerMessage request = SingleEntryCommit({entity});
     ClientToServerResponse response;
-    EXPECT_TRUE(
-        CallPostAndProcessHeaders(lcm_.get(), nullptr, request, &response));
+    EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), request, &response));
     EXPECT_EQ(SyncEnums::SUCCESS, response.error_code());
     EXPECT_TRUE(response.has_commit());
     return response.commit().entryresponse(0).id_string();
@@ -130,8 +127,7 @@ class LoopbackServerTest : public testing::Test {
   void CommitVerifyFailure(const SyncEntity& entity) {
     ClientToServerMessage request = SingleEntryCommit({entity});
     ClientToServerResponse response;
-    EXPECT_FALSE(
-        CallPostAndProcessHeaders(lcm_.get(), nullptr, request, &response));
+    EXPECT_FALSE(CallPostAndProcessHeaders(lcm_.get(), request, &response));
     EXPECT_NE(SyncEnums::SUCCESS, response.error_code());
     EXPECT_FALSE(response.has_commit());
   }
@@ -152,7 +148,7 @@ TEST_F(LoopbackServerTest, WrongBirthday) {
       EntitySpecifics::kBookmarkFieldNumber);
   ClientToServerResponse response;
 
-  EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), nullptr, msg, &response));
+  EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), msg, &response));
   EXPECT_EQ(SyncEnums::NOT_MY_BIRTHDAY, response.error_code());
 }
 
@@ -178,7 +174,7 @@ TEST_F(LoopbackServerTest, ClearServerDataCommand) {
   msg.set_message_contents(ClientToServerMessage::CLEAR_SERVER_DATA);
   ClientToServerResponse response;
 
-  EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), nullptr, msg, &response));
+  EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), msg, &response));
   EXPECT_EQ(SyncEnums::SUCCESS, response.error_code());
   EXPECT_TRUE(response.has_clear_server_data());
 }
@@ -189,7 +185,7 @@ TEST_F(LoopbackServerTest, CommitCommand) {
 
 TEST_F(LoopbackServerTest, CommitFailureNoTag) {
   // Non-bookmarks and non-commit only types must have a
-  // client_defined_unique_tag, which we don't set.
+  // client_tag_hash, which we don't set.
   SyncEntity entity;
   entity.mutable_specifics()->mutable_preference();
   CommitVerifyFailure(entity);
@@ -238,7 +234,7 @@ TEST_F(LoopbackServerTest, LoadSavedState) {
       ->set_data_type_id(EntitySpecifics::kBookmarkFieldNumber);
 
   ClientToServerResponse expected_response;
-  EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), nullptr, get_updates_msg,
+  EXPECT_TRUE(CallPostAndProcessHeaders(lcm_.get(), get_updates_msg,
                                         &expected_response));
   EXPECT_EQ(SyncEnums::SUCCESS, expected_response.error_code());
   ASSERT_TRUE(expected_response.has_get_updates());
@@ -250,8 +246,8 @@ TEST_F(LoopbackServerTest, LoadSavedState) {
   LoopbackConnectionManager second_user(persistent_file_);
 
   ClientToServerResponse response;
-  EXPECT_TRUE(CallPostAndProcessHeaders(&second_user, nullptr, get_updates_msg,
-                                        &response));
+  EXPECT_TRUE(
+      CallPostAndProcessHeaders(&second_user, get_updates_msg, &response));
   EXPECT_EQ(SyncEnums::SUCCESS, response.error_code());
   ASSERT_TRUE(response.has_get_updates());
   // Expect to see the four top-level folders and the newly added bookmark!
@@ -277,7 +273,7 @@ TEST_F(LoopbackServerTest, CommitCommandUpdate) {
 }
 
 TEST_F(LoopbackServerTest, CommitBookmarkCreationWithClientTag) {
-  const std::string kGuid = base::GenerateGUID();
+  const std::string kGuid = base::Uuid::GenerateRandomV4().AsLowercaseString();
   const std::string kClientTagHash =
       ClientTagHash::FromUnhashed(BOOKMARKS, kGuid).value();
 
@@ -285,19 +281,19 @@ TEST_F(LoopbackServerTest, CommitBookmarkCreationWithClientTag) {
   entity.mutable_specifics()->mutable_bookmark()->set_url(kUrl1);
   entity.set_parent_id_string(kBookmarkBar);
   entity.set_id_string(kGuid);
-  entity.set_client_defined_unique_tag(kClientTagHash);
+  entity.set_client_tag_hash(kClientTagHash);
 
   const std::string id = CommitVerifySuccess(entity);
 
   std::map<std::string, SyncEntity> bookmarks =
       ResponseToMap(GetUpdatesForType(EntitySpecifics::kBookmarkFieldNumber));
-  EXPECT_EQ(bookmarks[id].client_defined_unique_tag(), kClientTagHash);
+  EXPECT_EQ(bookmarks[id].client_tag_hash(), kClientTagHash);
 }
 
 // Verifies that a bookmark update (non-creation) does not populate the client
 // tag of a bookmark, if no client tag was provided upon creation.
 TEST_F(LoopbackServerTest, CommitBookmarkUpdateWithClientTag) {
-  const std::string kGuid = base::GenerateGUID();
+  const std::string kGuid = base::Uuid::GenerateRandomV4().AsLowercaseString();
   const std::string kClientTagHash =
       ClientTagHash::FromUnhashed(BOOKMARKS, kGuid).value();
 
@@ -311,11 +307,11 @@ TEST_F(LoopbackServerTest, CommitBookmarkUpdateWithClientTag) {
   std::map<std::string, SyncEntity> bookmarks =
       ResponseToMap(GetUpdatesForType(EntitySpecifics::kBookmarkFieldNumber));
   ASSERT_EQ(bookmarks[id].specifics().bookmark().url(), kUrl1);
-  ASSERT_FALSE(bookmarks[id].has_client_defined_unique_tag());
+  ASSERT_FALSE(bookmarks[id].has_client_tag_hash());
 
   // Issue an update, with the client tag being provided for the first time.
   entity.set_id_string(id);
-  entity.set_client_defined_unique_tag(kClientTagHash);
+  entity.set_client_tag_hash(kClientTagHash);
   entity.set_version(1);
   entity.mutable_specifics()->mutable_bookmark()->set_url(kUrl2);
   CommitVerifySuccess(entity);
@@ -323,7 +319,7 @@ TEST_F(LoopbackServerTest, CommitBookmarkUpdateWithClientTag) {
   bookmarks =
       ResponseToMap(GetUpdatesForType(EntitySpecifics::kBookmarkFieldNumber));
   ASSERT_EQ(bookmarks[id].specifics().bookmark().url(), kUrl2);
-  EXPECT_FALSE(bookmarks[id].has_client_defined_unique_tag());
+  EXPECT_FALSE(bookmarks[id].has_client_tag_hash());
 }
 
 }  // namespace syncer

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,10 +51,6 @@ StateStore* MockExtensionSystem::dynamic_user_scripts_store() {
 
 scoped_refptr<value_store::ValueStoreFactory>
 MockExtensionSystem::store_factory() {
-  return nullptr;
-}
-
-InfoMap* MockExtensionSystem::info_map() {
   return nullptr;
 }
 

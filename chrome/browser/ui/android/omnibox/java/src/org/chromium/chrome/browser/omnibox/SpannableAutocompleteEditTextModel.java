@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,6 @@ import java.util.regex.Pattern;
  */
 public class SpannableAutocompleteEditTextModel implements AutocompleteEditTextModelBase {
     private static final String TAG = "SpanAutocomplete";
-
     private static final boolean DEBUG = false;
 
     // A pattern that matches strings consisting of English and European character sets, numbers,
@@ -190,13 +189,11 @@ public class SpannableAutocompleteEditTextModel implements AutocompleteEditTextM
                     mPreviouslyNotifiedState, mCurrentState, mIgnoreTextChangeFromAutocomplete);
         }
         if (mBatchEditNestCount > 0) {
-            // crbug.com/764749
-            Log.w(TAG, "Did not notify - in batch edit.");
+            if (DEBUG) Log.i(TAG, "Did not notify - in batch edit.");
             return;
         }
         if (mCurrentState.equals(mPreviouslyNotifiedState)) {
-            // crbug.com/764749
-            Log.w(TAG, "Did not notify - no change.");
+            if (DEBUG) Log.i(TAG, "Did not notify - no change.");
             return;
         }
         notifyAccessibilityService();
@@ -211,8 +208,7 @@ public class SpannableAutocompleteEditTextModel implements AutocompleteEditTextM
         }
         mPreviouslyNotifiedState.copyFrom(mCurrentState);
         if (mIgnoreTextChangeFromAutocomplete) {
-            // crbug.com/764749
-            Log.w(TAG, "Did not notify - ignored.");
+            if (DEBUG) Log.i(TAG, "Did not notify - ignored.");
             return;
         }
         // The current model's mechanism always moves the cursor at the end of user text, so we
@@ -564,15 +560,14 @@ public class SpannableAutocompleteEditTextModel implements AutocompleteEditTextM
         public boolean beginBatchEdit() {
             if (DEBUG) Log.i(TAG, "beginBatchEdit");
             onBeginImeCommand();
-            boolean retVal = incrementBatchEditCount();
-            onEndImeCommand();
-            return retVal;
+            incrementBatchEditCount();
+            return onEndImeCommand();
         }
 
         /**
          * Always call this at the beginning of any IME command. Compare this with beginBatchEdit()
          * which is by itself an IME command.
-         * @return Whether the call was successful.
+         * @return {@code true} if the batch edit is still in progress. {@code false} otherwise.
          */
         public boolean onBeginImeCommand() {
             if (DEBUG) Log.i(TAG, "onBeginImeCommand: " + mBatchEditNestCount);
@@ -580,7 +575,15 @@ public class SpannableAutocompleteEditTextModel implements AutocompleteEditTextM
             if (mBatchEditNestCount == 1) {
                 mPreBatchEditState.copyFrom(mCurrentState);
             } else if (mDeletePostfixOnNextBeginImeCommand > 0) {
+                // Note: in languages that rely on character composition, the last incomplete
+                // character may not be recognized as part of the string, but it may still be
+                // accounted for by the mDeletePostfixOnNextBeginImeCommand.
+                // In such case, the text below is actually shorter than the user input, and the
+                // computed string boundaries enter negative index space.
                 int len = mDelegate.getText().length();
+                if (mDeletePostfixOnNextBeginImeCommand > len) {
+                    mDeletePostfixOnNextBeginImeCommand = len;
+                }
                 mDelegate.getText().delete(len - mDeletePostfixOnNextBeginImeCommand, len);
             }
             mDeletePostfixOnNextBeginImeCommand = 0;
@@ -625,15 +628,14 @@ public class SpannableAutocompleteEditTextModel implements AutocompleteEditTextM
         public boolean endBatchEdit() {
             if (DEBUG) Log.i(TAG, "endBatchEdit");
             onBeginImeCommand();
-            boolean retVal = decrementBatchEditCount();
-            onEndImeCommand();
-            return retVal;
+            decrementBatchEditCount();
+            return onEndImeCommand();
         }
 
         /**
          * Always call this at the end of an IME command. Compare this with endBatchEdit()
          * which is by itself an IME command.
-         * @return Whether the call was successful.
+         * @return {@code true} if the batch edit is still in progress. {@code false} otherwise.
          */
         public boolean onEndImeCommand() {
             if (DEBUG) Log.i(TAG, "onEndImeCommand: " + (mBatchEditNestCount - 1));

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,11 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/raw_ptr.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
-#include "base/files/scoped_temp_dir.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/ash/file_manager/fileapi_util.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -21,7 +20,6 @@
 #include "chrome/test/base/testing_profile_manager.h"
 #include "content/public/test/browser_task_environment.h"
 #include "extensions/common/extension.h"
-#include "net/base/filename_util.h"
 #include "storage/browser/file_system/external_mount_points.h"
 #include "storage/browser/file_system/file_system_url.h"
 #include "storage/common/file_system/file_system_util.h"
@@ -74,7 +72,7 @@ class FileUtilsTest : public ::testing::Test {
   // system type.
   storage::FileSystemURL ToTestFileSystemURL(const std::string& path) {
     return storage::FileSystemURL::CreateForTest(
-        blink::StorageKey(GetFileManagerOrigin()),
+        blink::StorageKey::CreateFirstParty(GetFileManagerOrigin()),
         storage::FileSystemType::kFileSystemTypeTest, base::FilePath(path));
   }
 
@@ -93,7 +91,7 @@ class FileUtilsTest : public ::testing::Test {
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfileManager> profile_manager_;
   base::ScopedTempDir scoped_temp_dir_;
-  TestingProfile* profile_;
+  raw_ptr<TestingProfile, ExperimentalAsh> profile_;
 };
 
 TEST_F(FileUtilsTest, GetFileSystemURL) {
@@ -140,27 +138,6 @@ TEST_F(FileUtilsTest, GetFileSystemUrls) {
       url_list,
       ElementsAre(ToGURL(
           base::FilePath(storage::kExternalDir).Append(mount_name_), path)));
-}
-
-TEST_F(FileUtilsTest, GetFileUrls) {
-  constexpr char kTestData[] = "testing1234";
-  base::FilePath test_file = GetTempDir().AppendASCII("test.txt");
-  ASSERT_EQ(static_cast<int>(base::size(kTestData)),
-            base::WriteFile(test_file, kTestData, base::size(kTestData)));
-
-  std::vector<GURL> url_list;
-  std::vector<base::FilePath> fp_list;
-
-  // fp_list is empty.
-  url_list = GetFileUrls(fp_list);
-  EXPECT_THAT(url_list, IsEmpty());
-
-  // fp_list containing test profile path should work with file: url.
-  fp_list.push_back(test_file);
-  url_list = GetFileUrls(fp_list);
-  base::FilePath url_path;
-  net::FileURLToFilePath(url_list.at(0), &url_path);
-  EXPECT_EQ(url_path, test_file);
 }
 
 TEST_F(FileUtilsTest, GetSingleFileSystemURL) {

@@ -56,15 +56,14 @@ class LayoutSVGInline : public LayoutInline {
   void MapLocalToAncestor(const LayoutBoxModelObject* ancestor,
                           TransformState&,
                           MapCoordinatesFlags) const final;
-  void AbsoluteQuads(Vector<FloatQuad>&,
+  void AbsoluteQuads(Vector<gfx::QuadF>&,
                      MapCoordinatesFlags mode = 0) const final;
-  void AddOutlineRects(Vector<PhysicalRect>&,
+  void AddOutlineRects(OutlineRectCollector&,
+                       OutlineInfo*,
                        const PhysicalOffset& additional_offset,
                        NGOutlineType) const final;
 
  private:
-  InlineFlowBox* CreateInlineFlowBox() final;
-
   void WillBeDestroyed() final;
   void StyleDidChange(StyleDifference, const ComputedStyle* old_style) final;
 

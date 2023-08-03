@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,15 @@
 #include "base/containers/contains.h"
 #include "base/json/json_reader.h"
 #include "base/memory/ptr_util.h"
+#include "base/no_destructor.h"
 #include "base/notreached.h"
+#include "base/ranges/algorithm.h"
+#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
+#include "build/build_config.h"
+#include "net/base/mime_util.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/base/clipboard/clipboard_constants.h"
 #include "ui/gfx/geometry/size.h"
 #include "url/gurl.h"
 
@@ -25,11 +31,11 @@ bool Clipboard::IsSupportedClipboardBuffer(ClipboardBuffer buffer) {
   // Use lambda instead of local helper function in order to access private
   // member IsSelectionBufferAvailable().
   static auto IsSupportedSelectionClipboard = []() -> bool {
-#if defined(USE_OZONE) && !defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_OZONE) && !BUILDFLAG(IS_CHROMEOS)
     ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
     CHECK(clipboard);
     return clipboard->IsSelectionBufferAvailable();
-#elif !defined(OS_WIN) && !defined(OS_APPLE) && !defined(OS_CHROMEOS)
+#elif !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_CHROMEOS)
     return true;
 #else
     return false;
@@ -55,8 +61,7 @@ void Clipboard::SetAllowedThreads(
   base::AutoLock lock(ClipboardMapLock());
 
   AllowedThreads().clear();
-  std::copy(allowed_threads.begin(), allowed_threads.end(),
-            std::back_inserter(AllowedThreads()));
+  base::ranges::copy(allowed_threads, std::back_inserter(AllowedThreads()));
 }
 
 // static
@@ -146,11 +151,23 @@ std::map<std::string, std::string> Clipboard::ExtractCustomPlatformNames(
     if (!custom_format_json.empty()) {
       absl::optional<base::Value> json_val =
           base::JSONReader::Read(custom_format_json);
-      if (json_val.has_value()) {
-        for (const auto it : json_val->DictItems()) {
+      if (json_val.has_value() && json_val->is_dict()) {
+        for (const auto it : json_val->GetDict()) {
           const std::string* custom_format_name = it.second.GetIfString();
-          if (custom_format_name)
-            custom_format_names.emplace(it.first, *custom_format_name);
+          if (custom_format_name) {
+            // Prepend "web " prefix to the custom format.
+            std::string web_top_level_mime_type;
+            std::string web_mime_sub_type;
+            std::string web_format = it.first;
+            if (net::ParseMimeTypeWithoutParameter(
+                    web_format, &web_top_level_mime_type, &web_mime_sub_type)) {
+              std::string web_custom_format_string = base::StrCat(
+                  {kWebClipboardFormatPrefix, web_top_level_mime_type, "/",
+                   web_mime_sub_type});
+              custom_format_names.emplace(std::move(web_custom_format_string),
+                                          *custom_format_name);
+            }
+          }
         }
       }
     }
@@ -180,9 +197,8 @@ Clipboard::ReadAvailableStandardAndCustomFormatNames(
       ExtractCustomPlatformNames(buffer, data_dst);
   for (const auto& items : custom_format_names)
     format_names.push_back(base::ASCIIToUTF16(items.first));
-  for (const auto& item : GetStandardFormats(buffer, data_dst)) {
+  for (const auto& item : GetStandardFormats(buffer, data_dst))
     format_names.push_back(item);
-  }
   return format_names;
 }
 
@@ -192,38 +208,56 @@ Clipboard::~Clipboard() = default;
 void Clipboard::DispatchPortableRepresentation(PortableFormat format,
                                                const ObjectMapParams& params) {
   // Ignore writes with empty parameters.
-  for (const auto& param : params) {
-    if (param.empty())
+  for (const auto& param : params.data) {
+    if (param.empty()) {
       return;
+    }
   }
 
   switch (format) {
     case PortableFormat::kText:
-      WriteText(&(params[0].front()), params[0].size());
+      WriteText(params.data[0].data(), params.data[0].size());
       break;
 
     case PortableFormat::kHtml:
-      if (params.size() == 2) {
-        if (params[1].empty())
-          return;
-        WriteHTML(&(params[0].front()), params[0].size(), &(params[1].front()),
-                  params[1].size());
-      } else if (params.size() == 1) {
-        WriteHTML(&(params[0].front()), params[0].size(), nullptr, 0);
+      // If the source URL is passed, then the markup shouldn't be empty. If it
+      // is, we can return early.
+      if (params.data.size() == 2 && params.data[1].empty()) {
+        return;
+      }
+      if (params.content_type == ClipboardContentType::kUnsanitized) {
+        if (params.data.size() == 2) {
+          WriteUnsanitizedHTML(params.data[0].data(), params.data[0].size(),
+                               params.data[1].data(), params.data[1].size());
+        } else if (params.data.size() == 1) {
+          // If there isn't a source URL, then we set the URL data to null and
+          // size to 0.
+          WriteUnsanitizedHTML(params.data[0].data(), params.data[0].size(),
+                               nullptr, 0);
+        }
+      } else {
+        if (params.data.size() == 2) {
+          WriteHTML(params.data[0].data(), params.data[0].size(),
+                    params.data[1].data(), params.data[1].size());
+        } else if (params.data.size() == 1) {
+          // If there isn't a source URL, then we set the URL data to null and
+          // size to 0.
+          WriteHTML(params.data[0].data(), params.data[0].size(), nullptr, 0);
+        }
       }
       break;
 
     case PortableFormat::kSvg:
-      WriteSvg(&(params[0].front()), params[0].size());
+      WriteSvg(params.data[0].data(), params.data[0].size());
       break;
 
     case PortableFormat::kRtf:
-      WriteRTF(&(params[0].front()), params[0].size());
+      WriteRTF(params.data[0].data(), params.data[0].size());
       break;
 
     case PortableFormat::kBookmark:
-      WriteBookmark(&(params[0].front()), params[0].size(),
-                    &(params[1].front()), params[1].size());
+      WriteBookmark(params.data[0].data(), params.data[0].size(),
+                    params.data[1].data(), params.data[1].size());
       break;
 
     case PortableFormat::kWebkit:
@@ -235,32 +269,51 @@ void Clipboard::DispatchPortableRepresentation(PortableFormat format,
       // ScopedClipboardWriter actually sizes the buffer to sizeof(SkBitmap*),
       // aliases the contents of the vector to a SkBitmap**, and writes the
       // pointer to the actual SkBitmap in the clipboard object param.
-      const char* packed_pointer_buffer = &params[0].front();
+      const char* packed_pointer_buffer = params.data[0].data();
       WriteBitmap(**reinterpret_cast<SkBitmap* const*>(packed_pointer_buffer));
       break;
     }
 
     case PortableFormat::kFilenames: {
-      std::string uri_list(&(params[0].front()), params[0].size());
+      std::string uri_list(params.data[0].data(), params.data[0].size());
       WriteFilenames(ui::URIListToFileInfos(uri_list));
       break;
     }
 
     case PortableFormat::kData:
       WriteData(ClipboardFormatType::Deserialize(
-                    std::string(&(params[0].front()), params[0].size())),
-                &(params[1].front()), params[1].size());
+                    std::string(params.data[0].data(), params.data[0].size())),
+                params.data[1].data(), params.data[1].size());
       break;
 
     case PortableFormat::kWebCustomFormatMap:
       WriteData(ClipboardFormatType::WebCustomFormatMap(),
-                &(params[0].front()), params[0].size());
+                params.data[0].data(), params.data[0].size());
       break;
+
+#if BUILDFLAG(IS_CHROMEOS_LACROS)
+    case PortableFormat::kEncodedDataTransferEndpoint:
+      // Only supported on Lacros.
+      WriteData(ClipboardFormatType::DataTransferEndpointDataType(),
+                params.data[0].data(), params.data[0].size());
+      break;
+#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
     default:
       NOTREACHED();
   }
 }
+
+Clipboard::ObjectMapParams::ObjectMapParams(std::vector<ObjectMapParam> data,
+                                            ClipboardContentType content_type)
+    : data(std::move(data)), content_type(content_type) {}
+
+Clipboard::ObjectMapParams::ObjectMapParams(const ObjectMapParams& other) =
+    default;
+
+Clipboard::ObjectMapParams::ObjectMapParams() = default;
+
+Clipboard::ObjectMapParams::~ObjectMapParams() = default;
 
 void Clipboard::DispatchPlatformRepresentations(
     std::vector<Clipboard::PlatformRepresentation> platform_representations) {
@@ -283,6 +336,25 @@ base::PlatformThreadId Clipboard::GetAndValidateThreadID() {
   CHECK(AllowedThreads().empty() || base::Contains(AllowedThreads(), id));
 
   return id;
+}
+
+void Clipboard::AddObserver(ClipboardWriteObserver* observer) {
+  write_observers_.AddObserver(observer);
+}
+
+void Clipboard::RemoveObserver(ClipboardWriteObserver* observer) {
+  write_observers_.RemoveObserver(observer);
+}
+
+void Clipboard::NotifyCopyWithUrl(const base::StringPiece text,
+                                  const GURL& frame,
+                                  const GURL& main_frame) {
+  GURL text_url(text);
+  if (text_url.is_valid()) {
+    for (ClipboardWriteObserver& obs : write_observers_) {
+      obs.OnCopyURL(text_url, frame, main_frame);
+    }
+  }
 }
 
 // static

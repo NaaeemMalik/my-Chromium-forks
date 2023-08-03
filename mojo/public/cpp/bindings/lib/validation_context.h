@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <stdint.h>
 #include <string>
 
-#include "base/compiler_specific.h"
 #include "base/component_export.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "mojo/public/cpp/bindings/lib/bindings_internal.h"
 
 static const int kMaxRecursionDepth = 200;
@@ -145,11 +145,11 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE) ValidationContext {
    private:
     // `ctx_` is not a raw_ptr<...> for performance reasons: On-stack pointee
     // (i.e. not covered by BackupRefPtr protection).
-    ValidationContext* ctx_;
+    RAW_PTR_EXCLUSION ValidationContext* ctx_;
   };
 
   // Returns true if the recursion depth limit has been reached.
-  bool ExceedsMaxDepth() WARN_UNUSED_RESULT {
+  [[nodiscard]] bool ExceedsMaxDepth() {
     return stack_depth_ > kMaxRecursionDepth;
   }
 

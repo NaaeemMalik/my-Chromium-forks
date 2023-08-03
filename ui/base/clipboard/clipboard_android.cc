@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,14 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/lazy_instance.h"
-#include "base/no_destructor.h"
+#include "base/memory/ref_counted_memory.h"
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/lock.h"
-#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
@@ -421,6 +420,11 @@ Clipboard* Clipboard::Create() {
   return new ClipboardAndroid;
 }
 
+// Static method for testing.
+void JNI_Clipboard_CleanupForTesting(JNIEnv* env) {
+  Clipboard::DestroyClipboardForCurrentThread();
+}
+
 // ClipboardAndroid implementation.
 
 void ClipboardAndroid::OnPrimaryClipChanged(
@@ -686,6 +690,13 @@ void ClipboardAndroid::WriteHTML(const char* markup_data,
                                  size_t url_len) {
   g_map.Get().Set(ClipboardFormatType::HtmlType(),
                   std::string(markup_data, markup_len));
+}
+
+void ClipboardAndroid::WriteUnsanitizedHTML(const char* markup_data,
+                                            size_t markup_len,
+                                            const char* url_data,
+                                            size_t url_len) {
+  WriteHTML(markup_data, markup_len, url_data, url_len);
 }
 
 void ClipboardAndroid::WriteSvg(const char* markup_data, size_t markup_len) {

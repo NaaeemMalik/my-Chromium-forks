@@ -42,24 +42,11 @@ bool LayoutIFrame::IsInlineBlockOrInlineTable() const {
   return IsInline();
 }
 
-PaintLayerType LayoutIFrame::LayerTypeRequired() const {
-  NOT_DESTROYED();
-  if (CanResize())
-    return kNormalPaintLayer;
-  return LayoutEmbeddedContent::LayerTypeRequired();
-}
-
 void LayoutIFrame::UpdateLayout() {
   NOT_DESTROYED();
   DCHECK(NeedsLayout());
 
-  UpdateLogicalWidth();
-  // No kids to layout as a replaced element.
-  UpdateLogicalHeight();
-
   ClearLayoutOverflow();
-  UpdateAfterLayout();
-
   ClearNeedsLayout();
 }
 

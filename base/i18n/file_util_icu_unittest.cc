@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ namespace i18n {
 class FileUtilICUTest : public PlatformTest {
 };
 
-#if defined(OS_POSIX) && !defined(OS_APPLE)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE)
 
 // On linux, file path is parsed and filtered as UTF-8.
 static const struct GoodBadPairLinux {
@@ -83,18 +83,45 @@ static const struct FileUtilICUTestCases {
     {u"(\u200C.\u200D.\u200E.\u200F.\u202A.\u202B.\u202C.\u202D.\u202E.\u206A."
      u"\u206B.\u206C.\u206D.\u206F.\uFEFF)",
      u"(-.-.-.-.-.-.-.-.-.-.-.-.-.-.-)", u"( . . . . . . . . . . . . . . )"},
-    {u"config~1", u"config-1", u"config 1"},
     {u" _ ", u"-_-", u"_"},
     {u" ", u"-", u"_ _"},
     {u"\u2008.(\u2007).\u3000", u"-.(\u2007).-", u"(\u2007)"},
     {u"     ", u"-   -", u"_     _"},
-    {u".    ", u"-   -", u"_.    _"}};
-
-#if defined(OS_WIN) || defined(OS_APPLE) || defined(OS_POSIX)
+    {u".    ", u"-   -", u"_.    _"},
+#if BUILDFLAG(IS_WIN)
+    // '~' is only invalid on Windows, and only if the file name could possibly
+    // be an 8.3 short name.
+    {u"config~1", u"config-1", u"config 1"},
+    {u"config~1.txt", u"config-1.txt", u"config 1.txt"},
+#else
+    {u"config~1", u"config~1", u"config~1"},
+    {u"config~1.txt", u"config~1.txt", u"config~1.txt"},
+#endif
+    // Tildes are always illegal at ends.
+    {u"~config1.txt", u"-config1.txt", u"config1.txt"},
+    {u"config1.txt~", u"config1.txt-", u"config1.txt"},
+    // Some characters, such as spaces, are not allowed in 8.3 short names.
+    // Don't replace the '~' if these characters are present.
+    {u"conf g~1", u"conf g~1", u"conf g~1"},
+    {u"conf,g~1.txt", u"conf,g~1.txt", u"conf,g~1.txt"},
+    // File names with periods in invalid positions are not legal 8.3 names.
+    {u"conf~1.jpeg", u"conf~1.jpeg", u"conf~1.jpeg"},
+    {u"config~12.md", u"config~12.md", u"config~12.md"},
+    // Short names without a '~' character are allowed.
+    {u"config.txt", u"config.txt", u"config.txt"},
+    // Names long enough to not be short names are allowed.
+    {u"config~12.txt", u"config~12.txt", u"config~12.txt"},
+    {u"config~1VeryLongCannotBeShortNameOK.txt",
+     u"config~1VeryLongCannotBeShortNameOK.txt",
+     u"config~1VeryLongCannotBeShortNameOK.txt"},
+    // Base name is longer than 8 characters, without a dot.
+    {u"config~1txt", u"config~1txt", u"config~1txt"},
+};
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_POSIX)
 
 TEST_F(FileUtilICUTest, ReplaceIllegalCharactersInPathTest) {
   for (auto i : kIllegalCharacterCases) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     std::wstring bad_name = UTF16ToWide(i.bad_name);
     ReplaceIllegalCharactersInPath(&bad_name, '-');
     EXPECT_EQ(UTF16ToWide(i.good_name_with_dash), bad_name);
@@ -108,7 +135,7 @@ TEST_F(FileUtilICUTest, ReplaceIllegalCharactersInPathTest) {
 
 TEST_F(FileUtilICUTest, ReplaceIllegalCharactersInPathWithIllegalEndCharTest) {
   for (auto i : kIllegalCharacterCases) {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     std::wstring bad_name = UTF16ToWide(i.bad_name);
     ReplaceIllegalCharactersInPath(&bad_name, ' ');
     EXPECT_EQ(UTF16ToWide(i.good_name_with_space), bad_name);
@@ -148,7 +175,7 @@ static const struct normalize_name_encoding_test_cases {
 };
 
 TEST_F(FileUtilICUTest, NormalizeFileNameEncoding) {
-  for (size_t i = 0; i < size(kNormalizeFileNameEncodingTestCases); i++) {
+  for (size_t i = 0; i < std::size(kNormalizeFileNameEncodingTestCases); i++) {
     FilePath path(kNormalizeFileNameEncodingTestCases[i].original_path);
     NormalizeFileNameEncoding(&path);
     EXPECT_EQ(FilePath(kNormalizeFileNameEncodingTestCases[i].normalized_path),

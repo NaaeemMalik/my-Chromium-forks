@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@
 
 #include <vector>
 
-#include "services/network/public/mojom/ip_address_space.mojom.h"
+#include "base/component_export.h"
+#include "base/strings/string_piece_forward.h"
+#include "services/network/public/mojom/ip_address_space.mojom-forward.h"
 #include "services/network/public/mojom/parsed_headers.mojom-forward.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
@@ -15,12 +17,26 @@ class GURL;
 
 namespace net {
 
+class IPAddress;
 class IPEndPoint;
 struct TransportInfo;
 
 }  // namespace net
 
 namespace network {
+
+// Returns a human-readable string representing `space`, suitable for logging.
+base::StringPiece COMPONENT_EXPORT(NETWORK_CPP)
+    IPAddressSpaceToStringPiece(mojom::IPAddressSpace space);
+
+// Returns the `IPAddressSpace` to which `address` belongs.
+// Returns `kUnknown` for invalid IP addresses.
+//
+// WARNING: Most callers will want to use `TransportInfoToIPAddressSpace()`
+// below instead, as this does not properly account for proxies nor for
+// command-line overrides.
+mojom::IPAddressSpace COMPONENT_EXPORT(NETWORK_CPP)
+    IPAddressToIPAddressSpace(const net::IPAddress& address);
 
 // Returns the `IPAddressSpace` to which the endpoint of `transport` belongs.
 //

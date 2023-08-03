@@ -1,10 +1,15 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/widget/compositing/queue_report_time_swap_promise.h"
 
-#if defined(OS_ANDROID)
+#include "base/functional/callback_helpers.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
+#include "build/build_config.h"
+
+#if BUILDFLAG(IS_ANDROID)
 #include "third_party/blink/public/platform/platform.h"
 #endif
 
@@ -42,7 +47,7 @@ QueueReportTimeSwapPromise::QueueReportTimeSwapPromise(
     : source_frame_number_(source_frame_number),
       drain_callback_(std::move(drain_callback)),
       swap_callback_(std::move(swap_callback)),
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
       call_swap_on_activate_(
           Platform::Current()
               ->IsSynchronousCompositingEnabledForAndroidWebView()),
@@ -54,9 +59,8 @@ QueueReportTimeSwapPromise::~QueueReportTimeSwapPromise() {
   if (compositor_task_runner_ && (drain_callback_ || swap_callback_)) {
     DCHECK(!compositor_task_runner_->BelongsToCurrentThread());
     compositor_task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce([](DrainCallback, base::OnceClosure) {},
-                       std::move(drain_callback_), std::move(swap_callback_)));
+        FROM_HERE, base::DoNothingWithBoundArgs(std::move(drain_callback_),
+                                                std::move(swap_callback_)));
   }
 }
 
@@ -71,7 +75,8 @@ void QueueReportTimeSwapPromise::DidSwap() {
 }
 
 cc::SwapPromise::DidNotSwapAction QueueReportTimeSwapPromise::DidNotSwap(
-    DidNotSwapReason reason) {
+    DidNotSwapReason reason,
+    base::TimeTicks ts) {
   if (reason == cc::SwapPromise::COMMIT_FAILS)
     return DidNotSwapAction::KEEP_ACTIVE;
 
@@ -89,7 +94,7 @@ cc::SwapPromise::DidNotSwapAction QueueReportTimeSwapPromise::DidNotSwap(
 void QueueReportTimeSwapPromise::DidActivate() {
   if (drain_callback_)
     std::move(drain_callback_).Run(source_frame_number_);
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (call_swap_on_activate_ && swap_callback_)
     std::move(swap_callback_).Run();
 #endif

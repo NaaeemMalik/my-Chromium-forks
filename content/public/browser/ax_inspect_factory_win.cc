@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 #include "base/logging.h"
 #include "base/notreached.h"
 #include "base/win/com_init_util.h"
-#include "content/browser/accessibility/accessibility_event_recorder_uia_win.h"
-#include "content/browser/accessibility/accessibility_event_recorder_win.h"
 #include "content/browser/accessibility/accessibility_tree_formatter_blink.h"
-#include "content/browser/accessibility/accessibility_tree_formatter_uia_win.h"
-#include "content/browser/accessibility/accessibility_tree_formatter_win.h"
 #include "content/browser/accessibility/browser_accessibility_manager.h"
+#include "ui/accessibility/platform/inspect/ax_event_recorder_win.h"
+#include "ui/accessibility/platform/inspect/ax_event_recorder_win_uia.h"
+#include "ui/accessibility/platform/inspect/ax_tree_formatter_uia_win.h"
+#include "ui/accessibility/platform/inspect/ax_tree_formatter_win.h"
 
 namespace content {
 
@@ -44,12 +44,12 @@ std::unique_ptr<ui::AXTreeFormatter> AXInspectFactory::CreateFormatter(
       return std::make_unique<AccessibilityTreeFormatterBlink>();
     case ui::AXApiType::kWinIA2:
       base::win::AssertComInitialized();
-      return std::make_unique<AccessibilityTreeFormatterWin>();
+      return std::make_unique<ui::AXTreeFormatterWin>();
     case ui::AXApiType::kWinUIA:
       base::win::AssertComInitialized();
-      return std::make_unique<AccessibilityTreeFormatterUia>();
+      return std::make_unique<ui::AXTreeFormatterUia>();
     default:
-      NOTREACHED() << "Unsupported inspect type " << type;
+      NOTREACHED() << "Unsupported API type " << static_cast<std::string>(type);
   }
   return nullptr;
 }
@@ -71,16 +71,28 @@ std::unique_ptr<ui::AXEventRecorder> AXInspectFactory::CreateRecorder(
   }
 
   switch (type) {
-    case ui::AXApiType::kWinIA2:
-      return std::make_unique<AccessibilityEventRecorderWin>(manager, pid,
-                                                             selector);
+    case ui::AXApiType::kWinIA2: {
+      // For now, just use out of context events when running as a utility to
+      // watch events (no BrowserAccessibilityManager), because otherwise Chrome
+      // events are not getting reported. Being in context is better so that for
+      // TEXT_REMOVED and TEXT_INSERTED events, we can query the text that was
+      // inserted or removed and include that in the log.
+      return std::make_unique<ui::AXEventRecorderWin>(
+          pid, selector,
+          manager ? ui::AXEventRecorderWin::kSync
+                  : ui::AXEventRecorderWin::kAsync);
+    }
     case ui::AXApiType::kWinUIA:
-      return std::make_unique<AccessibilityEventRecorderUia>(manager, pid,
-                                                             selector.pattern);
+      return std::make_unique<ui::AXEventRecorderWinUia>(selector);
     default:
-      NOTREACHED() << "Unsupported inspect type " << type;
+      NOTREACHED() << "Unsupported API type " << static_cast<std::string>(type);
   }
   return nullptr;
+}
+
+std::vector<ui::AXApiType::Type> AXInspectFactory::SupportedApis() {
+  return {ui::AXApiType::kBlink, ui::AXApiType::kWinIA2,
+          ui::AXApiType::kWinUIA};
 }
 
 }  // namespace content

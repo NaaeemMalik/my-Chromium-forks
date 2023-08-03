@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,10 +39,6 @@ class AwRenderProcess : public content::RenderProcessHostObserver,
 
   void ClearCache();
   void SetJsOnlineProperty(bool network_up);
-  void SetCpuAffinityToLittleCores();
-  void EnableIdleThrottling(int32_t policy,
-                            int32_t min_time_ms,
-                            float min_cputime_ratio);
 
  private:
   void Ready();

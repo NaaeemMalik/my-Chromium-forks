@@ -1,8 +1,9 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/assistant/test/assistant_ash_test_base.h"
+#include "base/memory/raw_ptr.h"
 
 #include <string>
 #include <utility>
@@ -12,6 +13,7 @@
 #include "ash/assistant/test/test_assistant_setup.h"
 #include "ash/assistant/ui/main_stage/assistant_onboarding_suggestion_view.h"
 #include "ash/assistant/ui/main_stage/suggestion_chip_view.h"
+#include "ash/constants/ash_features.h"
 #include "ash/keyboard/ui/keyboard_ui_controller.h"
 #include "ash/keyboard/ui/test/keyboard_test_util.h"
 #include "ash/public/cpp/assistant/assistant_state.h"
@@ -24,15 +26,12 @@
 #include "ash/test/view_drawn_waiter.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
-#include "chromeos/services/assistant/test_support/scoped_assistant_browser_delegate.h"
+#include "chromeos/ash/services/assistant/test_support/scoped_assistant_browser_delegate.h"
 #include "ui/views/view_utils.h"
 
 namespace ash {
 
 namespace {
-
-using chromeos::assistant::AssistantInteractionMetadata;
-using chromeos::assistant::AssistantInteractionType;
 
 gfx::Point GetPointInside(const views::View* view) {
   return view->GetBoundsInScreen().CenterPoint();
@@ -91,7 +90,7 @@ class ChildViewCollector {
       Get(child, result);
   }
 
-  const views::View* parent_;
+  raw_ptr<const views::View, ExperimentalAsh> parent_;
 };
 
 }  // namespace
@@ -106,8 +105,8 @@ AssistantAshTestBase::AssistantAshTestBase(
       test_api_(AssistantTestApi::Create()),
       test_setup_(std::make_unique<TestAssistantSetup>()),
       test_web_view_factory_(std::make_unique<TestAshWebViewFactory>()),
-      delegate_(std::make_unique<
-                chromeos::assistant::ScopedAssistantBrowserDelegate>()) {}
+      delegate_(std::make_unique<assistant::ScopedAssistantBrowserDelegate>()) {
+}
 
 AssistantAshTestBase::~AssistantAshTestBase() = default;
 
@@ -120,7 +119,9 @@ void AssistantAshTestBase::SetUp() {
   test_api_->DisableAnimations();
   EnableKeyboard();
 
-  SetUpActiveUser();
+  if (set_up_active_user_in_test_set_up_) {
+    SetUpActiveUser();
+  }
 }
 
 void AssistantAshTestBase::TearDown() {
@@ -215,10 +216,6 @@ bool AssistantAshTestBase::IsVisible() {
   return test_api_->IsVisible();
 }
 
-views::View* AssistantAshTestBase::main_view() {
-  return test_api_->main_view();
-}
-
 views::View* AssistantAshTestBase::page_view() {
   return test_api_->page_view();
 }
@@ -264,7 +261,7 @@ void AssistantAshTestBase::ClickOnAndWait(
   base::RunLoop().RunUntilIdle();
 }
 
-absl::optional<chromeos::assistant::AssistantInteractionMetadata>
+absl::optional<assistant::AssistantInteractionMetadata>
 AssistantAshTestBase::current_interaction() {
   return assistant_service()->current_interaction();
 }
@@ -363,7 +360,7 @@ void AssistantAshTestBase::SetUpActiveUser() {
 
   // Set AssistantAllowedState to ALLOWED.
   test_api_->GetAssistantState()->NotifyFeatureAllowed(
-      chromeos::assistant::AssistantAllowedState::ALLOWED);
+      assistant::AssistantAllowedState::ALLOWED);
 
   // Set user consent so the suggestion chips are displayed.
   SetConsentStatus(ConsentStatus::kActivityControlAccepted);
@@ -371,7 +368,7 @@ void AssistantAshTestBase::SetUpActiveUser() {
   // At this point our Assistant service is ready for use.
   // Indicate this by changing status from NOT_READY to READY.
   test_api_->GetAssistantState()->NotifyStatusChanged(
-      chromeos::assistant::AssistantStatus::READY);
+      assistant::AssistantStatus::READY);
 }
 
 }  // namespace ash

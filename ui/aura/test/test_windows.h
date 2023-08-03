@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,6 +22,8 @@ namespace test {
 void SetEnvForTestWindows(Env* env);
 Env* GetEnvForTestWindows();
 
+// Creates a test window. If parent window is nullptr, then the caller must take
+// ownership of the created window.
 Window* CreateTestWindowWithId(int id, Window* parent);
 Window* CreateTestWindowWithBounds(const gfx::Rect& bounds, Window* parent);
 Window* CreateTestWindow(SkColor color,

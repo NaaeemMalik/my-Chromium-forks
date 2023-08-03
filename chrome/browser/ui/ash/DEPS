@@ -8,11 +8,13 @@ include_rules = [
   "+chrome/browser/ui/views",
 
   "+media",
+  "+components/app_constants",
   "+components/desks_storage"
 ]
 
 specific_include_rules = {
   ".*test.*": [
+    "+components/user_education/views",
     "+ui/message_center/message_center.h",
   ],
   "assistant_timers_browsertest\.cc": [
@@ -20,5 +22,12 @@ specific_include_rules = {
   ],
   "chrome_shell_delegate\.cc": [
     "+cc/input/touch_action.h",
+    "+content/public/browser/chromeos/multi_capture_service.h",
+  ],
+  "chrome_shelf_controller_unittest\.cc": [
+    "+components/viz/test/test_gpu_service_holder.h",
+  ],
+  "shelf_context_menu_unittest\.cc": [
+    "+components/viz/test/test_gpu_service_holder.h",
   ],
 }

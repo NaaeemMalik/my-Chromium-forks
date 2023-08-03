@@ -1,12 +1,11 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sharing/sharing_message_sender.h"
 
-#include "base/guid.h"
-#include "base/stl_util.h"
 #include "base/trace_event/trace_event.h"
+#include "base/uuid.h"
 #include "chrome/browser/sharing/sharing_constants.h"
 #include "chrome/browser/sharing/sharing_fcm_sender.h"
 #include "chrome/browser/sharing/sharing_metrics.h"
@@ -38,18 +37,17 @@ base::OnceClosure SharingMessageSender::SendMessageToDevice(
       SharingMessageTypeToString(
           SharingPayloadCaseToMessageType(message.payload_case())));
 
-  std::string message_guid = base::GenerateGUID();
+  std::string message_guid = base::Uuid::GenerateRandomV4().AsLowercaseString();
   chrome_browser_sharing::MessageType message_type =
       SharingPayloadCaseToMessageType(message.payload_case());
   SharingDevicePlatform receiver_device_platform = GetDevicePlatform(device);
 
-  auto inserted = base::InsertOrAssign(
-      message_metadata_, message_guid,
-      SentMessageMetadata(std::move(callback), base::TimeTicks::Now(),
-                          message_type, receiver_device_platform, trace_id,
-                          SharingChannelType::kUnknown,
-                          device.pulse_interval()));
-  DCHECK(inserted.second);
+  auto [it, inserted] = message_metadata_.insert_or_assign(
+      message_guid, SentMessageMetadata(
+                        std::move(callback), base::TimeTicks::Now(),
+                        message_type, receiver_device_platform, trace_id,
+                        SharingChannelType::kUnknown, device.pulse_interval()));
+  DCHECK(inserted);
 
   auto delegate_iter = send_delegates_.find(delegate_type);
   if (delegate_iter == send_delegates_.end()) {

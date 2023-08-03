@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@
 
 namespace remoting {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Windows chromoting service name.
 extern const wchar_t kWindowsServiceName[];
 #endif
@@ -18,6 +18,6 @@ extern const wchar_t kWindowsServiceName[];
 // Returns the location of the host configuration directory.
 base::FilePath GetConfigDir();
 
-} // namespace remoting
+}  // namespace remoting
 
-#endif // REMOTING_HOST_BRANDING_H_
+#endif  // REMOTING_HOST_BRANDING_H_

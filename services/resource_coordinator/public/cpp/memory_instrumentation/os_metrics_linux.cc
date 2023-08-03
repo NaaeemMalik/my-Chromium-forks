@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -95,7 +95,12 @@ ModuleData GetMainModuleData() {
     size_t build_id_length =
         base::debug::ReadElfBuildId(&__ehdr_start, true, build_id);
     if (build_id_length) {
-      module_data.path = dl_info.dli_fname;
+      base::FilePath module_data_path = base::FilePath(dl_info.dli_fname);
+      if (module_data_path.IsAbsolute()) {
+        module_data.path = dl_info.dli_fname;
+      } else {
+        module_data.path = base::MakeAbsoluteFilePath(module_data_path).value();
+      }
       module_data.build_id = std::string(build_id, build_id_length);
     }
   }
@@ -309,7 +314,7 @@ bool OSMetrics::FillOSMemoryDump(base::ProcessId pid,
   dump->peak_resident_set_kb = GetPeakResidentSetSize(pid);
   dump->is_peak_rss_resettable = ResetPeakRSSIfPossible(pid);
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #if BUILDFLAG(SUPPORTS_CODE_ORDERING)
   if (!base::android::AreAnchorsSane()) {
     DLOG(WARNING) << "Incorrect code ordering";
@@ -333,7 +338,7 @@ bool OSMetrics::FillOSMemoryDump(base::ProcessId pid,
 
   dump->native_library_pages_bitmap = std::move(accessed_pages_bitmap);
 #endif  // BUILDFLAG(SUPPORTS_CODE_ORDERING)
-#endif  //  defined(OS_ANDROID)
+#endif  //  BUILDFLAG(IS_ANDROID)
 
   return true;
 }

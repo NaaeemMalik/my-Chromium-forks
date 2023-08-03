@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,14 +23,20 @@ struct LogicalSize;
 // PhysicalSize is the size of a rect (typically a fragment) in the physical
 // coordinate system.
 // For more information about physical and logical coordinate systems, see:
-// https://chromium.googlesource.com/chromium/src/+/master/third_party/blink/renderer/core/layout/README.md#coordinate-spaces
+// https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/renderer/core/layout/README.md#coordinate-spaces
 struct CORE_EXPORT PhysicalSize {
   constexpr PhysicalSize() = default;
   constexpr PhysicalSize(LayoutUnit width, LayoutUnit height)
       : width(width), height(height) {}
 
+  // This is deleted to avoid unwanted lossy conversion from float or double to
+  // LayoutUnit or int. Use explicit LayoutUnit constructor for each parameter,
+  // or use FromSizeF*() instead.
+  PhysicalSize(double, double) = delete;
+
   // For testing only. It's defined in core/testing/core_unit_test_helper.h.
-  inline PhysicalSize(int width, int height);
+  // 'constexpr' is to let compiler detect usage from production code.
+  constexpr PhysicalSize(int width, int height);
 
   LayoutUnit width;
   LayoutUnit height;
@@ -99,15 +105,7 @@ struct CORE_EXPORT PhysicalSize {
       : width(size.Width()), height(size.Height()) {}
   constexpr LayoutSize ToLayoutSize() const { return {width, height}; }
 
-  static PhysicalSize FromFloatSizeRound(const FloatSize& size) {
-    return {LayoutUnit::FromFloatRound(size.width()),
-            LayoutUnit::FromFloatRound(size.height())};
-  }
-  static PhysicalSize FromFloatSizeFloor(const FloatSize& size) {
-    return {LayoutUnit::FromFloatFloor(size.width()),
-            LayoutUnit::FromFloatFloor(size.height())};
-  }
-  constexpr explicit operator FloatSize() const { return {width, height}; }
+  constexpr explicit operator gfx::SizeF() const { return {width, height}; }
 
   static PhysicalSize FromSizeFRound(const gfx::SizeF& size) {
     return {LayoutUnit::FromFloatRound(size.width()),
@@ -117,7 +115,6 @@ struct CORE_EXPORT PhysicalSize {
     return {LayoutUnit::FromFloatFloor(size.width()),
             LayoutUnit::FromFloatFloor(size.height())};
   }
-  constexpr explicit operator gfx::SizeF() const { return {width, height}; }
 
   explicit PhysicalSize(const gfx::Size& size)
       : width(size.width()), height(size.height()) {}

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 
 namespace arc {
 
@@ -33,10 +33,18 @@ void FakeAccessibilityHelperInstance::PerformAction(
 }
 
 void FakeAccessibilityHelperInstance::
+    SetNativeChromeVoxArcSupportForFocusedWindowDeprecated(
+        bool enabled,
+        SetNativeChromeVoxArcSupportForFocusedWindowDeprecatedCallback
+            callback) {
+  std::move(callback).Run(true);
+}
+
+void FakeAccessibilityHelperInstance::
     SetNativeChromeVoxArcSupportForFocusedWindow(
         bool enabled,
         SetNativeChromeVoxArcSupportForFocusedWindowCallback callback) {
-  std::move(callback).Run(true);
+  std::move(callback).Run(arc::mojom::SetNativeChromeVoxResponse::SUCCESS);
 }
 
 void FakeAccessibilityHelperInstance::SetExploreByTouchEnabled(bool enabled) {

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -418,7 +418,7 @@ HRESULT EventLogsUploadManager::UploadEventViewerLogs(
   uint64_t chunk_id = 0;
   size_t log_entries_payload_size = 0;
   int num_upload_requests_made = 0;
-  std::unique_ptr<base::Value> log_entry_value_list;
+  std::unique_ptr<base::Value::List> log_entry_value_list;
   EventLogEntry log_entry;
 
   while (event_log_reader.GetNextEventLogEntry(&log_entry) &&
@@ -428,7 +428,7 @@ HRESULT EventLogsUploadManager::UploadEventViewerLogs(
 
     chunk_id = std::max(chunk_id, log_entry.event_id);
 
-    base::Value log_entry_value(base::Value::Type::DICTIONARY);
+    base::Value log_entry_value(base::Value::Type::DICT);
     log_entry.ToValue(log_entry_value);
 
     // Get the JSON for the log to keep track of payload size.
@@ -440,8 +440,7 @@ HRESULT EventLogsUploadManager::UploadEventViewerLogs(
     }
 
     if (!log_entry_value_list) {
-      log_entry_value_list =
-          std::make_unique<base::Value>(base::Value::Type::LIST);
+      log_entry_value_list = std::make_unique<base::Value::List>();
     }
     log_entry_value_list->Append(std::move(log_entry_value));
 
@@ -458,7 +457,7 @@ HRESULT EventLogsUploadManager::UploadEventViewerLogs(
     }
   }
 
-  if (log_entry_value_list && log_entry_value_list->GetList().size() > 0) {
+  if (log_entry_value_list && !log_entry_value_list->empty()) {
     upload_status_ = MakeUploadLogChunkRequest(access_token, chunk_id,
                                                std::move(log_entry_value_list));
     if (FAILED(upload_status_)) {
@@ -476,7 +475,7 @@ HRESULT EventLogsUploadManager::UploadEventViewerLogs(
 HRESULT EventLogsUploadManager::MakeUploadLogChunkRequest(
     const std::string& access_token,
     uint64_t chunk_id,
-    std::unique_ptr<base::Value> log_entries_value_list) {
+    std::unique_ptr<base::Value::List> log_entries_value_list) {
   // The GCPW service uses serial number and machine GUID for identifying
   // the device entry.
   std::wstring serial_number = GetSerialNumber();
@@ -487,17 +486,16 @@ HRESULT EventLogsUploadManager::MakeUploadLogChunkRequest(
     return hr;
   }
 
-  size_t num_events_to_upload = log_entries_value_list->GetList().size();
+  size_t num_events_to_upload = log_entries_value_list->size();
 
-  base::Value request_dict(base::Value::Type::DICTIONARY);
-  request_dict.SetStringKey(kRequestSerialNumberParameterName,
-                            base::WideToUTF8(serial_number));
-  request_dict.SetStringKey(kRequestMachineGuidParameterName,
-                            base::WideToUTF8(machine_guid));
-  request_dict.SetIntKey(kRequestChunkIdParameterName, chunk_id);
-  base::Value log_entries =
-      base::Value::FromUniquePtrValue(std::move(log_entries_value_list));
-  request_dict.SetKey(kRequestLogEntriesParameterName, std::move(log_entries));
+  base::Value::Dict request_dict;
+  request_dict.Set(kRequestSerialNumberParameterName,
+                   base::WideToUTF8(serial_number));
+  request_dict.Set(kRequestMachineGuidParameterName,
+                   base::WideToUTF8(machine_guid));
+  request_dict.Set(kRequestChunkIdParameterName, static_cast<int>(chunk_id));
+  base::Value log_entries = base::Value(std::move(*log_entries_value_list));
+  request_dict.Set(kRequestLogEntriesParameterName, std::move(log_entries));
   absl::optional<base::Value> request_result;
 
   // Make the upload HTTP request.
@@ -520,7 +518,7 @@ HRESULT EventLogsUploadManager::MakeUploadLogChunkRequest(
 }
 
 void EventLogsUploadManager::EventLogEntry::ToValue(base::Value& dict) const {
-  base::Value timestamp(base::Value::Type::DICTIONARY);
+  base::Value timestamp(base::Value::Type::DICT);
   timestamp.SetIntKey(kEventLogTimeStampSecondsParameterName,
                       created_ts.seconds);
   timestamp.SetIntKey(kEventLogTimeStampNanosParameterName, created_ts.nanos);

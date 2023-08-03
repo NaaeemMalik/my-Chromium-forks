@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,26 +6,24 @@ package org.chromium.chrome.browser.ntp;
 
 import android.content.Intent;
 import android.os.SystemClock;
-import android.view.View;
-import android.view.ViewTreeObserver;
 
 import androidx.annotation.IntDef;
 
-import org.chromium.base.TimeUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.feed.FeedFeatures;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
+import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.embedder_support.util.UrlUtilitiesJni;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.ui.base.PageTransition;
 
 import java.lang.annotation.Retention;
@@ -73,8 +71,8 @@ public class NewTabPageUma {
     /** User clicked on the "Refresh" button in the "all dismissed" state. */
     public static final int ACTION_CLICKED_ALL_DISMISSED_REFRESH = 10;
 
-    /** User opened an explore sites tile. */
-    public static final int ACTION_OPENED_EXPLORE_SITES_TILE = 11;
+    /** (Obsolete) User opened an explore sites tile. */
+    // public static final int ACTION_OPENED_EXPLORE_SITES_TILE = 11;
 
     /**
      * User clicked on the "Manage Interests" item in the snippet card menu or in the feed header
@@ -146,13 +144,15 @@ public class NewTabPageUma {
     // numeric values should never be reused. This maps directly to
     // the ContentSuggestionsDisplayStatus enum defined in tools/metrics/enums.xml.
     @IntDef({ContentSuggestionsDisplayStatus.VISIBLE, ContentSuggestionsDisplayStatus.COLLAPSED,
-            ContentSuggestionsDisplayStatus.DISABLED_BY_POLICY})
+            ContentSuggestionsDisplayStatus.DISABLED_BY_POLICY,
+            ContentSuggestionsDisplayStatus.DISABLED})
     @Retention(RetentionPolicy.SOURCE)
     private @interface ContentSuggestionsDisplayStatus {
         int VISIBLE = 0;
         int COLLAPSED = 1;
         int DISABLED_BY_POLICY = 2;
-        int NUM_ENTRIES = 3;
+        int DISABLED = 3;
+        int NUM_ENTRIES = 4;
     }
 
     private final TabModelSelector mTabModelSelector;
@@ -190,8 +190,10 @@ public class NewTabPageUma {
      * Record that the user has navigated away from the NTP using the omnibox.
      * @param destinationUrl The URL to which the user navigated.
      * @param transitionType The transition type of the navigation, from PageTransition.java.
+     * @param isNtp Whether the current page is a {@link NewTabPage}.
      */
-    public static void recordOmniboxNavigation(String destinationUrl, int transitionType) {
+    public static void recordOmniboxNavigation(
+            String destinationUrl, int transitionType, boolean isNtp) {
         if ((transitionType & PageTransition.CORE_MASK) == PageTransition.GENERATED) {
             recordAction(ACTION_SEARCHED_USING_OMNIBOX);
         } else {
@@ -200,6 +202,10 @@ public class NewTabPageUma {
             } else {
                 recordAction(ACTION_NAVIGATED_USING_OMNIBOX);
             }
+        }
+        if (isNtp) {
+            BrowserUiUtils.recordModuleClickHistogram(BrowserUiUtils.HostSurface.NEW_TAB_PAGE,
+                    BrowserUiUtils.ModuleTypeOnStartAndNTP.OMNIBOX);
         }
     }
 
@@ -222,14 +228,6 @@ public class NewTabPageUma {
     public void monitorNTPCreation() {
         mTabCreationRecorder = new TabCreationRecorder();
         mTabModelSelector.addObserver(mTabCreationRecorder);
-    }
-
-    /**
-     * Records the network status of the user.
-     */
-    public void recordIsUserOnline() {
-        RecordHistogram.recordBooleanHistogram(
-                "NewTabPage.MobileIsUserOnline", NetworkChangeNotifier.isOnline());
     }
 
     /**
@@ -264,16 +262,6 @@ public class NewTabPageUma {
     }
 
     /**
-     * Records position of a prefetched article suggestion, which was seen by the user on the
-     * suggestions surface when there was no network connection.
-     */
-    public void recordPrefetchedArticleSuggestionImpressionPosition(int positionInSection) {
-        RecordHistogram.recordEnumeratedHistogram("NewTabPage.ContentSuggestions.Shown.Articles."
-                        + "Prefetched.Offline2",
-                positionInSection, MAX_SUGGESTIONS_PER_SECTION);
-    }
-
-    /**
      * Records Content Suggestions Display Status when NTPs opened.
      */
     public void recordContentSuggestionsDisplayStatus(Profile profile) {
@@ -282,6 +270,8 @@ public class NewTabPageUma {
         if (!UserPrefs.get(profile).getBoolean(Pref.ENABLE_SNIPPETS)) {
             // Disabled by policy.
             status = ContentSuggestionsDisplayStatus.DISABLED_BY_POLICY;
+        } else if (!FeedFeatures.isFeedEnabled()) {
+            status = ContentSuggestionsDisplayStatus.DISABLED;
         } else if (!UserPrefs.get(profile).getBoolean(Pref.ARTICLES_LIST_VISIBLE)) {
             // Articles are collapsed.
             status = ContentSuggestionsDisplayStatus.COLLAPSED;
@@ -301,30 +291,6 @@ public class NewTabPageUma {
             if (!UrlUtilities.isNTPUrl(tab.getUrl())) return;
             RecordUserAction.record("MobileNTPOpenedInNewTab");
         }
-    }
-
-    /**
-     * Setups up an onPreDraw listener for the given view to emit a metric exactly once. The view
-     * should be guaranteed to be shown on the page/screen on every load, otherwise the metric
-     * may not be emitted, or worse not emitted promptly.
-     * @param view The UI element to track.
-     * @param constructedTimeNs The timestamp at which the new tab page's construction started.
-     */
-    public void trackTimeToFirstDraw(View view, long constructedTimeNs) {
-        // Use preDraw instead of draw because api level 25 and earlier doesn't seem to call the
-        // onDraw listener. Also, the onDraw version cannot be removed inside of the
-        // notification, which complicates this.
-        view.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
-            @Override
-            public boolean onPreDraw() {
-                long timeToFirstDrawMs = (System.nanoTime() - constructedTimeNs)
-                        / TimeUtils.NANOSECONDS_PER_MILLISECOND;
-                RecordHistogram.recordTimesHistogram(
-                        "NewTabPage.TimeToFirstDraw2", timeToFirstDrawMs);
-                view.getViewTreeObserver().removeOnPreDrawListener(this);
-                return true;
-            }
-        });
     }
 
     /** Destroy and unhook objects at destruction. */

@@ -32,10 +32,12 @@
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/renderer/bindings/core/v8/scheduled_action.h"
+#include "third_party/blink/renderer/core/core_probes_inl.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
+#include "third_party/blink/renderer/platform/scheduler/public/scheduling_policy.h"
 
 namespace blink {
 
@@ -47,6 +49,7 @@ namespace {
 // greater than 5.
 constexpr int kMaxTimerNestingLevel = 5;
 constexpr base::TimeDelta kMinimumInterval = base::Milliseconds(4);
+constexpr base::TimeDelta kMaxHighResolutionInterval = base::Milliseconds(32);
 
 }  // namespace
 
@@ -67,6 +70,7 @@ void DOMTimer::RemoveByID(ExecutionContext* context, int timeout_id) {
   if (timer)
     timer->SetExecutionContext(nullptr);
 }
+
 DOMTimer::DOMTimer(ExecutionContext* context,
                    ScheduledAction* action,
                    base::TimeDelta timeout,
@@ -92,16 +96,27 @@ DOMTimer::DOMTimer(ExecutionContext* context,
   // Step 11:
   // Note: The implementation uses >= instead of >, contrary to what the spec
   // requires crbug.com/1108877.
-  if (nesting_level_ >= kMaxTimerNestingLevel && timeout < kMinimumInterval)
+  int max_nesting_level = features::IsMaxUnthrottledTimeoutNestingLevelEnabled()
+                              ? features::GetMaxUnthrottledTimeoutNestingLevel()
+                              : kMaxTimerNestingLevel;
+  // Under AlignWakeUps experiment, avoid timer alignment if the original delay
+  // is small, to avoid being affected by ongoing experiments on delay clamping
+  // MaxUnthrottledTimeoutNestingLevel and SetTimeoutZeroWithoutClamping.
+  // TODO(1153139) Remove this logic one experiments have shipped.
+  bool precise = (timeout <= kMinimumInterval) ||
+                 (scheduler::IsAlignWakeUpsDisabledForProcess() &&
+                  timeout < kMaxHighResolutionInterval);
+
+  if (nesting_level_ >= max_nesting_level && timeout < kMinimumInterval)
     timeout = kMinimumInterval;
 
   // Select TaskType based on nesting level.
   TaskType task_type;
-  if (timeout.is_zero()) {
-    task_type = TaskType::kJavascriptTimerImmediate;
-    DCHECK_LT(nesting_level_, kMaxTimerNestingLevel);
-  } else if (nesting_level_ >= kMaxTimerNestingLevel) {
+  if (nesting_level_ >= kMaxTimerNestingLevel) {
     task_type = TaskType::kJavascriptTimerDelayedHighNesting;
+  } else if (timeout.is_zero()) {
+    task_type = TaskType::kJavascriptTimerImmediate;
+    DCHECK_LT(nesting_level_, max_nesting_level);
   } else {
     task_type = TaskType::kJavascriptTimerDelayedLowNesting;
   }
@@ -113,9 +128,9 @@ DOMTimer::DOMTimer(ExecutionContext* context,
     timeout = std::max(timeout, base::Milliseconds(1));
 
   if (single_shot)
-    StartOneShot(timeout, FROM_HERE);
+    StartOneShot(timeout, FROM_HERE, precise);
   else
-    StartRepeating(timeout, FROM_HERE);
+    StartRepeating(timeout, FROM_HERE, precise);
 
   DEVTOOLS_TIMELINE_TRACE_EVENT_INSTANT(
       "TimerInstall", inspector_timer_install_event::Data, context, timeout_id,
@@ -164,8 +179,13 @@ void DOMTimer::Fired() {
   DEVTOOLS_TIMELINE_TRACE_EVENT("TimerFire", inspector_timer_fire_event::Data,
                                 context, timeout_id_);
   const bool is_interval = !RepeatInterval().is_zero();
+
   probe::UserCallback probe(context, is_interval ? "setInterval" : "setTimeout",
                             g_null_atom, true);
+  probe::InvokeCallback invoke_probe(
+      context,
+      is_interval ? "TimerHandler:setInterval" : "TimerHandler:setTimeout",
+      action_->CallbackFunction());
   probe::AsyncTask async_task(context, &async_task_context_,
                               is_interval ? "fired" : nullptr);
 
@@ -181,17 +201,23 @@ void DOMTimer::Fired() {
     // Make adjustments when the nesting level becomes >= |kMaxNestingLevel|.
     // Note: The implementation uses >= instead of >, contrary to what the spec
     // requires crbug.com/1108877.
+    int max_nesting_level =
+        features::IsMaxUnthrottledTimeoutNestingLevelEnabled()
+            ? features::GetMaxUnthrottledTimeoutNestingLevel()
+            : kMaxTimerNestingLevel;
+    // Step 11:
+    if (nesting_level_ == max_nesting_level &&
+        RepeatInterval() < kMinimumInterval) {
+      AugmentRepeatInterval(kMinimumInterval - RepeatInterval());
+    }
     if (nesting_level_ == kMaxTimerNestingLevel) {
       // Move to the TaskType that corresponds to nesting level >=
       // |kMaxNestingLevel|.
       MoveToNewTaskRunner(
           context->GetTaskRunner(TaskType::kJavascriptTimerDelayedHighNesting));
-      // Step 11:
-      if (RepeatInterval() < kMinimumInterval)
-        AugmentRepeatInterval(kMinimumInterval - RepeatInterval());
     }
 
-    DCHECK(nesting_level_ < kMaxTimerNestingLevel ||
+    DCHECK(nesting_level_ < max_nesting_level ||
            RepeatInterval() >= kMinimumInterval);
 
     // No access to member variables after this point, it can delete the timer.

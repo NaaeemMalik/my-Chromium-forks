@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,11 @@
 
 #include <memory>
 
+#include "base/functional/callback.h"
 #include "base/sequence_checker.h"
 #include "base/thread_annotations.h"
+#include "build/build_config.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "mojo/public/cpp/platform/named_platform_channel.h"
 #include "remoting/host/chromoting_host_services_provider.h"
 #include "remoting/host/mojom/chromoting_host_services.mojom.h"
 
@@ -51,6 +52,19 @@ class ChromotingHostServicesClient final
   mojom::ChromotingSessionServices* GetSessionServices() const override;
 
  private:
+  friend class ChromotingHostServicesClientTest;
+
+  using ConnectToServerCallback = base::RepeatingCallback<mojo::PendingRemote<
+      mojom::ChromotingHostServices>(mojo::IsolatedConnection&)>;
+
+#if BUILDFLAG(IS_LINUX)
+  static constexpr char kChromeRemoteDesktopSessionEnvVar[] =
+      "CHROME_REMOTE_DESKTOP_SESSION";
+#endif
+
+  ChromotingHostServicesClient(std::unique_ptr<base::Environment> environment,
+                               ConnectToServerCallback connect_to_server);
+
   // Attempts to connect to the IPC server if the connection has not been
   // established. Returns a boolean indicating whether there is a valid IPC
   // connection to the chromoting host.
@@ -59,17 +73,20 @@ class ChromotingHostServicesClient final
   bool EnsureSessionServicesBinding();
 
   void OnDisconnected();
+  void OnSessionDisconnected();
 
   SEQUENCE_CHECKER(sequence_checker_);
 
   std::unique_ptr<base::Environment> environment_;
-  mojo::NamedPlatformChannel::ServerName server_name_;
+  ConnectToServerCallback connect_to_server_;
   std::unique_ptr<mojo::IsolatedConnection> connection_
       GUARDED_BY_CONTEXT(sequence_checker_);
   mojo::Remote<mojom::ChromotingHostServices> remote_
       GUARDED_BY_CONTEXT(sequence_checker_);
   mojo::Remote<mojom::ChromotingSessionServices> session_services_remote_
       GUARDED_BY_CONTEXT(sequence_checker_);
+
+  base::OnceClosure on_session_disconnected_callback_for_testing_;
 };
 
 }  // namespace remoting

@@ -1,9 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
+#include "build/build_config.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -14,6 +15,7 @@
 #include "chrome/browser/ui/views/location_bar/cookie_controls_bubble_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/common/chrome_features.h"
+#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
@@ -21,6 +23,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "net/dns/mock_host_resolver.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/views/controls/link.h"
 #include "ui/views/view.h"
 #include "url/gurl.h"
@@ -45,7 +48,12 @@ class CookieControlsBubbleViewTest : public DialogBrowserTest {
   }
 
   void ShowUi(const std::string& name) override {
+    content::CookieChangeObserver observer(
+        browser()->tab_strip_model()->GetActiveWebContents());
     NavigateToUrlWithThirdPartyCookies();
+    if (name == "NotWorkingClicked" || name == "CookiesBlocked") {
+      observer.Wait();
+    }
     ASSERT_TRUE(cookie_controls_icon()->GetVisible());
     cookie_controls_icon_->ExecuteForTesting();
 
@@ -94,7 +102,7 @@ class CookieControlsBubbleViewTest : public DialogBrowserTest {
   PageActionIconView* cookie_controls_icon() { return cookie_controls_icon_; }
 
  private:
-  raw_ptr<PageActionIconView> cookie_controls_icon_;
+  raw_ptr<PageActionIconView, DanglingUntriaged> cookie_controls_icon_;
 };
 
 // Test that cookie icon is not shown when cookies are not blocked.
@@ -140,14 +148,27 @@ IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest, BlockingDisabled) {
 // ==================== Pixel tests ====================
 
 // Test opening cookie controls bubble.
-IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest, InvokeUi_CookiesBlocked) {
+// TODO(crbug.com/1432008): Failing on Linux ChromeOS debug build.
+#if BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_InvokeUi_CookiesBlocked DISABLED_InvokeUi_CookiesBlocked
+#else
+#define MAYBE_InvokeUi_CookiesBlocked InvokeUi_CookiesBlocked
+#endif
+IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest,
+                       MAYBE_InvokeUi_CookiesBlocked) {
   SetThirdPartyCookieBlocking(true);
   ShowAndVerifyUi();
 }
 
 // Test opening cookie controls bubble and clicking on "not working" link.
+// TODO(crbug.com/1332525): Failing on Linux ChromeOS debug build.
+#if BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_InvokeUi_NotWorkingClicked DISABLED_InvokeUi_NotWorkingClicked
+#else
+#define MAYBE_InvokeUi_NotWorkingClicked InvokeUi_NotWorkingClicked
+#endif
 IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest,
-                       InvokeUi_NotWorkingClicked) {
+                       MAYBE_InvokeUi_NotWorkingClicked) {
   // Block 3p cookies.
   SetThirdPartyCookieBlocking(true);
 
@@ -157,8 +178,14 @@ IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest,
 
 // Test opening cookie controls bubble while 3p cookies are allowed for this
 // page.
+// TODO(crbug.com/1332525): Failing on Linux ChromeOS debug build.
+#if BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_InvokeUi_BlockingDisabled DISABLED_InvokeUi_BlockingDisabled
+#else
+#define MAYBE_InvokeUi_BlockingDisabled InvokeUi_BlockingDisabled
+#endif
 IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest,
-                       InvokeUi_BlockingDisabled) {
+                       MAYBE_InvokeUi_BlockingDisabled) {
   // Block 3p cookies in general but allow them for this site.
   SetThirdPartyCookieBlocking(true);
   GURL origin = embedded_test_server()->GetURL("a.com", "/");
@@ -167,4 +194,12 @@ IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest,
 
   // Show bubble.
   ShowAndVerifyUi();
+}
+
+IN_PROC_BROWSER_TEST_F(CookieControlsBubbleViewTest, IconViewAccessibleName) {
+  EXPECT_FALSE(cookie_controls_icon()->GetVisible());
+  EXPECT_EQ(cookie_controls_icon()->GetAccessibleName(),
+            l10n_util::GetStringUTF16(IDS_COOKIE_CONTROLS_TOOLTIP));
+  EXPECT_EQ(cookie_controls_icon()->GetTextForTooltipAndAccessibleName(),
+            l10n_util::GetStringUTF16(IDS_COOKIE_CONTROLS_TOOLTIP));
 }

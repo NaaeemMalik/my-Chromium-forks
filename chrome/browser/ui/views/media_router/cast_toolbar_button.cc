@@ -1,12 +1,14 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/media_router/cast_toolbar_button.h"
 
-#include "base/bind.h"
+#include "base/containers/contains.h"
+#include "base/functional/bind.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/media_router/media_router_ui_service.h"
 #include "chrome/grit/generated_resources.h"
@@ -81,6 +83,7 @@ CastToolbarButton::CastToolbarButton(
 }
 
 CastToolbarButton::~CastToolbarButton() {
+  StopObservingMirroringMediaControllerHosts();
   if (GetActionController())
     GetActionController()->RemoveObserver(this);
 }
@@ -117,13 +120,24 @@ void CastToolbarButton::OnIssuesCleared() {
 }
 
 void CastToolbarButton::OnRoutesUpdated(
-    const std::vector<media_router::MediaRoute>& routes,
-    const std::vector<media_router::MediaRoute::Id>& joinable_route_ids) {
-  has_local_display_route_ =
-      std::find_if(routes.begin(), routes.end(),
-                   [](const media_router::MediaRoute& route) {
-                     return route.is_local() && route.for_display();
-                   }) != routes.end();
+    const std::vector<media_router::MediaRoute>& routes) {
+  has_local_route_ =
+      base::Contains(routes, true, &media_router::MediaRoute::is_local);
+  StopObservingMirroringMediaControllerHosts();
+  for (const auto& route : routes) {
+    const auto& route_id = route.media_route_id();
+    MirroringMediaControllerHost* mirroring_controller_host =
+        MediaRouterFactory::GetApiForBrowserContext(profile_)
+            ->GetMirroringMediaControllerHost(route_id);
+    if (mirroring_controller_host) {
+      mirroring_controller_host->AddObserver(this);
+      tracked_mirroring_routes_.emplace_back(route_id);
+    }
+  }
+  UpdateIcon();
+}
+
+void CastToolbarButton::OnFreezeInfoChanged() {
   UpdateIcon();
 }
 
@@ -165,21 +179,35 @@ void CastToolbarButton::UpdateIcon() {
   using Severity = media_router::IssueInfo::Severity;
   const auto severity =
       current_issue_ ? current_issue_->severity : Severity::NOTIFICATION;
+  bool is_frozen = false;
+  for (const auto& route_id : tracked_mirroring_routes_) {
+    MirroringMediaControllerHost* mirroring_controller_host =
+        MediaRouterFactory::GetApiForBrowserContext(profile_)
+            ->GetMirroringMediaControllerHost(route_id);
+    if (mirroring_controller_host) {
+      is_frozen = is_frozen || mirroring_controller_host->is_frozen();
+    }
+  }
   const gfx::VectorIcon* new_icon = nullptr;
   SkColor icon_color;
 
-  if (severity == Severity::NOTIFICATION && !has_local_display_route_) {
-    new_icon = &vector_icons::kMediaRouterIdleIcon;
+  const auto* const color_provider = GetColorProvider();
+  if (severity == Severity::NOTIFICATION && !has_local_route_) {
+    new_icon = features::IsChromeRefresh2023()
+                   ? &vector_icons::kMediaRouterIdleChromeRefreshIcon
+                   : &vector_icons::kMediaRouterIdleIcon;
     icon_color = gfx::kPlaceholderColor;
-  } else if (severity == Severity::FATAL) {
-    new_icon = &vector_icons::kMediaRouterErrorIcon;
-    icon_color = GetColorProvider()->GetColor(ui::kColorAlertHighSeverity);
   } else if (severity == Severity::WARNING) {
     new_icon = &vector_icons::kMediaRouterWarningIcon;
-    icon_color = GetColorProvider()->GetColor(ui::kColorAlertMediumSeverity);
+    icon_color = color_provider->GetColor(kColorMediaRouterIconWarning);
+  } else if (is_frozen) {
+    new_icon = &vector_icons::kMediaRouterPausedIcon;
+    icon_color = gfx::kPlaceholderColor;
   } else {
-    new_icon = &vector_icons::kMediaRouterActiveIcon;
-    icon_color = gfx::kGoogleBlue500;
+    new_icon = features::IsChromeRefresh2023()
+                   ? &vector_icons::kMediaRouterActiveChromeRefreshIcon
+                   : &vector_icons::kMediaRouterActiveIcon;
+    icon_color = color_provider->GetColor(kColorMediaRouterIconActive);
   }
 
   // This function is called when system theme changes. If an idle icon is
@@ -218,14 +246,14 @@ void CastToolbarButton::ButtonPressed() {
     dialog_controller->HideMediaRouterDialog();
   } else {
     dialog_controller->ShowMediaRouterDialog(
-        MediaRouterDialogOpenOrigin::TOOLBAR);
-    MediaRouterMetrics::RecordMediaRouterDialogOrigin(
-        MediaRouterDialogOpenOrigin::TOOLBAR);
+        MediaRouterDialogActivationLocation::TOOLBAR);
   }
 }
 
 void CastToolbarButton::LogIconChange(const gfx::VectorIcon* icon) {
-  if (icon_ == &vector_icons::kMediaRouterIdleIcon) {
+  if (icon_ == (features::IsChromeRefresh2023()
+                    ? &vector_icons::kMediaRouterIdleChromeRefreshIcon
+                    : &vector_icons::kMediaRouterIdleIcon)) {
     logger_->LogInfo(
         mojom::LogCategory::kUi, kLoggerComponent,
         "Cast toolbar icon indicates no active session nor issues.", "", "",
@@ -236,13 +264,31 @@ void CastToolbarButton::LogIconChange(const gfx::VectorIcon* icon) {
   } else if (icon_ == &vector_icons::kMediaRouterWarningIcon) {
     logger_->LogInfo(mojom::LogCategory::kUi, kLoggerComponent,
                      "Cast toolbar icon shows a warning issue.", "", "", "");
-  } else if (icon_ == &vector_icons::kMediaRouterActiveIcon) {
+  } else if (icon_ == &vector_icons::kMediaRouterPausedIcon) {
+    logger_->LogInfo(
+        mojom::LogCategory::kUi, kLoggerComponent,
+        "Cast toolbar icon indicated there is a paused mirroring session.", "",
+        "", "");
+  } else {
+    CHECK_EQ(icon_, features::IsChromeRefresh2023()
+                        ? &vector_icons::kMediaRouterActiveChromeRefreshIcon
+                        : &vector_icons::kMediaRouterActiveIcon);
     logger_->LogInfo(mojom::LogCategory::kUi, kLoggerComponent,
                      "Cast toolbar icon is blue, indicating an active session.",
                      "", "", "");
-  } else {
-    NOTREACHED();
   }
+}
+
+void CastToolbarButton::StopObservingMirroringMediaControllerHosts() {
+  for (const auto& route_id : tracked_mirroring_routes_) {
+    media_router::MirroringMediaControllerHost* mirroring_controller_host =
+        MediaRouterFactory::GetApiForBrowserContext(profile_)
+            ->GetMirroringMediaControllerHost(route_id);
+    if (mirroring_controller_host) {
+      mirroring_controller_host->RemoveObserver(this);
+    }
+  }
+  tracked_mirroring_routes_.clear();
 }
 
 BEGIN_METADATA(CastToolbarButton, ToolbarButton)

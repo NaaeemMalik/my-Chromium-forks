@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,8 @@
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/modules/mediastream/media_stream_video_source.h"
+#include "third_party/blink/renderer/modules/mediastream/media_constraints.h"
 #include "third_party/blink/renderer/modules/mediastream/mock_constraint_factory.h"
-#include "third_party/blink/renderer/platform/mediastream/media_constraints.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -44,7 +44,7 @@ void CheckTrackAdapterSettingsEqualsResolution(
 
 void CheckTrackAdapterSettingsEqualsFrameRate(
     const VideoCaptureSettings& settings,
-    double value = 0.0) {
+    absl::optional<double> value = absl::nullopt) {
   EXPECT_EQ(value, settings.track_adapter_settings().max_frame_rate());
 }
 
@@ -296,16 +296,6 @@ TEST_F(MediaStreamConstraintsUtilVideoDeviceTest,
             result.failed_constraint_name());
 }
 
-TEST_F(MediaStreamConstraintsUtilVideoDeviceTest, OverconstrainedOnVideoKind) {
-  constraint_factory_.Reset();
-  // No device in |capabilities_| has video kind infrared.
-  constraint_factory_.basic().video_kind.SetExact("infrared");
-  auto result = SelectSettings();
-  EXPECT_FALSE(result.HasValue());
-  EXPECT_EQ(constraint_factory_.basic().video_kind.GetName(),
-            result.failed_constraint_name());
-}
-
 TEST_F(MediaStreamConstraintsUtilVideoDeviceTest, OverconstrainedOnHeight) {
   constraint_factory_.Reset();
   constraint_factory_.basic().height.SetExact(123467890);
@@ -522,22 +512,6 @@ TEST_F(MediaStreamConstraintsUtilVideoDeviceTest, MandatoryFacingMode) {
   EXPECT_EQ(high_res_device_->device_id.Utf8(), result.device_id());
   EXPECT_EQ(mojom::blink::FacingMode::USER, high_res_device_->facing_mode);
   EXPECT_EQ(*high_res_closest_format_, result.Format());
-  CheckTrackAdapterSettingsEqualsFormat(result);
-}
-
-TEST_F(MediaStreamConstraintsUtilVideoDeviceTest, MandatoryVideoKind) {
-  constraint_factory_.Reset();
-  constraint_factory_.basic().video_kind.SetExact("depth");
-  auto result = SelectSettings();
-  EXPECT_TRUE(result.HasValue());
-  EXPECT_EQ(kDeviceID4, result.device_id());
-  EXPECT_EQ(media::PIXEL_FORMAT_Y16, result.Format().pixel_format);
-  CheckTrackAdapterSettingsEqualsFormat(result);
-
-  constraint_factory_.basic().video_kind.SetExact("color");
-  result = SelectSettings();
-  EXPECT_TRUE(result.HasValue());
-  EXPECT_EQ(default_device_->device_id.Utf8(), result.device_id());
   CheckTrackAdapterSettingsEqualsFormat(result);
 }
 
@@ -2666,7 +2640,7 @@ TEST_F(MediaStreamConstraintsUtilVideoDeviceTest,
   // Height gets adjusted as well to maintain the aspect ratio.
   EXPECT_EQ(result.track_adapter_settings().target_height(), 479);
   // Using native frame rate because the advanced set is ignored.
-  EXPECT_EQ(result.track_adapter_settings().max_frame_rate(), 0.0);
+  EXPECT_EQ(result.track_adapter_settings().max_frame_rate(), absl::nullopt);
 
   // The low-res device at 640x480@30Hz is the
   EXPECT_EQ(result.device_id(), low_res_device_->device_id.Utf8());

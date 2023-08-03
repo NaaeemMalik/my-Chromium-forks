@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,6 @@
 #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/chrome_labs_bubble_view_model.h"
 #include "chrome/browser/ui/views/toolbar/side_panel_toolbar_button.h"
-#include "chrome/browser/upgrade_detector/upgrade_observer.h"
 #include "components/prefs/pref_member.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -43,21 +42,20 @@
 
 class AppMenuButton;
 class AvatarToolbarButton;
+class BatterySaverButton;
 class BrowserAppMenuButton;
 class Browser;
+class DownloadToolbarButtonView;
 class ExtensionsToolbarButton;
 class ExtensionsToolbarContainer;
 class ChromeLabsButton;
 class HomeButton;
+class IntentChipButton;
 class MediaToolbarButtonView;
 class ReloadButton;
+class SidePanelToolbarContainer;
 class ToolbarButton;
-class ToolbarAccountIconContainerView;
 class AvatarToolbarButtonBrowserTest;
-
-namespace bookmarks {
-class BookmarkBubbleObserver;
-}
 
 namespace media_router {
 class CastToolbarButton;
@@ -78,7 +76,6 @@ class ToolbarView : public views::AccessiblePaneView,
                     public LocationBarView::Delegate,
                     public CommandObserver,
                     public AppMenuIconController::Delegate,
-                    public UpgradeObserver,
                     public ToolbarButtonProvider,
                     public BrowserRootView::DropTarget {
  public:
@@ -130,14 +127,12 @@ class ToolbarView : public views::AccessiblePaneView,
       std::vector<IntentPickerBubbleView::AppInfo> app_info,
       bool show_stay_in_chrome,
       bool show_remember_selection,
-      PageActionIconType icon_type,
+      IntentPickerBubbleView::BubbleType bubble_type,
       const absl::optional<url::Origin>& initiating_origin,
       IntentPickerResponse callback);
 
   // Shows a bookmark bubble and anchors it appropriately.
-  void ShowBookmarkBubble(const GURL& url,
-                          bool already_bookmarked,
-                          bookmarks::BookmarkBubbleObserver* observer);
+  void ShowBookmarkBubble(const GURL& url, bool already_bookmarked);
 
   // Accessors.
   Browser* browser() const { return browser_; }
@@ -145,25 +140,28 @@ class ToolbarView : public views::AccessiblePaneView,
   ChromeLabsBubbleViewModel* chrome_labs_model() const {
     return chrome_labs_model_.get();
   }
+  DownloadToolbarButtonView* download_button() const {
+    return download_button_;
+  }
   ExtensionsToolbarContainer* extensions_container() const {
     return extensions_container_;
   }
   ExtensionsToolbarButton* GetExtensionsButton() const;
   ReloadButton* reload_button() const { return reload_; }
-  ToolbarButton* left_side_panel_button() { return left_side_panel_button_; }
   LocationBarView* location_bar() const { return location_bar_; }
   CustomTabBarView* custom_tab_bar() { return custom_tab_bar_; }
-  media_router::CastToolbarButton* cast_button() const { return cast_; }
-  SidePanelToolbarButton* side_panel_button() const {
-    return side_panel_button_;
+  BatterySaverButton* battery_saver_button() const {
+    return battery_saver_button_;
   }
+  media_router::CastToolbarButton* cast_button() const { return cast_; }
+  SidePanelToolbarContainer* side_panel_container() const {
+    return side_panel_container_;
+  }
+  SidePanelToolbarButton* GetSidePanelButton() override;
   MediaToolbarButtonView* media_button() const { return media_button_; }
   send_tab_to_self::SendTabToSelfToolbarIconView* send_tab_to_self_button()
       const {
     return send_tab_to_self_button_;
-  }
-  ToolbarAccountIconContainerView* toolbar_account_icon_container() const {
-    return toolbar_account_icon_container_;
   }
   BrowserAppMenuButton* app_menu_button() const { return app_menu_button_; }
   HomeButton* home_button() const { return home_; }
@@ -180,11 +178,6 @@ class ToolbarView : public views::AccessiblePaneView,
 
   // CommandObserver:
   void EnabledStateChangedForCommand(int id, bool enabled) override;
-
-  // UpgradeObserver toolbar_button_view_provider.
-  void OnOutdatedInstall() override;
-  void OnOutdatedInstallNoAutoUpdate() override;
-  void OnCriticalUpgradeInstalled() override;
 
   // ui::AcceleratorProvider:
   bool GetAcceleratorForCommandId(int command_id,
@@ -238,14 +231,17 @@ class ToolbarView : public views::AccessiblePaneView,
   views::AccessiblePaneView* GetAsAccessiblePaneView() override;
   views::View* GetAnchorView(PageActionIconType type) override;
   void ZoomChangedForActiveTab(bool can_show_bubble) override;
-  SidePanelToolbarButton* GetSidePanelButton() override;
   AvatarToolbarButton* GetAvatarToolbarButton() override;
   ToolbarButton* GetBackButton() override;
   ReloadButton* GetReloadButton() override;
+  IntentChipButton* GetIntentChipButton() override;
+  DownloadToolbarButtonView* GetDownloadButton() override;
 
   // BrowserRootView::DropTarget
   BrowserRootView::DropIndex GetDropIndex(
       const ui::DropTargetEvent& event) override;
+  BrowserRootView::DropTarget* GetDropTarget(
+      gfx::Point loc_in_local_coords) override;
   views::View* GetViewForDrop() override;
 
   // Changes the visibility of the Chrome Labs entry point based on prefs.
@@ -254,23 +250,17 @@ class ToolbarView : public views::AccessiblePaneView,
   // Loads the images for all the child views.
   void LoadImages();
 
-  // Shows the critical notification bubble against the app menu.
-  void ShowCriticalNotification();
-
-  // Shows the outdated install notification bubble against the app menu.
-  // |auto_update_enabled| is set to true when auto-upate is on.
-  void ShowOutdatedInstallNotification(bool auto_update_enabled);
-
   void OnShowHomeButtonChanged();
 
   void OnTouchUiChanged();
+
+  void UpdateClipPath();
 
   gfx::SlideAnimation size_animation_{this};
 
   // Controls. Most of these can be null, e.g. in popup windows. Only
   // |location_bar_| is guaranteed to exist. These pointers are owned by the
   // view hierarchy.
-  raw_ptr<ToolbarButton> left_side_panel_button_ = nullptr;
   raw_ptr<ToolbarButton> back_ = nullptr;
   raw_ptr<ToolbarButton> forward_ = nullptr;
   raw_ptr<ReloadButton> reload_ = nullptr;
@@ -278,16 +268,18 @@ class ToolbarView : public views::AccessiblePaneView,
   raw_ptr<CustomTabBarView> custom_tab_bar_ = nullptr;
   raw_ptr<LocationBarView> location_bar_ = nullptr;
   raw_ptr<ExtensionsToolbarContainer> extensions_container_ = nullptr;
+  raw_ptr<views::View> toolbar_divider_ = nullptr;
   raw_ptr<ChromeLabsButton> chrome_labs_button_ = nullptr;
+  raw_ptr<BatterySaverButton> battery_saver_button_ = nullptr;
   raw_ptr<media_router::CastToolbarButton> cast_ = nullptr;
+  raw_ptr<SidePanelToolbarContainer> side_panel_container_ = nullptr;
   raw_ptr<SidePanelToolbarButton> side_panel_button_ = nullptr;
-  raw_ptr<ToolbarAccountIconContainerView> toolbar_account_icon_container_ =
-      nullptr;
   raw_ptr<AvatarToolbarButton> avatar_ = nullptr;
   raw_ptr<MediaToolbarButtonView> media_button_ = nullptr;
   raw_ptr<send_tab_to_self::SendTabToSelfToolbarIconView>
       send_tab_to_self_button_ = nullptr;
   raw_ptr<BrowserAppMenuButton> app_menu_button_ = nullptr;
+  raw_ptr<DownloadToolbarButtonView> download_button_ = nullptr;
 
   raw_ptr<GtxWalletButton> gtx_wallet_button_ = nullptr;
 

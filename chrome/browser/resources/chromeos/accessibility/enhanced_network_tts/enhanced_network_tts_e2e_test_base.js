@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,29 +18,16 @@ EnhancedNetworkTE2ETestBase = class extends E2ETestBase {
     this.onStopListeners = [];
     chrome.ttsEngine = {
       onSpeakWithAudioStream: {
-        addListener: (callback) => {
+        addListener: callback => {
           this.onSpeakWithAudioStreamListeners.push(callback);
         },
       },
       onStop: {
-        addListener: (callback) => {
+        addListener: callback => {
           this.onStopListeners.push(callback);
         },
-      }
+      },
     };
-  }
-
-  /** @override */
-  testGenCppIncludes() {
-    super.testGenCppIncludes();
-    GEN(`
-#include "ash/shell.h"
-#include "base/bind.h"
-#include "base/callback.h"
-#include "chrome/browser/ash/accessibility/accessibility_manager.h"
-#include "chrome/common/extensions/extension_constants.h"
-#include "content/public/test/browser_test.h"
-    `);
   }
 
   /** @override */
@@ -58,15 +45,11 @@ EnhancedNetworkTE2ETestBase = class extends E2ETestBase {
   }
 
   /** @override */
-  setUp() {
-    const runTest = this.deferRunTest(WhenTestDone.EXPECT);
-    (async function() {
-      await importModule(
-          'EnhancedNetworkTts',
-          '/enhanced_network_tts/enhanced_network_tts.js');
-      await importModule(
-          'enhancedNetworkTts', '/enhanced_network_tts/background.js');
-      runTest();
-    })();
+  async setUpDeferred() {
+    await super.setUpDeferred();
+    await importModule(
+        'EnhancedNetworkTts', '/enhanced_network_tts/enhanced_network_tts.js');
+    await importModule(
+        'enhancedNetworkTts', '/enhanced_network_tts/background.js');
   }
 };

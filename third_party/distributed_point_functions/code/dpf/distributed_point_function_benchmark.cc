@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glog/logging.h>
-
 #include "absl/container/btree_set.h"
+#include "absl/numeric/int128.h"
 #include "absl/random/random.h"
 #include "benchmark/benchmark.h"
 #include "dpf/distributed_point_function.h"
+#include "glog/logging.h"
+#include "hwy/aligned_allocator.h"
 
 namespace distributed_point_functions {
 namespace {
@@ -75,7 +76,7 @@ using MyIntModN64 = IntModN<uint64_t, 18446744073709551557ull>;  // 2**64 - 59.
 BENCHMARK_TEMPLATE(
     BM_EvaluateRegularDpf,
     Tuple<MyIntModN64, MyIntModN64, MyIntModN64, MyIntModN64, MyIntModN64>)
-    ->DenseRange(12, 24, 2);
+    ->DenseRange(12, 22, 2);
 BENCHMARK_TEMPLATE(BM_EvaluateRegularDpf, XorWrapper<absl::uint128>)
     ->DenseRange(12, 24, 2);
 
@@ -91,7 +92,8 @@ void BM_EvaluateHierarchicalFull(benchmark::State& state) {
   for (int i = 0; i < num_hierarchy_levels; ++i) {
     parameters[i].set_log_domain_size(static_cast<int>(
         static_cast<double>(i + 1) / num_hierarchy_levels * kMaxLogDomainSize));
-    parameters[i].set_element_bitsize(sizeof(T) * 8);
+    parameters[i].mutable_value_type()->mutable_integer()->set_bitsize(
+        sizeof(T) * 8);
   }
   std::unique_ptr<DistributedPointFunction> dpf =
       DistributedPointFunction::CreateIncremental(parameters).value();
@@ -182,11 +184,11 @@ void BM_IsrgExampleHierarchy(benchmark::State& state) {
   std::vector<int> num_nonzeros(kNumHierarchyLevels - 1);
 
   parameters[0].set_log_domain_size(12);
-  parameters[0].set_element_bitsize(32);
+  parameters[0].mutable_value_type()->mutable_integer()->set_bitsize(32);
   num_nonzeros[0] = 32;
 
   parameters[1].set_log_domain_size(25);
-  parameters[1].set_element_bitsize(32);
+  parameters[1].mutable_value_type()->mutable_integer()->set_bitsize(32);
 
   std::unique_ptr<DistributedPointFunction> dpf =
       DistributedPointFunction::CreateIncremental(parameters).value();
@@ -218,19 +220,28 @@ void BM_IsrgExampleHierarchy(benchmark::State& state) {
 }
 BENCHMARK(BM_IsrgExampleHierarchy);
 
-// Benchmarks the time needed to generate keys. We use a variable number of
-// hierarchy levels with 1-bit domain size increments, and 32 bit elements.
+// Benchmarks the time needed to generate keys. The log domain size is read from
+// the first range argument. If `direct_evaluation` is true, a single hierarchy
+// level will be used. Otherwise, the number of hierarchy levels is eqaual to
+// the log domain size (i.e., one level per bit in the domain).
+template <bool direct_evaluation>
 void BM_KeyGeneration(benchmark::State& state) {
-  int num_parameters = state.range(0);
-  std::vector<DpfParameters> parameters(num_parameters);
-  for (int i = 0; i < num_parameters; ++i) {
-    parameters[i].set_log_domain_size(i + 1);
-    parameters[i].set_element_bitsize(32);
+  int last_level_log_domain_size = state.range(0);
+  std::vector<DpfParameters> parameters(1);
+  if (direct_evaluation) {
+    parameters[0].set_log_domain_size(last_level_log_domain_size);
+    parameters[0].mutable_value_type()->mutable_integer()->set_bitsize(32);
+  } else {
+    parameters.resize(last_level_log_domain_size);
+    for (int i = 0; i < last_level_log_domain_size; ++i) {
+      parameters[i].set_log_domain_size(i + 1);
+      parameters[i].mutable_value_type()->mutable_integer()->set_bitsize(32);
+    }
   }
   std::unique_ptr<DistributedPointFunction> dpf =
       *(DistributedPointFunction::CreateIncremental(parameters));
 
-  std::vector<absl::uint128> beta(num_parameters, 23);
+  std::vector<absl::uint128> beta(parameters.size(), 23);
   absl::BitGen rng;
   absl::uniform_int_distribution<uint64_t> dist;
   absl::uint128 alpha_mask =
@@ -244,8 +255,8 @@ void BM_KeyGeneration(benchmark::State& state) {
   }
   state.SetLabel(absl::StrCat("key_size: ", result.first.ByteSizeLong()));
 }
-
-BENCHMARK(BM_KeyGeneration)->RangeMultiplier(2)->Range(1, 128);
+BENCHMARK_TEMPLATE(BM_KeyGeneration, true)->RangeMultiplier(2)->Range(1, 128);
+BENCHMARK_TEMPLATE(BM_KeyGeneration, false)->RangeMultiplier(2)->Range(1, 128);
 
 // Generates `num_nonzeros` uniform indices, and computes their prefixes for
 // each hierarchy level in `parameters`.
@@ -299,7 +310,7 @@ void BM_HeavyHitters(benchmark::State& state) {
   std::vector<DpfParameters> parameters(num_parameters);
   for (int i = 0; i < num_parameters; ++i) {
     parameters[i].set_log_domain_size(i + 1);
-    parameters[i].set_element_bitsize(64);
+    parameters[i].mutable_value_type()->mutable_integer()->set_bitsize(64);
   }
   std::unique_ptr<DistributedPointFunction> dpf =
       *(DistributedPointFunction::CreateIncremental(parameters));
@@ -336,6 +347,11 @@ void BM_BatchEvaluation(benchmark::State& state) {
   const int evaluation_points_per_key = state.range(1);
   constexpr int kLogDomainSize = 63 - 7;
 
+  absl::uint128 domain_mask = absl::Uint128Max();
+  if (kLogDomainSize < 128) {
+    domain_mask = (absl::uint128{1} << kLogDomainSize) - 1;
+  }
+
   DpfParameters parameters;
   parameters.set_log_domain_size(kLogDomainSize);
   *(parameters.mutable_value_type()) = ToValueType<T>();
@@ -346,32 +362,34 @@ void BM_BatchEvaluation(benchmark::State& state) {
   absl::BitGen rng;
   google::protobuf::Arena arena;
   std::vector<const DpfKey*> key_pointers(num_keys * evaluation_points_per_key);
-  std::vector<absl::uint128> evaluation_points(num_keys *
-                                               evaluation_points_per_key);
+  auto evaluation_points =
+      hwy::AllocateAligned<absl::uint128>(num_keys * evaluation_points_per_key);
+  CHECK(evaluation_points != nullptr);
   for (int i = 0; i < num_keys; ++i) {
     absl::uint128 alpha = absl::MakeUint128(absl::Uniform<uint64_t>(rng),
-                                            absl::Uniform<uint64_t>(rng));
-    if (kLogDomainSize < 128) {
-      alpha &= (absl::uint128{1} << kLogDomainSize) - 1;
-    }
+                                            absl::Uniform<uint64_t>(rng)) &
+                          domain_mask;
     T beta{};
     DpfKey* key = google::protobuf::Arena::CreateMessage<DpfKey>(&arena);
     *key = dpf->GenerateKeys(alpha, beta).value().first;
 
     for (int j = 0; j < evaluation_points_per_key; ++j) {
       key_pointers[i * evaluation_points_per_key + j] = key;
-      evaluation_points[i * evaluation_points_per_key + j] = absl::MakeUint128(
-          absl::Uniform<uint64_t>(rng), absl::Uniform<uint64_t>(rng));
+      evaluation_points[i * evaluation_points_per_key + j] =
+          absl::MakeUint128(absl::Uniform<uint64_t>(rng),
+                            absl::Uniform<uint64_t>(rng)) &
+          domain_mask;
     }
   }
 
   for (auto s : state) {
     for (int i = 0; i < num_keys; ++i) {
       std::vector<T> result =
-          dpf->EvaluateAt<T>(*(key_pointers[i]), 0,
-                             absl::MakeConstSpan(evaluation_points)
-                                 .subspan(i * evaluation_points_per_key,
-                                          evaluation_points_per_key))
+          dpf->EvaluateAt<T>(
+                 *(key_pointers[i]), 0,
+                 absl::MakeConstSpan(
+                     evaluation_points.get() + i * evaluation_points_per_key,
+                     evaluation_points_per_key))
               .value();
       benchmark::DoNotOptimize(result);
     }

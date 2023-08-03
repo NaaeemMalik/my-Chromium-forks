@@ -1,4 +1,4 @@
-# Copyright 2017 The Chromium Authors. All rights reserved.
+# Copyright 2017 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Methods for converting model objects to human-readable formats."""
@@ -535,9 +535,8 @@ class DescriberText(Describer):
           self._DescribeDeltaDict('Build config', diff.before.build_config,
                                   diff.after.build_config))
       for c in diff.containers:
-        name = c.name
         desc_list.append(('', ))
-        desc_list.append(('Container: <%s>' % name, ))
+        desc_list.append(('Container<%s>: %s' % (c.short_name, c.name), ))
         desc_list.append(
             self._DescribeDeltaDict('Metadata',
                                     c.before.metadata,
@@ -574,14 +573,16 @@ class DescriberText(Describer):
       containers = size_info.containers
     else:
       containers = [
-          models.Container(name='',
-                           metadata=size_info.metadata_legacy,
-                           section_sizes=size_info.containers[0].section_sizes)
+          models.Container(
+              name='',
+              metadata=size_info.metadata_legacy,
+              section_sizes=size_info.containers[0].section_sizes,
+              metrics_by_file=size_info.containers[0].metrics_by_file)
       ]
     for c in containers:
       if c.name:
         desc_list.append(('', ))
-        desc_list.append(('Container <%s>' % c.name, ))
+        desc_list.append(('Container<%s>: %s' % (c.short_name, c.name), ))
       desc_list.append(('Metadata:', ))
       desc_list.append('    %s' % line for line in DescribeDict(c.metadata))
       unsummed_sections, summed_sections = c.ClassifySections()

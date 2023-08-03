@@ -20,15 +20,18 @@ limitations under the License.
 #include <memory>
 #include <string>
 
-#include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
+#include "absl/status/status.h"       // from @com_google_absl
+#include "absl/strings/str_cat.h"     // from @com_google_absl
+#include "absl/strings/str_format.h"  // from @com_google_absl
+#include "libyuv.h"                   // from @libyuv
+#include "libyuv/convert_argb.h"      // from @libyuv
+#include "libyuv/scale.h"             // from @libyuv
 #include "tensorflow_lite_support/cc/common.h"
 #include "tensorflow_lite_support/cc/port/integral_types.h"
 #include "tensorflow_lite_support/cc/port/status_macros.h"
 #include "tensorflow_lite_support/cc/port/statusor.h"
+#include "tensorflow_lite_support/cc/task/vision/core/frame_buffer.h"
 #include "tensorflow_lite_support/cc/task/vision/utils/frame_buffer_common_utils.h"
-#include "third_party/libyuv/include/libyuv.h"
 
 namespace tflite {
 namespace task {
@@ -139,7 +142,7 @@ absl::Status ConvertFromNv21(const FrameBuffer& buffer,
       // the big endian style with R being the first byte in memory.
       int ret = libyuv::NV21ToRAW(
           yuv_data.y_buffer, yuv_data.y_row_stride, yuv_data.v_buffer,
-          yuv_data.uv_pixel_stride,
+          yuv_data.uv_row_stride,
           const_cast<uint8*>(output_buffer->plane(0).buffer),
           output_buffer->plane(0).stride.row_stride_bytes,
           buffer.dimension().width, buffer.dimension().height);
@@ -154,7 +157,7 @@ absl::Status ConvertFromNv21(const FrameBuffer& buffer,
       // The libyuv ABGR format is interleaved RGBA format in memory.
       int ret = libyuv::NV21ToABGR(
           yuv_data.y_buffer, yuv_data.y_row_stride, yuv_data.v_buffer,
-          yuv_data.uv_pixel_stride,
+          yuv_data.uv_row_stride,
           const_cast<uint8*>(output_buffer->plane(0).buffer),
           output_buffer->plane(0).stride.row_stride_bytes,
           buffer.dimension().width, buffer.dimension().height);
@@ -327,7 +330,10 @@ absl::Status ConvertFromYv(const FrameBuffer& buffer,
 }
 
 // Resizes YV12/YV21 `buffer` to the target `output_buffer`.
-absl::Status ResizeYv(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
+absl::Status ResizeYv(
+    const FrameBuffer& buffer,
+    FrameBuffer* output_buffer,
+    libyuv::FilterMode interpolation = libyuv::FilterMode::kFilterBilinear) {
   ASSIGN_OR_RETURN(FrameBuffer::YuvData input_data,
                    FrameBuffer::GetYuvDataFromFrameBuffer(buffer));
   ASSIGN_OR_RETURN(FrameBuffer::YuvData output_data,
@@ -342,7 +348,7 @@ absl::Status ResizeYv(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
       const_cast<uint8_t*>(output_data.u_buffer), output_data.uv_row_stride,
       const_cast<uint8_t*>(output_data.v_buffer), output_data.uv_row_stride,
       output_buffer->dimension().width, output_buffer->dimension().height,
-      libyuv::FilterMode::kFilterBilinear);
+      interpolation);
   if (ret != 0) {
     return CreateStatusWithPayload(
         StatusCode::kUnknown, "Libyuv I420Scale operation failed.",
@@ -352,40 +358,34 @@ absl::Status ResizeYv(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
 }
 
 // Resizes NV12/NV21 `buffer` to the target `output_buffer`.
-absl::Status ResizeNv(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
-  const int buffer_size =
-      GetFrameBufferByteSize(buffer.dimension(), FrameBuffer::Format::kYV21);
-  auto yuv_raw_buffer = absl::make_unique<uint8[]>(buffer_size);
-  ASSIGN_OR_RETURN(
-      std::unique_ptr<FrameBuffer> yuv_buffer,
-      CreateFromRawBuffer(yuv_raw_buffer.get(), buffer.dimension(),
-                          FrameBuffer::Format::kYV21, buffer.orientation()));
-  // TODO(b/151375918): Current implementation is a workaround by converting
-  // input NV12/NV21 buffer to the YV12 formats, resizing the YV12 buffer, and
-  // converting the resized YV12 buffer back to the target format. Consider
-  // optimizes this by adding the support of NV12/NV21 resizing in Libyuv.
-  if (buffer.format() == FrameBuffer::Format::kNV12) {
-    RETURN_IF_ERROR(ConvertFromNv12(buffer, yuv_buffer.get()));
-  } else if (buffer.format() == FrameBuffer::Format::kNV21) {
-    RETURN_IF_ERROR(ConvertFromNv21(buffer, yuv_buffer.get()));
-  } else {
-    return CreateStatusWithPayload(
-        StatusCode::kInternal,
-        absl::StrFormat("Format %i is not supported.", buffer.format()),
-        TfLiteSupportStatus::kImageProcessingError);
+absl::Status ResizeNv(
+    const FrameBuffer& buffer,
+    FrameBuffer* output_buffer,
+    libyuv::FilterMode interpolation = libyuv::FilterMode::kFilterBilinear) {
+  ASSIGN_OR_RETURN(FrameBuffer::YuvData input_data,
+                   FrameBuffer::GetYuvDataFromFrameBuffer(buffer));
+  ASSIGN_OR_RETURN(FrameBuffer::YuvData output_data,
+                   FrameBuffer::GetYuvDataFromFrameBuffer(*output_buffer));
+  const uint8* src_uv = input_data.u_buffer;
+  const uint8* dst_uv = output_data.u_buffer;
+  if (buffer.format() == FrameBuffer::Format::kNV21) {
+    src_uv = input_data.v_buffer;
+    dst_uv = output_data.v_buffer;
   }
 
-  const int resized_buffer_size = GetFrameBufferByteSize(
-      output_buffer->dimension(), FrameBuffer::Format::kYV12);
-  auto resized_yuv_raw_buffer = absl::make_unique<uint8[]>(resized_buffer_size);
-  ASSIGN_OR_RETURN(std::unique_ptr<FrameBuffer> resized_yuv_buffer,
-                   CreateFromRawBuffer(resized_yuv_raw_buffer.get(),
-                                       output_buffer->dimension(),
-                                       FrameBuffer::Format::kYV12,
-                                       output_buffer->orientation()));
-  RETURN_IF_ERROR(ResizeYv(*yuv_buffer, resized_yuv_buffer.get()));
+  int ret = libyuv::NV12Scale(
+      input_data.y_buffer, input_data.y_row_stride, src_uv,
+      input_data.uv_row_stride, buffer.dimension().width,
+      buffer.dimension().height, const_cast<uint8_t*>(output_data.y_buffer),
+      output_data.y_row_stride, const_cast<uint8_t*>(dst_uv),
+      output_data.uv_row_stride, output_buffer->dimension().width,
+      output_buffer->dimension().height, interpolation);
 
-  RETURN_IF_ERROR(ConvertFromYv(*resized_yuv_buffer, output_buffer));
+  if (ret != 0) {
+    return CreateStatusWithPayload(
+        StatusCode::kUnknown, "Libyuv NV12Scale operation failed.",
+        TfLiteSupportStatus::kImageProcessingBackendError);
+  }
   return absl::OkStatus();
 }
 
@@ -559,6 +559,20 @@ absl::Status ConvertFromRgb(const FrameBuffer& buffer,
     if (output_buffer->format() == FrameBuffer::Format::kNV12 ||
         output_buffer->format() == FrameBuffer::Format::kNV21) {
       return ConvertFromYv(*yuv_frame_buffer, output_buffer);
+    }
+    return absl::OkStatus();
+  } else if (output_buffer->format() == FrameBuffer::Format::kRGBA) {
+    // RGB24 is BGR in memory and ARGB is BGRA in memory. The additional of the
+    // alpha channel will not impact the RGB ordering.
+    int ret = libyuv::RGB24ToARGB(
+        buffer.plane(0).buffer, buffer.plane(0).stride.row_stride_bytes,
+        const_cast<uint8*>(output_buffer->plane(0).buffer),
+        output_buffer->plane(0).stride.row_stride_bytes,
+        buffer.dimension().width, buffer.dimension().height);
+    if (ret != 0) {
+      return CreateStatusWithPayload(
+          StatusCode::kInternal, "Libyuv RAWToARGB operation failed.",
+          TfLiteSupportStatus::kImageProcessingBackendError);
     }
     return absl::OkStatus();
   }
@@ -1111,7 +1125,10 @@ absl::Status FlipHorizontallyPlane(const FrameBuffer& buffer,
   return absl::OkStatus();
 }
 
-absl::Status ResizeRgb(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
+absl::Status ResizeRgb(
+    const FrameBuffer& buffer,
+    FrameBuffer* output_buffer,
+    libyuv::FilterMode interpolation = libyuv::FilterMode::kFilterBilinear) {
   if (buffer.plane_count() > 1) {
     return CreateStatusWithPayload(
         StatusCode::kInternal,
@@ -1142,7 +1159,7 @@ absl::Status ResizeRgb(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
       argb_buffer.get(), argb_row_bytes, buffer.dimension().width,
       buffer.dimension().height, resized_argb_buffer.get(),
       resized_argb_row_bytes, output_buffer->dimension().width,
-      output_buffer->dimension().height, libyuv::FilterMode::kFilterBilinear);
+      output_buffer->dimension().height, interpolation);
   if (ret != 0) {
     return CreateStatusWithPayload(
         StatusCode::kUnknown, "Libyuv ARGBScale operation failed.",
@@ -1183,7 +1200,10 @@ absl::Status FlipHorizontallyRgb(const FrameBuffer& buffer,
 #endif  // LIBYUV_VERSION >= 1747
 }
 
-absl::Status ResizeRgba(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
+absl::Status ResizeRgba(
+    const FrameBuffer& buffer,
+    FrameBuffer* output_buffer,
+    libyuv::FilterMode interpolation = libyuv::FilterMode::kFilterBilinear) {
   if (buffer.plane_count() > 1) {
     return CreateStatusWithPayload(
         StatusCode::kInternal,
@@ -1197,7 +1217,7 @@ absl::Status ResizeRgba(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
       const_cast<uint8*>(output_buffer->plane(0).buffer),
       output_buffer->plane(0).stride.row_stride_bytes,
       output_buffer->dimension().width, output_buffer->dimension().height,
-      libyuv::FilterMode::kFilterBilinear);
+      interpolation);
   if (ret != 0) {
     return CreateStatusWithPayload(
         StatusCode::kUnknown, "Libyuv ARGBScale operation failed.",
@@ -1306,7 +1326,10 @@ absl::Status FlipVerticallyYv(const FrameBuffer& buffer,
 
 // Resize `buffer` to metadata defined in `output_buffer`. This
 // method assumes buffer has pixel stride equals to 1 (grayscale equivalent).
-absl::Status ResizeGray(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
+absl::Status ResizeGray(
+    const FrameBuffer& buffer,
+    FrameBuffer* output_buffer,
+    libyuv::FilterMode interpolation = libyuv::FilterMode::kFilterBilinear) {
   if (buffer.plane_count() > 1) {
     return CreateStatusWithPayload(
         StatusCode::kInternal,
@@ -1314,13 +1337,13 @@ absl::Status ResizeGray(const FrameBuffer& buffer, FrameBuffer* output_buffer) {
                         buffer.format()),
         TfLiteSupportStatus::kImageProcessingError);
   }
-  libyuv::ScalePlane(
-      buffer.plane(0).buffer, buffer.plane(0).stride.row_stride_bytes,
-      buffer.dimension().width, buffer.dimension().height,
-      const_cast<uint8*>(output_buffer->plane(0).buffer),
-      output_buffer->plane(0).stride.row_stride_bytes,
-      output_buffer->dimension().width, output_buffer->dimension().height,
-      libyuv::FilterMode::kFilterBilinear);
+  libyuv::ScalePlane(buffer.plane(0).buffer,
+                     buffer.plane(0).stride.row_stride_bytes,
+                     buffer.dimension().width, buffer.dimension().height,
+                     const_cast<uint8*>(output_buffer->plane(0).buffer),
+                     output_buffer->plane(0).stride.row_stride_bytes,
+                     output_buffer->dimension().width,
+                     output_buffer->dimension().height, interpolation);
   return absl::OkStatus();
 }
 
@@ -1361,6 +1384,7 @@ absl::Status CropResize(const FrameBuffer& buffer,
           TfLiteSupportStatus::kImageProcessingError);
   }
 }
+
 }  // namespace
 
 absl::Status LibyuvFrameBufferUtils::Crop(const FrameBuffer& buffer,
@@ -1409,6 +1433,31 @@ absl::Status LibyuvFrameBufferUtils::Resize(const FrameBuffer& buffer,
       return ResizeRgba(buffer, output_buffer);
     case FrameBuffer::Format::kGRAY:
       return ResizeGray(buffer, output_buffer);
+    default:
+      return CreateStatusWithPayload(
+          StatusCode::kInternal,
+          absl::StrFormat("Format %i is not supported.", buffer.format()),
+          TfLiteSupportStatus::kImageProcessingError);
+  }
+}
+
+absl::Status LibyuvFrameBufferUtils::ResizeNearestNeighbor(
+    const FrameBuffer& buffer,
+    FrameBuffer* output_buffer) {
+  RETURN_IF_ERROR(ValidateResizeBufferInputs(buffer, *output_buffer));
+  switch (buffer.format()) {
+    case FrameBuffer::Format::kYV12:
+    case FrameBuffer::Format::kYV21:
+      return ResizeYv(buffer, output_buffer, libyuv::FilterMode::kFilterNone);
+    case FrameBuffer::Format::kNV12:
+    case FrameBuffer::Format::kNV21:
+      return ResizeNv(buffer, output_buffer, libyuv::FilterMode::kFilterNone);
+    case FrameBuffer::Format::kRGB:
+      return ResizeRgb(buffer, output_buffer, libyuv::FilterMode::kFilterNone);
+    case FrameBuffer::Format::kRGBA:
+      return ResizeRgba(buffer, output_buffer, libyuv::FilterMode::kFilterNone);
+    case FrameBuffer::Format::kGRAY:
+      return ResizeGray(buffer, output_buffer, libyuv::FilterMode::kFilterNone);
     default:
       return CreateStatusWithPayload(
           StatusCode::kInternal,

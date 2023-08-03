@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,18 +11,24 @@
 
 #include "ash/login_status.h"
 #include "ash/public/cpp/ash_prefs.h"
+#include "ash/public/cpp/session/scoped_screen_lock_blocker.h"
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/session/test_session_controller_client.h"
 #include "ash/shell.h"
 #include "ash/system/tray/system_tray_notifier.h"
 #include "ash/test/ash_test_base.h"
+#include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/json/values_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/test/bind.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/user_manager/user_type.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/aura/window.h"
 #include "ui/views/widget/widget.h"
@@ -86,7 +92,7 @@ class TestSessionObserver : public SessionObserver {
   AccountId active_account_id_;
   bool first_session_started_ = false;
   std::vector<AccountId> user_session_account_ids_;
-  PrefService* last_user_pref_service_ = nullptr;
+  raw_ptr<PrefService, ExperimentalAsh> last_user_pref_service_ = nullptr;
   int user_prefs_changed_count_ = 0;
 };
 
@@ -146,6 +152,49 @@ class SessionControllerImplTest : public testing::Test {
  private:
   std::unique_ptr<SessionControllerImpl> controller_;
   TestSessionObserver observer_;
+};
+
+class SessionControllerImplWithShellTest : public AshTestBase {
+ public:
+  SessionControllerImplWithShellTest() = default;
+
+  SessionControllerImplWithShellTest(
+      const SessionControllerImplWithShellTest&) = delete;
+  SessionControllerImplWithShellTest& operator=(
+      const SessionControllerImplWithShellTest&) = delete;
+
+  ~SessionControllerImplWithShellTest() override = default;
+
+  // AshTestBase:
+  void SetUp() override {
+    AshTestBase::SetUp();
+    controller()->AddObserver(&observer_);
+  }
+
+  void TearDown() override {
+    controller()->RemoveObserver(&observer_);
+    window_.reset();
+    AshTestBase::TearDown();
+  }
+
+  void CreateFullscreenWindow() {
+    window_ = CreateTestWindow();
+    window_->SetProperty(aura::client::kShowStateKey,
+                         ui::SHOW_STATE_FULLSCREEN);
+    window_state_ = WindowState::Get(window_.get());
+  }
+
+  SessionControllerImpl* controller() {
+    return Shell::Get()->session_controller();
+  }
+  const TestSessionObserver* observer() const { return &observer_; }
+
+ protected:
+  raw_ptr<WindowState, ExperimentalAsh> window_state_ = nullptr;
+
+ private:
+  TestSessionObserver observer_;
+  std::unique_ptr<aura::Window> window_;
 };
 
 // Tests that the simple session info is reflected properly.
@@ -404,9 +453,11 @@ TEST_F(SessionControllerImplTest,
     SetSessionInfo(info);
 
     // Mark a running unlock animation.
-    controller()->RunUnlockAnimation(base::OnceClosure());
-
-    EXPECT_EQ(test_case.expected_is_user_session_blocked,
+    base::RunLoop run_loop;
+    controller()->RunUnlockAnimation(base::BindLambdaForTesting(
+        [&run_loop](bool aborted) { run_loop.Quit(); }));
+    run_loop.Run();
+    EXPECT_EQ(test_case.expect_blocked_after_unlock_animation,
               controller()->IsUserSessionBlocked())
         << "Test case state=" << static_cast<int>(test_case.state);
   }
@@ -516,6 +567,136 @@ TEST_F(SessionControllerImplPrefsTest, NotifyOnce) {
   controller->RemoveObserver(&observer);
 }
 
+// Base class for a session observer which can be mocked.
+class MockSessionObserver : public SessionObserver {
+ public:
+  // SessionObserver:
+  MOCK_METHOD(void, OnActiveUserSessionChanged, (const AccountId&), (override));
+  MOCK_METHOD(void, OnSessionStateChanged, (SessionState), (override));
+};
+
+// Verifies that time of last session activation is stored to synced user prefs.
+TEST_F(SessionControllerImplPrefsTest, SetsTimeOfLastSessionActivation) {
+  constexpr char kUser1Email[] = "user1@test.com";
+  const AccountId kUser1AccountId = AccountId::FromUserEmail(kUser1Email);
+  constexpr char kUser2Email[] = "user2@test.com";
+  const AccountId kUser2AccountId = AccountId::FromUserEmail(kUser2Email);
+
+  // Register mock session observer.
+  testing::NiceMock<MockSessionObserver> mock_session_observer;
+  SessionControllerImpl* controller = Shell::Get()->session_controller();
+  controller->AddObserver(&mock_session_observer);
+
+  // Switch to test user.
+  TestSessionControllerClient* session = GetSessionControllerClient();
+  session->AddUserSession(kUser1Email, user_manager::USER_TYPE_REGULAR);
+  session->SwitchActiveUser(kUser1AccountId);
+
+  // Initially time of last session activation is expected to be `base::Time()`.
+  base::Time expected_time_of_last_session_activation;
+
+  // Iterate over all possible session states.
+  for (auto expected_session_state : std::vector<SessionState>{
+           SessionState::OOBE, SessionState::LOGIN_PRIMARY,
+           SessionState::LOGGED_IN_NOT_ACTIVE, SessionState::ACTIVE,
+           SessionState::LOCKED, SessionState::LOGIN_SECONDARY,
+           SessionState::RMA}) {
+    // Set session state and expect observers to be notified of the event.
+    EXPECT_CALL(mock_session_observer, OnSessionStateChanged)
+        .WillOnce(testing::Invoke([&](SessionState session_state) {
+          EXPECT_EQ(session_state, expected_session_state);
+          // Verify that the expected time of last session activation is stored.
+          // Note that it is intentional that even if the session is becoming
+          // activated, the stored time of last session activation will not be
+          // updated until *after* the session state changed event propagates.
+          // This is to allow observers to read the pref during event handling.
+          EXPECT_EQ(*base::ValueToTime(
+                        controller->GetUserPrefServiceForUser(kUser1AccountId)
+                            ->GetValue(prefs::kTimeOfLastSessionActivation)),
+                    expected_time_of_last_session_activation);
+        }));
+    session->SetSessionState(expected_session_state);
+    testing::Mock::VerifyAndClearExpectations(&mock_session_observer);
+
+    {
+      // Flush message loop.
+      base::RunLoop run_loop;
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, run_loop.QuitClosure());
+      run_loop.Run();
+    }
+
+    // When the session is activated, it is expected that the time of last
+    // session activation be stored to synced user prefs. Note that it is
+    // expected that this be done *after* notifying observers of the session
+    // state change in case observers read the pref during event handling.
+    if (controller->GetSessionState() == SessionState::ACTIVE) {
+      expected_time_of_last_session_activation = *base::ValueToTime(
+          controller->GetUserPrefServiceForUser(kUser1AccountId)
+              ->GetValue(prefs::kTimeOfLastSessionActivation));
+      EXPECT_NEAR((expected_time_of_last_session_activation - base::Time::Now())
+                      .InSecondsF(),
+                  /*expected=*/0.f, /*abs_error=*/5.f);
+      continue;
+    }
+
+    // When the session is not being activated, the stored time of last session
+    // activation should remain unchanged.
+    EXPECT_EQ(*base::ValueToTime(
+                  controller->GetUserPrefServiceForUser(kUser1AccountId)
+                      ->GetValue(prefs::kTimeOfLastSessionActivation)),
+              expected_time_of_last_session_activation);
+  }
+
+  // Ensure session state is active so that we can confirm that switching the
+  // active user updates the time of last activation even if session state does
+  // not change.
+  session->SetSessionState(SessionState::ACTIVE);
+
+  // Initially time of last session activation is expected to be `base::Time()`.
+  expected_time_of_last_session_activation = base::Time();
+
+  // Switch active user and expect observers to be notified of the event.
+  EXPECT_CALL(mock_session_observer, OnActiveUserSessionChanged)
+      .WillOnce(testing::Invoke([&](const AccountId& account_id) {
+        EXPECT_EQ(account_id, kUser2AccountId);
+        // Verify that the expected time of last session activation is stored.
+        // Note that it is intentional the stored time of last session
+        // activation will not be updated until *after* the session state
+        // changed event propagates. This is to allow observers to read the pref
+        // during event handling.
+        EXPECT_EQ(*base::ValueToTime(
+                      controller->GetUserPrefServiceForUser(kUser2AccountId)
+                          ->GetValue(prefs::kTimeOfLastSessionActivation)),
+                  expected_time_of_last_session_activation);
+      }));
+  session->AddUserSession(kUser2Email, user_manager::USER_TYPE_REGULAR);
+  session->SwitchActiveUser(kUser2AccountId);
+  testing::Mock::VerifyAndClearExpectations(&mock_session_observer);
+
+  {
+    // Flush message loop.
+    base::RunLoop run_loop;
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, run_loop.QuitClosure());
+    run_loop.Run();
+  }
+
+  // When switching to an active session, it is expected that the time of last
+  // session activation be stored to synced user prefs. Note that it is expected
+  // that this be done *after* notifying observers of the active user session
+  // change in case observers read the pref during event handling.
+  expected_time_of_last_session_activation =
+      *base::ValueToTime(controller->GetUserPrefServiceForUser(kUser2AccountId)
+                             ->GetValue(prefs::kTimeOfLastSessionActivation));
+  EXPECT_NEAR((expected_time_of_last_session_activation - base::Time::Now())
+                  .InSecondsF(),
+              /*expected=*/0.f, /*abs_error=*/5.f);
+
+  // Clean up.
+  controller->RemoveObserver(&mock_session_observer);
+}
+
 TEST_F(SessionControllerImplTest, GetUserType) {
   // Child accounts
   UserSession session;
@@ -568,6 +749,24 @@ TEST_F(SessionControllerImplTest, IsUserFirstLogin) {
   EXPECT_TRUE(controller()->IsUserFirstLogin());
 }
 
+TEST_F(SessionControllerImplTest, ScopedScreenLockBlocker) {
+  SessionInfo info;
+  FillDefaultSessionInfo(&info);
+  SetSessionInfo(info);
+  UpdateSession(1u, "user1@test.com");
+  EXPECT_TRUE(controller()->CanLockScreen());
+  {
+    auto blocker1 = controller()->GetScopedScreenLockBlocker();
+    EXPECT_FALSE(controller()->CanLockScreen());
+    {
+      auto blocker2 = controller()->GetScopedScreenLockBlocker();
+      EXPECT_FALSE(controller()->CanLockScreen());
+    }
+    EXPECT_FALSE(controller()->CanLockScreen());
+  }
+  EXPECT_TRUE(controller()->CanLockScreen());
+}
+
 class CanSwitchUserTest : public AshTestBase {
  public:
   // The action type to perform / check for upon user switching.
@@ -591,7 +790,7 @@ class CanSwitchUserTest : public AshTestBase {
   // Accessing the capture session functionality.
   // Simulates a screen capture session start.
   void StartCaptureSession() {
-    Shell::Get()->system_tray_notifier()->NotifyScreenCaptureStart(
+    Shell::Get()->system_tray_notifier()->NotifyScreenAccessStart(
         base::BindRepeating(&CanSwitchUserTest::StopCaptureCallback,
                             base::Unretained(this)),
         base::RepeatingClosure(), std::u16string());
@@ -599,7 +798,7 @@ class CanSwitchUserTest : public AshTestBase {
 
   // The callback which gets called when the screen capture gets stopped.
   void StopCaptureSession() {
-    Shell::Get()->system_tray_notifier()->NotifyScreenCaptureStop();
+    Shell::Get()->system_tray_notifier()->NotifyScreenAccessStop();
   }
 
   // Simulates a screen capture session stop.
@@ -608,15 +807,14 @@ class CanSwitchUserTest : public AshTestBase {
   // Accessing the share session functionality.
   // Simulate a Screen share session start.
   void StartShareSession() {
-    Shell::Get()->system_tray_notifier()->NotifyScreenShareStart(
+    Shell::Get()->system_tray_notifier()->NotifyRemotingScreenShareStart(
         base::BindRepeating(&CanSwitchUserTest::StopShareCallback,
-                            base::Unretained(this)),
-        std::u16string());
+                            base::Unretained(this)));
   }
 
   // Simulates a screen share session stop.
   void StopShareSession() {
-    Shell::Get()->system_tray_notifier()->NotifyScreenShareStop();
+    Shell::Get()->system_tray_notifier()->NotifyRemotingScreenShareStop();
   }
 
   // The callback which gets called when the screen share gets stopped.
@@ -626,7 +824,7 @@ class CanSwitchUserTest : public AshTestBase {
   // The passed |action| type parameter defines the outcome (which will be
   // checked) and the action the user will choose.
   void SwitchUser(ActionType action) {
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&CloseMessageBox, action));
     Shell::Get()->session_controller()->CanSwitchActiveUser(base::BindOnce(
         &CanSwitchUserTest::SwitchCallback, base::Unretained(this)));
@@ -796,6 +994,16 @@ TEST_F(SessionControllerImplUnblockTest, ActiveWindowAfterUnblocking) {
   // |widget| should now be active as SessionControllerImpl no longer is
   // blocking windows from becoming active.
   EXPECT_TRUE(widget->IsActive());
+}
+
+TEST_F(SessionControllerImplWithShellTest, ExitFullscreenBeforeLock) {
+  CreateFullscreenWindow();
+  EXPECT_TRUE(window_state_->IsFullscreen());
+
+  base::RunLoop run_loop;
+  Shell::Get()->session_controller()->PrepareForLock(run_loop.QuitClosure());
+
+  EXPECT_FALSE(window_state_->IsFullscreen());
 }
 
 }  // namespace

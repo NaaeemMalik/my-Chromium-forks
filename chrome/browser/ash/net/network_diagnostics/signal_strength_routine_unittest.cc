@@ -1,18 +1,20 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/net/network_diagnostics/signal_strength_routine.h"
 
-#include "chromeos/services/network_config/public/cpp/cros_network_config_test_helper.h"
+#include "chromeos/ash/services/network_config/public/cpp/cros_network_config_test_helper.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/cros_system_api/dbus/shill/dbus-constants.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 namespace {
+
+namespace mojom = ::chromeos::network_diagnostics::mojom;
 
 constexpr int kGoodWiFiSignal = 80;
 constexpr int kBadWiFiSignal = 20;
@@ -51,7 +53,7 @@ class SignalStrengthRoutineTest : public ::testing::Test {
     base::RunLoop().RunUntilIdle();
   }
 
-  chromeos::NetworkStateTestHelper& network_state_helper() {
+  NetworkStateTestHelper& network_state_helper() {
     return cros_network_config_test_helper_.network_state_helper();
   }
   SignalStrengthRoutine* signal_strength_routine() {
@@ -101,7 +103,7 @@ TEST_F(SignalStrengthRoutineTest, TestBadWiFiSignal) {
 }
 
 TEST_F(SignalStrengthRoutineTest, TestNoWiFiConnection) {
-  SetUpWiFi(shill::kStateOffline, kGoodWiFiSignal);
+  SetUpWiFi(shill::kStateIdle, kGoodWiFiSignal);
   std::vector<mojom::SignalStrengthProblem> expected_problems = {};
   signal_strength_routine()->RunRoutine(
       base::BindOnce(&SignalStrengthRoutineTest::CompareResult, weak_ptr(),
@@ -124,4 +126,4 @@ TEST_F(SignalStrengthRoutineTest, TestEthernet) {
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

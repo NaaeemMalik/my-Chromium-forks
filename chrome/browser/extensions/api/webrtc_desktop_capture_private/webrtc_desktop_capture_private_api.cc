@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 #include "base/command_line.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/api/tabs.h"
 #include "chrome/common/extensions/api/webrtc_desktop_capture_private.h"
@@ -19,7 +18,6 @@ namespace extensions {
 
 namespace {
 
-const char kTargetNotFoundError[] = "The specified target is not found.";
 const char kUrlNotSecure[] =
     "URL scheme for the specified target is not secure.";
 
@@ -47,8 +45,8 @@ WebrtcDesktopCapturePrivateChooseDesktopMediaFunction::Run() {
 
   mutable_args().erase(args().begin());
 
-  std::unique_ptr<Params> params = Params::Create(args());
-  EXTENSION_FUNCTION_VALIDATE(params.get());
+  absl::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
 
   content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(
       params->request.guest_process_id,
@@ -69,15 +67,15 @@ WebrtcDesktopCapturePrivateChooseDesktopMediaFunction::Run() {
                             ? net::GetHostAndOptionalPort(origin)
                             : origin.spec());
 
-  content::WebContents* web_contents =
-      content::WebContents::FromRenderFrameHost(rfh);
-  if (!web_contents) {
-    return RespondNow(Error(kTargetNotFoundError));
-  }
-
   using Sources = std::vector<api::desktop_capture::DesktopCaptureSourceType>;
   Sources* sources = reinterpret_cast<Sources*>(&params->sources);
-  return Execute(*sources, web_contents, origin, target_name);
+
+  // TODO(crbug.com/1329129): Plumb systemAudio, selfBrowserSurface and
+  // suppressLocalAudioPlaybackIntended here.
+  return Execute(*sources, /*exclude_system_audio=*/false,
+                 /*exclude_self_browser_surface=*/false,
+                 /*suppress_local_audio_playback_intended=*/false, rfh, origin,
+                 target_name);
 }
 
 WebrtcDesktopCapturePrivateCancelChooseDesktopMediaFunction::

@@ -1,9 +1,10 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/native_theme/native_theme_android.h"
 
+#include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -41,14 +42,6 @@ gfx::Size NativeThemeAndroid::GetPartSize(Part part,
   return NativeThemeBase::GetPartSize(part, state, extra);
 }
 
-SkColor NativeThemeAndroid::GetSystemColorDeprecated(
-    ColorId color_id,
-    ColorScheme color_scheme,
-    bool apply_processing) const {
-  NOTIMPLEMENTED();
-  return SK_ColorBLACK;
-}
-
 void NativeThemeAndroid::AdjustCheckboxRadioRectForPadding(SkRect* rect) const {
   // Take 1px for padding around the checkbox/radio button.
   rect->setLTRB(static_cast<int>(rect->x()) + 1,
@@ -59,7 +52,8 @@ void NativeThemeAndroid::AdjustCheckboxRadioRectForPadding(SkRect* rect) const {
 
 SkColor NativeThemeAndroid::ControlsAccentColorForState(
     State state,
-    ColorScheme color_scheme) const {
+    ColorScheme color_scheme,
+    const ColorProvider* color_provider) const {
   ControlColorId color_id;
   if (state == kPressed) {
     color_id = kPressedAccent;
@@ -68,12 +62,13 @@ SkColor NativeThemeAndroid::ControlsAccentColorForState(
   } else {
     color_id = kAccent;
   }
-  return GetControlColor(color_id, color_scheme);
+  return GetControlColor(color_id, color_scheme, color_provider);
 }
 
 SkColor NativeThemeAndroid::ControlsSliderColorForState(
     State state,
-    ColorScheme color_scheme) const {
+    ColorScheme color_scheme,
+    const ColorProvider* color_provider) const {
   ControlColorId color_id;
   if (state == kPressed) {
     color_id = kPressedSlider;
@@ -82,12 +77,13 @@ SkColor NativeThemeAndroid::ControlsSliderColorForState(
   } else {
     color_id = kSlider;
   }
-  return GetControlColor(color_id, color_scheme);
+  return GetControlColor(color_id, color_scheme, color_provider);
 }
 
 SkColor NativeThemeAndroid::ControlsBorderColorForState(
     State state,
-    ColorScheme color_scheme) const {
+    ColorScheme color_scheme,
+    const ColorProvider* color_provider) const {
   ControlColorId color_id;
   if (state == kPressed) {
     color_id = kPressedBorder;
@@ -96,12 +92,13 @@ SkColor NativeThemeAndroid::ControlsBorderColorForState(
   } else {
     color_id = kBorder;
   }
-  return GetControlColor(color_id, color_scheme);
+  return GetControlColor(color_id, color_scheme, color_provider);
 }
 
 SkColor NativeThemeAndroid::ButtonBorderColorForState(
     State state,
-    ColorScheme color_scheme) const {
+    ColorScheme color_scheme,
+    const ColorProvider* color_provider) const {
   ControlColorId color_id;
   if (state == kPressed) {
     color_id = kButtonPressedBorder;
@@ -110,12 +107,13 @@ SkColor NativeThemeAndroid::ButtonBorderColorForState(
   } else {
     color_id = kButtonBorder;
   }
-  return GetControlColor(color_id, color_scheme);
+  return GetControlColor(color_id, color_scheme, color_provider);
 }
 
 SkColor NativeThemeAndroid::ControlsFillColorForState(
     State state,
-    ColorScheme color_scheme) const {
+    ColorScheme color_scheme,
+    const ColorProvider* color_provider) const {
   ControlColorId color_id;
   if (state == kPressed) {
     color_id = kPressedFill;
@@ -124,12 +122,13 @@ SkColor NativeThemeAndroid::ControlsFillColorForState(
   } else {
     color_id = kFill;
   }
-  return GetControlColor(color_id, color_scheme);
+  return GetControlColor(color_id, color_scheme, color_provider);
 }
 
 SkColor NativeThemeAndroid::ButtonFillColorForState(
     State state,
-    ColorScheme color_scheme) const {
+    ColorScheme color_scheme,
+    const ColorProvider* color_provider) const {
   ControlColorId color_id;
   if (state == kPressed) {
     color_id = kButtonPressedFill;
@@ -138,7 +137,7 @@ SkColor NativeThemeAndroid::ButtonFillColorForState(
   } else {
     color_id = kButtonFill;
   }
-  return GetControlColor(color_id, color_scheme);
+  return GetControlColor(color_id, color_scheme, color_provider);
 }
 
 NativeThemeAndroid::NativeThemeAndroid() {

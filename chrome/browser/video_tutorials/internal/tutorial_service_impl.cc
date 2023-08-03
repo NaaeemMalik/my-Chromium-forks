@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,13 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
-#include "base/command_line.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/strings/string_util.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/video_tutorials/internal/config.h"
 #include "chrome/browser/video_tutorials/internal/proto_conversions.h"
 #include "chrome/browser/video_tutorials/prefs.h"
-#include "chrome/browser/video_tutorials/switches.h"
 #include "components/language/core/browser/pref_names.h"
 
 namespace video_tutorials {
@@ -64,8 +62,6 @@ void TutorialServiceImpl::GetTutorial(FeatureType feature_type,
 void TutorialServiceImpl::StartFetchIfNecessary() {
   base::Time last_update_time = pref_service_->GetTime(kLastUpdatedTimeKey);
   bool ttl_expired =
-      base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kVideoTutorialsInstantFetch) ||
       ((base::Time::Now() - last_update_time) > Config::GetFetchFrequency());
   std::string accept_languages =
       pref_service_->GetString(language::prefs::kAcceptLanguages);
@@ -122,8 +118,8 @@ void TutorialServiceImpl::FlushCachedApiCalls() {
   while (!cached_api_calls_.empty()) {
     auto api_call = std::move(cached_api_calls_.front());
     cached_api_calls_.pop_front();
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(api_call)));
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, std::move(api_call));
   }
 }
 

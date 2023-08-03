@@ -1,4 +1,4 @@
-/* Copyright 2019 The Chromium Authors. All rights reserved.
+/* Copyright 2019 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
@@ -8,6 +8,8 @@
   --blue-300: rgb(var(--blue-300-rgb));
   --blue-500: rgb(66, 133, 244);
   --blue-600: rgb(26, 115, 232);
+  --red-300-rgb: 242, 139, 130;
+  --red-300: rgb(var(--red-300-rgb));
   --grey-100: rgb(241, 243, 244);
   --grey-200-rgb: 233, 234, 237;
   --grey-200: rgb(var(--grey-200-rgb));
@@ -49,7 +51,7 @@ audio {
 }
 
 body {
-  background: var(--grey-900);
+  background: var(--cros-sys-app_base);
   bottom: 0;
   font-family: var(--default-font-family);
   height: 100%;
@@ -80,10 +82,6 @@ input[type=checkbox] {
   -webkit-appearance: none;
 }
 
-[tabindex] {
-  outline: none; /* Prevent default focus ring style. */
-}
-
 [i18n-text] {
   user-select: none;
 }
@@ -93,10 +91,6 @@ input[type=checkbox] {
   transition: none !important;
 }
 
-.circle button {
-  border-radius: 50%;
-}
-
 .buttons {
   align-items: center;
   display: flex;
@@ -104,20 +98,27 @@ input[type=checkbox] {
   pointer-events: none;
 }
 
-.buttons button:active,
-.buttons input:active {
+.buttons :is(button, input):enabled:active {
   transform: scale(1.07);
 }
 
 .buttons button,
 .buttons input,
 .menu-header .icon,
-.menu-item .icon {
+.menu-item .icon,
+.menu-item.expandable::after {
   background-position: center;
   background-repeat: no-repeat;
   flex-shrink: 0;
   height: 40px;
   width: 40px;
+}
+
+.menu-item > input.icon {
+  outline-offset: -4px;
+}
+input[type=radio].icon {
+  border-radius: 50%;
 }
 
 ::-webkit-scrollbar {
@@ -208,12 +209,12 @@ body.taking.video #options-group :not(#open-ptz-panel) {
   transform: translate(50%, 50%);
 }
 
-body.review-result #shutters-group {
-  display: none;
-}
-
 body.tablet-landscape .actions-group {
   flex-direction: column-reverse;
+}
+
+body.doc-mode-reviewing #mode-selector {
+  visibility: hidden;
 }
 
 #mode-selector {
@@ -249,15 +250,14 @@ body.tablet-landscape .actions-group {
 #modes-group {
   display: block;
   overflow: auto;
+  padding: 10px 0;
   pointer-events: auto;
   text-align: center;
   user-select: none;
   white-space: nowrap;
 }
 
-body:not(.streaming) #modes-group,
-body.taking #modes-group,
-body.taking:not(.video) #shutters-group {
+:is(#start-takephoto, #recordvideo, #video-snapshot):disabled {
   opacity: 0.38;
 }
 
@@ -273,56 +273,11 @@ body.taking:not(.video) #shutters-group {
   width: auto;
 }
 
-body.taking.video #gallery-enter,
-body.taking.video #modes-group {
+body:is(.taking.video, .should-handle-intent-result) #modes-group {
   display: none;
-}
-
-body.should-handle-intent-result #modes-group {
-  display: none;
-}
-
-#play-result-video {
-  background-image: url(/images/camera_intent_play_video.svg);
-  height: 80px;
-  width: 80px;
-}
-
-#confirm-result-groups {
-  bottom: calc(var(--bottom-line) - 36px);
-  display: flex;
-  flex-direction: column;
-}
-
-#confirm-result-groups>button {
-  height: 72px;
-  margin-bottom: 2px;
-  margin-top: 2px;
-  width: 72px;
-}
-
-body.review-result #switch-device,
-body.review-result #preview-video,
-body:not(.review-result) #confirm-result-groups,
-body:not(.review-photo-result) #review-photo-result,
-body:not(.review-video-result) #review-video-result,
-body:not(.review-video-result) #play-result-video,
-body.playing-result-video #play-result-video {
-  display: none;
-}
-
-#confirm-result {
-  background-image: url(/images/camera_intent_result_confirm.svg);
-}
-
-#cancel-result {
-  background-image: url(/images/camera_intent_result_cancel.svg);
 }
 
 #modes-group .mode-item {
-  --focus-ring-gap: 7px;
-  --focus-ring-border: 2px;
-
   display: inline-block;
   font-size: 0; /* Remove space between inline-block. */
   margin: 0 8px;
@@ -346,6 +301,14 @@ body.playing-result-video #play-result-video {
   transform: none;
 }
 
+#modes-group .mode-item:has(input:disabled) {
+  opacity: 0.38;
+}
+
+div.mode-item>input {
+  border-radius: 16px/50%;
+}
+
 div.mode-item>span {
   border-radius: 16px/50%;
   color: white;
@@ -359,31 +322,22 @@ div.mode-item>span {
 }
 
 .mode-item>input {
-  --focus-ring-size: 7px;
-  --focus-ring-style: mode-item-input;
-
   height: 100%;
+  outline-offset: 7px;
   position: absolute;
   width: 100%;
   z-index: 1;
 }
 
 .mode-item>input:checked + span {
-  background: white;
-  box-shadow: 0 2px 3px rgba(32, 33, 36, 0.3);
-  color: black;
-  text-shadow: none;
-}
-
-#focus-ring.mode-item-input {
-  border-radius: 23px/50%;
+  background: var(--cros-sys-primary);
+  color: var(--cros-sys-inverse_on_surface);
 }
 
 button.shutter {
-  --focus-ring-size: 9px;
-
   display: none;
   height: 60px;
+  outline-offset: 9px;
   width: 60px;
   z-index: 1;  /* On top of transforming switch-mode buttons. */
 }
@@ -415,14 +369,16 @@ body:is(:not(.recording), .enable-gif-recording, .should-handle-intent-result) :
   background-image: url(/images/camera_shutter_photo_start.svg);
 }
 
-#start-takephoto:hover,
-#video-snapshot:hover {
+:is(#start-takephoto, #video-snapshot):enabled:hover {
   background-image: url(/images/camera_shutter_photo_start_hover.svg);
 }
 
-#start-takephoto:active,
-#video-snapshot:active {
+:is(#start-takephoto, #video-snapshot):enabled:active {
   background-image: url(/images/camera_shutter_photo_start_active.svg);
+}
+
+body.taking #start-takephoto:active {
+  transform: unset;
 }
 
 #stop-takephoto {
@@ -449,7 +405,7 @@ body:is(:not(.recording), .enable-gif-recording, .should-handle-intent-result) :
 #recordvideo,
 #pause-recordvideo {
   --dot-size: 25%;
-  --durtaion: 180ms;
+  --duration: 180ms;
   --red: #f44336;
   --square-delay: 45ms;
   --square-size: calc(100% / 3);
@@ -459,7 +415,7 @@ body:is(:not(.recording), .enable-gif-recording, .should-handle-intent-result) :
   border-radius: 50%;
   height: var(--size);
   position: relative;
-  transition: var(--durtaion) var(--standard-easing);
+  transition: var(--duration) var(--standard-easing);
   width: var(--size);
 }
 
@@ -483,7 +439,7 @@ body.taking.video #recordvideo:hover {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  transition: var(--durtaion) var(--standard-easing);
+  transition: var(--duration) var(--standard-easing);
   width: var(--dot-size);
 }
 
@@ -504,7 +460,7 @@ body:not(.recording-ui-paused).video #pause-recordvideo .red-dot {
   opacity: 0;
   position: absolute;
   top: 50%;
-  transition: var(--durtaion) var(--square-delay) var(--standard-easing);
+  transition: var(--duration) var(--square-delay) var(--standard-easing);
   width: 0;
 }
 
@@ -544,7 +500,7 @@ body.video.taking #recordvideo {
   background: transparent;
 }
 
-body:is(:not(.video), .record-type-gif) #toggle-mic,
+body:is(:not(.video), .record-type-gif, .record-type-time-lapse) #toggle-mic,
 body:not(.multi-camera) #switch-device {
   visibility: hidden;
 }
@@ -556,12 +512,12 @@ body:not(.multi-camera) #switch-device {
   width: 40px;
 }
 
-body.video #camera-mode {
-  background-image: url(/images/camera_mode_video.svg);
+body.scan #camera-mode {
+  background-image: url(/images/camera_mode_scan.svg);
 }
 
-body.square #camera-mode {
-  background-image: url(/images/camera_mode_square.svg);
+body.video #camera-mode {
+  background-image: url(/images/camera_mode_video.svg);
 }
 
 body.portrait #camera-mode {
@@ -587,10 +543,8 @@ body.mode-switching:not(.streaming) #camera-mode {
 }
 
 #switch-device {
-  --focus-ring-size: 8px;
-
-  background-image: url(/images/camera_button_switch_device.svg);
   height: var(--big-icon);
+  outline-offset: 8px;
   width: var(--big-icon);
 }
 
@@ -607,14 +561,28 @@ body.mode-switching:not(.streaming) #camera-mode {
   }
 }
 
+body.doc-mode-reviewing #gallery-enter {
+  visibility: hidden;
+}
+
 #gallery-enter {
   background-color: rgba(24, 24, 24, 1);
-  background-size: cover;
   height: var(--big-icon);
+  overflow: hidden;
   width: var(--big-icon);
 }
 
-body.should-handle-intent-result #gallery-enter {
+#gallery-enter>img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+#gallery-enter>img:not(.draggable) {
+  pointer-events: none;
+}
+
+body:is(.taking.video, .should-handle-intent-result) #gallery-enter {
   display: none;
 }
 
@@ -629,7 +597,7 @@ body.should-handle-intent-result #gallery-enter {
   --option-item-vpadding: 12px;
   --switch-device-gap: 32px;
   bottom: calc(var(--bottom-line) + (var(--big-icon) / 2) + var(--switch-device-gap) - var(--option-item-vpadding));
-  flex-direction: column-reverse;
+  flex-direction: column;
   transition: bottom var(--fast1-duration);
 }
 
@@ -652,80 +620,99 @@ body:not(.enable-ptz) #open-ptz-panel {
   display: none;
 }
 
-#open-ptz-panel {
-  --ripple-spread-ratio: 2;
-  --ripple-start-radius: 18px;
-
-  background-image: url(/images/camera_button_ptz_panel.svg);
-}
-
-body.timer-3s #toggle-timer:checked {
-  background-image: url(/images/camera_button_timer_on_3s.svg);
-}
-
-body.timer-10s #toggle-timer:checked {
-  background-image: url(/images/camera_button_timer_on_10s.svg);
-}
-
-#toggle-timer {
-  background-image: url(/images/camera_button_timer_off.svg);
-}
-
-#toggle-grid:checked {
-  background-image: url(/images/camera_button_grid_on.svg);
-}
-
-#toggle-grid {
-  background-image: url(/images/camera_button_grid_off.svg);
-}
-
-#toggle-mirror:checked {
-  background-image: url(/images/camera_button_mirror_on.svg);
-}
-
-#toggle-mirror {
-  background-image: url(/images/camera_button_mirror_off.svg);
-}
-
-#toggle-mic:checked {
-  background-image: url(/images/camera_button_mic_on.svg);
-}
-
+#open-mirror-panel,
+#open-grid-panel,
+#open-timer-panel,
+#open-ptz-panel,
 #toggle-mic {
-  background-image: url(/images/camera_button_mic_off.svg);
+  border-radius: 12px;
 }
 
-body:not(.multi-fps) #toggle-fps,
-body:not(.video) #toggle-fps {
+#open-mirror-panel,
+#open-grid-panel,
+#toggle-mic {
+  .on-icon {
+    display: none;
+  }
+}
+
+body:not(.mic) #toggle-mic {
+  background: var(--cros-sys-error_container);
+  .off-icon {
+    color: var(--cros-sys-on_error_container);
+  }
+}
+
+body.mirror #open-mirror-panel,
+body.grid #open-grid-panel,
+body:is(.timer-3s, .timer-10s) #open-timer-panel,
+body.view-ptz-panel #open-ptz-panel {
+  background: var(--cros-sys-primary_container);
+}
+
+body.mirror #open-mirror-panel,
+body.grid #open-grid-panel,
+body.mic #toggle-mic {
+  .off-icon {
+    display: none;
+  }
+  .on-icon {
+    display: block;
+  }
+}
+
+#open-timer-panel {
+  .on-3s-icon,
+  .on-10s-icon {
+    display: none;
+  }
+}
+
+body.timer-3s #open-timer-panel {
+  .off-icon {
+    display: none;
+  }
+  .on-3s-icon {
+    display: block;
+  }
+}
+
+body.timer-10s #open-timer-panel {
+  .off-icon {
+    display: none;
+  }
+  .on-10s-icon {
+    display: block;
+  }
+}
+
+body.scan #open-grid-panel,
+body.scan #open-timer-panel,
+body.scan #open-mirror-panel:disabled,
+body.scan #settings-photo-aspect-ratio,
+body.scan #settings-photo-resolution,
+body.scan #settings-video-resolution,
+body.scan #preview-grid {
   display: none;
-}
-
-body.fps-30 #toggle-fps {
-  background-image: url(/images/camera_button_fps_30.svg);
-}
-
-body.fps-60 #toggle-fps {
-  background-image: url(/images/camera_button_fps_60.svg);
-}
-
-#open-settings {
-  background-image: url(/images/camera_button_settings.svg);
 }
 
 body.should-handle-intent-result #open-settings {
   display: none;
 }
 
+body.doc-mode-reviewing #open-settings {
+  visibility: hidden;
+}
+
 #view-camera,
-#view-crop-document,
-#view-document-mode-dialog,
+#view-document-review,
+#view-option-panel,
 #view-ptz-panel,
 #view-review,
 #view-flash,
+#view-low-storage-dialog,
 #view-settings,
-#view-grid-settings,
-#view-timer-settings,
-#view-resolution-settings,
+#view-photo-aspect-ratio-settings,
 #view-photo-resolution-settings,
 #view-video-resolution-settings,
 #view-expert-settings,
@@ -740,18 +727,20 @@ body.should-handle-intent-result #open-settings {
   right: 0;
   top: 0;
   visibility: hidden;
+  /* Create stacking context for every view to prevent elements in former views
+  from covering latter views. */
+  z-index: 0;
 }
 
 body.view-camera #view-camera,
-body.view-crop-document #view-crop-document,
-body.view-document-mode-dialog #view-document-mode-dialog,
+body.view-document-review #view-document-review,
+body.view-option-panel #view-option-panel,
 body.view-ptz-panel #view-ptz-panel,
 body.view-review #view-review,
 body.view-flash #view-flash,
+body.view-low-storage-dialog #view-low-storage-dialog,
 body.view-settings #view-settings,
-body.view-grid-settings #view-grid-settings,
-body.view-timer-settings #view-timer-settings,
-body.view-resolution-settings #view-resolution-settings,
+body.view-photo-aspect-ratio-settings #view-photo-aspect-ratio-settings,
 body.view-photo-resolution-settings #view-photo-resolution-settings,
 body.view-video-resolution-settings #view-video-resolution-settings,
 body.view-expert-settings #view-expert-settings,
@@ -763,9 +752,7 @@ body.view-splash #view-splash {
   visibility: visible;
 }
 
-body.view-grid-settings #view-grid-settings,
-body.view-timer-settings #view-timer-settings,
-body.view-resolution-settings #view-resolution-settings,
+body.view-photo-aspect-ratio-settings #view-photo-aspect-ratio-settings,
 body.view-photo-resolution-settings #view-photo-resolution-settings,
 body.view-video-resolution-settings #view-video-resolution-settings,
 body.view-expert-settings #view-expert-settings,
@@ -774,23 +761,15 @@ body.view-settings #view-settings {
   transition: opacity 0ms;
 }
 
+body.view-photo-aspect-ratio-settings #view-settings,
+html[dir=ltr] body.view-photo-aspect-ratio-settings .left-stripe,
+html[dir=rtl] body.view-photo-aspect-ratio-settings .right-stripe,
 html[dir=ltr] body.view-settings .left-stripe,
 html[dir=rtl] body.view-settings .right-stripe,
-body.view-grid-settings #view-settings,
-html[dir=ltr] body.view-grid-settings .left-stripe,
-html[dir=rtl] body.view-grid-settings .right-stripe,
-body.view-timer-settings #view-settings,
-html[dir=ltr] body.view-timer-settings .left-stripe,
-html[dir=rtl] body.view-timer-settings .right-stripe,
-body.view-resolution-settings #view-settings,
-html[dir=ltr] body.view-resolution-settings .left-stripe,
-html[dir=rtl] body.view-resolution-settings .right-stripe,
 body.view-photo-resolution-settings #view-settings,
-body.view-photo-resolution-settings #view-resolution-settings,
 html[dir=ltr] body.view-photo-resolution-settings .left-stripe,
 html[dir=rtl] body.view-photo-resolution-settings .right-stripe,
 body.view-video-resolution-settings #view-settings,
-body.view-video-resolution-settings #view-resolution-settings,
 html[dir=ltr] body.view-video-resolution-settings .left-stripe,
 html[dir=rtl] body.view-video-resolution-settings .right-stripe,
 body.view-expert-settings #view-settings,
@@ -945,15 +924,20 @@ body.use-fake-camera #view-expert-settings label.require-chromeos-vcd {
   position: absolute;
   right: 0;
   top: 0;
+  transition: visibility 500ms;
+  visibility: hidden;
 }
 
 body:not(.streaming) #expert-controls,
 body:not(.streaming) #open-settings,
 body:not(.streaming) #options-group,
 body:not(.streaming) #preview-focus,
-body:not(.streaming) #preview-grid,
 body:not(.streaming) #toggle-mic {
   visibility: hidden;
+}
+
+body:not(.streaming) #preview-grid {
+  display: none;
 }
 
 body:not(.expert) #settings-expert,
@@ -975,6 +959,10 @@ body:not(.custom-video-parameters) #expert-controls>.video-option-row {
   transform: translateY(-50%);
 }
 
+body.grid #preview-grid {
+  visibility: visible;
+}
+
 body.grid.grid-4x4 #preview-grid-horizontal::before {
   border-bottom: 1px solid white;
   content: '';
@@ -985,20 +973,16 @@ body.grid.grid-4x4 #preview-grid-horizontal::before {
   top: 0;
 }
 
-body.grid.grid-3x3 #preview-grid-horizontal,
-body.view-grid-settings.grid-3x3 #preview-grid-horizontal {
+body.grid.grid-3x3 #preview-grid-horizontal {
   height: 33.333%;
 }
 
-body.grid.grid-golden #preview-grid-horizontal,
-body.view-grid-settings.grid-golden #preview-grid-horizontal {
+body.grid.grid-golden #preview-grid-horizontal {
   height: 23.607%;
 }
 
 body.grid.grid-4x4 #preview-grid-horizontal,
-body.grid.grid-4x4 #preview-grid-horizontal::before,
-body.view-grid-settings.grid-4x4 #preview-grid-horizontal,
-body.view-grid-settings.grid-4x4 #preview-grid-horizontal::before {
+body.grid.grid-4x4 #preview-grid-horizontal::before {
   height: 50%;
 }
 
@@ -1023,38 +1007,27 @@ body.grid-4x4 #preview-grid-vertical::before {
   width: 0;
 }
 
-body.grid.grid-3x3 #preview-grid-vertical,
-body.view-grid-settings.grid-3x3 #preview-grid-vertical {
+body.grid.grid-3x3 #preview-grid-vertical {
   width: 33.333%;
 }
 
-body.grid.grid-golden #preview-grid-vertical,
-body.view-grid-settings.grid-golden #preview-grid-vertical {
+body.grid.grid-golden #preview-grid-vertical {
   width: 23.607%;
 }
 
 body.grid.grid-4x4 #preview-grid-vertical,
-body.grid.grid-4x4 #preview-grid-vertical::before,
-body.view-grid-settings.grid-4x4 #preview-grid-vertical,
-body.view-grid-settings.grid-4x4 #preview-grid-vertical::before {
+body.grid.grid-4x4 #preview-grid-vertical::before {
   width: 50%;
 }
 
 #preview-grid-horizontal,
 #preview-grid-horizontal::before {
-  transition: height 500ms, visibility 500ms;
+  transition: height 500ms;
 }
 
 #preview-grid-vertical,
 #preview-grid-vertical::before {
-  transition: width 500ms, visibility 500ms;
-}
-
-body:not(.grid):not(.view-grid-settings) #preview-grid-horizontal,
-body:not(.grid):not(.view-grid-settings) #preview-grid-horizontal::before,
-body:not(.grid):not(.view-grid-settings) #preview-grid-vertical,
-body:not(.grid):not(.view-grid-settings) #preview-grid-vertical::before {
-  visibility: hidden;
+  transition: width 500ms;
 }
 
 #record-time {
@@ -1074,7 +1047,8 @@ body:not(.grid):not(.view-grid-settings) #preview-grid-vertical::before {
 }
 
 #record-time[hidden],
-.menu-item[hidden] {
+.menu-item[hidden],
+#nudge[hidden] {
   display: none;  /* Required for flexbox hidden. */
 }
 
@@ -1101,27 +1075,8 @@ body:not(.recording-ui-paused) #record-time [i18n-text=record_video_paused_msg] 
   margin-inline-start: 8px;
 }
 
-@media print {
-  html {
-    height: 100%;  /* Required for printing. */
-  }
-
-  body {
-    height: auto;
-    overflow: visible;
-    position: static;
-    width: 100%;
-  }
-
-  /* Reset background colors. */
-  body {
-    background: transparent;
-  }
-
-  /* Hide the buttons. */
-  .buttons {
-    display: none;
-  }
+#spoken_msg {
+  opacity: 0;
 }
 
 #tooltip {
@@ -1157,19 +1112,8 @@ body:not(.recording-ui-paused) #record-time [i18n-text=record_video_paused_msg] 
   z-index: 100;
 }
 
-#toast.animate.spoken {
-  animation: toast-spoken 3000ms ease-out;
-}
-
-#toast.animate:not(.spoken) {
+#toast.animate {
   animation: toast-shown 3000ms ease-out;
-}
-
-@keyframes toast-spoken {
-  0%,
-  100% {
-    opacity: 0;
-  }
 }
 
 @keyframes toast-shown {
@@ -1198,27 +1142,28 @@ body:not(.recording-ui-paused) #record-time [i18n-text=record_video_paused_msg] 
   top: 0;
 }
 
+.settings .menu-header,
+.settings .menu-item {
+  height: 64px;
+}
+
 .menu-header,
 .menu-item {
-  --hover-color: rgba(255, 255, 255, 0.06);
-  --toggled-color: rgb(140, 180, 245);
-
   align-items: center;
   color: var(--grey-100);
   display: flex;
   flex-shrink: 0;
   font-size: 13px;
-  height: 64px;
   justify-content: flex-start;
   text-align: initial;
 }
 
 button.menu-item:hover,
 label.menu-item:hover {
-  background-color: var(--hover-color);
+  background-color: var(--cros-sys-hover_on_subtle);
 }
 
-.menu-item {
+.settings .menu-item {
   padding-inline-start: 32px;
 }
 
@@ -1235,18 +1180,9 @@ label.menu-item:hover {
   padding-inline-start: 64px;
 }
 
-.menu-item .icon.end {
-  margin-inline-end: 16px;
-  margin-inline-start: auto;
-}
-
 .menu-item .description {
   color: rgb(189, 193, 198);
   margin-top: 5px;
-}
-
-.menu-item .description span {
-  display: none;
 }
 
 body:not(.has-front-camera) #settings-front-photores,
@@ -1258,18 +1194,13 @@ body:not(.has-front-camera):not(.has-back-camera) #builtin-video-header {
   display: none;
 }
 
-body.grid-3x3 .description span[i18n-text=label_grid_3x3],
-body.grid-4x4 .description span[i18n-text=label_grid_4x4],
-body.grid-golden .description span[i18n-text=label_grid_golden],
-body.timer-3s .description span[i18n-text=label_timer_3s],
-body.timer-10s .description span[i18n-text=label_timer_10s],
 .menu-item.resol-item .description span {
   display: inline;
 }
 
 .menu-item input::before {
   bottom: 13px;
-  box-shadow: 0 0 0 2px var(--grey-100);
+  box-shadow: 0 0 0 2px var(--cros-sys-on_surface);
   content: '';
   left: 13px;
   position: absolute;
@@ -1283,10 +1214,10 @@ body.timer-10s .description span[i18n-text=label_timer_10s],
 
 .menu-item input:checked::before {
   background-clip: padding-box;
-  background-color: var(--toggled-color);
+  background-color: var(--cros-sys-primary);
   border: 4px solid transparent;
   bottom: 12px;
-  box-shadow: 0 0 0 1px var(--toggled-color);
+  box-shadow: 0 0 0 1px var(--cros-sys-primary);
   left: 12px;
   right: 12px;
   top: 12px;
@@ -1294,14 +1225,13 @@ body.timer-10s .description span[i18n-text=label_timer_10s],
 }
 
 button.menu-item {
-  --focus-ring-size: -3px;
+  outline-offset: -3px;
 }
 
 .menu-header button.icon {
   /* Icon image is small enough and won't be covered by -1px */
-  --focus-ring-size: -1px;
-
   background-image: url(/images/settings_button_back.svg);
+  outline-offset: -1px;
 }
 
 html[dir=rtl] .menu-header .icon {
@@ -1309,7 +1239,7 @@ html[dir=rtl] .menu-header .icon {
 }
 
 .menu-header .icon:hover {
-  background-color: var(--hover-color);
+  background-color: var(--cros-sys-hover_on_subtle);
 }
 
 #settings-gridtype .icon {
@@ -1320,12 +1250,13 @@ html[dir=rtl] .menu-header .icon {
   background-image: url(/images/settings_timer_duration.svg);
 }
 
-body.no-resolution-settings #settings-resolution {
-  display: none;
+#settings-photo-resolution .icon,
+#settings-video-resolution .icon {
+  background-image: url(/images/settings_resolution.svg);
 }
 
-#settings-resolution .icon {
-  background-image: url(/images/settings_resolution.svg);
+#settings-photo-aspect-ratio .icon {
+  background-image: url(/images/settings_aspect_ratio.svg);
 }
 
 #settings-expert .icon {
@@ -1340,24 +1271,11 @@ body.no-resolution-settings #settings-resolution {
   background-image: url(/images/settings_help.svg);
 }
 
-#settings-gridtype .icon.end,
-#settings-timerdur .icon.end,
-#settings-resolution .icon.end,
-#settings-expert .icon.end,
-.resol-item.multi-option .icon.end {
-  background-image: url(/images/settings_button_expand.svg);
-}
-
-html[dir=rtl] .icon.end {
-  transform: scale(-1, 1);
-}
-
 #view-warning,
 .dialog {
   align-items: center;
   display: flex;
   justify-content: center;
-  z-index: 1;
 }
 
 #view-warning {
@@ -1434,17 +1352,17 @@ html[dir=rtl] .icon.end {
   padding: 6px 18px;
 }
 
-body.tab-navigation .dialog-buttons button:focus {
+body.keyboard-navigation .dialog-buttons button:focus {
   background-color: var(--blue-300);
   border-color: var(--blue-300);
   color: white;
 }
 
-body.tab-navigation .dialog-buttons button:focus::after {
+body.keyboard-navigation .dialog-buttons button:focus::after {
   border: none;
 }
 
-#spinner {
+.spinner {
   background-image: url(/images/spinner.svg);
   height: 32px;
   visibility: hidden;
@@ -1452,13 +1370,12 @@ body.tab-navigation .dialog-buttons button:focus::after {
   z-index: 1;
 }
 
-#view-splash {
-  background: no-repeat center url(/images/camera_mode_photo.svg), var(--grey-900);
-  z-index: 2;
+body:not(.mode-switching):not(.streaming).view-expert-settings .spinner {
+  visibility: visible;
 }
 
-body:not(.mode-switching):not(.streaming):not(.review-result) #spinner {
-  visibility: visible;
+#view-splash {
+  background: no-repeat center url(/images/camera_mode_photo.svg), var(--grey-900);
 }
 
 .hidden {
@@ -1467,4 +1384,192 @@ body:not(.mode-switching):not(.streaming):not(.review-result) #spinner {
 
 .invisible {
   visibility: hidden;
+}
+
+.disabled {
+  opacity: 0.38;
+}
+
+.panel {
+  backdrop-filter: blur(10px);
+  background: rgba(var(--grey-900-rgb), 0.9);
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+#option-panel {
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  position: absolute;
+  width: 225px;
+}
+
+#option-title {
+  color: var(--grey-500);
+  font-family: var(--default-font-family);
+  font-size: 13px;
+  font-weight: 400;
+  height: 28px;
+  padding: 8px 8px 0 8px;
+}
+
+#options-container {
+  display: flex;
+  flex-direction: column;
+}
+
+#options-container .menu-item {
+  height: 40px;
+  padding-inline-start: 6px;
+}
+
+#options-container .menu-item span {
+  color: var(--cros-sys-on_surface);
+  margin-inline-start: 4px;
+}
+
+body.video #settings-photo-aspect-ratio,
+body.video #settings-photo-resolution {
+  display: none;
+}
+
+body:not(.video) #settings-video-resolution {
+  display: none;
+}
+
+.label-item {
+  color: var(--grey-500);
+  font: 500 13px/20px var(--default-font-family);
+  margin: 9px 0 3px 0;
+  padding-inline-start: 26px;
+}
+
+.resolution-option span {
+  margin-inline-start: 4px;
+}
+
+.text-item {
+  align-items: center;
+  color: var(--grey-500);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  font: 400 13px var(--default-font-family);
+  height: 64px;
+  justify-content: center;
+  padding-inline-end: 60px;
+  padding-inline-start: 60px;
+  text-align: initial;
+}
+
+.fps-buttons {
+  height: 40px;
+  position: absolute;
+  right: 39px;
+}
+
+.fps-button {
+  height: 40px;
+  margin-inline-end: 8px;
+  margin-inline-start: 8px;
+  width: 40px;
+}
+
+#view-video-resolution-settings .fps-30 {
+  background-image: url(/images/camera_button_fps_30_unchecked.svg);
+}
+
+#view-video-resolution-settings .fps-30.checked {
+  background-image: url(/images/camera_button_fps_30_checked.svg);
+}
+
+#view-video-resolution-settings .fps-60 {
+  background-image: url(/images/camera_button_fps_60_unchecked.svg);
+}
+
+#view-video-resolution-settings .fps-60.checked {
+  background-image: url(/images/camera_button_fps_60_checked.svg);
+}
+
+[tabindex] {
+  outline: none; /* Prevent default focus ring style. */
+}
+
+[tabindex='0'] {
+  outline-offset: 3px;
+}
+
+[tabindex='0']:focus-visible {
+  outline: 2px solid var(--cros-sys-focus_ring);
+}
+
+.circle :is(button, input) {
+  border-radius: 50%;
+}
+
+#nudge {
+  align-items: center;
+  background: var(--grey-900);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  gap: 8px;
+  opacity: 0.8;
+  padding: 8px 10px;
+  position: absolute;
+  top: 68px;  /* 8px below |record_time| element */
+  z-index: 2;
+}
+
+#nudge .warning-icon {
+  background: url(/images/circle_warning_icon.svg);
+  height: 20px;
+  width: 20px;
+}
+
+#nudge .warning-msg {
+  color: var(--grey-400);
+  font: 400 14px/20px Roboto;
+}
+
+.low-storage-dialog-popup {
+  background: var(--grey-900);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  width: 320px;
+}
+
+.low-storage-dialog-popup .dialog-title {
+  color: white;
+  font: 500 16px/24px var(--default-font-family);
+}
+
+.low-storage-dialog-popup .dialog-description {
+  color: var(--grey-400);
+  font: 400 14px/20px var(--default-font-family);
+}
+
+.low-storage-dialog-buttons {
+  align-items: center;
+  align-self: flex-end;
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.low-storage-dialog-buttons .dialog-negative-button {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.low-storage-dialog-buttons .external-link-icon {
+  background: url(/images/external_link_icon.svg);
+  height: 20px;
+  width: 20px;
 }

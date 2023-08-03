@@ -1,12 +1,13 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ssl/chrome_security_blocking_page_factory.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/history/history_service_factory.h"
@@ -15,6 +16,8 @@
 #include "chrome/browser/net/stub_resolver_config_reader.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_preferences_util.h"
+#include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
+#include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
 #include "chrome/browser/safe_browsing/safe_browsing_metrics_collector_factory.h"
 #include "chrome/browser/ssl/https_only_mode_controller_client.h"
 #include "chrome/browser/ssl/insecure_form/insecure_form_controller_client.h"
@@ -31,14 +34,14 @@
 #include "components/security_interstitials/core/metrics_helper.h"
 #include "content/public/browser/web_contents.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/enterprise_util.h"
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/jni_android.h"
 #include "components/security_interstitials/content/captive_portal_helper_android.h"
 #include "content/public/common/referrer.h"
@@ -81,15 +84,15 @@ bool IsEnterpriseManaged() {
     return false;
   }
 
-#if defined(OS_WIN)
-  if (base::IsMachineExternallyManaged()) {
+#if BUILDFLAG(IS_WIN)
+  if (base::IsManagedOrEnterpriseDevice()) {
     return true;
   }
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
   if (g_browser_process->platform_part()->browser_policy_connector_ash()) {
     return true;
   }
-#endif  // #if defined OS_WIN
+#endif  // BUILDFLAG(IS_WIN)
 
   return false;
 }
@@ -308,9 +311,18 @@ ChromeSecurityBlockingPageFactory::CreateHttpsOnlyModeBlockingPage(
   std::unique_ptr<HttpsOnlyModeControllerClient> client =
       std::make_unique<HttpsOnlyModeControllerClient>(web_contents,
                                                       request_url);
+
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  bool is_under_advanced_protection =
+      profile &&
+      safe_browsing::AdvancedProtectionStatusManagerFactory::GetForProfile(
+          profile)
+          ->IsUnderAdvancedProtection();
   auto page =
       std::make_unique<security_interstitials::HttpsOnlyModeBlockingPage>(
-          web_contents, request_url, std::move(client));
+          web_contents, request_url, std::move(client),
+          is_under_advanced_protection);
   return page;
 }
 
@@ -321,8 +333,8 @@ void ChromeSecurityBlockingPageFactory::DoChromeSpecificSetup(
       base::BindRepeating([](CertificateErrorReport* report) {
         report->AddChromeChannel(chrome::GetChannel());
 
-#if defined(OS_WIN)
-        report->SetIsEnterpriseManaged(base::IsMachineExternallyManaged());
+#if BUILDFLAG(IS_WIN)
+        report->SetIsEnterpriseManaged(IsEnterpriseManaged());
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
         report->SetIsEnterpriseManaged(g_browser_process->platform_part()
                                            ->browser_policy_connector_ash()

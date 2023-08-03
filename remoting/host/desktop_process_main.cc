@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -8,9 +8,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_executor.h"
@@ -63,10 +63,12 @@ int DesktopProcessMain() {
   mojo::PlatformChannelEndpoint endpoint =
       mojo::PlatformChannel::RecoverPassedEndpointFromCommandLine(
           *command_line);
-  if (!endpoint.is_valid())
+  if (!endpoint.is_valid()) {
     endpoint = mojo::NamedPlatformChannel::ConnectToServer(*command_line);
-  if (!endpoint.is_valid())
+  }
+  if (!endpoint.is_valid()) {
     return kInvalidCommandLineExitCode;
+  }
 
   auto invitation = mojo::IncomingInvitation::Accept(std::move(endpoint));
   mojo::ScopedMessagePipeHandle message_pipe = invitation.ExtractMessagePipe(
@@ -76,7 +78,7 @@ int DesktopProcessMain() {
 
   // Create a platform-dependent environment factory.
   std::unique_ptr<DesktopEnvironmentFactory> desktop_environment_factory;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // base::Unretained() is safe here: |desktop_process| outlives run_loop.Run().
   auto inject_sas_closure = base::BindRepeating(
       &DesktopProcess::InjectSas, base::Unretained(&desktop_process));
@@ -87,14 +89,15 @@ int DesktopProcessMain() {
       std::make_unique<SessionDesktopEnvironmentFactory>(
           ui_task_runner, video_capture_task_runner, input_task_runner,
           ui_task_runner, inject_sas_closure, lock_workstation_closure);
-#else  // !defined(OS_WIN)
+#else   // !BUILDFLAG(IS_WIN)
   desktop_environment_factory.reset(new Me2MeDesktopEnvironmentFactory(
       ui_task_runner, video_capture_task_runner, input_task_runner,
       ui_task_runner));
-#endif  // !defined(OS_WIN)
+#endif  // !BUILDFLAG(IS_WIN)
 
-  if (!desktop_process.Start(std::move(desktop_environment_factory)))
+  if (!desktop_process.Start(std::move(desktop_environment_factory))) {
     return kInitializationFailed;
+  }
 
   // Run the UI message loop.
   ui_task_runner = nullptr;
@@ -105,8 +108,8 @@ int DesktopProcessMain() {
 
 }  // namespace remoting
 
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 int main(int argc, char** argv) {
   return remoting::HostMain(argc, argv);
 }
-#endif  // !defined(OS_WIN)
+#endif  // !BUILDFLAG(IS_WIN)

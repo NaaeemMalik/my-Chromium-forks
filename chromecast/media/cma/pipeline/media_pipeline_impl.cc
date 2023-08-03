@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,12 @@
 #include <algorithm>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
 #include "chromecast/base/metrics/cast_metrics_helper.h"
 #include "chromecast/media/api/cma_backend.h"
@@ -112,12 +111,14 @@ MediaPipelineImpl::~MediaPipelineImpl() {
 
 void MediaPipelineImpl::Initialize(
     LoadType load_type,
-    std::unique_ptr<CmaBackend> media_pipeline_backend) {
+    std::unique_ptr<CmaBackend> media_pipeline_backend,
+    bool is_buffering_enabled) {
   LOG(INFO) << __FUNCTION__;
   DCHECK(thread_checker_.CalledOnValidThread());
   media_pipeline_backend_ = std::move(media_pipeline_backend);
 
-  if (load_type == kLoadTypeURL || load_type == kLoadTypeMediaSource) {
+  if ((load_type == kLoadTypeURL || load_type == kLoadTypeMediaSource) &&
+      is_buffering_enabled) {
     base::TimeDelta low_threshold(kLowBufferThresholdURL);
     base::TimeDelta high_threshold(kHighBufferThresholdURL);
     if (load_type == kLoadTypeMediaSource) {
@@ -177,7 +178,7 @@ void MediaPipelineImpl::SetCdm(CastCdmContext* cdm_context) {
   ::media::PipelineStatus status =
       audio_pipeline_->Initialize(config, std::move(frame_provider));
 
-  if (status == ::media::PipelineStatus::PIPELINE_OK) {
+  if (status.is_ok()) {
     // TODO(b/67112414): Do something better than this.
     MediaPipelineObserver::NotifyAudioPipelineInitialized(this, config);
   }
@@ -234,7 +235,7 @@ void MediaPipelineImpl::StartPlayingFrom(base::TimeDelta time) {
   statistics_rolling_counter_ = 0;
   if (!pending_time_update_task_) {
     pending_time_update_task_ = true;
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&MediaPipelineImpl::UpdateMediaTime, weak_this_));
   }
@@ -372,7 +373,7 @@ void MediaPipelineImpl::OnFlushDone(bool is_audio_stream) {
     metrics::CastMetricsHelper::GetInstance()->RecordApplicationEvent(
         "Cast.Platform.Ended");
 
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, std::move(pending_flush_task_->done_cb));
     pending_flush_task_.reset();
   }
@@ -516,7 +517,7 @@ void MediaPipelineImpl::UpdateMediaTime() {
       (last_media_time_ == ::media::kNoTimestamp ||
        !media_time_interpolator_.interpolating())) {
     pending_time_update_task_ = true;
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&MediaPipelineImpl::UpdateMediaTime, weak_this_),
         kTimeUpdateInterval);
@@ -563,7 +564,7 @@ void MediaPipelineImpl::UpdateMediaTime() {
     client_.time_update_cb.Run(media_time, max_rendering_time, stc);
 
   pending_time_update_task_ = true;
-  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&MediaPipelineImpl::UpdateMediaTime, weak_this_),
       kTimeUpdateInterval);
@@ -571,10 +572,10 @@ void MediaPipelineImpl::UpdateMediaTime() {
 
 void MediaPipelineImpl::OnError(::media::PipelineStatus error) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  DCHECK_NE(error, ::media::PIPELINE_OK) << "PIPELINE_OK is not an error!";
+  DCHECK(error != ::media::PIPELINE_OK) << "PIPELINE_OK is not an error!";
 
   metrics::CastMetricsHelper::GetInstance()->RecordApplicationEventWithValue(
-      "Cast.Platform.Error", error);
+      "Cast.Platform.Error", error.code());
 
   if (!client_.error_cb.is_null())
     std::move(client_.error_cb).Run(error);

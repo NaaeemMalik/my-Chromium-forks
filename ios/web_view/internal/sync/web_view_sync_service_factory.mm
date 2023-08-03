@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <utility>
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "base/no_destructor.h"
 #include "base/time/time.h"
 #include "components/autofill/core/browser/personal_data_manager.h"
@@ -18,7 +18,6 @@
 #include "components/sync/driver/sync_service_impl.h"
 #include "ios/web/public/thread/web_thread.h"
 #include "ios/web_view/internal/app/application_context.h"
-#include "ios/web_view/internal/autofill/web_view_personal_data_manager_factory.h"
 #import "ios/web_view/internal/passwords/web_view_account_password_store_factory.h"
 #include "ios/web_view/internal/passwords/web_view_password_store_factory.h"
 #include "ios/web_view/internal/signin/web_view_identity_manager_factory.h"
@@ -60,7 +59,6 @@ WebViewSyncServiceFactory::WebViewSyncServiceFactory()
   // destruction order.
   DependsOn(WebViewDeviceInfoSyncServiceFactory::GetInstance());
   DependsOn(WebViewIdentityManagerFactory::GetInstance());
-  DependsOn(WebViewPersonalDataManagerFactory::GetInstance());
   DependsOn(WebViewWebDataServiceWrapperFactory::GetInstance());
   DependsOn(WebViewAccountPasswordStoreFactory::GetInstance());
   DependsOn(WebViewPasswordStoreFactory::GetInstance());
@@ -93,11 +91,6 @@ WebViewSyncServiceFactory::BuildServiceInstanceFor(
   auto sync_service =
       std::make_unique<syncer::SyncServiceImpl>(std::move(init_params));
   sync_service->Initialize();
-
-  // Hook PSS into PersonalDataManager (a circular dependency).
-  autofill::PersonalDataManager* pdm =
-      WebViewPersonalDataManagerFactory::GetForBrowserState(browser_state);
-  pdm->OnSyncServiceInitialized(sync_service.get());
 
   return sync_service;
 }

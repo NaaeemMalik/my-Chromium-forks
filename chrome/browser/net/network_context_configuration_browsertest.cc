@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,22 +7,21 @@
 #include <unordered_set>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/guid.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/threading/thread_restrictions.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/uuid.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
@@ -101,7 +100,7 @@
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "base/mac/mac_util.h"
 #endif
 
@@ -232,7 +231,7 @@ class NetworkContextConfigurationBrowserTest
 
     std::unique_ptr<net::test_server::BasicHttpResponse> response =
         std::make_unique<net::test_server::BasicHttpResponse>();
-    response->set_content(base::GenerateGUID());
+    response->set_content(base::Uuid::GenerateRandomV4().AsLowercaseString());
     response->set_content_type("text/plain");
     response->AddCustomHeader("Cache-Control", "max-age=60000");
     return std::move(response);
@@ -463,9 +462,9 @@ class NetworkContextConfigurationBrowserTest
   // Sets the proxy preference on a PrefService based on the NetworkContextType,
   // and waits for it to be applied.
   void SetProxyPref(const net::HostPortPair& host_port_pair) {
-    GetPrefService()->Set(proxy_config::prefs::kProxy,
-                          ProxyConfigDictionary::CreateFixedServers(
-                              host_port_pair.ToString(), std::string()));
+    GetPrefService()->SetDict(proxy_config::prefs::kProxy,
+                              ProxyConfigDictionary::CreateFixedServers(
+                                  host_port_pair.ToString(), std::string()));
 
     // Wait for the new ProxyConfig to be passed over the pipe. Needed because
     // Mojo doesn't guarantee ordering of events on different Mojo pipes, and
@@ -547,10 +546,10 @@ class NetworkContextConfigurationBrowserTest
   // |header_value_out| to the value of the specified response header. Returns
   // false if the request fails. If non-null, uses |request| to make the
   // request, after setting its |url| value.
-  bool FetchHeaderEcho(const std::string& header_name,
-                       std::string* header_value_out,
-                       std::unique_ptr<network::ResourceRequest> request =
-                           nullptr) WARN_UNUSED_RESULT {
+  [[nodiscard]] bool FetchHeaderEcho(
+      const std::string& header_name,
+      std::string* header_value_out,
+      std::unique_ptr<network::ResourceRequest> request = nullptr) {
     if (!request)
       request = std::make_unique<network::ResourceRequest>();
     request->url = embedded_test_server()->GetURL(
@@ -721,8 +720,7 @@ class NetworkContextConfigurationBrowserTest
     FlushNetworkInterface();
   }
 
-  raw_ptr<Browser> incognito_ = nullptr;
-  base::test::ScopedFeatureList feature_list_;
+  raw_ptr<Browser, DanglingUntriaged> incognito_ = nullptr;
 
   net::EmbeddedTestServer https_server_;
   std::unique_ptr<net::test_server::ControllableHttpResponse>
@@ -842,10 +840,10 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
   std::string script = R"((url => {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', url, true);
-    xhr.onload = () => domAutomationController.send(xhr.responseText);
+    xhr.onload = () => chrome.test.sendScriptResult(xhr.responseText);
     xhr.send();
   }))";
-  std::string result =
+  base::Value result =
       extensions::browsertest_util::ExecuteScriptInBackgroundPage(
           GetProfile(), extension->id(), script + "('" + url.spec() + "')");
   EXPECT_EQ("cookie", result);
@@ -1092,8 +1090,8 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest, DiskCache) {
 // Make sure that NetworkContexts have separate DNS caches.
 IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
                        DnsCacheIsolation) {
-  net::NetworkIsolationKey network_isolation_key =
-      net::NetworkIsolationKey::CreateTransient();
+  net::NetworkAnonymizationKey network_anonymization_key =
+      net::NetworkAnonymizationKey::CreateTransient();
   net::HostPortPair host_port_pair(kHostname, 0);
   network::mojom::ResolveHostParametersPtr params =
       network::mojom::ResolveHostParameters::New();
@@ -1105,7 +1103,7 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
   // NetworkContext's cache.
   network::DnsLookupResult result =
       network::BlockingDnsLookup(network_context(), host_port_pair,
-                                 std::move(params), network_isolation_key);
+                                 std::move(params), network_anonymization_key);
   EXPECT_EQ(net::OK, result.error);
   ASSERT_TRUE(result.resolved_addresses.has_value());
   ASSERT_EQ(1u, result.resolved_addresses->size());
@@ -1123,7 +1121,7 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
         params->source = net::HostResolverSource::LOCAL_ONLY;
         network::DnsLookupResult result = network::BlockingDnsLookup(
             GetNetworkContextForContextType(network_context_type),
-            host_port_pair, std::move(params), network_isolation_key);
+            host_port_pair, std::move(params), network_anonymization_key);
         EXPECT_EQ(net::ERR_NAME_NOT_RESOLVED, result.error);
       }));
   // Do a cache-only lookup using the original network context, which should
@@ -1134,8 +1132,9 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
   params->source = net::HostResolverSource::LOCAL_ONLY;
   params->cache_usage =
       network::mojom::ResolveHostParameters::CacheUsage::STALE_ALLOWED;
-  result = network::BlockingDnsLookup(network_context(), host_port_pair,
-                                      std::move(params), network_isolation_key);
+  result =
+      network::BlockingDnsLookup(network_context(), host_port_pair,
+                                 std::move(params), network_anonymization_key);
   EXPECT_EQ(net::OK, result.error);
   ASSERT_TRUE(result.resolved_addresses.has_value());
   ASSERT_EQ(1u, result.resolved_addresses->size());
@@ -1276,7 +1275,7 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
 }
 
 // Disabled due to flakiness. See crbug.com/1189031.
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_UserAgentAndLanguagePrefs DISABLED_UserAgentAndLanguagePrefs
 #else
 #define MAYBE_UserAgentAndLanguagePrefs UserAgentAndLanguagePrefs
@@ -1451,14 +1450,11 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
   EXPECT_FALSE(GetCookies(embedded_test_server()->base_url()).empty());
 }
 
-IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest, CookiesEnabled) {
+// Disabled due to flakiness. See https://crbug.com/1273903.
+IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
+                       DISABLED_CookiesEnabled) {
   if (IsRestartStateWithInProcessNetworkService())
     return;
-#if defined(OS_MAC)
-  // TODO(https://crbug.com/880496): Fix and reenable test.
-  if (base::mac::IsOS10_11())
-    return;
-#endif
   // Check that the cookie from the first stage of the test was / was not
   // preserved between browser restarts, as expected.
   bool has_cookies = !GetCookies(embedded_test_server()->base_url()).empty();
@@ -1482,7 +1478,7 @@ IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationBrowserTest,
 }
 
 // Disabled due to flakiness. See https://crbug.com/1126755.
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #define MAYBE_PRE_ThirdPartyCookiesBlocked DISABLED_PRE_ThirdPartyCookiesBlocked
 #define MAYBE_ThirdPartyCookiesBlocked DISABLED_ThirdPartyCookiesBlocked
 #else
@@ -1889,7 +1885,7 @@ class NetworkContextConfigurationProxySettingsBrowserTest
 
     // Then wait for any remaining connections that we should NOT get.
     base::RunLoop ugly_100ms_wait;
-    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE, ugly_100ms_wait.QuitClosure(), base::Milliseconds(100));
     ugly_100ms_wait.Run();
 
@@ -1908,8 +1904,14 @@ class NetworkContextConfigurationProxySettingsBrowserTest
   std::unordered_set<std::string> observed_request_urls_;
 };
 
+// Test failure on macOS: crbug.com/1287934
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_MaxConnectionsPerProxy DISABLED_MaxConnectionsPerProxy
+#else
+#define MAYBE_MaxConnectionsPerProxy MaxConnectionsPerProxy
+#endif
 IN_PROC_BROWSER_TEST_P(NetworkContextConfigurationProxySettingsBrowserTest,
-                       MaxConnectionsPerProxy) {
+                       MAYBE_MaxConnectionsPerProxy) {
   RunMaxConnectionsPerProxyTest();
 }
 
@@ -1947,9 +1949,15 @@ class NetworkContextConfigurationManagedProxySettingsBrowserTest
   }
 };
 
+// crbug.com/1288780: flaky on Mac.
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_MaxConnectionsPerProxy DISABLED_MaxConnectionsPerProxy
+#else
+#define MAYBE_MaxConnectionsPerProxy MaxConnectionsPerProxy
+#endif
 IN_PROC_BROWSER_TEST_P(
     NetworkContextConfigurationManagedProxySettingsBrowserTest,
-    MaxConnectionsPerProxy) {
+    MAYBE_MaxConnectionsPerProxy) {
   RunMaxConnectionsPerProxyTest();
 }
 

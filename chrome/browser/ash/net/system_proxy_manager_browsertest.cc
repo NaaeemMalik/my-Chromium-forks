@@ -1,25 +1,26 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/net/system_proxy_manager.h"
 
-#include <set>
+#include <array>
 #include <string>
+#include <vector>
 
-#include "ash/components/settings/cros_settings_names.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/current_thread.h"
 #include "base/test/bind.h"
+#include "base/test/gtest_tags.h"
 #include "chrome/browser/ash/login/test/device_state_mixin.h"
 #include "chrome/browser/ash/notifications/request_system_proxy_credentials_view.h"
 #include "chrome/browser/ash/policy/affiliation/affiliation_test_helper.h"
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
 #include "chrome/browser/ash/policy/core/device_policy_cros_browser_test.h"
 #include "chrome/browser/notifications/notification_display_service_tester.h"
-#include "chrome/browser/prefetch/prefetch_proxy/prefetch_proxy_test_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/login/login_handler.h"
 #include "chrome/browser/ui/login/login_handler_test_utils.h"
@@ -28,18 +29,18 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "chromeos/dbus/dbus_thread_manager.h"
-#include "chromeos/dbus/session_manager/fake_session_manager_client.h"
-#include "chromeos/dbus/shill/shill_profile_client.h"
-#include "chromeos/dbus/shill/shill_service_client.h"
-#include "chromeos/dbus/system_proxy/system_proxy_client.h"
-#include "chromeos/dbus/system_proxy/system_proxy_service.pb.h"
-#include "chromeos/login/login_state/login_state.h"
-#include "chromeos/network/network_handler.h"
-#include "chromeos/network/network_state.h"
-#include "chromeos/network/network_state_handler.h"
-#include "chromeos/network/proxy/proxy_config_handler.h"
-#include "chromeos/tpm/stub_install_attributes.h"
+#include "chromeos/ash/components/dbus/session_manager/fake_session_manager_client.h"
+#include "chromeos/ash/components/dbus/shill/shill_profile_client.h"
+#include "chromeos/ash/components/dbus/shill/shill_service_client.h"
+#include "chromeos/ash/components/dbus/system_proxy/system_proxy_client.h"
+#include "chromeos/ash/components/dbus/system_proxy/system_proxy_service.pb.h"
+#include "chromeos/ash/components/install_attributes/stub_install_attributes.h"
+#include "chromeos/ash/components/login/login_state/login_state.h"
+#include "chromeos/ash/components/network/network_handler.h"
+#include "chromeos/ash/components/network/network_state.h"
+#include "chromeos/ash/components/network/network_state_handler.h"
+#include "chromeos/ash/components/network/proxy/proxy_config_handler.h"
+#include "chromeos/ash/components/settings/cros_settings_names.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_types.h"
@@ -66,12 +67,10 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/textfield/textfield.h"
 
-using testing::_;
-using testing::Return;
-
-namespace chromeos {
+namespace ash {
 
 namespace {
+
 constexpr char kRealm[] = "My proxy";
 constexpr char kScheme[] = "dIgEsT";
 constexpr char kProxyAuthUrl[] = "http://example.com:3128";
@@ -162,6 +161,7 @@ void RunUntilIdle() {
   base::RunLoop loop;
   loop.RunUntilIdle();
 }
+
 }  // namespace
 
 class SystemProxyManagerBrowserTest : public InProcessBrowserTest {
@@ -189,7 +189,7 @@ class SystemProxyManagerBrowserTest : public InProcessBrowserTest {
     return SystemProxyManager::Get();
   }
 
-  ash::RequestSystemProxyCredentialsView* dialog() {
+  RequestSystemProxyCredentialsView* dialog() {
     return GetSystemProxyManager()->GetActiveAuthDialogForTest();
   }
 
@@ -352,14 +352,12 @@ class SystemProxyManagerPolicyCredentialsBrowserTest
     SessionManagerClient::InitializeFakeInMemory();
 
     MixinBasedInProcessBrowserTest::SetUpInProcessBrowserTestFixture();
-    const std::string kAffiliationID = "id";
+    constexpr base::StringPiece kAffiliationID = "id";
     // Initialize device policy.
-    std::set<std::string> device_affiliation_ids;
-    device_affiliation_ids.insert(kAffiliationID);
     auto affiliation_helper = policy::AffiliationTestHelper::CreateForCloud(
         FakeSessionManagerClient::Get());
-    ASSERT_NO_FATAL_FAILURE((affiliation_helper.SetDeviceAffiliationIDs(
-        &policy_helper_, device_affiliation_ids)));
+    ASSERT_NO_FATAL_FAILURE(affiliation_helper.SetDeviceAffiliationIDs(
+        &policy_helper_, std::array{kAffiliationID}));
 
     provider_.SetDefaultReturns(
         /*is_initialization_complete_return=*/true,
@@ -400,7 +398,7 @@ class SystemProxyManagerPolicyCredentialsBrowserTest
 
   void DisconnectNetworkService(const std::string& service_path) {
     ShillServiceClient::TestInterface* service_test =
-        DBusThreadManager::Get()->GetShillServiceClient()->GetTestInterface();
+        ShillServiceClient::Get()->GetTestInterface();
     base::Value value(shill::kStateIdle);
     service_test->SetServiceProperty(service_path, shill::kStateProperty,
                                      value);
@@ -411,7 +409,7 @@ class SystemProxyManagerPolicyCredentialsBrowserTest
                                  const std::string& guid,
                                  const std::string& ssid) {
     ShillServiceClient::TestInterface* service_test =
-        DBusThreadManager::Get()->GetShillServiceClient()->GetTestInterface();
+        ShillServiceClient::Get()->GetTestInterface();
 
     service_test->AddService(service_path, guid, ssid, shill::kTypeWifi,
                              shill::kStateOnline, true /* add_to_visible */);
@@ -422,7 +420,7 @@ class SystemProxyManagerPolicyCredentialsBrowserTest
   }
 
   void SetProxyConfigForNetworkService(const std::string& service_path,
-                                       base::Value proxy_config) {
+                                       base::Value::Dict proxy_config) {
     ProxyConfigDictionary proxy_config_dict(std::move(proxy_config));
     DCHECK(NetworkHandler::IsInitialized());
     const NetworkState* network =
@@ -458,9 +456,9 @@ class SystemProxyManagerPolicyCredentialsBrowserTest
  private:
   void SetupNetworkEnvironment() {
     ShillProfileClient::TestInterface* profile_test =
-        DBusThreadManager::Get()->GetShillProfileClient()->GetTestInterface();
+        ShillProfileClient::Get()->GetTestInterface();
     ShillServiceClient::TestInterface* service_test =
-        DBusThreadManager::Get()->GetShillServiceClient()->GetTestInterface();
+        ShillServiceClient::Get()->GetTestInterface();
 
     profile_test->AddProfile(kUserProfilePath, "user");
 
@@ -568,11 +566,11 @@ IN_PROC_BROWSER_TEST_F(SystemProxyManagerPolicyCredentialsBrowserTest,
   ExpectSystemCredentialsSent("", "");
 
   // Configure a proxy via user policy.
-  base::Value proxy_config(base::Value::Type::DICTIONARY);
-  proxy_config.SetKey("mode", base::Value(ProxyPrefs::kPacScriptProxyModeName));
-  proxy_config.SetKey("pac_url", base::Value("http://proxy"));
-  browser()->profile()->GetPrefs()->Set(::proxy_config::prefs::kProxy,
-                                        proxy_config);
+  base::Value::Dict proxy_config;
+  proxy_config.Set("mode", ProxyPrefs::kPacScriptProxyModeName);
+  proxy_config.Set("pac_url", "http://proxy");
+  browser()->profile()->GetPrefs()->SetDict(::proxy_config::prefs::kProxy,
+                                            std::move(proxy_config));
   RunUntilIdle();
   EXPECT_EQ(++set_auth_details_call_count,
             client_test_interface()->GetSetAuthenticationDetailsCallCount());
@@ -584,10 +582,9 @@ IN_PROC_BROWSER_TEST_F(SystemProxyManagerPolicyCredentialsBrowserTest,
 IN_PROC_BROWSER_TEST_F(SystemProxyManagerPolicyCredentialsBrowserTest,
                        UserSetProxy) {
   SetPolicyCredentials(kUsername, kPassword);
-  base::Value proxy_config(base::Value::Type::DICTIONARY);
-  proxy_config.SetKey("mode",
-                      base::Value(ProxyPrefs::kFixedServersProxyModeName));
-  proxy_config.SetKey("server", base::Value("proxy:8080"));
+  base::Value::Dict proxy_config;
+  proxy_config.Set("mode", ProxyPrefs::kFixedServersProxyModeName);
+  proxy_config.Set("server", "proxy:8080");
   SetProxyConfigForNetworkService(kDefaultServicePath, std::move(proxy_config));
   RunUntilIdle();
   int set_auth_details_call_count = 0;
@@ -664,13 +661,11 @@ class SystemProxyCredentialsReuseBrowserTest
 
   void SetManagedProxy() {
     // Configure a proxy via user policy.
-    base::Value proxy_config(base::Value::Type::DICTIONARY);
-    proxy_config.SetKey("mode",
-                        base::Value(ProxyPrefs::kFixedServersProxyModeName));
-    proxy_config.SetKey(
-        "server", base::Value(proxy_server_->host_port_pair().ToString()));
-    browser()->profile()->GetPrefs()->Set(::proxy_config::prefs::kProxy,
-                                          proxy_config);
+    base::Value::Dict proxy_config;
+    proxy_config.Set("mode", ProxyPrefs::kFixedServersProxyModeName);
+    proxy_config.Set("server", proxy_server_->host_port_pair().ToString());
+    browser()->profile()->GetPrefs()->SetDict(::proxy_config::prefs::kProxy,
+                                              std::move(proxy_config));
     RunUntilIdle();
   }
 
@@ -737,6 +732,8 @@ class SystemProxyCredentialsReuseBrowserTest
 
 // Verifies that the policy provided credentials are not used for regular users.
 IN_PROC_BROWSER_TEST_F(SystemProxyCredentialsReuseBrowserTest, RegularUser) {
+  base::AddTagToTestResult("feature_id",
+                             "screenplay-04b4c463-f720-4cd4-9e50-7ee009d9a241");
   SetManagedProxy();
   SetPolicyCredentials(kProxyUsername, kProxyPassword);
   LoginWithDialog(kProxyUsername16, kProxyPassword16);
@@ -748,8 +745,7 @@ IN_PROC_BROWSER_TEST_F(SystemProxyCredentialsReuseBrowserTest,
                        PolicyCredentialsUsed) {
   SetManagedProxy();
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
   SetPolicyCredentials(kProxyUsername, kProxyPassword);
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser(), GetServerUrl("/simple.html")));
@@ -762,8 +758,7 @@ IN_PROC_BROWSER_TEST_F(SystemProxyCredentialsReuseBrowserTest,
                        BadPolicyCredentials) {
   SetManagedProxy();
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
   SetPolicyCredentials(kBadUsername, kBadPassword);
   LoginWithDialog(kProxyUsername16, kProxyPassword16);
   CheckEntryInHttpAuthCache("Basic", kProxyUsername, kProxyPassword);
@@ -775,11 +770,10 @@ IN_PROC_BROWSER_TEST_F(SystemProxyCredentialsReuseBrowserTest,
                        RestrictedPolicyCredentials) {
   SetManagedProxy();
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
   SetPolicyCredentials(kProxyUsername, kProxyPassword, R"("ntlm","digest")");
   LoginWithDialog(kProxyUsername16, kProxyPassword16);
   CheckEntryInHttpAuthCache("Basic", kProxyUsername, kProxyPassword);
 }
 
-}  // namespace chromeos
+}  // namespace ash

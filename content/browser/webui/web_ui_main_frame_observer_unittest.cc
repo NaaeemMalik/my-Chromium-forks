@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,14 @@
 #include <string>
 
 #include "base/gtest_prod_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/metrics/field_trial_params.h"
-#include "base/test/scoped_feature_list.h"
+#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "components/crash/content/browser/error_reporting/javascript_error_report.h"  // nogncheck
 #include "components/crash/content/browser/error_reporting/js_error_report_processor.h"  // nogncheck
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/web_ui_controller.h"
-#include "content/public/common/content_features.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_browser_context.h"
@@ -24,7 +24,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
 namespace content {
 
@@ -69,7 +69,7 @@ class FakeJsErrorReportProcessor : public JsErrorReportProcessor {
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   JavaScriptErrorReport last_error_report_;
   int error_report_count_ = 0;
-  BrowserContext* browser_context_ = nullptr;
+  raw_ptr<BrowserContext> browser_context_ = nullptr;
 };
 
 class MockWebUIController : public WebUIController {
@@ -97,15 +97,14 @@ WEB_UI_CONTROLLER_TYPE_IMPL(MockWebUIController)
 class WebUIMainFrameObserverTest : public RenderViewHostTestHarness {
  public:
   void SetUp() override {
-    SetUpFeatureList();
     RenderViewHostTestHarness::SetUp();
     site_instance_ = SiteInstance::Create(browser_context());
     SetContents(TestWebContents::Create(browser_context(), site_instance_));
     // Since we just created the web_contents() pointer with
     // TestWebContents::Create, the static_casts are safe.
-    web_ui_ = std::make_unique<WebUIImpl>(
-        static_cast<TestWebContents*>(web_contents()),
-        static_cast<TestWebContents*>(web_contents())->GetMainFrame());
+    web_ui_ = std::make_unique<WebUIImpl>(web_contents());
+    web_ui_->SetRenderFrameHost(
+        static_cast<TestWebContents*>(web_contents())->GetPrimaryMainFrame());
     web_ui_->SetController(
         std::make_unique<MockWebUIController>(web_ui_.get()));
     process()->Init();
@@ -156,18 +155,10 @@ class WebUIMainFrameObserverTest : public RenderViewHostTestHarness {
   }
 
  protected:
-  base::test::ScopedFeatureList scoped_feature_list_;
   scoped_refptr<SiteInstance> site_instance_;
   std::unique_ptr<WebUIImpl> web_ui_;
   scoped_refptr<FakeJsErrorReportProcessor> processor_;
   scoped_refptr<JsErrorReportProcessor> previous_processor_;
-
-  virtual void SetUpFeatureList() {
-    scoped_feature_list_.InitAndEnableFeatureWithParameters(
-        features::kSendWebUIJavaScriptErrorReports,
-        {{features::kSendWebUIJavaScriptErrorReportsSendToProductionVariation,
-          "true"}});
-  }
 
   static constexpr char kMessage8[] = "An Error Is Me";
   static constexpr char16_t kMessage16[] = u"An Error Is Me";
@@ -182,21 +173,6 @@ class WebUIMainFrameObserverTest : public RenderViewHostTestHarness {
       u"at poorCaller (chrome://page/my.js:50:10)\n";
 };
 
-// Same as WebUIMainFrameObserverTest but with the
-// features::kSendWebUIJavaScriptErrorReports feature disabled.
-class WebUIMainFrameObserverFeatureDisabledTest
-    : public WebUIMainFrameObserverTest {
- public:
-  WebUIMainFrameObserverFeatureDisabledTest() = default;
-  ~WebUIMainFrameObserverFeatureDisabledTest() override = default;
-
- protected:
-  void SetUpFeatureList() override {
-    scoped_feature_list_.InitAndDisableFeature(
-        features::kSendWebUIJavaScriptErrorReports);
-  }
-};
-
 constexpr char WebUIMainFrameObserverTest::kMessage8[];
 constexpr char16_t WebUIMainFrameObserverTest::kMessage16[];
 constexpr char WebUIMainFrameObserverTest::kSourceURL8[];
@@ -207,7 +183,7 @@ constexpr char16_t WebUIMainFrameObserverTest::kStackTrace16[];
 
 TEST_F(WebUIMainFrameObserverTest, ErrorReported) {
   NavigateToPage();
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kError,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
   task_environment()->RunUntilIdle();
@@ -230,7 +206,7 @@ TEST_F(WebUIMainFrameObserverTest, ErrorReported) {
 
 TEST_F(WebUIMainFrameObserverTest, NoStackTrace) {
   NavigateToPage();
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kError,
                                kMessage16, 5, kSourceURL16, absl::nullopt);
   task_environment()->RunUntilIdle();
@@ -240,13 +216,13 @@ TEST_F(WebUIMainFrameObserverTest, NoStackTrace) {
 
 TEST_F(WebUIMainFrameObserverTest, NonErrorsIgnored) {
   NavigateToPage();
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kWarning,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kInfo,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kVerbose,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
   task_environment()->RunUntilIdle();
@@ -256,24 +232,15 @@ TEST_F(WebUIMainFrameObserverTest, NonErrorsIgnored) {
 TEST_F(WebUIMainFrameObserverTest, NoProcessorDoesntCrash) {
   NavigateToPage();
   FakeJsErrorReportProcessor::SetDefault(nullptr);
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kError,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
   task_environment()->RunUntilIdle();
-}
-
-TEST_F(WebUIMainFrameObserverFeatureDisabledTest, NotSentIfFlagDisabled) {
-  NavigateToPage();
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
-                               blink::mojom::ConsoleMessageLevel::kError,
-                               kMessage16, 5, kSourceURL16, kStackTrace16);
-  task_environment()->RunUntilIdle();
-  EXPECT_EQ(processor_->error_report_count(), 0);
 }
 
 TEST_F(WebUIMainFrameObserverTest, NotSentIfInvalidURL) {
   NavigateToPage();
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kError,
                                kMessage16, 5, u"invalid URL", kStackTrace16);
   task_environment()->RunUntilIdle();
@@ -284,7 +251,7 @@ TEST_F(WebUIMainFrameObserverTest, NotSentIfDisabledForPage) {
   static_cast<MockWebUIController*>(web_ui_->GetController())
       ->enable_javascript_error_reporting(false);
   NavigateToPage();
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kError,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
   task_environment()->RunUntilIdle();
@@ -323,7 +290,7 @@ TEST_F(WebUIMainFrameObserverTest, URLPathIsPreservedOtherPartsRemoved) {
 
   for (const URLTest& test : kTests) {
     int previous_count = processor_->error_report_count();
-    CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+    CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                  blink::mojom::ConsoleMessageLevel::kError,
                                  kMessage16, 5, test.input, kStackTrace16);
     task_environment()->RunUntilIdle();
@@ -339,7 +306,7 @@ TEST_F(WebUIMainFrameObserverTest, PageURLAlsoRedacted) {
       "chrome://bookmarks/add?q=chromium#code";
   NavigationSimulator::NavigateAndCommitFromBrowser(
       web_contents(), GURL(kPageWithQueryAndFragment));
-  CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+  CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                blink::mojom::ConsoleMessageLevel::kError,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
   task_environment()->RunUntilIdle();
@@ -351,8 +318,8 @@ TEST_F(WebUIMainFrameObserverTest, ErrorsNotReportedInOtherFrames) {
   NavigateToPage();
   auto another_contents =
       TestWebContents::Create(browser_context(), site_instance_);
-  CHECK(another_contents->GetMainFrame());
-  CallOnDidAddMessageToConsole(another_contents->GetMainFrame(),
+  CHECK(another_contents->GetPrimaryMainFrame());
+  CallOnDidAddMessageToConsole(another_contents->GetPrimaryMainFrame(),
                                blink::mojom::ConsoleMessageLevel::kError,
                                kMessage16, 5, kSourceURL16, kStackTrace16);
   task_environment()->RunUntilIdle();
@@ -369,7 +336,7 @@ TEST_F(WebUIMainFrameObserverTest, ErrorsNotReportedForNonChromeURLs) {
   };
 
   for (const auto* url : kNonChromeSourceURLs) {
-    CallOnDidAddMessageToConsole(web_ui_->frame_host(),
+    CallOnDidAddMessageToConsole(web_ui_->GetRenderFrameHost(),
                                  blink::mojom::ConsoleMessageLevel::kError,
                                  kMessage16, 5, url, kStackTrace16);
     task_environment()->RunUntilIdle();
@@ -379,4 +346,4 @@ TEST_F(WebUIMainFrameObserverTest, ErrorsNotReportedForNonChromeURLs) {
 
 }  // namespace content
 
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)

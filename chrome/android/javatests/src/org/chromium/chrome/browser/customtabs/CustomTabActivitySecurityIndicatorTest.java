@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.BitmapDrawable;
-import android.support.test.InstrumentationRegistry;
 import android.view.View;
 import android.widget.ImageView;
 
 import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.widget.ImageViewCompat;
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 
 import org.junit.After;
@@ -24,15 +25,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.chrome.R;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.content_public.browser.test.util.TestThreadUtils;
@@ -80,7 +80,7 @@ public class CustomTabActivitySecurityIndicatorTest {
         Context context = InstrumentationRegistry.getInstrumentation()
                                   .getTargetContext()
                                   .getApplicationContext();
-        Intent intent = CustomTabsTestUtils.createMinimalCustomTabIntent(context, mTestPage);
+        Intent intent = CustomTabsIntentTestUtils.createMinimalCustomTabIntent(context, mTestPage);
         mCustomTabActivityTestRule.startCustomTabActivityWithIntent(intent);
 
         // Check that tab has loaded the expected URL.
@@ -90,7 +90,7 @@ public class CustomTabActivitySecurityIndicatorTest {
         });
 
         // Test that the security indicator is the lock icon.
-        final int expectedSecurityIcon = org.chromium.chrome.R.drawable.omnibox_https_valid;
+        final int expectedSecurityIcon = R.drawable.omnibox_https_valid;
         ImageView securityButton =
                 mCustomTabActivityTestRule.getActivity().findViewById(R.id.security_button);
         Assert.assertEquals(View.VISIBLE, securityButton.getVisibility());
@@ -101,7 +101,7 @@ public class CustomTabActivitySecurityIndicatorTest {
         ImageView expectedSecurityButton =
                 new ImageView(InstrumentationRegistry.getTargetContext());
         expectedSecurityButton.setImageResource(expectedSecurityIcon);
-        ApiCompatibilityUtils.setImageTintList(expectedSecurityButton, colorStateList);
+        ImageViewCompat.setImageTintList(expectedSecurityButton, colorStateList);
 
         BitmapDrawable expectedDrawable = (BitmapDrawable) expectedSecurityButton.getDrawable();
         BitmapDrawable actualDrawable = (BitmapDrawable) securityButton.getDrawable();
@@ -118,7 +118,7 @@ public class CustomTabActivitySecurityIndicatorTest {
         Context context = InstrumentationRegistry.getInstrumentation()
                                   .getTargetContext()
                                   .getApplicationContext();
-        Intent intent = CustomTabsTestUtils.createMinimalCustomTabIntent(context, mTestPage);
+        Intent intent = CustomTabsIntentTestUtils.createMinimalCustomTabIntent(context, mTestPage);
         mCustomTabActivityTestRule.startCustomTabActivityWithIntent(intent);
 
         // Check that tab has loaded the expected URL.
@@ -128,7 +128,7 @@ public class CustomTabActivitySecurityIndicatorTest {
         });
 
         // Test that the security indicator is the lock icon.
-        final int expectedSecurityIcon = org.chromium.chrome.R.drawable.omnibox_https_valid;
+        final int expectedSecurityIcon = R.drawable.omnibox_https_valid;
         ImageView securityButton =
                 mCustomTabActivityTestRule.getActivity().findViewById(R.id.security_button);
         Assert.assertEquals(View.VISIBLE, securityButton.getVisibility());
@@ -139,7 +139,7 @@ public class CustomTabActivitySecurityIndicatorTest {
         ImageView expectedSecurityButton =
                 new ImageView(InstrumentationRegistry.getTargetContext());
         expectedSecurityButton.setImageResource(expectedSecurityIcon);
-        ApiCompatibilityUtils.setImageTintList(expectedSecurityButton, colorStateList);
+        ImageViewCompat.setImageTintList(expectedSecurityButton, colorStateList);
 
         BitmapDrawable expectedDrawable = (BitmapDrawable) expectedSecurityButton.getDrawable();
         BitmapDrawable actualDrawable = (BitmapDrawable) securityButton.getDrawable();

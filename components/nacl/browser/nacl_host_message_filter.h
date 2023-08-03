@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -78,7 +78,6 @@ class NaClHostMessageFilter : public content::BrowserMessageFilter {
   void OnMissingArchError(int render_view_id);
   void OnOpenNaClExecutable(int render_frame_id,
                             const GURL& file_url,
-                            bool enable_validation_caching,
                             IPC::Message* reply_msg);
   void SyncReturnTemporaryFile(IPC::Message* reply_msg,
                                base::File file);

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,84 +7,151 @@ package org.chromium.chrome.browser.omnibox.styles;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.Drawable.ConstantState;
+import android.util.SparseArray;
 import android.util.TypedValue;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.ColorRes;
 import androidx.annotation.DrawableRes;
-import androidx.core.content.ContextCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.content.res.AppCompatResources;
 
 import com.google.android.material.color.MaterialColors;
 
-import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.chrome.browser.night_mode.NightModeUtils;
+import org.chromium.chrome.browser.omnibox.OmniboxFeatures;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.theme.ThemeUtils;
+import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
+import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.ui.util.ColorUtils;
 
 /** Provides resources specific to Omnibox. */
 public class OmniboxResourceProvider {
     private static final String TAG = "OmniboxResourceProvider";
 
-    /** @return Whether the mode is dark (dark theme or incognito). */
-    public static boolean isDarkMode(@OmniboxTheme int omniboxTheme) {
-        return omniboxTheme == OmniboxTheme.DARK_THEME || omniboxTheme == OmniboxTheme.INCOGNITO;
+    private static SparseArray<ConstantState> sDrawableCache = new SparseArray<>();
+    private static SparseArray<String> sStringCache = new SparseArray<>();
+
+    /**
+     * As {@link androidx.appcompat.content.res.AppCompatResources#getDrawable(Context, int)} but
+     * potentially augmented with caching. If caching is enabled, there is a single, unbounded cache
+     * of ConstantState shared by all contexts.
+     */
+    public static @NonNull Drawable getDrawable(Context context, @DrawableRes int res) {
+        ThreadUtils.assertOnUiThread();
+        boolean cacheResources = OmniboxFeatures.shouldCacheSuggestionResources();
+        ConstantState constantState = cacheResources ? sDrawableCache.get(res, null) : null;
+        if (constantState != null) {
+            return constantState.newDrawable(context.getResources());
+        }
+
+        Drawable drawable = AppCompatResources.getDrawable(context, res);
+        if (cacheResources) {
+            sDrawableCache.put(res, drawable.getConstantState());
+        }
+        return drawable;
     }
 
     /**
-     * Returns a drawable for a given attribute depending on a {@link OmniboxTheme}
+     * As {@link android.content.res.Resources#getString(int, Object...)} but potentially augmented
+     * with caching. If caching is enabled, there is a single, unbounded string cache shared by all
+     * contexts. When dealing with strings with format params, the raw string is cached and
+     * formatted on demand using the default locale.
+     */
+    public static @NonNull String getString(Context context, @StringRes int res, Object... args) {
+        ThreadUtils.assertOnUiThread();
+        boolean cacheResources = OmniboxFeatures.shouldCacheSuggestionResources();
+        String string = cacheResources ? sStringCache.get(res, null) : null;
+        if (string == null) {
+            string = context.getResources().getString(res);
+            if (cacheResources) {
+                sStringCache.put(res, string);
+            }
+        }
+
+        return args.length == 0
+                ? string
+                : String.format(context.getResources().getConfiguration().getLocales().get(0),
+                        string, args);
+    }
+
+    /**
+     * Clears the drawable cache to avoid, e.g. caching a now incorrectly colored drawable
+     * resource.
+     */
+    public static void invalidateDrawableCache() {
+        sDrawableCache.clear();
+    }
+
+    @VisibleForTesting
+    public static SparseArray<ConstantState> getDrawableCacheForTesting() {
+        return sDrawableCache;
+    }
+
+    @VisibleForTesting
+    public static SparseArray<String> getStringCacheForTesting() {
+        return sStringCache;
+    }
+
+    /**
+     * Returns a drawable for a given attribute depending on a {@link BrandedColorScheme}
      *
      * @param context The {@link Context} used to retrieve resources.
-     * @param omniboxTheme {@link OmniboxTheme} to use.
+     * @param brandedColorScheme {@link BrandedColorScheme} to use.
      * @param attributeResId A resource ID of an attribute to resolve.
      * @return A background drawable resource ID providing ripple effect.
      */
     public static Drawable resolveAttributeToDrawable(
-            Context context, @OmniboxTheme int omniboxTheme, int attributeResId) {
-        Context wrappedContext = maybeWrapContext(context, omniboxTheme);
+            Context context, @BrandedColorScheme int brandedColorScheme, int attributeResId) {
+        Context wrappedContext = maybeWrapContext(context, brandedColorScheme);
         @DrawableRes
         int resourceId = resolveAttributeToDrawableRes(wrappedContext, attributeResId);
-        return ContextCompat.getDrawable(wrappedContext, resourceId);
+        return getDrawable(wrappedContext, resourceId);
     }
 
     /**
-     * Returns the OmniboxTheme based on the incognito state and the background color.
+     * Returns the ColorScheme based on the incognito state and the background color.
      *
      * @param context The {@link Context}.
      * @param isIncognito Whether incognito mode is enabled.
      * @param primaryBackgroundColor The primary background color of the omnibox.
-     * @return The {@link OmniboxTheme}.
+     * @return The {@link BrandedColorScheme}.
      */
-    public static @OmniboxTheme int getOmniboxTheme(
+    public static @BrandedColorScheme int getBrandedColorScheme(
             Context context, boolean isIncognito, @ColorInt int primaryBackgroundColor) {
-        if (isIncognito) return OmniboxTheme.INCOGNITO;
+        if (isIncognito) return BrandedColorScheme.INCOGNITO;
 
         if (ThemeUtils.isUsingDefaultToolbarColor(context, isIncognito, primaryBackgroundColor)) {
-            return OmniboxTheme.DEFAULT;
+            return BrandedColorScheme.APP_DEFAULT;
         }
 
         return ColorUtils.shouldUseLightForegroundOnBackground(primaryBackgroundColor)
-                ? OmniboxTheme.DARK_THEME
-                : OmniboxTheme.LIGHT_THEME;
+                ? BrandedColorScheme.DARK_BRANDED_THEME
+                : BrandedColorScheme.LIGHT_BRANDED_THEME;
     }
 
     /**
      * Returns the primary text color for the url bar.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return Primary url bar text color.
      */
     public static @ColorInt int getUrlBarPrimaryTextColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         final Resources resources = context.getResources();
         @ColorInt
         int color;
-        if (omniboxTheme == OmniboxTheme.LIGHT_THEME) {
+        if (brandedColorScheme == BrandedColorScheme.LIGHT_BRANDED_THEME) {
             color = resources.getColor(R.color.branded_url_text_on_light_bg);
-        } else if (omniboxTheme == OmniboxTheme.DARK_THEME) {
+        } else if (brandedColorScheme == BrandedColorScheme.DARK_BRANDED_THEME) {
             color = resources.getColor(R.color.branded_url_text_on_dark_bg);
-        } else if (omniboxTheme == OmniboxTheme.INCOGNITO) {
+        } else if (brandedColorScheme == BrandedColorScheme.INCOGNITO) {
             color = resources.getColor(R.color.url_bar_primary_text_incognito);
         } else {
             color = MaterialColors.getColor(context, R.attr.colorOnSurface, TAG);
@@ -96,19 +163,19 @@ public class OmniboxResourceProvider {
      * Returns the secondary text color for the url bar.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return Secondary url bar text color.
      */
     public static @ColorInt int getUrlBarSecondaryTextColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         final Resources resources = context.getResources();
         @ColorInt
         int color;
-        if (omniboxTheme == OmniboxTheme.LIGHT_THEME) {
+        if (brandedColorScheme == BrandedColorScheme.LIGHT_BRANDED_THEME) {
             color = resources.getColor(R.color.branded_url_text_variant_on_light_bg);
-        } else if (omniboxTheme == OmniboxTheme.DARK_THEME) {
+        } else if (brandedColorScheme == BrandedColorScheme.DARK_BRANDED_THEME) {
             color = resources.getColor(R.color.branded_url_text_variant_on_dark_bg);
-        } else if (omniboxTheme == OmniboxTheme.INCOGNITO) {
+        } else if (brandedColorScheme == BrandedColorScheme.INCOGNITO) {
             color = resources.getColor(R.color.url_bar_secondary_text_incognito);
         } else {
             color = MaterialColors.getColor(context, R.attr.colorOnSurfaceVariant, TAG);
@@ -120,29 +187,30 @@ public class OmniboxResourceProvider {
      * Returns the hint text color for the url bar.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return The url bar hint text color.
      */
     public static @ColorInt int getUrlBarHintTextColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
-        return getUrlBarSecondaryTextColor(context, omniboxTheme);
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        return getUrlBarSecondaryTextColor(context, brandedColorScheme);
     }
 
     /**
      * Returns the danger semantic color.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return The danger semantic color to be used on the url bar.
      */
     public static @ColorInt int getUrlBarDangerColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         // Danger color has semantic meaning and it doesn't change with dynamic colors.
         @ColorRes
         int colorId = R.color.default_red;
-        if (omniboxTheme == OmniboxTheme.DARK_THEME || omniboxTheme == OmniboxTheme.INCOGNITO) {
+        if (brandedColorScheme == BrandedColorScheme.DARK_BRANDED_THEME
+                || brandedColorScheme == BrandedColorScheme.INCOGNITO) {
             colorId = R.color.default_red_light;
-        } else if (omniboxTheme == OmniboxTheme.LIGHT_THEME) {
+        } else if (brandedColorScheme == BrandedColorScheme.LIGHT_BRANDED_THEME) {
             colorId = R.color.default_red_dark;
         }
         return context.getResources().getColor(colorId);
@@ -152,17 +220,18 @@ public class OmniboxResourceProvider {
      * Returns the secure semantic color.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return The secure semantic color to be used on the url bar.
      */
     public static @ColorInt int getUrlBarSecureColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         // Secure color has semantic meaning and it doesn't change with dynamic colors.
         @ColorRes
         int colorId = R.color.default_green;
-        if (omniboxTheme == OmniboxTheme.DARK_THEME || omniboxTheme == OmniboxTheme.INCOGNITO) {
+        if (brandedColorScheme == BrandedColorScheme.DARK_BRANDED_THEME
+                || brandedColorScheme == BrandedColorScheme.INCOGNITO) {
             colorId = R.color.default_green_light;
-        } else if (omniboxTheme == OmniboxTheme.LIGHT_THEME) {
+        } else if (brandedColorScheme == BrandedColorScheme.LIGHT_BRANDED_THEME) {
             colorId = R.color.default_green_dark;
         }
         return context.getResources().getColor(colorId);
@@ -172,16 +241,15 @@ public class OmniboxResourceProvider {
      * Returns the primary text color for the suggestions.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return Primary suggestion text color.
      */
     public static @ColorInt int getSuggestionPrimaryTextColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         // Suggestions are only shown when the omnibox is focused, hence LIGHT_THEME and DARK_THEME
         // are ignored as they don't change the result.
-        return omniboxTheme == OmniboxTheme.INCOGNITO
-                ? ApiCompatibilityUtils.getColor(
-                        context.getResources(), R.color.default_text_color_light)
+        return brandedColorScheme == BrandedColorScheme.INCOGNITO
+                ? context.getColor(R.color.default_text_color_light)
                 : MaterialColors.getColor(context, R.attr.colorOnSurface, TAG);
     }
 
@@ -189,16 +257,15 @@ public class OmniboxResourceProvider {
      * Returns the secondary text color for the suggestions.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return Secondary suggestion text color.
      */
     public static @ColorInt int getSuggestionSecondaryTextColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         // Suggestions are only shown when the omnibox is focused, hence LIGHT_THEME and DARK_THEME
         // are ignored as they don't change the result.
-        return omniboxTheme == OmniboxTheme.INCOGNITO
-                ? ApiCompatibilityUtils.getColor(
-                        context.getResources(), R.color.default_text_color_secondary_light)
+        return brandedColorScheme == BrandedColorScheme.INCOGNITO
+                ? context.getColor(R.color.default_text_color_secondary_light)
                 : MaterialColors.getColor(context, R.attr.colorOnSurfaceVariant, TAG);
     }
 
@@ -206,29 +273,93 @@ public class OmniboxResourceProvider {
      * Returns the URL text color for the suggestions.
      *
      * @param context The context to retrieve the resources from.
-     * @param omniboxTheme The {@link OmniboxTheme}.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
      * @return URL suggestion text color.
      */
     public static @ColorInt int getSuggestionUrlTextColor(
-            Context context, @OmniboxTheme int omniboxTheme) {
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         // Suggestions are only shown when the omnibox is focused, hence LIGHT_THEME and DARK_THEME
         // are ignored as they don't change the result.
-        final @ColorRes int colorId = omniboxTheme == OmniboxTheme.INCOGNITO
-                ? R.color.suggestion_url_color_incognito
-                : R.color.suggestion_url_color;
-        return ApiCompatibilityUtils.getColor(context.getResources(), colorId);
+        final @ColorInt int color = brandedColorScheme == BrandedColorScheme.INCOGNITO
+                ? context.getColor(R.color.suggestion_url_color_incognito)
+                : SemanticColorUtils.getDefaultTextColorLink(context);
+        return color;
+    }
+
+    /**
+     * Returns the separator line color for the status view.
+     *
+     * @param context The context to retrieve the resources from.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
+     * @return Status view separator color.
+     */
+    public static @ColorInt int getStatusSeparatorColor(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        if (brandedColorScheme == BrandedColorScheme.LIGHT_BRANDED_THEME) {
+            return context.getColor(R.color.locationbar_status_separator_color_dark);
+        }
+        if (brandedColorScheme == BrandedColorScheme.DARK_BRANDED_THEME) {
+            return context.getColor(R.color.locationbar_status_separator_color_light);
+        }
+        if (brandedColorScheme == BrandedColorScheme.INCOGNITO) {
+            return context.getColor(R.color.locationbar_status_separator_color_incognito);
+        }
+        return MaterialColors.getColor(context, R.attr.colorOutline, TAG);
+    }
+
+    /**
+     * Returns the preview text color for the status view.
+     *
+     * @param context The context to retrieve the resources from.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
+     * @return Status view preview text color.
+     */
+    public static @ColorInt int getStatusPreviewTextColor(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        if (brandedColorScheme == BrandedColorScheme.LIGHT_BRANDED_THEME) {
+            return context.getColor(R.color.locationbar_status_preview_color_dark);
+        }
+        if (brandedColorScheme == BrandedColorScheme.DARK_BRANDED_THEME) {
+            return context.getColor(R.color.locationbar_status_preview_color_light);
+        }
+        if (brandedColorScheme == BrandedColorScheme.INCOGNITO) {
+            return context.getColor(R.color.locationbar_status_preview_color_incognito);
+        }
+        return MaterialColors.getColor(context, R.attr.colorPrimary, TAG);
+    }
+
+    /**
+     * Returns the offline text color for the status view.
+     *
+     * @param context The context to retrieve the resources from.
+     * @param brandedColorScheme The {@link BrandedColorScheme}.
+     * @return Status view offline text color.
+     */
+    public static @ColorInt int getStatusOfflineTextColor(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
+        if (brandedColorScheme == BrandedColorScheme.LIGHT_BRANDED_THEME) {
+            return context.getColor(R.color.locationbar_status_offline_color_dark);
+        }
+        if (brandedColorScheme == BrandedColorScheme.DARK_BRANDED_THEME) {
+            return context.getColor(R.color.locationbar_status_offline_color_light);
+        }
+        if (brandedColorScheme == BrandedColorScheme.INCOGNITO) {
+            return context.getColor(R.color.locationbar_status_offline_color_incognito);
+        }
+        return context.getColor(R.color.default_text_color_secondary_list);
     }
 
     /**
      * Wraps the context if necessary to force dark resources for incognito.
      *
      * @param context The {@link Context} to be wrapped.
-     * @param omniboxTheme Current omnibox theme.
-     * @return Context with resources appropriate to the {@link OmniboxTheme}.
+     * @param brandedColorScheme Current color scheme.
+     * @return Context with resources appropriate to the {@link BrandedColorScheme}.
      */
-    private static Context maybeWrapContext(Context context, @OmniboxTheme int omniboxTheme) {
+    private static Context maybeWrapContext(
+            Context context, @BrandedColorScheme int brandedColorScheme) {
         // Only wraps the context in case of incognito.
-        if (omniboxTheme == OmniboxTheme.INCOGNITO) {
+        if (brandedColorScheme == BrandedColorScheme.INCOGNITO) {
             return NightModeUtils.wrapContextWithNightModeConfig(
                     context, R.style.Theme_Chromium_TabbedMode, /*nightMode=*/true);
         }

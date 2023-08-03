@@ -1,4 +1,4 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,19 +21,8 @@ class SyncSetupInProgressHandle;
 // to allow the complex sync setup flow on iOS.
 class SyncSetupService : public KeyedService {
  public:
-  using SyncServiceState = enum {
-    kNoSyncServiceError,
-    kSyncServiceSignInNeedsUpdate,
-    kSyncServiceCouldNotConnect,
-    kSyncServiceServiceUnavailable,
-    kSyncServiceNeedsPassphrase,
-    kSyncServiceNeedsTrustedVaultKey,
-    kSyncServiceTrustedVaultRecoverabilityDegraded,
-    kSyncServiceUnrecoverableError,
-    kLastSyncServiceError = kSyncServiceUnrecoverableError
-  };
-
   // The set of user-selectable datatypes handled by Chrome for iOS.
+  // TODO(crbug.com/1067280): Use syncer::UserSelectableType instead.
   using SyncableDatatype = enum {
     kSyncBookmarks,
     kSyncOmniboxHistory,
@@ -52,17 +41,16 @@ class SyncSetupService : public KeyedService {
 
   ~SyncSetupService() override;
 
-  // Returns the |syncer::ModelType| associated to the given
-  // |SyncableDatatypes|.
-  syncer::ModelType GetModelType(SyncableDatatype datatype);
+  // Returns the `syncer::ModelType` associated to the given
+  // `SyncableDatatypes`.
+  static syncer::ModelType GetModelType(SyncableDatatype datatype);
 
   // Returns whether the user wants Sync to run.
+  // TODO(crbug.com/1291953): Callers should typically use CanSyncFeatureStart()
+  // or IsSyncFeatureEnabled() instead.
   virtual bool IsSyncRequested() const;
   // Returns whether Sync-the-transport can start the Sync feature.
   virtual bool CanSyncFeatureStart() const;
-  // Enables or disables sync. Changes won't take effect in the sync backend
-  // before the next call to |CommitChanges|.
-  virtual void SetSyncEnabled(bool sync_enabled);
 
   // Returns all currently enabled datatypes.
   syncer::ModelTypeSet GetPreferredDataTypes() const;
@@ -73,9 +61,9 @@ class SyncSetupService : public KeyedService {
   // Returns whether the given datatype is enabled by the user.
   virtual bool IsDataTypePreferred(syncer::ModelType datatype) const;
   // Enables or disables the given datatype. To be noted: this can be called at
-  // any time, but will only be meaningful if |CanSyncFeatureStart| is true and
-  // |IsSyncingAllDataTypes| is false. Changes won't take effect in the sync
-  // backend before the next call to |CommitChanges|.
+  // any time, but will only be meaningful if `CanSyncFeatureStart` is true and
+  // `IsSyncingAllDataTypes` is false. Changes won't take effect in the sync
+  // backend before the next call to `CommitChanges`.
   void SetDataTypeEnabled(syncer::ModelType datatype, bool enabled);
 
   // Returns whether the user needs to enter a passphrase or enable sync to make
@@ -85,21 +73,11 @@ class SyncSetupService : public KeyedService {
   // Returns whether all datatypes are being synced.
   virtual bool IsSyncingAllDataTypes() const;
   // Sets whether all datatypes should be synced or not. Changes won't take
-  // effect before the next call to |CommitChanges|.
+  // effect before the next call to `CommitChanges`.
   virtual void SetSyncingAllDataTypes(bool sync_all);
-
-  // Returns the current sync service state.
-  virtual SyncServiceState GetSyncServiceState();
 
   // Returns whether all sync data is being encrypted.
   virtual bool IsEncryptEverythingEnabled() const;
-
-  // Returns true if the user has gone through the initial sync configuration.
-  // This method is guaranteed not to start the sync backend so it can be
-  // called at start-up.
-  // TODO(crbug.com/951313): This method has to be remove when UnifiedConsent
-  // flag is cleaned up.
-  virtual bool HasFinishedInitialSetup();
 
   // Pauses sync allowing the user to configure what data to sync before
   // actually starting to sync data with the server.
@@ -113,21 +91,15 @@ class SyncSetupService : public KeyedService {
       syncer::SyncFirstSetupCompleteSource source);
 
   // Returns true if the user finished the Sync setup flow.
-  bool IsFirstSetupComplete() const;
+  virtual bool IsFirstSetupComplete() const;
 
   // Commits all the pending configuration changes to Sync.
-  // This method should only be used with UnifiedConsent flag.
   void CommitSyncChanges();
 
-  // Returns true if there are uncommitted sync changes;
+  // Returns true if there are uncommitted sync changes.
   bool HasUncommittedChanges();
 
  private:
-  // Enables or disables sync. Changes won't take effect in the sync backend
-  // before the next call to |CommitChanges|. No changes are made to the
-  // currently selected datatypes.
-  void SetSyncEnabledWithoutChangingDatatypes(bool sync_enabled);
-
   syncer::SyncService* const sync_service_;
 
   // Prevents Sync from running until configuration is complete.

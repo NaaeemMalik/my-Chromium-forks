@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #import "ios/chrome/common/credential_provider/credential_store.h"
 #import "ios/chrome/credential_provider_extension/ui/credential_list_consumer.h"
 #import "ios/chrome/credential_provider_extension/ui/credential_list_ui_handler.h"
+#import "ios/chrome/credential_provider_extension/ui/credential_response_handler.h"
 #import "ios/chrome/credential_provider_extension/ui/feature_flags.h"
 #import "ios/chrome/credential_provider_extension/ui/ui_util.h"
 
@@ -31,14 +32,15 @@
 @property(nonatomic, strong)
     NSArray<ASCredentialServiceIdentifier*>* serviceIdentifiers;
 
-// The extension context in which the credential list was started.
-@property(nonatomic, weak) ASCredentialProviderExtensionContext* context;
-
 // List of suggested credentials.
 @property(nonatomic, copy) NSArray<id<Credential>>* suggestedCredentials;
 
 // List of all credentials.
 @property(nonatomic, copy) NSArray<id<Credential>>* allCredentials;
+
+// The response handler for any credential actions.
+@property(nonatomic, weak) id<CredentialResponseHandler>
+    credentialResponseHandler;
 
 @end
 
@@ -47,9 +49,10 @@
 - (instancetype)initWithConsumer:(id<CredentialListConsumer>)consumer
                        UIHandler:(id<CredentialListUIHandler>)UIHandler
                  credentialStore:(id<CredentialStore>)credentialStore
-                         context:(ASCredentialProviderExtensionContext*)context
               serviceIdentifiers:
-                  (NSArray<ASCredentialServiceIdentifier*>*)serviceIdentifiers {
+                  (NSArray<ASCredentialServiceIdentifier*>*)serviceIdentifiers
+       credentialResponseHandler:
+           (id<CredentialResponseHandler>)credentialResponseHandler {
   self = [super init];
   if (self) {
     _serviceIdentifiers = serviceIdentifiers ?: @[];
@@ -57,20 +60,14 @@
     _consumer = consumer;
     _consumer.delegate = self;
     _credentialStore = credentialStore;
-    _context = context;
+    _credentialResponseHandler = credentialResponseHandler;
   }
   return self;
 }
 
 - (void)fetchCredentials {
-  if (IsPasswordCreationEnabled()) {
-    [self.consumer
-        setTopPrompt:PromptForServiceIdentifiers(self.serviceIdentifiers)];
-  } else {
-    NSString* identifier = self.serviceIdentifiers.firstObject.identifier;
-    NSURL* promptURL = identifier ? [NSURL URLWithString:identifier] : nil;
-    [self.consumer setTopPrompt:promptURL.host];
-  }
+  [self.consumer
+      setTopPrompt:PromptForServiceIdentifiers(self.serviceIdentifiers)];
 
   dispatch_queue_t priorityQueue =
       dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0ul);
@@ -102,8 +99,10 @@
     self.suggestedCredentials = suggestions;
 
     dispatch_async(dispatch_get_main_queue(), ^{
+      // TODO(crbug.com/1297158): Remove the serviceIdentifier check once the
+      // new password screen properly supports user url entry.
       BOOL canCreatePassword =
-          IsPasswordCreationEnabled() && IsPasswordCreationUserRestricted();
+          IsPasswordCreationUserEnabled() && self.serviceIdentifiers.count > 0;
       if (!canCreatePassword && !self.allCredentials.count) {
         [self.UIHandler showEmptyCredentials];
         return;
@@ -119,11 +118,8 @@
 #pragma mark - CredentialListHandler
 
 - (void)navigationCancelButtonWasPressed:(UIButton*)button {
-  NSError* error =
-      [[NSError alloc] initWithDomain:ASExtensionErrorDomain
-                                 code:ASExtensionErrorCodeUserCanceled
-                             userInfo:nil];
-  [self.context cancelRequestWithError:error];
+  [self.credentialResponseHandler
+      userCancelledRequestWithErrorCode:ASExtensionErrorCodeUserCanceled];
 }
 
 - (void)userSelectedCredential:(id<Credential>)credential {
@@ -131,8 +127,11 @@
 }
 
 - (void)updateResultsWithFilter:(NSString*)filter {
-  BOOL showNewPasswordOption = !filter.length && IsPasswordCreationEnabled() &&
-                               IsPasswordCreationUserRestricted();
+  // TODO(crbug.com/1297158): Remove the serviceIdentifier check once the
+  // new password screen properly supports user url entry.
+  BOOL showNewPasswordOption = !filter.length &&
+                               IsPasswordCreationUserEnabled() &&
+                               self.serviceIdentifiers.count > 0;
   if (!filter.length) {
     [self.consumer presentSuggestedPasswords:self.suggestedCredentials
                                 allPasswords:self.allCredentials

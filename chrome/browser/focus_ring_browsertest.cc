@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,24 +32,20 @@
 // 6. Save the image into your chromium checkout in
 //    chrome/test/data/focus_rings.
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 // Mac has subtle rendering differences between different versions of MacOS, so
 // we account for them with these fuzzy pixel comparators. These two comparators
 // are used in different tests in order to keep the matching somewhat strict.
-const cc::FuzzyPixelComparator mac_strict_comparator(
-    /* discard_alpha */ true,
-    /* error_pixels_percentage_limit */ 3.f,
-    /* small_error_pixels_percentage_limit */ 0.f,
-    /* avg_abs_error_limit */ 20.f,
-    /* max_abs_error_limit */ 49.f,
-    /* small_error_threshold */ 0);
-const cc::FuzzyPixelComparator mac_loose_comparator(
-    /* discard_alpha */ true,
-    /* error_pixels_percentage_limit */ 8.7f,
-    /* small_error_pixels_percentage_limit */ 0.f,
-    /* avg_abs_error_limit */ 20.f,
-    /* max_abs_error_limit */ 43.f,
-    /* small_error_threshold */ 0);
+const auto mac_strict_comparator = cc::FuzzyPixelComparator()
+                                       .DiscardAlpha()
+                                       .SetErrorPixelsPercentageLimit(3.f)
+                                       .SetAvgAbsErrorLimit(20.f)
+                                       .SetAbsErrorLimit(49);
+const auto mac_loose_comparator = cc::FuzzyPixelComparator()
+                                      .DiscardAlpha()
+                                      .SetErrorPixelsPercentageLimit(8.7f)
+                                      .SetAvgAbsErrorLimit(20.f)
+                                      .SetAbsErrorLimit(43);
 #endif
 
 class FocusRingBrowserTest : public InProcessBrowserTest {
@@ -66,6 +62,9 @@ class FocusRingBrowserTest : public InProcessBrowserTest {
 
     // This is required to allow dark mode to be used on some platforms.
     command_line->AppendSwitch(switches::kForceDarkMode);
+
+    // Force the CPU backend to use AAA. (https://crbug.com/1421297)
+    command_line->AppendSwitch(switches::kForceSkiaAnalyticAntialiasing);
   }
 
   void RunTest(const std::string& screenshot_filename,
@@ -79,11 +78,11 @@ class FocusRingBrowserTest : public InProcessBrowserTest {
     ASSERT_TRUE(base::PathService::Get(chrome::DIR_TEST_DATA, &dir_test_data));
 
     std::string platform_suffix;
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
     platform_suffix = "_mac";
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
     platform_suffix = "_win";
-#elif defined(OS_LINUX)
+#elif BUILDFLAG(IS_LINUX)
     platform_suffix = "_linux";
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
     platform_suffix = "_chromeos";
@@ -112,16 +111,16 @@ class FocusRingBrowserTest : public InProcessBrowserTest {
 };
 
 // TODO(crbug.com/1222757): Flaky on Mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_Checkbox DISABLED_Checkbox
 #else
 #define MAYBE_Checkbox Checkbox
 #endif
 IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Checkbox) {
-#if defined(OS_MAC)
-  cc::FuzzyPixelComparator comparator = mac_strict_comparator;
+#if BUILDFLAG(IS_MAC)
+  auto comparator = mac_strict_comparator;
 #else
-  cc::ExactPixelComparator comparator(/*discard_alpha=*/true);
+  cc::AlphaDiscardingExactPixelComparator comparator;
 #endif
   RunTest("focus_ring_browsertest_checkbox",
           "<input type=checkbox autofocus>"
@@ -131,16 +130,16 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Checkbox) {
 }
 
 // TODO(crbug.com/1222757): Flaky on Mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_Radio DISABLED_Radio
 #else
 #define MAYBE_Radio Radio
 #endif
 IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Radio) {
-#if defined(OS_MAC)
-  cc::FuzzyPixelComparator comparator = mac_loose_comparator;
+#if BUILDFLAG(IS_MAC)
+  auto comparator = mac_loose_comparator;
 #else
-  cc::ExactPixelComparator comparator(/*discard_alpha=*/true);
+  cc::AlphaDiscardingExactPixelComparator comparator;
 #endif
   RunTest("focus_ring_browsertest_radio",
           "<input type=radio autofocus>"
@@ -150,16 +149,16 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Radio) {
 }
 
 // TODO(crbug.com/1222757): Flaky on Mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_Button DISABLED_Button
 #else
 #define MAYBE_Button Button
 #endif
 IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Button) {
-#if defined(OS_MAC)
-  cc::FuzzyPixelComparator comparator = mac_strict_comparator;
+#if BUILDFLAG(IS_MAC)
+  auto comparator = mac_strict_comparator;
 #else
-  cc::ExactPixelComparator comparator(/*discard_alpha=*/true);
+  cc::AlphaDiscardingExactPixelComparator comparator;
 #endif
   RunTest("focus_ring_browsertest_button",
           "<button autofocus style=\"width:40px;height:20px;\"></button>"
@@ -171,16 +170,16 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Button) {
 }
 
 // TODO(crbug.com/1222757): Flaky on Mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_Anchor DISABLED_Anchor
 #else
 #define MAYBE_Anchor Anchor
 #endif
 IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Anchor) {
-#if defined(OS_MAC)
-  cc::FuzzyPixelComparator comparator = mac_strict_comparator;
+#if BUILDFLAG(IS_MAC)
+  auto comparator = mac_strict_comparator;
 #else
-  cc::ExactPixelComparator comparator(/*discard_alpha=*/true);
+  cc::AlphaDiscardingExactPixelComparator comparator;
 #endif
   RunTest("focus_ring_browsertest_anchor",
           "<div style='text-align: center; width: 80px;'>"
@@ -195,18 +194,18 @@ IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_Anchor) {
 }
 
 // TODO(crbug.com/1222757): Flaky on Mac.
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #define MAYBE_DarkModeButton DISABLED_DarkModeButton
 #else
 #define MAYBE_DarkModeButton DarkModeButton
 #endif
 IN_PROC_BROWSER_TEST_F(FocusRingBrowserTest, MAYBE_DarkModeButton) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   if (!MacOSVersionSupportsDarkMode())
     return;
-  cc::FuzzyPixelComparator comparator = mac_strict_comparator;
+  auto comparator = mac_strict_comparator;
 #else
-  cc::ExactPixelComparator comparator(/*discard_alpha=*/true);
+  cc::AlphaDiscardingExactPixelComparator comparator;
 #endif
   RunTest("focus_ring_browsertest_dark_mode_button",
           "<meta name=\"color-scheme\" content=\"dark\">"

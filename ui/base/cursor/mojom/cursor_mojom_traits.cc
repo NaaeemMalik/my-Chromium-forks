@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,36 @@
 #include "ui/gfx/geometry/point.h"
 
 namespace mojo {
+
+// static
+SkBitmap StructTraits<ui::mojom::CursorDataView, ui::Cursor>::bitmap(
+    const ui::Cursor& c) {
+  if (c.type() != ui::mojom::CursorType::kCustom) {
+    return SkBitmap();
+  }
+
+  return c.custom_bitmap();
+}
+
+// static
+gfx::Point StructTraits<ui::mojom::CursorDataView, ui::Cursor>::hotspot(
+    const ui::Cursor& c) {
+  if (c.type() != ui::mojom::CursorType::kCustom) {
+    return gfx::Point();
+  }
+
+  return c.custom_hotspot();
+}
+
+// static
+float StructTraits<ui::mojom::CursorDataView, ui::Cursor>::image_scale_factor(
+    const ui::Cursor& c) {
+  if (c.type() != ui::mojom::CursorType::kCustom) {
+    return 1.0f;
+  }
+
+  return c.image_scale_factor();
+}
 
 // static
 bool StructTraits<ui::mojom::CursorDataView, ui::Cursor>::Read(
@@ -30,10 +60,8 @@ bool StructTraits<ui::mojom::CursorDataView, ui::Cursor>::Read(
   if (!data.ReadHotspot(&hotspot) || !data.ReadBitmap(&bitmap))
     return false;
 
-  *out = ui::Cursor(type);
-  out->set_custom_bitmap(bitmap);
-  out->set_custom_hotspot(hotspot);
-  out->set_image_scale_factor(data.image_scale_factor());
+  *out = ui::Cursor::NewCustom(std::move(bitmap), std::move(hotspot),
+                               data.image_scale_factor());
   return true;
 }
 

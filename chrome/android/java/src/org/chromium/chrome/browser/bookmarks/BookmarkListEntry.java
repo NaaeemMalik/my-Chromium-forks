@@ -1,17 +1,16 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.bookmarks;
 
-import android.content.Context;
-
+import androidx.annotation.DimenRes;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
-import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
-import org.chromium.chrome.browser.power_bookmarks.PowerBookmarkMeta;
-import org.chromium.chrome.browser.power_bookmarks.PowerBookmarkType;
+import org.chromium.components.bookmarks.BookmarkItem;
+import org.chromium.components.power_bookmarks.PowerBookmarkMeta;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -21,15 +20,16 @@ import javax.annotation.Nonnull;
 /**
  * Represents different type of views in the bookmark UI.
  */
-final class BookmarkListEntry {
+public final class BookmarkListEntry {
     /**
      * Specifies the view types that the bookmark delegate screen can contain.
      */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({ViewType.INVALID, ViewType.PERSONALIZED_SIGNIN_PROMO, ViewType.PERSONALIZED_SYNC_PROMO,
             ViewType.SYNC_PROMO, ViewType.FOLDER, ViewType.BOOKMARK, ViewType.DIVIDER,
-            ViewType.SECTION_HEADER, ViewType.SHOPPING_POWER_BOOKMARK, ViewType.TAG_CHIP_LIST})
-    @interface ViewType {
+            ViewType.SECTION_HEADER, ViewType.SHOPPING_POWER_BOOKMARK, ViewType.TAG_CHIP_LIST,
+            ViewType.SHOPPING_FILTER})
+    public @interface ViewType {
         int INVALID = -1;
         int PERSONALIZED_SIGNIN_PROMO = 0;
         int PERSONALIZED_SYNC_PROMO = 1;
@@ -43,19 +43,13 @@ final class BookmarkListEntry {
         int SHOPPING_FILTER = 9;
     }
 
-    /**
-     * Contains data used by section header in bookmark UI.
-     */
+    /** Contains data used by section header in bookmark UI. */
     static final class SectionHeaderData {
-        public final CharSequence headerTitle;
-        public final CharSequence headerDescription;
-        public final int topPadding;
-
-        SectionHeaderData(
-                @Nullable CharSequence title, @Nullable CharSequence description, int topPadding) {
-            headerTitle = title;
-            headerDescription = description;
-            this.topPadding = topPadding;
+        public final @StringRes int titleRes;
+        public final @DimenRes int topPaddingRes;
+        SectionHeaderData(@StringRes int titleRes, @DimenRes int topPaddingRes) {
+            this.titleRes = titleRes;
+            this.topPaddingRes = topPaddingRes;
         }
     }
 
@@ -80,7 +74,7 @@ final class BookmarkListEntry {
             @Nonnull BookmarkItem bookmarkItem, @Nullable PowerBookmarkMeta meta) {
         @ViewType
         int viewType = bookmarkItem.isFolder() ? ViewType.FOLDER : ViewType.BOOKMARK;
-        if (meta != null && meta.getType() == PowerBookmarkType.SHOPPING) {
+        if (meta != null && meta.hasShoppingSpecifics()) {
             viewType = ViewType.SHOPPING_POWER_BOOKMARK;
         }
 
@@ -114,26 +108,13 @@ final class BookmarkListEntry {
     }
 
     /**
-     * Helper function that returns whether the view type represents a bookmark or bookmark folder.
-     * Returns false for other view holder types like divider, promo headers, etc.
-     * @param viewType The type of the view in the bookmark list UI.
-     */
-    static boolean isBookmarkEntry(@ViewType int viewType) {
-        return viewType == ViewType.BOOKMARK || viewType == ViewType.FOLDER
-                || viewType == ViewType.SHOPPING_POWER_BOOKMARK;
-    }
-
-    /**
      * Create an entry representing the reading list read/unread section header.
-     * @param title The title of the section header.
-     * @param description The description of the section header.
-     * @param topPadding The top padding of the section header. Only impacts the padding when
-     *         greater than 0.
-     * @param context The context to use.
+     * @param titleRes The resource id for the title of the section header.
+     * @param topPaddingRes The resource for the top padding of the section header. Ignored if 0.
      */
     static BookmarkListEntry createSectionHeader(
-            CharSequence title, CharSequence description, int topPadding, Context context) {
-        SectionHeaderData sectionHeaderData = new SectionHeaderData(title, description, topPadding);
+            @StringRes int titleRes, @DimenRes int topPaddingRes) {
+        SectionHeaderData sectionHeaderData = new SectionHeaderData(titleRes, topPaddingRes);
         return new BookmarkListEntry(ViewType.SECTION_HEADER, null, sectionHeaderData);
     }
 
@@ -153,31 +134,11 @@ final class BookmarkListEntry {
         return mBookmarkItem;
     }
 
-    /** @return The title text to be shown if it is a section header. */
-    @Nullable
-    CharSequence getHeaderTitle() {
-        return mSectionHeaderData.headerTitle;
-    }
-
-    /** @return The description text to be shown if it is a section header. */
-    @Nullable
-    CharSequence getHeaderDescription() {
-        return mSectionHeaderData.headerDescription;
-    }
-
     /**
      * @return The {@link SectionHeaderData}. Could be null if this entry is not a section header.
      */
     @Nullable
     SectionHeaderData getSectionHeaderData() {
         return mSectionHeaderData;
-    }
-
-    /**
-     * Creates a chip list.
-     */
-    static BookmarkListEntry createChipList() {
-        return new BookmarkListEntry(
-                ViewType.TAG_CHIP_LIST, /*bookmarkItem=*/null, /*sectionHeaderData=*/null);
     }
 }

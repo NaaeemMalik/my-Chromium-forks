@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,6 @@ using extensions::api::debugger::Debuggee;
 
 // Base debugger function.
 
-namespace base {
-class DictionaryValue;
-}
-
 namespace extensions {
 class ExtensionDevToolsClientHost;
 
@@ -40,7 +36,7 @@ class DebuggerFunction : public ExtensionFunction {
 
   Debuggee debuggee_;
   scoped_refptr<content::DevToolsAgentHost> agent_host_;
-  raw_ptr<ExtensionDevToolsClientHost> client_host_;
+  raw_ptr<ExtensionDevToolsClientHost, DanglingUntriaged> client_host_;
 };
 
 // Implements the debugger.attach() extension function.
@@ -77,7 +73,7 @@ class DebuggerSendCommandFunction : public DebuggerFunction {
   DECLARE_EXTENSION_FUNCTION("debugger.sendCommand", DEBUGGER_SENDCOMMAND)
 
   DebuggerSendCommandFunction();
-  void SendResponseBody(base::DictionaryValue* result);
+  void SendResponseBody(base::Value result);
   void SendDetachedError();
 
  protected:

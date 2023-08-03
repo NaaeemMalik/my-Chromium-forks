@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,27 +7,35 @@
 
 #include <stdint.h>
 
-#include <map>
 #include <ostream>
 #include <string>
 #include <vector>
 
+#include "base/containers/span.h"
+#include "base/observer_list.h"
 #include "base/threading/sequence_bound.h"
+#include "components/aggregation_service/aggregation_service.mojom.h"
 #include "content/browser/aggregation_service/aggregatable_report.h"
-#include "content/browser/aggregation_service/aggregation_service_key_fetcher.h"
-#include "content/browser/aggregation_service/aggregation_service_key_storage.h"
+#include "content/browser/aggregation_service/aggregation_service.h"
+#include "content/browser/aggregation_service/aggregation_service_observer.h"
+#include "content/browser/aggregation_service/aggregation_service_storage.h"
 #include "content/browser/aggregation_service/aggregation_service_storage_context.h"
 #include "content/browser/aggregation_service/public_key.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/public/mojom/private_aggregation/aggregatable_report.mojom.h"
 #include "third_party/boringssl/src/include/openssl/hpke.h"
-#include "url/origin.h"
 
 namespace base {
 class Clock;
+class FilePath;
+class Time;
 }  // namespace base
 
 namespace content {
+
+class AggregationServiceStorage;
 
 namespace aggregation_service {
 
@@ -57,16 +65,23 @@ testing::AssertionResult SharedInfoEqual(
     const AggregatableReportSharedInfo& expected,
     const AggregatableReportSharedInfo& actual);
 
-std::vector<url::Origin> GetExampleProcessingOrigins();
+// Returns an example report request, using the given parameters.
+AggregatableReportRequest CreateExampleRequest(
+    blink::mojom::AggregationServiceMode aggregation_mode =
+        blink::mojom::AggregationServiceMode::kDefault,
+    int failed_send_attempts = 0,
+    ::aggregation_service::mojom::AggregationCoordinator
+        aggregation_coordinator =
+            ::aggregation_service::mojom::AggregationCoordinator::kDefault);
 
-// Returns an example report request, using the given parameters. If the first
-// signature is used, example processing origins will be used.
-AggregatableReportRequest CreateExampleRequest(
-    AggregationServicePayloadContents::ProcessingType processing_type =
-        AggregationServicePayloadContents::ProcessingType::kTwoParty);
-AggregatableReportRequest CreateExampleRequest(
-    AggregationServicePayloadContents::ProcessingType processing_type,
-    std::vector<url::Origin> processing_origins);
+AggregatableReportRequest CreateExampleRequestWithReportTime(
+    base::Time report_time,
+    blink::mojom::AggregationServiceMode aggregation_mode =
+        blink::mojom::AggregationServiceMode::kDefault,
+    int failed_send_attempts = 0,
+    ::aggregation_service::mojom::AggregationCoordinator
+        aggregation_coordinator =
+            ::aggregation_service::mojom::AggregationCoordinator::kDefault);
 
 AggregatableReportRequest CloneReportRequest(
     const AggregatableReportRequest& request);
@@ -75,6 +90,21 @@ AggregatableReport CloneAggregatableReport(const AggregatableReport& report);
 // Generates a public-private key pair for HPKE and also constructs a PublicKey
 // object for use in assembler methods.
 TestHpkeKey GenerateKey(std::string key_id = "example_id");
+
+absl::optional<PublicKeyset> ReadAndParsePublicKeys(
+    const base::FilePath& file,
+    base::Time now,
+    std::string* error_msg = nullptr);
+
+// Returns empty vector in the case of an error.
+std::vector<uint8_t> DecryptPayloadWithHpke(
+    base::span<const uint8_t> payload,
+    const EVP_HPKE_KEY& key,
+    const std::string& expected_serialized_shared_info);
+
+MATCHER_P(RequestIdIs, matcher, "") {
+  return ExplainMatchResult(matcher, arg.id, result_listener);
+}
 
 }  // namespace aggregation_service
 
@@ -94,85 +124,116 @@ class TestAggregationServiceStorageContext
   ~TestAggregationServiceStorageContext() override;
 
   // AggregationServiceStorageContext:
-  const base::SequenceBound<content::AggregationServiceKeyStorage>&
-  GetKeyStorage() override;
+  const base::SequenceBound<content::AggregationServiceStorage>& GetStorage()
+      override;
 
  private:
-  base::SequenceBound<content::AggregationServiceKeyStorage> storage_;
+  base::SequenceBound<content::AggregationServiceStorage> storage_;
 };
 
-class TestAggregationServiceKeyFetcher : public AggregationServiceKeyFetcher {
+class MockAggregationService : public AggregationService {
  public:
-  TestAggregationServiceKeyFetcher();
-  ~TestAggregationServiceKeyFetcher() override;
+  MockAggregationService();
+  ~MockAggregationService() override;
 
-  // AggregationServiceKeyFetcher:
-  void GetPublicKey(const url::Origin& origin, FetchCallback callback) override;
+  // AggregationService:
+  MOCK_METHOD(void,
+              AssembleReport,
+              (AggregatableReportRequest request,
+               AggregationService::AssemblyCallback callback),
+              (override));
 
-  // Triggers a response for each fetch for `origin`, throwing an error if no
-  // such fetches exist.
-  void TriggerPublicKeyResponse(const url::Origin& origin,
-                                absl::optional<PublicKey> key,
-                                PublicKeyFetchStatus status);
+  MOCK_METHOD(void,
+              SendReport,
+              (const GURL& url,
+               const AggregatableReport& report,
+               AggregationService::SendCallback callback),
+              (override));
 
-  void TriggerPublicKeyResponseForAllOrigins(absl::optional<PublicKey> key,
-                                             PublicKeyFetchStatus status);
+  MOCK_METHOD(void,
+              SendReport,
+              (const GURL& url,
+               const base::Value& value,
+               AggregationService::SendCallback callback),
+              (override));
 
-  bool HasPendingCallbacks();
+  MOCK_METHOD(void,
+              ClearData,
+              (base::Time delete_begin,
+               base::Time delete_end,
+               StoragePartition::StorageKeyMatcherFunction filter,
+               base::OnceClosure done),
+              (override));
+
+  MOCK_METHOD(void,
+              ScheduleReport,
+              (AggregatableReportRequest report_request),
+              (override));
+
+  MOCK_METHOD(void,
+              AssembleAndSendReport,
+              (AggregatableReportRequest report_request),
+              (override));
+
+  MOCK_METHOD(
+      void,
+      GetPendingReportRequestsForWebUI,
+      (base::OnceCallback<
+          void(std::vector<AggregationServiceStorage::RequestAndId>)> callback),
+      (override));
+
+  MOCK_METHOD(void,
+              SendReportsForWebUI,
+              (const std::vector<AggregationServiceStorage::RequestId>& ids,
+               base::OnceClosure reports_sent_callback),
+              (override));
+
+  void AddObserver(AggregationServiceObserver* observer) override;
+
+  void RemoveObserver(AggregationServiceObserver* observer) override;
+
+  void NotifyRequestStorageModified();
+
+  // `report_handled_time` indicates when the report has been handled.
+  void NotifyReportHandled(
+      const AggregatableReportRequest& request,
+      absl::optional<AggregationServiceStorage::RequestId> id,
+      absl::optional<AggregatableReport> report,
+      base::Time report_handled_time,
+      AggregationServiceObserver::ReportStatus status);
 
  private:
-  std::map<url::Origin, std::vector<FetchCallback>> callbacks_;
+  base::ObserverList<AggregationServiceObserver, /*check_empty=*/true>
+      observers_;
 };
 
-// A simple class for mocking CreateFromRequestAndPublicKeys().
-class TestAggregatableReportProvider : public AggregatableReport::Provider {
+class AggregatableReportRequestsAndIdsBuilder {
  public:
-  TestAggregatableReportProvider();
-  ~TestAggregatableReportProvider() override;
+  AggregatableReportRequestsAndIdsBuilder();
+  ~AggregatableReportRequestsAndIdsBuilder();
 
-  absl::optional<AggregatableReport> CreateFromRequestAndPublicKeys(
-      AggregatableReportRequest report_request,
-      std::vector<PublicKey> public_keys) const override;
+  AggregatableReportRequestsAndIdsBuilder&& AddRequestWithID(
+      AggregatableReportRequest request,
+      AggregationServiceStorage::RequestId id) &&;
 
-  int num_calls() const { return num_calls_; }
-
-  const AggregatableReportRequest& PreviousRequest() const {
-    EXPECT_TRUE(previous_request_.has_value());
-    return previous_request_.value();
-  }
-  const std::vector<PublicKey>& PreviousPublicKeys() const {
-    EXPECT_TRUE(previous_request_.has_value());
-    return previous_public_keys_;
-  }
-
-  void set_report_to_return(
-      absl::optional<AggregatableReport> report_to_return) {
-    report_to_return_ = std::move(report_to_return);
-  }
+  std::vector<AggregationServiceStorage::RequestAndId> Build() &&;
 
  private:
-  absl::optional<AggregatableReport> report_to_return_;
-
-  // The following are mutable to allow `CreateFromRequestAndPublicKeys()` to be
-  // const.
-
-  // Number of times `CreateFromRequestAndPublicKeys()` is called.
-  mutable int num_calls_ = 0;
-
-  // `absl::nullopt` iff `num_calls_` is 0.
-  mutable absl::optional<AggregatableReportRequest> previous_request_;
-
-  // Empty if `num_calls_` is 0.
-  mutable std::vector<PublicKey> previous_public_keys_;
+  std::vector<AggregationServiceStorage::RequestAndId> requests_;
 };
 
 // Only used for logging in tests.
 std::ostream& operator<<(
     std::ostream& out,
-    const AggregationServicePayloadContents::Operation& operation);
-std::ostream& operator<<(
-    std::ostream& out,
-    const AggregationServicePayloadContents::ProcessingType& processing_type);
+    AggregationServicePayloadContents::Operation operation);
+std::ostream& operator<<(std::ostream& out,
+                         blink::mojom::AggregationServiceMode aggregation_mode);
+std::ostream& operator<<(std::ostream& out,
+                         AggregatableReportSharedInfo::DebugMode debug_mode);
+
+bool operator==(const PublicKey& a, const PublicKey& b);
+
+bool operator==(const AggregatableReport& a, const AggregatableReport& b);
 
 }  // namespace content
 

@@ -1,23 +1,33 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "base/unguessable_token.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/browser_app_instance.h"
 #include "chrome/browser/apps/app_service/browser_app_instance_observer.h"
 #include "chrome/browser/apps/app_service/browser_app_instance_tracker.h"
+#include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
+#include "chrome/browser/ash/web_applications/crosh_system_web_app_info.h"
 #include "chrome/browser/devtools/devtools_window_testing.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
+#include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_id.h"
-#include "chrome/browser/web_applications/web_application_info.h"
+#include "chrome/browser/web_applications/web_app_id_constants.h"
+#include "chrome/browser/web_applications/web_app_install_info.h"
+#include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_switches.h"
+#include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/test/test_navigation_observer.h"
@@ -28,13 +38,11 @@
 
 namespace {
 
-constexpr char kURL_A[] = "https://a.example.org";
 constexpr char kTitle_A[] = "a.example.org";
 // Generated from start URL "https://a.example.org/".
 // See |web_app::GenerateAppId|.
 constexpr char kAppId_A[] = "dhehpanpcmiafdmbldplnfenbijejdfe";
 
-constexpr char kURL_B[] = "https://b.example.org";
 constexpr char kTitle_B[] = "b.example.org";
 // Generated from start URL "https://b.example.org/".
 constexpr char kAppId_B[] = "abhkhfladdfdlfmhaokoglcllbamaili";
@@ -46,7 +54,7 @@ uint64_t ToUint64(base::UnguessableToken id) {
 }
 
 base::UnguessableToken TestId(uint64_t id) {
-  return base::UnguessableToken::Deserialize(0, id);
+  return base::UnguessableToken::CreateForTesting(0, id);
 }
 
 // Make test sequence easier to scan
@@ -100,7 +108,7 @@ struct TestInstance {
   uint64_t id;
   std::string type;
   std::string app_id;
-  aura::Window* window;
+  raw_ptr<aura::Window> window;
   std::string title;
   bool is_browser_active;
   bool is_web_contents_active;
@@ -112,10 +120,6 @@ bool operator==(const TestInstance& e1, const TestInstance& e2) {
          e1.title == e2.title &&
          e1.is_browser_active == e2.is_browser_active &&
          e1.is_web_contents_active == e2.is_web_contents_active;
-}
-
-bool operator!=(const TestInstance& e1, const TestInstance& e2) {
-  return !(e1 == e2);
 }
 
 bool operator<(const TestInstance& e1, const TestInstance& e2) {
@@ -154,10 +158,10 @@ class Recorder : public apps::BrowserAppInstanceObserver {
  public:
   explicit Recorder(apps::BrowserAppInstanceTracker& tracker)
       : tracker_(tracker) {
-    tracker_.AddObserver(this);
+    tracker_->AddObserver(this);
   }
 
-  ~Recorder() override { tracker_.RemoveObserver(this); }
+  ~Recorder() override { tracker_->RemoveObserver(this); }
 
   void OnBrowserWindowAdded(
       const apps::BrowserWindowInstance& instance) override {
@@ -188,7 +192,8 @@ class Recorder : public apps::BrowserAppInstanceObserver {
 
   void Verify(const std::vector<TestInstance>& expected_calls) {
     EXPECT_EQ(calls_.size(), expected_calls.size());
-    for (int i = 0; i < std::max(calls_.size(), expected_calls.size()); ++i) {
+    for (size_t i = 0; i < std::max(calls_.size(), expected_calls.size());
+         ++i) {
       EXPECT_EQ(Get(calls_, i), Get(expected_calls, i)) << "call #" << i;
     }
   }
@@ -199,22 +204,23 @@ class Recorder : public apps::BrowserAppInstanceObserver {
     std::vector<TestInstance> calls_copy(calls_);
     std::sort(expected_calls_copy.begin(), expected_calls_copy.end());
     std::sort(calls_copy.begin(), calls_copy.end());
-    for (int i = 0; i < std::max(calls_copy.size(), expected_calls_copy.size());
-         ++i) {
+    for (size_t i = 0;
+         i < std::max(calls_copy.size(), expected_calls_copy.size()); ++i) {
       EXPECT_EQ(Get(calls_copy, i), Get(expected_calls_copy, i))
           << "call #" << i;
     }
   }
 
  private:
-  static const TestInstance Get(const std::vector<TestInstance>& calls, int i) {
+  static const TestInstance Get(const std::vector<TestInstance>& calls,
+                                size_t i) {
     if (i < calls.size()) {
       return calls[i];
     }
     return {};
   }
 
-  apps::BrowserAppInstanceTracker& tracker_;
+  const raw_ref<apps::BrowserAppInstanceTracker, ExperimentalAsh> tracker_;
   std::vector<TestInstance> calls_;
 };
 
@@ -282,35 +288,29 @@ class BrowserAppInstanceTrackerTest : public InProcessBrowserTest {
                            WindowOpenDisposition::NEW_FOREGROUND_TAB);
   }
 
-  web_app::AppId InstallWebApp(const std::string& start_url,
-                               blink::mojom::DisplayMode user_display_mode) {
-    auto info = std::make_unique<WebApplicationInfo>();
+  web_app::AppId InstallWebApp(
+      const std::string& start_url,
+      web_app::mojom::UserDisplayMode user_display_mode) {
+    auto info = std::make_unique<WebAppInstallInfo>();
     info->start_url = GURL(start_url);
     info->user_display_mode = user_display_mode;
     Profile* profile = ProfileManager::GetPrimaryUserProfile();
     auto app_id = web_app::test::InstallWebApp(profile, std::move(info));
-    FlushAppService();
     return app_id;
   }
 
   web_app::AppId InstallWebAppOpeningAsTab(const std::string& start_url) {
-    return InstallWebApp(start_url, blink::mojom::DisplayMode::kBrowser);
+    return InstallWebApp(start_url, web_app::mojom::UserDisplayMode::kBrowser);
   }
 
   web_app::AppId InstallWebAppOpeningAsWindow(const std::string& start_url) {
-    return InstallWebApp(start_url, blink::mojom::DisplayMode::kStandalone);
+    return InstallWebApp(start_url,
+                         web_app::mojom::UserDisplayMode::kStandalone);
   }
 
   void UninstallWebApp(const web_app::AppId& app_id) {
     Profile* profile = ProfileManager::GetPrimaryUserProfile();
     web_app::test::UninstallWebApp(profile, app_id);
-    FlushAppService();
-  }
-
-  void FlushAppService() {
-    Profile* profile = ProfileManager::GetPrimaryUserProfile();
-    apps::AppServiceProxyFactory::GetForProfile(profile)
-        ->FlushMojoCallsForTesting();
   }
 
   uint64_t GetId(content::WebContents* contents) {
@@ -319,7 +319,10 @@ class BrowserAppInstanceTrackerTest : public InProcessBrowserTest {
   }
 
   uint64_t GetId(Browser* browser) {
-    const auto* instance = tracker_->GetWindowInstance(browser);
+    if (const auto* instance = tracker_->GetAppInstance(browser)) {
+      return ToUint64(instance->id);
+    }
+    const auto* instance = tracker_->GetBrowserWindowInstance(browser);
     return instance ? ToUint64(instance->id) : 0;
   }
 
@@ -363,12 +366,11 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, InsertAndCloseTabs) {
     browser = CreateBrowser();
     window = browser->window()->GetNativeWindow();
     tab_app1 = InsertForegroundTab(browser, "https://a.example.org");
-    EXPECT_EQ(GetId(browser), 1);
-    EXPECT_EQ(GetId(tab_app1), 2);
+    EXPECT_EQ(GetId(browser), 1u);
+    EXPECT_EQ(GetId(tab_app1), 2u);
     recorder.Verify({
         {"added", 1, kChromeWindow, "", window, "", kActive, false},
         {"added", 2, kAppTab, kAppId_A, window, "", kActive, kActive},
-        {"updated", 2, kAppTab, kAppId_A, window, kURL_A, kActive, kActive},
         {"updated", 2, kAppTab, kAppId_A, window, kTitle_A, kActive, kActive},
     });
   }
@@ -379,11 +381,10 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, InsertAndCloseTabs) {
     Recorder recorder(*tracker_);
 
     tab_app2 = InsertForegroundTab(browser, "https://b.example.org");
-    EXPECT_EQ(GetId(tab_app2), 3);
+    EXPECT_EQ(GetId(tab_app2), 3u);
     recorder.Verify({
         {"updated", 2, kAppTab, kAppId_A, window, kTitle_A, kActive, kInactive},
         {"added", 3, kAppTab, kAppId_B, window, "", kActive, kActive},
-        {"updated", 3, kAppTab, kAppId_B, window, kURL_B, kActive, kActive},
         {"updated", 3, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
     });
   }
@@ -405,26 +406,24 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, InsertAndCloseTabs) {
     Recorder recorder(*tracker_);
 
     auto* tab_app3 = InsertForegroundTab(browser, "https://a.example.org");
-    EXPECT_EQ(GetId(tab_app3), 4);
+    EXPECT_EQ(GetId(tab_app3), 4u);
     auto* tab_app4 = InsertForegroundTab(browser, "https://b.example.org");
-    EXPECT_EQ(GetId(tab_app4), 5);
+    EXPECT_EQ(GetId(tab_app4), 5u);
     // Close in reverse order.
     int i = browser->tab_strip_model()->GetIndexOfWebContents(tab_app4);
     browser->tab_strip_model()->CloseWebContentsAt(
-        i, TabStripModel::CLOSE_USER_GESTURE);
+        i, TabCloseTypes::CLOSE_USER_GESTURE);
     i = browser->tab_strip_model()->GetIndexOfWebContents(tab_app3);
     browser->tab_strip_model()->CloseWebContentsAt(
-        i, TabStripModel::CLOSE_USER_GESTURE);
+        i, TabCloseTypes::CLOSE_USER_GESTURE);
 
     recorder.Verify({
         // tab 4 opened: no events for tab 3 as it has no app
         {"added", 4, kAppTab, kAppId_A, window, "", kActive, kActive},
-        {"updated", 4, kAppTab, kAppId_A, window, kURL_A, kActive, kActive},
         {"updated", 4, kAppTab, kAppId_A, window, kTitle_A, kActive, kActive},
         // tab 5 opened: tab 4 deactivates
         {"updated", 4, kAppTab, kAppId_A, window, kTitle_A, kActive, kInactive},
         {"added", 5, kAppTab, kAppId_B, window, "", kActive, kActive},
-        {"updated", 5, kAppTab, kAppId_B, window, kURL_B, kActive, kActive},
         {"updated", 5, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
         // tab 5 closed: tab 4 reactivates
         {"removed", 5, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
@@ -490,7 +489,6 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, PopupBrowserWindow) {
     recorder.Verify({
         {"added", 2, kChromeWindow, "", window, "", kActive, false},
         {"added", 3, kAppTab, kAppId_A, window, "", kActive, kActive},
-        {"updated", 3, kAppTab, kAppId_A, window, kURL_A, kActive, kActive},
         {"updated", 3, kAppTab, kAppId_A, window, kTitle_A, kActive, kActive},
     });
   }
@@ -555,8 +553,8 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, ForegroundTabNavigate) {
   auto* browser = CreateBrowser();
   auto* tab = InsertForegroundTab(browser, "https://c.example.org");
   auto* window = browser->window()->GetNativeWindow();
-  EXPECT_EQ(GetId(browser), 1);
-  EXPECT_EQ(GetId(tab), 0);
+  EXPECT_EQ(GetId(browser), 1u);
+  EXPECT_EQ(GetId(tab), 0u);
 
   // Navigate the foreground tab to app A.
   {
@@ -564,10 +562,9 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, ForegroundTabNavigate) {
     Recorder recorder(*tracker_);
 
     NavigateActiveTab(browser, "https://a.example.org");
-    EXPECT_EQ(GetId(tab), 2);
+    EXPECT_EQ(GetId(tab), 2u);
     recorder.Verify({
-        {"added", 2, kAppTab, kAppId_A, window, kURL_A, kActive, kActive},
-        {"updated", 2, kAppTab, kAppId_A, window, kTitle_A, kActive, kActive},
+        {"added", 2, kAppTab, kAppId_A, window, kTitle_A, kActive, kActive},
     });
   }
 
@@ -577,11 +574,10 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, ForegroundTabNavigate) {
     Recorder recorder(*tracker_);
 
     NavigateActiveTab(browser, "https://b.example.org");
-    EXPECT_EQ(GetId(tab), 3);
+    EXPECT_EQ(GetId(tab), 3u);
     recorder.Verify({
         {"removed", 2, kAppTab, kAppId_A, window, kTitle_A, kActive, kActive},
-        {"added", 3, kAppTab, kAppId_B, window, kURL_B, kActive, kActive},
-        {"updated", 3, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
+        {"added", 3, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
     });
   }
 
@@ -591,7 +587,7 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, ForegroundTabNavigate) {
     Recorder recorder(*tracker_);
 
     NavigateActiveTab(browser, "https://c.example.org");
-    EXPECT_EQ(GetId(tab), 0);
+    EXPECT_EQ(GetId(tab), 0u);
     recorder.Verify({
         {"removed", 3, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
     });
@@ -603,10 +599,9 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, ForegroundTabNavigate) {
     Recorder recorder(*tracker_);
 
     NavigateActiveTab(browser, "https://b.example.org");
-    EXPECT_EQ(GetId(tab), 4);
+    EXPECT_EQ(GetId(tab), 4u);
     recorder.Verify({
-        {"added", 4, kAppTab, kAppId_B, window, kURL_B, kActive, kActive},
-        {"updated", 4, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
+        {"added", 4, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
     });
   }
 
@@ -616,7 +611,7 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, ForegroundTabNavigate) {
     Recorder recorder(*tracker_);
 
     NavigateActiveTab(browser, "https://example.com");
-    EXPECT_EQ(GetId(tab), 0);
+    EXPECT_EQ(GetId(tab), 0u);
     recorder.Verify({
         {"removed", 4, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
     });
@@ -628,10 +623,9 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, ForegroundTabNavigate) {
     Recorder recorder(*tracker_);
 
     NavigateActiveTab(browser, "https://b.example.org");
-    EXPECT_EQ(GetId(tab), 5);
+    EXPECT_EQ(GetId(tab), 5u);
     recorder.Verify({
-        {"added", 5, kAppTab, kAppId_B, window, kURL_B, kActive, kActive},
-        {"updated", 5, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
+        {"added", 5, kAppTab, kAppId_B, window, kTitle_B, kActive, kActive},
     });
   }
 }
@@ -643,20 +637,18 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, WindowedWebApp) {
   content::WebContents* tab = nullptr;
   aura::Window* window = nullptr;
 
-  // Open app D in a window.(configured to open in a window).
+  // Open app D in a window (configured to open in a window).
   {
     SCOPED_TRACE("create a windowed app in a window");
     Recorder recorder(*tracker_);
 
     browser = CreateAppBrowser(app_id);
     tab = InsertForegroundTab(browser, "https://d.example.org");
-    EXPECT_EQ(GetId(browser), 0);
-    EXPECT_EQ(GetId(tab), 1);
+    EXPECT_EQ(GetId(browser), 1u);
+    EXPECT_EQ(GetId(tab), 1u);
     window = browser->window()->GetNativeWindow();
     recorder.Verify({
         {"added", 1, kAppWindow, app_id, window, "", kActive, kActive},
-        {"updated", 1, kAppWindow, app_id, window, "https://d.example.org",
-         kActive, kActive},
         {"updated", 1, kAppWindow, app_id, window, "d.example.org", kActive,
          kActive},
     });
@@ -681,13 +673,13 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, WindowedWebApp) {
 
     browser = CreateAppBrowser(kAppId_A);
     tab = InsertForegroundTab(browser, "https://a.example.org");
-    EXPECT_EQ(GetId(tab), 2);
+    EXPECT_EQ(GetId(browser), 2u);
+    EXPECT_EQ(GetId(tab), 2u);
     window = browser->window()->GetNativeWindow();
     // When open in a window it's still an app, even if configured to open in a
     // tab.
     recorder.Verify({
         {"added", 2, kAppWindow, kAppId_A, window, "", kActive, kActive},
-        {"updated", 2, kAppWindow, kAppId_A, window, kURL_A, kActive, kActive},
         {"updated", 2, kAppWindow, kAppId_A, window, kTitle_A, kActive,
          kActive},
     });
@@ -706,15 +698,84 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, WindowedWebApp) {
   }
 }
 
+IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, TabbedSystemWebApp) {
+  // Make sure we can use crosh.
+  Profile* profile = ProfileManager::GetPrimaryUserProfile();
+  DCHECK(ash::SystemWebAppManager::Get(profile));
+  ash::SystemWebAppManager::Get(profile)->InstallSystemAppsForTesting();
+
+  Browser* browser = nullptr;
+  aura::Window* window = nullptr;
+
+  {
+    SCOPED_TRACE("create an app window");
+    Recorder recorder(*tracker_);
+
+    // Open an app window (crosh) and insert a tab.
+    browser = CreateAppBrowser(web_app::kCroshAppId);
+    chrome::NewTab(browser);
+    content::WebContents* tab = browser->tab_strip_model()->GetWebContentsAt(0);
+    NavigateActiveTab(browser, chrome::kChromeUIUntrustedCroshURL);
+    tab->UpdateTitleForEntry(tab->GetController().GetLastCommittedEntry(),
+                             u"crosh1");
+
+    // A window is added, both the window and the tab map to the same app
+    // instance.
+    EXPECT_EQ(GetId(browser), 1u);
+    EXPECT_EQ(GetId(tab), 1u);
+    window = browser->window()->GetNativeWindow();
+    recorder.Verify({
+        {"added", 1, kAppWindow, web_app::kCroshAppId, window, "", kActive,
+         kActive},
+        {"updated", 1, kAppWindow, web_app::kCroshAppId, window, "crosh1",
+         kActive, kActive},
+    });
+  }
+
+  {
+    SCOPED_TRACE("add a second tab");
+    Recorder recorder(*tracker_);
+
+    // Add a second WebContents to the same app window.
+    chrome::NewTab(browser);
+    content::WebContents* tab = browser->tab_strip_model()->GetWebContentsAt(1);
+    NavigateActiveTab(browser, chrome::kChromeUIUntrustedCroshURL);
+    tab->UpdateTitleForEntry(tab->GetController().GetLastCommittedEntry(),
+                             u"crosh2");
+
+    // Only title of the existing app instance should be updated.
+    EXPECT_EQ(GetId(tab), 1u);
+    recorder.Verify({
+        {"updated", 1, kAppWindow, web_app::kCroshAppId, window, "", kActive,
+         kActive},
+        {"updated", 1, kAppWindow, web_app::kCroshAppId, window, "crosh2",
+         kActive, kActive},
+    });
+  }
+
+  {
+    SCOPED_TRACE("close browser");
+    Recorder recorder(*tracker_);
+
+    browser->tab_strip_model()->CloseAllTabs();
+
+    // The app instance disappars with the window.
+    recorder.Verify({
+        {"removed", 1, kAppWindow, web_app::kCroshAppId, window, "crosh2",
+         kActive, kActive},
+    });
+  }
+}
+
 IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, SwitchTabs) {
   // Setup: one foreground tab and one background tab.
   auto* browser = CreateBrowser();
   auto* window = browser->window()->GetNativeWindow();
   auto* tab0 = InsertForegroundTab(browser, "https://a.example.org");
-  EXPECT_EQ(GetId(browser), 1);
-  EXPECT_EQ(GetId(tab0), 2);
+  EXPECT_EQ(GetId(browser), 1u);
+  EXPECT_EQ(GetId(tab0), 2u);
   auto* tab1 = InsertForegroundTab(browser, "https://b.example.org");
-  EXPECT_EQ(GetId(tab1), 3);
+  EXPECT_EQ(GetId(tab1), 3u);
   InsertForegroundTab(browser, "https://c.example.org");
 
   // Switch tabs: no app -> app A
@@ -759,20 +820,20 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, WindowActivation) {
   auto* b1_tab1 = InsertForegroundTab(browser1, "https://a.example.org");
   auto* b1_tab2 = InsertForegroundTab(browser1, "https://c.example.org");
   auto* b1_tab3 = InsertForegroundTab(browser1, "https://b.example.org");
-  EXPECT_EQ(GetId(browser1), 1);
-  EXPECT_EQ(GetId(b1_tab1), 2);
-  EXPECT_EQ(GetId(b1_tab2), 0);
-  EXPECT_EQ(GetId(b1_tab3), 3);
+  EXPECT_EQ(GetId(browser1), 1u);
+  EXPECT_EQ(GetId(b1_tab1), 2u);
+  EXPECT_EQ(GetId(b1_tab2), 0u);
+  EXPECT_EQ(GetId(b1_tab3), 3u);
 
   auto* browser2 = CreateBrowser();
   auto* window2 = browser2->window()->GetNativeWindow();
   auto* b2_tab1 = InsertForegroundTab(browser2, "https://a.example.org");
   auto* b2_tab2 = InsertForegroundTab(browser2, "https://c.example.org");
   auto* b2_tab3 = InsertForegroundTab(browser2, "https://b.example.org");
-  EXPECT_EQ(GetId(browser2), 4);
-  EXPECT_EQ(GetId(b2_tab1), 5);
-  EXPECT_EQ(GetId(b2_tab2), 0);
-  EXPECT_EQ(GetId(b2_tab3), 6);
+  EXPECT_EQ(GetId(browser2), 4u);
+  EXPECT_EQ(GetId(b2_tab1), 5u);
+  EXPECT_EQ(GetId(b2_tab2), 0u);
+  EXPECT_EQ(GetId(b2_tab3), 6u);
 
   ASSERT_FALSE(browser1->window()->IsActive());
   ASSERT_TRUE(browser2->window()->IsActive());
@@ -826,19 +887,19 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, TabDrag) {
   auto* window1 = browser1->window()->GetNativeWindow();
   auto* b1_tab1 = InsertForegroundTab(browser1, "https://a.example.org");
   auto* b1_tab2 = InsertForegroundTab(browser1, "https://b.example.org");
-  EXPECT_EQ(GetId(browser1), 1);
-  EXPECT_EQ(GetId(b1_tab1), 2);
-  EXPECT_EQ(GetId(b1_tab2), 3);
+  EXPECT_EQ(GetId(browser1), 1u);
+  EXPECT_EQ(GetId(b1_tab1), 2u);
+  EXPECT_EQ(GetId(b1_tab2), 3u);
 
   auto* browser2 = CreateBrowser();
   auto* window2 = browser2->window()->GetNativeWindow();
   auto* b2_tab1 = InsertForegroundTab(browser2, "https://a.example.org");
-  EXPECT_EQ(GetId(browser2), 4);
-  EXPECT_EQ(GetId(b2_tab1), 5);
+  EXPECT_EQ(GetId(browser2), 4u);
+  EXPECT_EQ(GetId(b2_tab1), 5u);
   auto* b2_tab2 = InsertForegroundTab(browser2, "https://a.example.org");
-  EXPECT_EQ(GetId(b2_tab2), 6);
+  EXPECT_EQ(GetId(b2_tab2), 6u);
   auto* b2_tab3 = InsertForegroundTab(browser2, "https://b.example.org");
-  EXPECT_EQ(GetId(b2_tab3), 7);
+  EXPECT_EQ(GetId(b2_tab3), 7u);
 
   ASSERT_FALSE(browser1->window()->IsActive());
   ASSERT_TRUE(browser2->window()->IsActive());
@@ -862,7 +923,7 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, TabDrag) {
   // Attach.
   int dst_index = browser1->tab_strip_model()->count();
   browser1->tab_strip_model()->InsertWebContentsAt(
-      dst_index, std::move(detached), TabStripModel::ADD_ACTIVE);
+      dst_index, std::move(detached), AddTabTypes::ADD_ACTIVE);
   recorder.Verify({
       // background tab in the dragged-from browser gets activated when the
       // active tab is detached
@@ -893,8 +954,8 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, MoveTabToAppWindow) {
   auto* window1 = browser1->window()->GetNativeWindow();
   InsertForegroundTab(browser1, "https://c.example.org");
   auto* tab = InsertForegroundTab(browser1, "https://d.example.org");
-  EXPECT_EQ(GetId(browser1), 1);
-  EXPECT_EQ(GetId(tab), 0);
+  EXPECT_EQ(GetId(browser1), 1u);
+  EXPECT_EQ(GetId(tab), 0u);
   ASSERT_TRUE(browser1->window()->IsActive());
 
   // Move the tab from the browser to the newly created app browser. This
@@ -903,7 +964,7 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, MoveTabToAppWindow) {
   Recorder recorder(*tracker_);
 
   auto* browser2 = CreateAppBrowser(app_id);
-  EXPECT_EQ(GetId(browser2), 0);
+  EXPECT_EQ(GetId(browser2), 0u);
   auto* window2 = browser2->window()->GetNativeWindow();
   // Target app browser goes into foreground.
   browser2->window()->Activate();
@@ -916,7 +977,7 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, MoveTabToAppWindow) {
   // Attach.
   int dst_index = browser2->tab_strip_model()->count();
   browser2->tab_strip_model()->InsertWebContentsAt(
-      dst_index, std::move(detached), TabStripModel::ADD_ACTIVE);
+      dst_index, std::move(detached), AddTabTypes::ADD_ACTIVE);
   recorder.Verify({
       // source browser goes into background when app browser is created
       {"updated", 1, kChromeWindow, "", window1, "", kInactive, false},
@@ -933,38 +994,38 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, Accessors) {
   auto* browser1 = CreateBrowser();
   auto* window1 = browser1->window()->GetNativeWindow();
   auto* b1_tab1 = InsertForegroundTab(browser1, "https://a.example.org");
-  EXPECT_EQ(GetId(browser1), 1);
-  EXPECT_EQ(GetId(b1_tab1), 2);
+  EXPECT_EQ(GetId(browser1), 1u);
+  EXPECT_EQ(GetId(b1_tab1), 2u);
   auto* b1_tab2 = InsertForegroundTab(browser1, "https://c.example.org");
   auto* b1_tab3 = InsertForegroundTab(browser1, "https://b.example.org");
-  EXPECT_EQ(GetId(b1_tab3), 3);
+  EXPECT_EQ(GetId(b1_tab3), 3u);
 
   auto* browser2 = CreateBrowser();
   auto* window2 = browser2->window()->GetNativeWindow();
   auto* b2_tab1 = InsertForegroundTab(browser2, "https://c.example.org");
   auto* b2_tab2 = InsertForegroundTab(browser2, "https://b.example.org");
-  EXPECT_EQ(GetId(browser2), 4);
-  EXPECT_EQ(GetId(b2_tab2), 5);
+  EXPECT_EQ(GetId(browser2), 4u);
+  EXPECT_EQ(GetId(b2_tab2), 5u);
 
   auto* browser3 = CreateAppBrowser(kAppId_B);
   auto* window3 = browser3->window()->GetNativeWindow();
   auto* b3_tab1 = InsertForegroundTab(browser3, "https://b.example.org");
-  EXPECT_EQ(GetId(b3_tab1), 6);
+  EXPECT_EQ(GetId(b3_tab1), 6u);
 
   ASSERT_FALSE(browser1->window()->IsActive());
   ASSERT_FALSE(browser2->window()->IsActive());
   ASSERT_TRUE(browser3->window()->IsActive());
 
-  auto* b1_app = tracker_->GetWindowInstance(browser1);
+  auto* b1_app = tracker_->GetBrowserWindowInstance(browser1);
   auto* b1_tab1_app = tracker_->GetAppInstance(b1_tab1);
   auto* b1_tab2_app = tracker_->GetAppInstance(b1_tab2);
   auto* b1_tab3_app = tracker_->GetAppInstance(b1_tab3);
 
-  auto* b2_app = tracker_->GetWindowInstance(browser2);
+  auto* b2_app = tracker_->GetBrowserWindowInstance(browser2);
   auto* b2_tab1_app = tracker_->GetAppInstance(b2_tab1);
   auto* b2_tab2_app = tracker_->GetAppInstance(b2_tab2);
 
-  auto* b3_app = tracker_->GetWindowInstance(browser3);
+  auto* b3_app = tracker_->GetAppInstance(browser3);
   auto* b3_tab1_app = tracker_->GetAppInstance(b3_tab1);
 
   EXPECT_EQ(TestInstance::Create(b1_app),
@@ -986,7 +1047,11 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, Accessors) {
             (TestInstance{"snapshot", 5, kAppTab, kAppId_B, window2, kTitle_B,
                           kInactive, kActive}));
 
-  EXPECT_EQ(TestInstance::Create(b3_app), TestInstance{});
+  // browser3 does not map to any browser window instance, but it maps to the
+  // same app instance as the tab.
+  EXPECT_EQ(TestInstance::Create(tracker_->GetBrowserWindowInstance(browser3)),
+            TestInstance{});
+  EXPECT_EQ(b3_app, b3_tab1_app);
   EXPECT_EQ(TestInstance::Create(b3_tab1_app),
             (TestInstance{"snapshot", 6, kAppWindow, kAppId_B, window3,
                           kTitle_B, kActive, kActive}));
@@ -1005,11 +1070,11 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, AppInstall) {
     SCOPED_TRACE("install app opening in a tab");
     Recorder recorder(*tracker_);
 
-    EXPECT_EQ(GetId(tab1), 0);
-    EXPECT_EQ(GetId(tab3), 0);
+    EXPECT_EQ(GetId(tab1), 0u);
+    EXPECT_EQ(GetId(tab3), 0u);
     app_id = InstallWebAppOpeningAsTab("https://c.example.org");
-    EXPECT_EQ(GetId(tab1), 2);
-    EXPECT_EQ(GetId(tab3), 3);
+    EXPECT_EQ(GetId(tab1), 2u);
+    EXPECT_EQ(GetId(tab3), 3u);
     recorder.Verify({
         {"added", 2, kAppTab, app_id, window1, title, kActive, kInactive},
         {"added", 3, kAppTab, app_id, window1, title, kActive, kActive},
@@ -1021,8 +1086,8 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, AppInstall) {
     Recorder recorder(*tracker_);
 
     UninstallWebApp(app_id);
-    EXPECT_EQ(GetId(tab1), 0);
-    EXPECT_EQ(GetId(tab3), 0);
+    EXPECT_EQ(GetId(tab1), 0u);
+    EXPECT_EQ(GetId(tab3), 0u);
     recorder.Verify({
         {"removed", 2, kAppTab, app_id, window1, title, kActive, kInactive},
         {"removed", 3, kAppTab, app_id, window1, title, kActive, kActive},
@@ -1033,13 +1098,13 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, AppInstall) {
     SCOPED_TRACE("install app opening in a window");
     Recorder recorder(*tracker_);
 
-    EXPECT_EQ(GetId(tab1), 0);
-    EXPECT_EQ(GetId(tab3), 0);
+    EXPECT_EQ(GetId(tab1), 0u);
+    EXPECT_EQ(GetId(tab3), 0u);
     app_id = InstallWebAppOpeningAsWindow("https://c.example.org");
     // This has no effect: apps configured to open in a window aren't counted as
     // apps when opened in a tab.
-    EXPECT_EQ(GetId(tab1), 0);
-    EXPECT_EQ(GetId(tab3), 0);
+    EXPECT_EQ(GetId(tab1), 0u);
+    EXPECT_EQ(GetId(tab3), 0u);
     recorder.Verify({});
   }
 }
@@ -1079,11 +1144,11 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, StopInstancesOfApp) {
   window1 = browser1->window()->GetNativeWindow();
   content::WebContents* tab;
   tab = InsertForegroundTab(browser1, "https://a.example.org");
-  EXPECT_EQ(GetId(tab), 2);
+  EXPECT_EQ(GetId(tab), 2u);
   tab = InsertForegroundTab(browser1, "https://a.example.org");
-  EXPECT_EQ(GetId(tab), 3);
+  EXPECT_EQ(GetId(tab), 3u);
   tab = InsertForegroundTab(browser1, "https://b.example.org");
-  EXPECT_EQ(GetId(tab), 4);
+  EXPECT_EQ(GetId(tab), 4u);
 
   // Open a fourth tab with no app.
   InsertForegroundTab(browser1, "https://c.example.org");
@@ -1093,7 +1158,7 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, StopInstancesOfApp) {
   browser2 = CreateAppBrowser(app_d_id);
   window2 = browser2->window()->GetNativeWindow();
   tab = InsertForegroundTab(browser2, "https://d.example.org");
-  EXPECT_EQ(GetId(tab), 5);
+  EXPECT_EQ(GetId(tab), 5u);
 
   // Stop app A.
   {
@@ -1120,6 +1185,9 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, StopInstancesOfApp) {
     recorder.Verify({
         {"removed", 5, kAppWindow, app_d_id, window2, "d.example.org", kActive,
          kActive},
+        {"updated", 1, kChromeWindow, {}, window1, {}, kActive, kInactive},
+        {"updated", 4, kAppTab, kAppId_B, window1, "b.example.org", kActive,
+         kInactive},
     });
   }
 
@@ -1131,7 +1199,7 @@ IN_PROC_BROWSER_TEST_F(BrowserAppInstanceTrackerTest, StopInstancesOfApp) {
     tracker_->StopInstancesOfApp(kAppId_B);
 
     recorder.Verify({
-        {"removed", 4, kAppTab, kAppId_B, window1, kTitle_B, kInactive,
+        {"removed", 4, kAppTab, kAppId_B, window1, kTitle_B, kActive,
          kInactive},
     });
   }

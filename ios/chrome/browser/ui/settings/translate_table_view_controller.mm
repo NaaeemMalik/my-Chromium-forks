@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,33 +6,36 @@
 
 #import <Foundation/Foundation.h>
 
-#include <memory>
+#import <memory>
 
 #import <MaterialComponents/MaterialSnackbar.h>
 
-#include "base/mac/foundation_util.h"
-#include "components/google/core/common/google_util.h"
-#include "components/prefs/pref_member.h"
-#include "components/prefs/pref_service.h"
-#include "components/translate/core/browser/translate_pref_names.h"
-#include "components/translate/core/browser/translate_prefs.h"
-#include "ios/chrome/browser/application_context.h"
+#import "base/mac/foundation_util.h"
+#import "base/metrics/user_metrics.h"
+#import "base/metrics/user_metrics_action.h"
+#import "components/google/core/common/google_util.h"
+#import "components/prefs/pref_member.h"
+#import "components/prefs/pref_service.h"
+#import "components/translate/core/browser/translate_pref_names.h"
+#import "components/translate/core/browser/translate_prefs.h"
+#import "ios/chrome/browser/application_context/application_context.h"
+#import "ios/chrome/browser/net/crurl.h"
+#import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/table_view_model.h"
+#import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/translate/chrome_ios_translate_client.h"
-#import "ios/chrome/browser/ui/commands/browser_commands.h"
 #import "ios/chrome/browser/ui/settings/cells/settings_cells_constants.h"
-#import "ios/chrome/browser/ui/settings/cells/settings_switch_cell.h"
-#import "ios/chrome/browser/ui/settings/cells/settings_switch_item.h"
 #import "ios/chrome/browser/ui/settings/utils/pref_backed_boolean.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_detail_text_item.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_link_header_footer_item.h"
-#import "ios/chrome/browser/ui/table_view/table_view_model.h"
-#import "ios/chrome/browser/ui/table_view/table_view_utils.h"
-#include "ios/chrome/browser/ui/ui_feature_flags.h"
-#include "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#include "ios/chrome/grit/ios_chromium_strings.h"
-#include "ios/chrome/grit/ios_strings.h"
-#include "ui/base/l10n/l10n_util.h"
-#include "url/gurl.h"
+#import "ios/chrome/grit/ios_chromium_strings.h"
+#import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/l10n/l10n_util.h"
+#import "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -61,7 +64,10 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
   PrefService* _prefs;  // weak
   PrefBackedBoolean* _translationEnabled;
   // The item related to the switch for the translation setting.
-  SettingsSwitchItem* _translationItem;
+  TableViewSwitchItem* _translationItem;
+
+  // Whether Settings have been dismissed.
+  BOOL _settingsAreDismissed;
 }
 
 @end
@@ -93,16 +99,44 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
   self.tableView.estimatedSectionFooterHeight = kSettingsCellDefaultHeight;
 }
 
+#pragma mark - SettingsControllerProtocol
+
+- (void)reportDismissalUserAction {
+  base::RecordAction(base::UserMetricsAction("MobileTranslateSettingsClose"));
+}
+
+- (void)reportBackUserAction {
+  base::RecordAction(base::UserMetricsAction("MobileTranslateSettingsBack"));
+}
+
+- (void)settingsWillBeDismissed {
+  DCHECK(!_settingsAreDismissed);
+
+  // Stop observable prefs.
+  [_translationEnabled stop];
+  _translationEnabled.observer = nil;
+  _translationEnabled = nil;
+
+  // Clear C++ ivars.
+  _translationItem = nullptr;
+  _prefs = nullptr;
+
+  _settingsAreDismissed = YES;
+}
+
 #pragma mark - SettingsRootTableViewController
 
 - (void)loadModel {
   [super loadModel];
+  if (_settingsAreDismissed)
+    return;
+
   TableViewModel<TableViewItem*>* model = self.tableViewModel;
 
   // Translate Section
   [model addSectionWithIdentifier:SectionIdentifierTranslate];
   _translationItem =
-      [[SettingsSwitchItem alloc] initWithType:ItemTypeTranslate];
+      [[TableViewSwitchItem alloc] initWithType:ItemTypeTranslate];
   _translationItem.text = l10n_util::GetNSString(IDS_IOS_TRANSLATE_SETTING);
   _translationItem.on = [_translationEnabled value];
   [model addItem:_translationItem
@@ -118,9 +152,10 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
   TableViewLinkHeaderFooterItem* footer =
       [[TableViewLinkHeaderFooterItem alloc] initWithType:ItemTypeFooter];
   footer.text = l10n_util::GetNSString(IDS_IOS_TRANSLATE_SETTING_DESCRIPTION);
-  footer.urls = std::vector<GURL>{google_util::AppendGoogleLocaleParam(
-      GURL(kTranslateLearnMoreUrl),
-      GetApplicationContext()->GetApplicationLocale())};
+  footer.urls = @[ [[CrURL alloc]
+      initWithGURL:google_util::AppendGoogleLocaleParam(
+                       GURL(kTranslateLearnMoreUrl),
+                       GetApplicationContext()->GetApplicationLocale())] ];
   [model setFooter:footer forSectionWithIdentifier:SectionIdentifierTranslate];
 }
 
@@ -135,8 +170,8 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
   switch (itemType) {
     case ItemTypeTranslate: {
       cell.selectionStyle = UITableViewCellSelectionStyleNone;
-      SettingsSwitchCell* switchCell =
-          base::mac::ObjCCastStrict<SettingsSwitchCell>(cell);
+      TableViewSwitchCell* switchCell =
+          base::mac::ObjCCastStrict<TableViewSwitchCell>(cell);
       [switchCell.switchView addTarget:self
                                 action:@selector(translateToggled:)
                       forControlEvents:UIControlEventValueChanged];
@@ -156,7 +191,7 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
   UIView* footerView =
       [super tableView:tableView viewForFooterInSection:section];
   if (SectionIdentifierTranslate ==
-      [self.tableViewModel sectionIdentifierForSection:section]) {
+      [self.tableViewModel sectionIdentifierForSectionIndex:section]) {
     TableViewLinkHeaderFooterView* footer =
         base::mac::ObjCCastStrict<TableViewLinkHeaderFooterView>(footerView);
     footer.delegate = self;
@@ -166,6 +201,9 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
 
 - (void)tableView:(UITableView*)tableView
     didSelectRowAtIndexPath:(NSIndexPath*)indexPath {
+  if (_settingsAreDismissed)
+    return;
+
   NSInteger itemType = [self.tableViewModel itemTypeForIndexPath:indexPath];
 
   if (itemType == ItemTypeResetTranslate) {
@@ -178,7 +216,7 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
     MDCSnackbarMessage* message =
         [MDCSnackbarMessage messageWithText:messageText];
     message.category = kTranslateSettingsCategory;
-    [self.dispatcher showSnackbarMessage:message bottomOffset:0];
+    [self.snackbarCommandsHandler showSnackbarMessage:message bottomOffset:0];
   }
   [tableView deselectRowAtIndexPath:indexPath animated:NO];
 }
@@ -202,11 +240,11 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
       [self.tableViewModel indexPathForItemType:ItemTypeTranslate
                               sectionIdentifier:SectionIdentifierTranslate];
 
-  SettingsSwitchItem* switchItem =
-      base::mac::ObjCCastStrict<SettingsSwitchItem>(
+  TableViewSwitchItem* switchItem =
+      base::mac::ObjCCastStrict<TableViewSwitchItem>(
           [self.tableViewModel itemAtIndexPath:switchPath]);
-  SettingsSwitchCell* switchCell =
-      base::mac::ObjCCastStrict<SettingsSwitchCell>(
+  TableViewSwitchCell* switchCell =
+      base::mac::ObjCCastStrict<TableViewSwitchCell>(
           [self.tableView cellForRowAtIndexPath:switchPath]);
 
   DCHECK_EQ(switchCell.switchView, sender);

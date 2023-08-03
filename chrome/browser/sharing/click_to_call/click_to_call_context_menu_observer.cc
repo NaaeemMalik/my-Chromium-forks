@@ -1,10 +1,10 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/sharing/click_to_call/click_to_call_context_menu_observer.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -36,8 +36,9 @@ void ClickToCallContextMenuObserver::SubMenuDelegate::ExecuteCommand(
     int command_id,
     int event_flags) {
   if (command_id < kSubMenuFirstDeviceCommandId ||
-      command_id > kSubMenuLastDeviceCommandId)
+      command_id > kSubMenuLastDeviceCommandId) {
     return;
+  }
   int device_index = command_id - kSubMenuFirstDeviceCommandId;
   parent_->SendClickToCallMessage(device_index);
 }
@@ -66,7 +67,7 @@ void ClickToCallContextMenuObserver::BuildMenu(
     return;
 
   if (devices_.size() == 1) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
     proxy_->AddMenuItem(
         IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_SINGLE_DEVICE,
         l10n_util::GetStringFUTF16(
@@ -84,7 +85,7 @@ void ClickToCallContextMenuObserver::BuildMenu(
 #endif
   } else {
     BuildSubMenu();
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
     proxy_->AddSubMenu(
         IDC_CONTENT_CONTEXT_SHARING_CLICK_TO_CALL_MULTIPLE_DEVICES,
         l10n_util::GetStringUTF16(

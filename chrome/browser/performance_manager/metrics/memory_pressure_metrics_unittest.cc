@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,7 +53,7 @@ class MemoryPressureMetricsTest : public GraphTestHarness {
 };
 
 // Very flaky on Android. http://crbug.com/1069043.
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_TestHistograms DISABLED_TestHistograms
 #else
 #define MAYBE_TestHistograms TestHistograms

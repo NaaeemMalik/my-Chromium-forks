@@ -1,33 +1,33 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <UIKit/UIKit.h>
 #import <XCTest/XCTest.h>
 
-#include "base/bind.h"
+#import "base/functional/bind.h"
 #import "base/mac/foundation_util.h"
-#include "base/strings/sys_string_conversions.h"
+#import "base/strings/sys_string_conversions.h"
 #import "base/test/ios/wait_util.h"
-#include "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/ui/fullscreen/fullscreen_features.h"
+#import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/ui/fullscreen/test/fullscreen_app_interface.h"
-#include "ios/chrome/grit/ios_strings.h"
+#import "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/chrome/test/earl_grey/chrome_xcui_actions.h"
+#import "ios/chrome/test/earl_grey/scoped_block_popups_pref.h"
 #import "ios/chrome/test/scoped_eg_synchronization_disabler.h"
 #import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
-#include "ios/web/common/features.h"
-#include "ios/web/public/test/element_selector.h"
-#include "net/test/embedded_test_server/embedded_test_server.h"
-#include "net/test/embedded_test_server/http_request.h"
-#include "net/test/embedded_test_server/http_response.h"
-#include "url/gurl.h"
+#import "ios/web/common/features.h"
+#import "ios/web/public/test/element_selector.h"
+#import "net/test/embedded_test_server/embedded_test_server.h"
+#import "net/test/embedded_test_server/http_request.h"
+#import "net/test/embedded_test_server/http_response.h"
+#import "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -41,10 +41,10 @@ using chrome_test_util::SystemSelectionCalloutCopyButton;
 using chrome_test_util::WebViewMatcher;
 
 namespace {
-// Directory containing the |kLogoPagePath| and |kLogoPageImageSourcePath|
+// Directory containing the `kLogoPagePath` and `kLogoPageImageSourcePath`
 // resources.
 // const char kServerFilesDir[] = "ios/testing/data/http_server_files/";
-// Path to a page containing the chromium logo and the text |kLogoPageText|.
+// Path to a page containing the chromium logo and the text `kLogoPageText`.
 const char kLogoPagePath[] = "/chromium_logo_page.html";
 // Path to the chromium logo.
 const char kLogoPageImageSourcePath[] = "/chromium_logo.png";
@@ -120,7 +120,25 @@ const char kLongTruncationPageUrl[] = "/longTruncation";
 
 NSString* const kShortLinkHref = @"/destination";
 
-NSString* const kShortImgTitile = @"Chromium logo with a short title";
+NSString* const kShortImgTitle = @"Chromium logo with a short title";
+
+const char kLinkImagePageUrl[] = "/imageLink";
+
+// Template HTML value image test. (Use NSString for easier format printing and
+// matching).
+// Template params:
+//    [0] NSString - link href.
+//    [1] char[]   - link element ID.
+//    [2] NSString - image title
+//    [3] char[]   - image element ID.
+NSString* const kLinkImageHtml =
+    @"<html><head><meta name='viewport' content='width=device-width, "
+     "initial-scale=1.0, maximum-scale=1.0, user-scalable=no' "
+     "/></head><body><p style='margin-bottom:50px'>Image that is also a "
+     "link.</p>"
+     "<p><a style='margin-left:150px' href='%@' id='%s'><img "
+     "src='chromium_logo.png' title='%@' id='%s'/></a></p>"
+     "</body></html>";
 
 // Long titles should be > 100 chars to test truncation.
 NSString* const kLongLinkHref =
@@ -162,7 +180,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   } else if (request.relative_url == kShortTruncationPageUrl) {
     NSString* content = [NSString
         stringWithFormat:kTruncationTestPageTemplateHtml, kShortLinkHref,
-                         kInitialPageDestinationLinkId, kShortImgTitile,
+                         kInitialPageDestinationLinkId, kShortImgTitle,
                          kLogoPageChromiumImageId];
     http_response->set_content(base::SysNSStringToUTF8(content));
   } else if (request.relative_url == kLongTruncationPageUrl) {
@@ -175,6 +193,12 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
     http_response->set_content(kJavaScriptPageHtml);
   } else if (request.relative_url == kMagnetPageUrl) {
     http_response->set_content(kMagnetPageHtml);
+  } else if (request.relative_url == kLinkImagePageUrl) {
+    NSString* content =
+        [NSString stringWithFormat:kLinkImageHtml, kShortLinkHref,
+                                   kInitialPageDestinationLinkId,
+                                   kShortImgTitle, kLogoPageChromiumImageId];
+    http_response->set_content(base::SysNSStringToUTF8(content));
   } else {
     return nullptr;
   }
@@ -182,7 +206,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   return std::move(http_response);
 }
 
-// Long presses on |element_id| to trigger context menu.
+// Long presses on `element_id` to trigger context menu.
 void LongPressElement(const char* element_id) {
   [[EarlGrey selectElementWithMatcher:WebViewMatcher()]
       performAction:chrome_test_util::LongPressElementForContextMenu(
@@ -197,7 +221,7 @@ void ClearContextMenu() {
       performAction:grey_tapAtPoint(CGPointMake(0, 0))];
 }
 
-// Taps on |context_menu_item_button| context menu item.
+// Taps on `context_menu_item_button` context menu item.
 void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
   [[EarlGrey selectElementWithMatcher:context_menu_item_button]
       assertWithMatcher:grey_notNil()];
@@ -208,7 +232,10 @@ void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
 }  // namespace
 
 // Context menu tests for Chrome.
-@interface ContextMenuTestCase : ChromeTestCase
+@interface ContextMenuTestCase : ChromeTestCase {
+  std::unique_ptr<ScopedBlockPopupsPref> _blockPopupsPref;
+}
+
 @end
 
 @implementation ContextMenuTestCase
@@ -216,23 +243,14 @@ void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
 
-  config.features_disabled.push_back(
-      fullscreen::features::kSmoothScrollingDefault);
+  config.features_disabled.push_back(web::features::kSmoothScrollingDefault);
   return config;
-}
-
-+ (void)setUpForTestCase {
-  [super setUpForTestCase];
-  [ChromeEarlGrey setContentSettings:CONTENT_SETTING_ALLOW];
-}
-
-+ (void)tearDown {
-  [ChromeEarlGrey setContentSettings:CONTENT_SETTING_DEFAULT];
-  [super tearDown];
 }
 
 - (void)setUp {
   [super setUp];
+  _blockPopupsPref =
+      std::make_unique<ScopedBlockPopupsPref>(CONTENT_SETTING_ALLOW);
   self.testServer->RegisterRequestHandler(
       base::BindRepeating(&StandardResponse));
   GREYAssertTrue(self.testServer->Start(), @"Server did not start.");
@@ -315,7 +333,7 @@ void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
   pointOnImage.y = topInset + 25.0;
   pointOnImage.x = [ChromeEarlGrey webStateWebViewSize].width / 2.0;
 
-  // Duration should match |kContextMenuLongPressDuration| as defined in
+  // Duration should match `kContextMenuLongPressDuration` as defined in
   // web_view_actions.mm.
   [[EarlGrey selectElementWithMatcher:WebViewMatcher()]
       performAction:grey_longPressAtPointWithDuration(pointOnImage, 1.0)];
@@ -323,15 +341,6 @@ void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
   TapOnContextMenuButton(OpenImageInNewTabButton());
   [ChromeEarlGrey waitForMainTabCount:2];
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-result"
-  // TODO(crbug.com/643792): Remove this wait the bug is fixed.
-  // Delay for 1 second before selecting tab.
-  [[GREYCondition conditionWithName:@"delay"
-                              block:^BOOL {
-                                return NO;
-                              }] waitWithTimeout:1];
-#pragma clang diagnostic pop
   [ChromeEarlGrey selectTabAtIndex:1];
 
   [ChromeEarlGrey waitForPageToFinishLoading];
@@ -342,14 +351,14 @@ void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
 }
 
 // Tests context menu title truncation cases.
-- (void)testContextMenuTtitleTruncation {
+- (void)testContextMenuTitleTruncation {
   const GURL shortTtileURL = self.testServer->GetURL(kShortTruncationPageUrl);
   [ChromeEarlGrey loadURL:shortTtileURL];
   [ChromeEarlGrey waitForPageToFinishLoading];
   [ChromeEarlGrey waitForWebStateZoomScale:1.0];
 
   LongPressElement(kLogoPageChromiumImageId);
-  [[EarlGrey selectElementWithMatcher:grey_text(kShortImgTitile)]
+  [[EarlGrey selectElementWithMatcher:grey_text(kShortImgTitle)]
       assertWithMatcher:grey_notNil()];
   ClearContextMenu();
 
@@ -383,7 +392,6 @@ void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
       assertWithMatcher:grey_notNil()];
   ClearContextMenu();
 }
-
 // Tests that system touches are cancelled when the context menu is shown.
 - (void)testContextMenuCancelSystemTouchesMetric {
   const GURL pageURL = self.testServer->GetURL(kLogoPagePath);
@@ -424,7 +432,7 @@ void TapOnContextMenuButton(id<GREYMatcher> context_menu_item_button) {
       assertWithMatcher:grey_notNil()];
 
   // TODO(crbug.com/1233056): Tap to dismiss the system selection callout
-  // buttons so tearDown doesn't hang when |disabler| goes out of scope.
+  // buttons so tearDown doesn't hang when `disabler` goes out of scope.
   [[EarlGrey selectElementWithMatcher:WebViewMatcher()]
       performAction:grey_tap()];
 }

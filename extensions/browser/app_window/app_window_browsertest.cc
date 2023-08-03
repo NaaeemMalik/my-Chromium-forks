@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@ typedef PlatformAppBrowserTest AppWindowBrowserTest;
 // at all, so the test may fail on certain window managers.
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
 #define MAYBE_FrameInsetsForDefaultFrame DISABLED_FrameInsetsForDefaultFrame
 #else
 #define MAYBE_FrameInsetsForDefaultFrame FrameInsetsForDefaultFrame
@@ -72,7 +72,9 @@ IN_PROC_BROWSER_TEST_F(AppWindowBrowserTest, FrameInsetsForNoFrame) {
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 
-IN_PROC_BROWSER_TEST_F(AppWindowBrowserTest, ShouldShowStaleContentOnEviction) {
+// Disabled due to flake. https://crbug.com/1416579
+IN_PROC_BROWSER_TEST_F(AppWindowBrowserTest,
+                       DISABLED_ShouldShowStaleContentOnEviction) {
   AppWindow* app_window = CreateTestAppWindow("{}");
   // Make sure that a surface gets embedded in the frame evictor of the
   // DelegateFrameHost.

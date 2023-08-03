@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,6 +19,7 @@ import org.chromium.net.impl.CronetEngineBase;
 import org.chromium.net.impl.CronetEngineBuilderImpl;
 import org.chromium.net.impl.ImplVersion;
 import org.chromium.net.impl.UrlRequestBase;
+import org.chromium.net.impl.VersionSafeCallbacks;
 
 import java.io.IOException;
 import java.net.Proxy;
@@ -26,6 +27,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandlerFactory;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -75,7 +77,10 @@ final class FakeCronetEngine extends CronetEngineBase {
 
     @GuardedBy("mLock")
     private int mActiveRequestCount;
-
+    @GuardedBy("mLock")
+    private final Map<RequestFinishedInfo.Listener,
+            VersionSafeCallbacks.RequestFinishedInfoListener> mFinishedListenerMap =
+            new HashMap<>();
     /**
      * Creates a {@link FakeCronetEngine}. Used when {@link FakeCronetEngine} is created with the
      * {@link FakeCronetEngine.Builder}.
@@ -186,6 +191,13 @@ final class FakeCronetEngine extends CronetEngineBase {
     }
 
     @Override
+    public void bindToNetwork(long networkHandle) {
+        throw new UnsupportedOperationException(
+                "The multi-network API is not supported by the Fake implementation "
+                + "of Cronet Engine");
+    }
+
+    @Override
     public void configureNetworkQualityEstimatorForTesting(boolean useLocalHostRequests,
             boolean useSmallerResponses, boolean disableOfflineCheck) {}
 
@@ -202,10 +214,39 @@ final class FakeCronetEngine extends CronetEngineBase {
     public void removeThroughputListener(NetworkQualityThroughputListener listener) {}
 
     @Override
-    public void addRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+    public void addRequestFinishedListener(RequestFinishedInfo.Listener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("Listener must not be null");
+        }
+        synchronized (mLock) {
+            mFinishedListenerMap.put(
+                    listener, new VersionSafeCallbacks.RequestFinishedInfoListener(listener));
+        }
+    }
 
     @Override
-    public void removeRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+    public void removeRequestFinishedListener(RequestFinishedInfo.Listener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("Listener must not be null");
+        }
+        synchronized (mLock) {
+            mFinishedListenerMap.remove(listener);
+        }
+    }
+
+    boolean hasRequestFinishedListeners() {
+        synchronized (mLock) {
+            return !mFinishedListenerMap.isEmpty();
+        }
+    }
+
+    void reportRequestFinished(RequestFinishedInfo requestInfo) {
+        synchronized (mLock) {
+            for (RequestFinishedInfo.Listener listener : mFinishedListenerMap.values()) {
+                listener.getExecutor().execute(() -> listener.onRequestFinished(requestInfo));
+            }
+        }
+    }
 
     // TODO(crbug.com/669707) Instantiate a fake CronetHttpUrlConnection wrapping a FakeUrlRequest
     // here.
@@ -236,7 +277,13 @@ final class FakeCronetEngine extends CronetEngineBase {
             boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
-            int idempotency) {
+            int idempotency, long networkHandle) {
+        if (networkHandle != DEFAULT_NETWORK_HANDLE) {
+            throw new UnsupportedOperationException(
+                    "The multi-network API is not supported by the Fake implementation "
+                    + "of Cronet Engine");
+        }
+
         synchronized (mLock) {
             if (mIsShutdown) {
                 throw new IllegalStateException(
@@ -245,7 +292,14 @@ final class FakeCronetEngine extends CronetEngineBase {
             }
             return new FakeUrlRequest(callback, userExecutor, mExecutorService, url,
                     allowDirectExecutor, trafficStatsTagSet, trafficStatsTag, trafficStatsUidSet,
-                    trafficStatsUid, mController, this);
+                    trafficStatsUid, mController, this, connectionAnnotations);
+        }
+    }
+
+    @Override
+    public int getActiveRequestCount() {
+        synchronized (mLock) {
+            return mActiveRequestCount;
         }
     }
 
@@ -255,7 +309,12 @@ final class FakeCronetEngine extends CronetEngineBase {
             List<Map.Entry<String, String>> requestHeaders, @StreamPriority int priority,
             boolean delayRequestHeadersUntilFirstFlush, Collection<Object> connectionAnnotations,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
-            int trafficStatsUid) {
+            int trafficStatsUid, long networkHandle) {
+        if (networkHandle != DEFAULT_NETWORK_HANDLE) {
+            throw new UnsupportedOperationException(
+                    "The multi-network API is not supported by the Fake implementation "
+                    + "of Cronet Engine");
+        }
         synchronized (mLock) {
             if (mIsShutdown) {
                 throw new IllegalStateException(

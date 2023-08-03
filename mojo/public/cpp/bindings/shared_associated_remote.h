@@ -1,13 +1,14 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef MOJO_PUBLIC_CPP_BINDINGS_SHARED_ASSOCIATED_REMOTE_H_
 #define MOJO_PUBLIC_CPP_BINDINGS_SHARED_ASSOCIATED_REMOTE_H_
 
-#include "base/ignore_result.h"
-#include "base/memory/ref_counted.h"
-#include "base/threading/sequenced_task_runner_handle.h"
+#include <tuple>
+
+#include "base/memory/scoped_refptr.h"
+#include "base/task/sequenced_task_runner.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "mojo/public/cpp/bindings/shared_remote.h"
@@ -19,7 +20,7 @@ namespace internal {
 template <typename Interface>
 struct SharedRemoteTraits<AssociatedRemote<Interface>> {
   static void BindDisconnected(AssociatedRemote<Interface>& remote) {
-    ignore_result(remote.BindNewEndpointAndPassDedicatedReceiver());
+    std::ignore = remote.BindNewEndpointAndPassDedicatedReceiver();
   }
 };
 
@@ -45,7 +46,7 @@ class SharedAssociatedRemote {
   explicit SharedAssociatedRemote(
       PendingAssociatedRemote<Interface> pending_remote,
       scoped_refptr<base::SequencedTaskRunner> bind_task_runner =
-          base::SequencedTaskRunnerHandle::Get()) {
+          base::SequencedTaskRunner::GetCurrentDefault()) {
     if (pending_remote.is_valid())
       Bind(std::move(pending_remote), std::move(bind_task_runner));
   }
@@ -81,7 +82,7 @@ class SharedAssociatedRemote {
   // one of them, on `task_runner`. The other is returned as a receiver.
   mojo::PendingAssociatedReceiver<Interface> BindNewEndpointAndPassReceiver(
       scoped_refptr<base::SequencedTaskRunner> bind_task_runner =
-          base::SequencedTaskRunnerHandle::Get()) {
+          base::SequencedTaskRunner::GetCurrentDefault()) {
     mojo::PendingAssociatedRemote<Interface> remote;
     auto receiver = remote.InitWithNewEndpointAndPassReceiver();
     Bind(std::move(remote), std::move(bind_task_runner));
@@ -91,7 +92,7 @@ class SharedAssociatedRemote {
   // Binds to `pending_remote` on `bind_task_runner`.
   void Bind(PendingAssociatedRemote<Interface> pending_remote,
             scoped_refptr<base::SequencedTaskRunner> bind_task_runner =
-                base::SequencedTaskRunnerHandle::Get()) {
+                base::SequencedTaskRunner::GetCurrentDefault()) {
     DCHECK(!remote_);
     DCHECK(pending_remote.is_valid());
     remote_ = SharedRemoteBase<AssociatedRemote<Interface>>::Create(

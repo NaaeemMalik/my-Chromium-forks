@@ -1,8 +1,9 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/memory/raw_ptr.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/test_timeouts.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -15,6 +16,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test.h"
+#include "content/public/test/content_browser_test_content_browser_client.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/public/test/content_mock_cert_verifier.h"
 #include "content/shell/browser/shell.h"
@@ -23,7 +25,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "base/android/build_info.h"
 #endif
 
@@ -33,12 +35,12 @@ namespace {
 
 void RunLoopWithTimeout() {
   base::RunLoop run_loop;
-  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE, run_loop.QuitClosure(), TestTimeouts::tiny_timeout());
   run_loop.Run();
 }
 
-class TestBrowserClient : public ContentBrowserClient {
+class TestBrowserClient : public ContentBrowserTestContentBrowserClient {
  public:
   explicit TestBrowserClient(FeatureObserverClient* feature_observer_client)
       : feature_observer_client_(feature_observer_client) {}
@@ -77,19 +79,6 @@ class IndexedDBFeatureObserverBrowserTest : public ContentBrowserTest {
   // Check if the test can run on the current system. If the test can run,
   // navigates to the test page and returns true. Otherwise, returns false.
   bool CheckShouldRunTestAndNavigate() const {
-#if defined(OS_ANDROID)
-    // Don't run the test if we couldn't override BrowserClient. It happens only
-    // on Android Kitkat or older systems.
-    if (!original_client_)
-      return false;
-
-    // TODO(https://crbug.com/1011765, https://crbug.com/1019659):
-    // Navigation fails on Android Kit Kat.
-    if (base::android::BuildInfo::GetInstance()->sdk_int() <=
-        base::android::SDK_VERSION_KITKAT) {
-      return false;
-    }
-#endif  // defined(OS_ANDROID)
     EXPECT_TRUE(NavigateToURL(shell(), GetTestURL("a.com")));
     return true;
   }
@@ -106,7 +95,8 @@ class IndexedDBFeatureObserverBrowserTest : public ContentBrowserTest {
   void SetUpOnMainThread() override {
     ContentBrowserTest::SetUpOnMainThread();
     mock_cert_verifier_.mock_cert_verifier()->set_default_result(net::OK);
-    original_client_ = SetBrowserClientForTesting(&test_browser_client_);
+    browser_client_ =
+        std::make_unique<TestBrowserClient>(&mock_observer_client_);
 
     host_resolver()->AddRule("*", "127.0.0.1");
     server_.ServeFilesFromSourceDirectory(GetTestDataFilePath());
@@ -114,8 +104,7 @@ class IndexedDBFeatureObserverBrowserTest : public ContentBrowserTest {
   }
 
   void TearDownOnMainThread() override {
-    if (original_client_)
-      SetBrowserClientForTesting(original_client_);
+    browser_client_.reset();
     ContentBrowserTest::TearDownOnMainThread();
   }
 
@@ -136,8 +125,7 @@ class IndexedDBFeatureObserverBrowserTest : public ContentBrowserTest {
 
   content::ContentMockCertVerifier mock_cert_verifier_;
   net::EmbeddedTestServer server_{net::EmbeddedTestServer::TYPE_HTTPS};
-  raw_ptr<ContentBrowserClient> original_client_ = nullptr;
-  TestBrowserClient test_browser_client_{&mock_observer_client_};
+  std::unique_ptr<TestBrowserClient> browser_client_;
 
   IndexedDBFeatureObserverBrowserTest(
       const IndexedDBFeatureObserverBrowserTest&) = delete;
@@ -172,7 +160,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
   GlobalRenderFrameHostId rfh_id = rfh->GetGlobalId();
 
   {
@@ -220,7 +208,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
   GlobalRenderFrameHostId rfh_id = rfh->GetGlobalId();
 
   {
@@ -274,12 +262,12 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest, ObserverNavigate) {
       ->web_contents()
       ->GetController()
       .GetBackForwardCache()
-      .DisableForTesting(content::BackForwardCache::TEST_ASSUMES_NO_CACHING);
+      .DisableForTesting(content::BackForwardCache::TEST_REQUIRES_NO_CACHING);
 
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
   GlobalRenderFrameHostId rfh_id = rfh->GetGlobalId();
 
   {
@@ -320,7 +308,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
 
   // Use EvalJs() instead of ExecJs() to ensure that this doesn't return before
   // the lock is acquired and released by the worker.
@@ -337,7 +325,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
 }
 
 // SharedWorkers are not enabled on Android. https://crbug.com/154571
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 // Verify that content::FeatureObserver is *not* notified when a shared worker
 // opens/closes an IndexedDB connection.
 IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
@@ -345,7 +333,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
 
   // Use EvalJs() instead of ExecJs() to ensure that this doesn't return before
   // the lock is acquired and released by the worker.
@@ -360,7 +348,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   // Wait a short timeout to make sure that the observer is not notified.
   RunLoopWithTimeout();
 }
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 // Verify that content::FeatureObserver is *not* notified when a service worker
 // opens/closes an IndexedDB connection.
@@ -369,7 +357,7 @@ IN_PROC_BROWSER_TEST_F(IndexedDBFeatureObserverBrowserTest,
   if (!CheckShouldRunTestAndNavigate())
     return;
 
-  RenderFrameHost* rfh = shell()->web_contents()->GetMainFrame();
+  RenderFrameHost* rfh = shell()->web_contents()->GetPrimaryMainFrame();
 
   // Use EvalJs() instead of ExecJs() to ensure that this doesn't return before
   // the lock is acquired and released by the worker.

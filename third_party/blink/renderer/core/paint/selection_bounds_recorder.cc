@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,9 @@
 #include "third_party/blink/renderer/core/editing/frame_selection.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
-#include "third_party/blink/renderer/core/layout/api/selection_state.h"
 #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
 #include "third_party/blink/renderer/core/layout/layout_box.h"
+#include "third_party/blink/renderer/core/layout/selection_state.h"
 #include "third_party/blink/renderer/core/page/focus_controller.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
@@ -35,6 +35,7 @@ enum class RectEdge {
 struct BoundEdges {
   RectEdge start;
   RectEdge end;
+  DISALLOW_NEW();
 };
 
 // Based on the given WritingMode and direction, return the pair of start and
@@ -100,12 +101,12 @@ void SetBoundEdge(gfx::Rect selection_rect,
 PhysicalOffset GetSamplePointForVisibility(const PhysicalOffset& edge_start,
                                            const PhysicalOffset& edge_end,
                                            float zoom_factor) {
-  FloatSize diff(edge_start - edge_end);
+  gfx::Vector2dF diff(edge_start - edge_end);
   // Adjust by ~1px to avoid integer snapping error. This logic is the same
   // as that in ComputeViewportSelectionBound in cc.
-  diff.Scale(zoom_factor / diff.DiagonalLength());
+  diff.Scale(zoom_factor / diff.Length());
   PhysicalOffset sample_point = edge_end;
-  sample_point += PhysicalOffset::FromFloatSizeRound(diff);
+  sample_point += PhysicalOffset::FromVector2dFRound(diff);
   return sample_point;
 }
 
@@ -123,11 +124,14 @@ SelectionBoundsRecorder::SelectionBoundsRecorder(
       paint_controller_(paint_controller),
       text_direction_(text_direction),
       writing_mode_(writing_mode),
-      selection_layout_object_(layout_object) {
-  DCHECK(RuntimeEnabledFeatures::CompositeAfterPaintEnabled());
-}
+      selection_layout_object_(layout_object) {}
 
 SelectionBoundsRecorder::~SelectionBoundsRecorder() {
+  paint_controller_.RecordAnySelectionWasPainted();
+
+  if (state_ == SelectionState::kInside)
+    return;
+
   absl::optional<PaintedSelectionBound> start;
   absl::optional<PaintedSelectionBound> end;
   gfx::Rect selection_rect = ToPixelSnappedRect(selection_rect_);
@@ -161,9 +165,6 @@ SelectionBoundsRecorder::~SelectionBoundsRecorder() {
 bool SelectionBoundsRecorder::ShouldRecordSelection(
     const FrameSelection& frame_selection,
     SelectionState state) {
-  if (!RuntimeEnabledFeatures::CompositeAfterPaintEnabled())
-    return false;
-
   if (!frame_selection.IsHandleVisible() || frame_selection.IsHidden())
     return false;
 
@@ -177,7 +178,7 @@ bool SelectionBoundsRecorder::ShouldRecordSelection(
   if (local_frame != focused_frame)
     return false;
 
-  if (state == SelectionState::kInside || state == SelectionState::kNone)
+  if (state == SelectionState::kNone)
     return false;
 
   return true;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 #include <map>
 
-#include "base/callback_forward.h"
 #include "base/callback_list.h"
+#include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
@@ -56,7 +56,7 @@ using StringProvider = base::RepeatingCallback<std::string()>;
 using password_manager::metrics_util::PasswordType;
 using url::Origin;
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 // Shows the desktop platforms specific password reuse modal dialog.
 // Implemented in password_reuse_modal_warning_dialog.
 void ShowPasswordReuseModalWarningDialog(
@@ -67,9 +67,10 @@ void ShowPasswordReuseModalWarningDialog(
 #endif
 
 // Called by ChromeContentBrowserClient to create a
-// PasswordProtectionNavigationThrottle if appropriate.
-std::unique_ptr<PasswordProtectionNavigationThrottle>
-MaybeCreateNavigationThrottle(content::NavigationHandle* navigation_handle);
+// PasswordProtectionCommitDeferringCondition if appropriate.
+std::unique_ptr<PasswordProtectionCommitDeferringCondition>
+MaybeCreateCommitDeferringCondition(
+    content::NavigationHandle& navigation_handle);
 
 // ChromePasswordProtectionService extends PasswordProtectionService by adding
 // access to SafeBrowsingNaivigationObserverManager and Profile.
@@ -187,7 +188,7 @@ class ChromePasswordProtectionService : public PasswordProtectionService,
 
 // The following functions are disabled on Android, because enterprise reporting
 // extension is not supported.
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // If the browser is not incognito and the user is reusing their enterprise
   // password or is a GSuite user, triggers
   // safeBrowsingPrivate.OnPolicySpecifiedPasswordReuseDetected.
@@ -196,7 +197,8 @@ class ChromePasswordProtectionService : public PasswordProtectionService,
   void MaybeReportPasswordReuseDetected(PasswordProtectionRequest* request,
                                         const std::string& username,
                                         PasswordType password_type,
-                                        bool is_phishing_url) override;
+                                        bool is_phishing_url,
+                                        bool warning_shown) override;
 
   // Triggers "safeBrowsingPrivate.OnPolicySpecifiedPasswordChanged" API.
   void ReportPasswordChanged() override;
@@ -240,7 +242,7 @@ class ChromePasswordProtectionService : public PasswordProtectionService,
       const std::vector<password_manager::MatchingReusedCredential>&
           matching_reused_credentials) override;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   LoginReputationClientRequest::ReferringAppInfo GetReferringAppInfo(
       content::WebContents* web_contents) override;
 #endif
@@ -423,6 +425,8 @@ class ChromePasswordProtectionService : public PasswordProtectionService,
   FRIEND_TEST_ALL_PREFIXES(
       ChromePasswordProtectionServiceTest,
       VerifyUnhandledSyncPasswordReuseUponClearHistoryDeletion);
+  FRIEND_TEST_ALL_PREFIXES(ChromePasswordProtectionServiceTest,
+                           VerifyCanShowInterstitial);
   FRIEND_TEST_ALL_PREFIXES(ChromePasswordProtectionServiceTest,
                            VerifyCanShowInterstitial);
   FRIEND_TEST_ALL_PREFIXES(ChromePasswordProtectionServiceTest,

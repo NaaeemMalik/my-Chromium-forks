@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ namespace protocol {
 
 class NativeInputEventBuilder {
  public:
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // This returned object has a retain count of 1.
   static gfx::NativeEvent CreateEvent(const NativeWebKeyboardEvent& event);
 #else

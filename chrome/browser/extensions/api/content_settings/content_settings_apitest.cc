@@ -1,18 +1,17 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
@@ -20,9 +19,9 @@
 #include "chrome/browser/extensions/api/content_settings/content_settings_api.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/permissions/permission_manager_factory.h"
+#include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
+#include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_keep_alive_types.h"
-#include "chrome/browser/profiles/scoped_profile_keep_alive.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
@@ -36,13 +35,17 @@
 #include "components/permissions/permission_result.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/notification_service.h"
-#include "content/public/browser/plugin_service.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/webplugininfo.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/test_extension_registry_observer.h"
+#include "net/base/schemeful_site.h"
+
+#if BUILDFLAG(ENABLE_PLUGINS)
+#include "content/public/browser/plugin_service.h"
+#endif
 
 namespace extensions {
 
@@ -79,7 +82,7 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
     profile_keep_alive_.reset();
     // BrowserProcess::Shutdown() needs to be called in a message loop, so we
     // post a task to release the keep alive, then run the message loop.
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&std::unique_ptr<ScopedKeepAlive>::reset,
                                   base::Unretained(&keep_alive_), nullptr));
     content::RunAllPendingInMessageLoop();
@@ -96,8 +99,9 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
 
     // Check default content settings by using an unknown URL.
     GURL example_url("http://www.example.com");
-    EXPECT_TRUE(
-        cookie_settings->IsFullCookieAccessAllowed(example_url, example_url));
+    EXPECT_TRUE(cookie_settings->IsFullCookieAccessAllowed(
+        example_url, net::SiteForCookies::FromUrl(example_url),
+        url::Origin::Create(example_url), net::CookieSettingOverrides()));
     EXPECT_TRUE(cookie_settings->IsCookieSessionOnly(example_url));
     EXPECT_EQ(CONTENT_SETTING_ALLOW,
               map->GetContentSetting(example_url, example_url,
@@ -126,10 +130,15 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
     EXPECT_EQ(CONTENT_SETTING_ALLOW,
               map->GetContentSetting(example_url, example_url,
                                      ContentSettingsType::AUTOPLAY));
+    EXPECT_EQ(CONTENT_SETTING_BLOCK,
+              map->GetContentSetting(example_url, example_url,
+                                     ContentSettingsType::ANTI_ABUSE));
 
     // Check content settings for www.google.com
     GURL url("http://www.google.com");
-    EXPECT_FALSE(cookie_settings->IsFullCookieAccessAllowed(url, url));
+    EXPECT_FALSE(cookie_settings->IsFullCookieAccessAllowed(
+        url, net::SiteForCookies::FromUrl(url), url::Origin::Create(url),
+        net::CookieSettingOverrides()));
     EXPECT_EQ(CONTENT_SETTING_ALLOW,
               map->GetContentSetting(url, url, ContentSettingsType::IMAGES));
     EXPECT_EQ(
@@ -154,6 +163,9 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
                                      ContentSettingsType::AUTOMATIC_DOWNLOADS));
     EXPECT_EQ(CONTENT_SETTING_ALLOW,
               map->GetContentSetting(url, url, ContentSettingsType::AUTOPLAY));
+    EXPECT_EQ(
+        CONTENT_SETTING_BLOCK,
+        map->GetContentSetting(url, url, ContentSettingsType::ANTI_ABUSE));
   }
 
   void CheckContentSettingsDefault() {
@@ -164,7 +176,9 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
 
     // Check content settings for www.google.com
     GURL url("http://www.google.com");
-    EXPECT_TRUE(cookie_settings->IsFullCookieAccessAllowed(url, url));
+    EXPECT_TRUE(cookie_settings->IsFullCookieAccessAllowed(
+        url, net::SiteForCookies::FromUrl(url), url::Origin::Create(url),
+        net::CookieSettingOverrides()));
     EXPECT_FALSE(cookie_settings->IsCookieSessionOnly(url));
     EXPECT_EQ(CONTENT_SETTING_ALLOW,
               map->GetContentSetting(url, url, ContentSettingsType::IMAGES));
@@ -190,6 +204,9 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
                                      ContentSettingsType::AUTOMATIC_DOWNLOADS));
     EXPECT_EQ(CONTENT_SETTING_ALLOW,
               map->GetContentSetting(url, url, ContentSettingsType::AUTOPLAY));
+    EXPECT_EQ(
+        CONTENT_SETTING_ALLOW,
+        map->GetContentSetting(url, url, ContentSettingsType::ANTI_ABUSE));
   }
 
   // Returns a snapshot of content settings for a given URL.
@@ -201,8 +218,9 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
     content_settings::CookieSettings* cookie_settings =
         CookieSettingsFactory::GetForProfile(profile_).get();
 
-    content_settings.push_back(
-        cookie_settings->IsFullCookieAccessAllowed(url, url));
+    content_settings.push_back(cookie_settings->IsFullCookieAccessAllowed(
+        url, net::SiteForCookies::FromUrl(url), url::Origin::Create(url),
+        net::CookieSettingOverrides()));
     content_settings.push_back(cookie_settings->IsCookieSessionOnly(url));
     content_settings.push_back(
         map->GetContentSetting(url, url, ContentSettingsType::IMAGES));
@@ -226,7 +244,7 @@ class ExtensionContentSettingsApiTest : public ExtensionApiTest {
   }
 
  private:
-  raw_ptr<Profile> profile_ = nullptr;
+  raw_ptr<Profile, DanglingUntriaged> profile_ = nullptr;
   std::unique_ptr<ScopedKeepAlive> keep_alive_;
   std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive_;
 };
@@ -256,7 +274,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContentSettingsApiTest, Standard) {
 
   static constexpr char kExtensionPath[] = "content_settings/standard";
 
-  EXPECT_TRUE(RunExtensionTest(kExtensionPath, {.page_url = "test.html"}))
+  EXPECT_TRUE(RunExtensionTest(kExtensionPath, {.extension_url = "test.html"}))
       << message_;
   CheckContentSettingsSet();
 
@@ -300,7 +318,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContentSettingsApiTest, IncognitoIsolation) {
 
   // Run extension, set all permissions to allow, and check if they are changed.
   ASSERT_TRUE(RunExtensionTest("content_settings/incognitoisolation",
-                               {.page_url = "test.html",
+                               {.extension_url = "test.html",
                                 .custom_arg = "allow",
                                 .open_in_incognito = true},
                                {.allow_in_incognito = true}))
@@ -312,7 +330,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContentSettingsApiTest, IncognitoIsolation) {
 
   // Run extension, set all permissions to block, and check if they are changed.
   ASSERT_TRUE(RunExtensionTest("content_settings/incognitoisolation",
-                               {.page_url = "test.html",
+                               {.extension_url = "test.html",
                                 .custom_arg = "block",
                                 .open_in_incognito = true},
                                {.allow_in_incognito = true}))
@@ -328,7 +346,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContentSettingsApiTest,
                        IncognitoNotAllowedInRegular) {
   EXPECT_FALSE(
       RunExtensionTest("content_settings/incognitoisolation",
-                       {.page_url = "test.html", .custom_arg = "allow"}))
+                       {.extension_url = "test.html", .custom_arg = "allow"}))
       << message_;
 }
 
@@ -361,6 +379,7 @@ IN_PROC_BROWSER_TEST_P(ExtensionContentSettingsApiTestWithContextType,
       "ContentSettings.ExtensionNonEmbeddedSettingSet", 2);
 }
 
+#if BUILDFLAG(ENABLE_PLUGINS)
 IN_PROC_BROWSER_TEST_F(ExtensionContentSettingsApiTest, ConsoleErrorTest) {
   constexpr char kExtensionPath[] = "content_settings/disablepluginsapi";
   const extensions::Extension* extension =
@@ -371,10 +390,10 @@ IN_PROC_BROWSER_TEST_F(ExtensionContentSettingsApiTest, ConsoleErrorTest) {
                            ->host_contents();
   content::WebContentsConsoleObserver console_observer(web_contents);
   console_observer.SetPattern("*contentSettings.plugins is deprecated.*");
-  browsertest_util::ExecuteScriptInBackgroundPageNoWait(
-      profile(), extension->id(), "setPluginsSetting()");
-  console_observer.Wait();
+  ExecuteScriptInBackgroundPageNoWait(extension->id(), "setPluginsSetting()");
+  ASSERT_TRUE(console_observer.Wait());
   EXPECT_EQ(1u, console_observer.messages().size());
 }
+#endif  // BUILDFLAG(ENABLE_PLUGINS)
 
 }  // namespace extensions

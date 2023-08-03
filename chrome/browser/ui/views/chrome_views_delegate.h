@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
-#include "base/location.h"
+#include "base/functional/callback.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "ui/views/views_delegate.h"
@@ -41,20 +40,26 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
   ProcessMenuAcceleratorResult ProcessAcceleratorWhileMenuShowing(
       const ui::Accelerator& accelerator) override;
   bool ShouldCloseMenuIfMouseCaptureLost() const override;
+#endif
+
+#if BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<views::NonClientFrameView> CreateDefaultNonClientFrameView(
       views::Widget* widget) override;
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   HICON GetDefaultWindowIcon() const override;
   HICON GetSmallWindowIcon() const override;
   int GetAppbarAutohideEdges(HMONITOR monitor,
                              base::OnceClosure callback) override;
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#elif defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-  gfx::ImageSkia* GetDefaultWindowIcon() const override;
+#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
   bool WindowManagerProvidesTitleBar(bool maximized) override;
+#endif
+
+#if BUILDFLAG(IS_LINUX)
+  gfx::ImageSkia* GetDefaultWindowIcon() const override;
 #endif
 
   void AddRef() override;
@@ -63,13 +68,13 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
   void OnBeforeWidgetInit(
       views::Widget::InitParams* params,
       views::internal::NativeWidgetDelegate* delegate) override;
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   ui::ContextFactory* GetContextFactory() override;
 #endif
   std::string GetApplicationName() override;
 
  private:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   typedef std::map<HMONITOR, int> AppbarAutohideEdgeMap;
 
   // Callback on main thread with the edges. |returned_edges| is the value that
@@ -103,7 +108,7 @@ class ChromeViewsDelegate : public views::ViewsDelegate {
   std::map<Profile*, std::unique_ptr<ScopedProfileKeepAlive>>
       profile_keep_alives_;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   AppbarAutohideEdgeMap appbar_autohide_edge_map_;
   // If true we're in the process of notifying a callback from
   // GetAutohideEdges().start a new query.

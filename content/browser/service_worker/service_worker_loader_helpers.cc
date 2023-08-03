@@ -1,10 +1,12 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/service_worker/service_worker_loader_helpers.h"
 
 #include "base/command_line.h"
+#include "base/no_destructor.h"
+#include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "components/network_session_configurator/common/network_switches.h"
@@ -13,6 +15,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/common/content_client.h"
+#include "content/public/common/content_features.h"
 #include "content/public/common/referrer.h"
 #include "services/network/public/cpp/constants.h"
 #include "third_party/blink/public/common/features.h"
@@ -213,7 +216,8 @@ network::ResourceRequest CreateRequestForServiceWorkerScript(
       &browser_context, &renderer_preferences);
   UpdateAdditionalHeadersForBrowserInitiatedRequest(
       &request.headers, &browser_context,
-      /*should_update_existing_headers=*/false, renderer_preferences);
+      /*should_update_existing_headers=*/false, renderer_preferences,
+      /*is_for_worker_script=*/true);
 
   // Set the accept header to '*/*'.
   // https://fetch.spec.whatwg.org/#concept-fetch
@@ -320,6 +324,15 @@ bool IsPathRestrictionSatisfiedWithoutHeader(const GURL& scope,
                                              std::string* error_message) {
   return IsPathRestrictionSatisfiedInternal(scope, script_url, false, nullptr,
                                             error_message);
+}
+
+const base::flat_set<std::string> FetchHandlerBypassedHashStrings() {
+  const static base::NoDestructor<base::flat_set<std::string>> result(
+      base::SplitString(
+          features::kServiceWorkerBypassFetchHandlerBypassedHashStrings.Get(),
+          ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY));
+
+  return *result;
 }
 
 }  // namespace service_worker_loader_helpers

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,15 @@
 
 #include <set>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/observer_list.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_aura.h"
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/render_view_host.h"
+#include "third_party/blink/public/mojom/input/input_handler.mojom-shared.h"
 #include "ui/aura/client/cursor_client.h"
 #include "ui/aura/client/screen_position_client.h"
 #include "ui/aura/env.h"
@@ -25,6 +27,7 @@
 #include "ui/gfx/geometry/size_conversions.h"
 #include "ui/strings/grit/ui_strings.h"
 #include "ui/touch_selection/touch_handle_drawable_aura.h"
+#include "ui/touch_selection/touch_selection_magnifier_runner.h"
 #include "ui/touch_selection/touch_selection_menu_runner.h"
 
 namespace content {
@@ -268,7 +271,8 @@ void TouchSelectionControllerClientAura::ShowQuickMenu() {
 
   aura::Window* parent = rwhva_->GetNativeView();
   ui::TouchSelectionMenuRunner::GetInstance()->OpenMenu(
-      active_menu_client_, ConvertRectToScreen(parent, anchor_rect),
+      active_menu_client_->GetWeakPtr(),
+      ConvertRectToScreen(parent, anchor_rect),
       gfx::ToRoundedSize(max_handle_size), parent->GetToplevelWindow());
 }
 
@@ -290,6 +294,21 @@ void TouchSelectionControllerClientAura::UpdateQuickMenu() {
       ShowQuickMenu();
     else
       quick_menu_timer_.Reset();
+  }
+}
+
+void TouchSelectionControllerClientAura::ShowMagnifier(
+    const gfx::PointF& position) {
+  if (auto* magnifier_runner =
+          ui::TouchSelectionMagnifierRunner::GetInstance()) {
+    magnifier_runner->ShowMagnifier(rwhva_->GetNativeView(), position);
+  }
+}
+
+void TouchSelectionControllerClientAura::CloseMagnifier() {
+  if (auto* magnifier_runner =
+          ui::TouchSelectionMagnifierRunner::GetInstance()) {
+    magnifier_runner->CloseMagnifier();
   }
 }
 
@@ -360,7 +379,7 @@ void TouchSelectionControllerClientAura::OnSelectionEvent(
   switch (event) {
     case ui::SELECTION_HANDLES_SHOWN:
       quick_menu_requested_ = true;
-      FALLTHROUGH;
+      [[fallthrough]];
     case ui::INSERTION_HANDLE_SHOWN:
       UpdateQuickMenu();
       env_event_observer_ = std::make_unique<EnvEventObserver>(
@@ -381,6 +400,7 @@ void TouchSelectionControllerClientAura::OnSelectionEvent(
     case ui::INSERTION_HANDLE_DRAG_STOPPED:
       handle_drag_in_progress_ = false;
       UpdateQuickMenu();
+      CloseMagnifier();
       break;
     case ui::SELECTION_HANDLES_MOVED:
     case ui::INSERTION_HANDLE_MOVED:
@@ -400,7 +420,10 @@ void TouchSelectionControllerClientAura::InternalClient::OnSelectionEvent(
 
 void TouchSelectionControllerClientAura::OnDragUpdate(
     const ui::TouchSelectionDraggable::Type type,
-    const gfx::PointF& position) {}
+    const gfx::PointF& position) {
+  DCHECK(handle_drag_in_progress_);
+  ShowMagnifier(position);
+}
 
 void TouchSelectionControllerClientAura::InternalClient::OnDragUpdate(
     const ui::TouchSelectionDraggable::Type type,
@@ -449,6 +472,10 @@ bool TouchSelectionControllerClientAura::IsCommandIdEnabled(
           ui::ClipboardBuffer::kCopyPaste, &data_dst, &result);
       return editable && !result.empty();
     }
+    case ui::TouchEditable::kSelectAll:
+      return true;
+    case ui::TouchEditable::kSelectWord:
+      return editable && !has_selection;
     default:
       return false;
   }
@@ -456,7 +483,10 @@ bool TouchSelectionControllerClientAura::IsCommandIdEnabled(
 
 void TouchSelectionControllerClientAura::ExecuteCommand(int command_id,
                                                         int event_flags) {
-  rwhva_->selection_controller()->HideAndDisallowShowingAutomatically();
+  if (command_id != ui::TouchEditable::kSelectAll &&
+      command_id != ui::TouchEditable::kSelectWord) {
+    rwhva_->selection_controller()->HideAndDisallowShowingAutomatically();
+  }
   RenderWidgetHostDelegate* host_delegate = rwhva_->host()->delegate();
   if (!host_delegate)
     return;
@@ -470,6 +500,15 @@ void TouchSelectionControllerClientAura::ExecuteCommand(int command_id,
       break;
     case ui::TouchEditable::kPaste:
       host_delegate->Paste();
+      break;
+    case ui::TouchEditable::kSelectAll:
+      host_delegate->SelectAll();
+      break;
+    case ui::TouchEditable::kSelectWord:
+      host_delegate->SelectAroundCaret(
+          blink::mojom::SelectionGranularity::kWord,
+          /*should_show_handle=*/true,
+          /*should_show_context_menu=*/false);
       break;
     default:
       NOTREACHED();

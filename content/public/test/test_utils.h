@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <memory>
 
-#include "base/callback.h"
-#include "base/compiler_specific.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
@@ -26,7 +25,7 @@
 #include "third_party/blink/public/common/fetch/fetch_api_request_headers_map.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include <jni.h>
 #endif
 
@@ -52,9 +51,6 @@ blink::mojom::FetchAPIRequestPtr CreateFetchAPIRequest(
 // Deprecated: Use RunLoop::Run(). Use RunLoop::Type::kNestableTasksAllowed to
 // force nesting in browser tests.
 void RunMessageLoop();
-
-// Deprecated: Invoke |run_loop->Run()| directly.
-void RunThisRunLoop(base::RunLoop* run_loop);
 
 // Turns on nestable tasks, runs all pending tasks in the message loop, then
 // resets nestable tasks to what they were originally. Can only be called from
@@ -124,8 +120,19 @@ void IsolateAllSitesForTesting(base::CommandLine* command_line);
 
 // Whether same-site navigations might result in a change of RenderFrameHosts -
 // this will happen when ProactivelySwapBrowsingInstance, RenderDocument or
-// back-forward cache is enabled on same-site main frame navigations.
+// back-forward cache is enabled on same-site main frame navigations. Note that
+// not even if this returns true, not all same-site main frame navigations will
+// result in a change of RenderFrameHosts, e.g. if RenderDocument is disabled
+// but BFCache is enabled, this will return true but only same-site navigations
+// from pages that are BFCache-eligible will result in a RenderFrameHost change.
 bool CanSameSiteMainFrameNavigationsChangeRenderFrameHosts();
+
+// Whether same-site navigations will always result in a change of
+// RenderFrameHosts, which will happen when RenderDocument is enabled. Different
+// from `CanSameSiteMainFrameNavigationsChangeRenderFrameHosts()`, this means
+// all same-site navigations will trigger a RenderFrameHost change, instead of
+// only a subset that satisfies some conditions, e.g. BFCache eligibilty.
+bool WillSameSiteNavigationsChangeRenderFrameHosts();
 
 // Whether same-site navigations might result in a change of SiteInstances -
 // this will happen when ProactivelySwapBrowsingInstance or back-forward cache
@@ -154,7 +161,7 @@ std::string GetWebUIURLString(const std::string& host);
 // inner WebContents will be deleted if the frame it's attached to goes away.
 WebContents* CreateAndAttachInnerContents(RenderFrameHost* rfh);
 
-// Spins a run loop until IsDocumentOnLoadCompletedInMainFrame() is true.
+// Spins a run loop until IsDocumentOnLoadCompletedInPrimaryMainFrame() is true.
 void AwaitDocumentOnLoadCompleted(WebContents* web_contents);
 
 // Helper class to Run and Quit the message loop. Run and Quit can only happen
@@ -210,7 +217,7 @@ class MessageLoopRunner : public base::RefCountedThreadSafe<MessageLoopRunner> {
   // True after closure returned by |QuitClosure| has been called.
   bool quit_closure_called_ = false;
 
-  base::RunLoop run_loop_;
+  base::RunLoop run_loop_{base::RunLoop::Type::kNestableTasksAllowed};
 
   base::ThreadChecker thread_checker_;
 };
@@ -309,6 +316,36 @@ class WindowedNotificationObserver : public NotificationObserver {
   base::RunLoop run_loop_;
 };
 
+// Helper to wait for loading to stop on a WebContents.  It should be preferred
+// to uses of WindowedNotificationObserver for NOTIFICATION_LOAD_STOP.
+//
+// This helper class exists to avoid the following common pattern in tests:
+//   PerformAction()
+//   WaitForCompletionNotification()
+// The pattern leads to flakiness as there is a window between PerformAction
+// returning and the observers getting registered, where a notification will be
+// missed.
+//
+// Rather, one can do this:
+//   LoadStopObserver signal(web_contents)
+//   PerformAction()
+//   signal.Wait()
+class LoadStopObserver : public WebContentsObserver {
+ public:
+  explicit LoadStopObserver(WebContents* web_contents);
+
+  // Wait until at least one load stop has been observed.  Return immediately if
+  // one has been observed since construction.
+  void Wait();
+
+  // WebContentsObserver
+  void DidStopLoading() override;
+
+ private:
+  bool seen_ = false;
+  base::RunLoop run_loop_;
+};
+
 // Unit tests can use code which runs in the utility process by having it run on
 // an in-process utility thread. This eliminates having two code paths in
 // production code to deal with unit tests, and also helps with the binary
@@ -355,7 +392,7 @@ class RenderFrameDeletedObserver : public WebContentsObserver {
   // Overridden WebContentsObserver methods.
   void RenderFrameDeleted(RenderFrameHost* render_frame_host) override;
 
-  // TODO(1267073): Add WARN_UNUSED_RESULT
+  // TODO(1267073): Add [[nodiscard]]
   // Returns true if the frame was deleted before the timeout.
   bool WaitUntilDeleted();
   bool deleted() const;
@@ -390,7 +427,7 @@ class RenderFrameHostWrapper {
   // See RenderFrameDeletedObserver for notes on the difference between
   // RenderFrame being deleted and RenderFrameHost being destroyed.
   // Returns true if the frame was deleted before the timeout.
-  WARN_UNUSED_RESULT bool WaitUntilRenderFrameDeleted();
+  [[nodiscard]] bool WaitUntilRenderFrameDeleted() const;
   bool IsRenderFrameDeleted() const;
 
   // Pointerish operators. Feel free to add more if you need them.
@@ -453,11 +490,32 @@ class TestPageScaleObserver : public WebContentsObserver {
   float last_scale_ = 0.f;
 };
 
+class EffectiveURLContentBrowserClientHelper {
+ public:
+  explicit EffectiveURLContentBrowserClientHelper(
+      bool requires_dedicated_process = false);
+  ~EffectiveURLContentBrowserClientHelper();
+
+  void AddTranslation(const GURL& url_to_modify, const GURL& url_to_return);
+  GURL GetEffectiveURL(const GURL& url);
+  bool DoesSiteRequireDedicatedProcess(BrowserContext* browser_context,
+                                       const GURL& effective_site_url);
+
+ private:
+  // A map of original URLs to effective URLs.
+  std::map<GURL, GURL> urls_to_modify_;
+
+  const bool requires_dedicated_process_;
+};
+
 // A custom ContentBrowserClient that simulates GetEffectiveURL() translation
 // for one or more URL pairs.  |requires_dedicated_process| indicates whether
 // the client should indicate that each registered URL requires a dedicated
 // process.  Passing |false| for it will rely on default behavior computed in
 // SiteInstanceImpl::DoesSiteRequireDedicatedProcess().
+//
+// Do not use this in browser tests. Instead use
+// EffectiveURLContentBrowserTestContentBrowserClient.
 class EffectiveURLContentBrowserClient : public ContentBrowserClient {
  public:
   explicit EffectiveURLContentBrowserClient(bool requires_dedicated_process);
@@ -481,14 +539,13 @@ class EffectiveURLContentBrowserClient : public ContentBrowserClient {
   bool DoesSiteRequireDedicatedProcess(BrowserContext* browser_context,
                                        const GURL& effective_site_url) override;
 
-  // A map of original URLs to effective URLs.
-  std::map<GURL, GURL> urls_to_modify_;
-
-  bool requires_dedicated_process_;
+  EffectiveURLContentBrowserClientHelper helper_;
 };
 
 // Wrapper around `SetBrowserClientForTesting()` that ensures the
-// previous content browser client is restored upon destruction.
+// previous content browser client is restored upon destruction. This is
+// unnecessary in browser tests. In browser tests subclass
+// ContentBrowserTestContentBrowserClient and it will take care of this for you.
 class ScopedContentBrowserClientSetting final {
  public:
   explicit ScopedContentBrowserClientSetting(ContentBrowserClient* new_client);

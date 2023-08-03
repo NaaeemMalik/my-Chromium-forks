@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,18 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.support.test.InstrumentationRegistry;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.LargeTest;
 
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
@@ -22,12 +27,13 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.R;
 import org.chromium.chrome.test.pagecontroller.rules.ChromeUiApplicationTestRule;
+import org.chromium.chrome.test.pagecontroller.rules.ChromeUiAutomatorTestRule;
 import org.chromium.chrome.test.pagecontroller.utils.IUi2Locator;
 import org.chromium.chrome.test.pagecontroller.utils.Ui2Locators;
 import org.chromium.chrome.test.pagecontroller.utils.UiAutomatorUtils;
 import org.chromium.chrome.test.pagecontroller.utils.UiLocatorHelper;
+import org.chromium.net.test.EmbeddedTestServerRule;
 
-import java.util.Arrays;
 import java.util.concurrent.Callable;
 
 /**
@@ -36,12 +42,20 @@ import java.util.concurrent.Callable;
 @LargeTest
 @RunWith(BaseJUnit4ClassRunner.class)
 public class ChromeSmokeTest {
-    private static final String DATA_URL = "data:,Hello";
-    private static final String ACTIVITY_NAME = "org.chromium.chrome.browser.ChromeTabbedActivity";
+    private static final String ACTIVITY_NAME = "com.google.android.apps.chrome.IntentDispatcher";
+    private static final String TEST_PAGE =
+            "/chrome/android/javatests/src/org/chromium/chrome/test/smoke/test.html";
 
     public static final long TIMEOUT_MS = 20000L;
     public static final long UI_CHECK_INTERVAL = 1000L;
     private String mPackageName;
+    public ChromeUiAutomatorTestRule mRule = new ChromeUiAutomatorTestRule();
+    public ChromeUiApplicationTestRule mChromeUiRule = new ChromeUiApplicationTestRule();
+    @Rule
+    public final TestRule mChain = RuleChain.outerRule(mChromeUiRule).around(mRule);
+
+    @ClassRule
+    public static EmbeddedTestServerRule sEmbeddedTestServerRule = new EmbeddedTestServerRule();
 
     private static Runnable toNotSatisfiedRunnable(
             Callable<Boolean> criteria, String failureReason) {
@@ -70,14 +84,13 @@ public class ChromeSmokeTest {
                             }
                             return false;
                         },
-                        "One of " + Arrays.toString(locators) + " should have been visible."),
+                        "No Chrome views on screen. (i.e. Chrome has crashed "
+                                + "on startup). Look at earlier logs for the actual "
+                                + "crash stacktrace."),
                 TIMEOUT_MS, UI_CHECK_INTERVAL);
     }
 
     private void navigateThroughFRE() {
-        // Used in ToSAndUMAFirstRunFragment FRE page.
-        IUi2Locator termsAcceptButton = Ui2Locators.withAnyResEntry(R.id.terms_accept);
-
         // Used in SyncConsentFirstRunFragment FRE page.
         IUi2Locator noAddAccountButton = Ui2Locators.withAnyResEntry(R.id.negative_button);
 
@@ -85,9 +98,8 @@ public class ChromeSmokeTest {
         IUi2Locator signinSkipButton = Ui2Locators.withAnyResEntry(R.id.signin_fre_dismiss_button);
         IUi2Locator signinContinueButton =
                 Ui2Locators.withAnyResEntry(R.id.signin_fre_continue_button);
-
-        // Used in DataReductionProxyFirstRunFragment FRE page.
-        IUi2Locator dataSaverPromoNextButton = Ui2Locators.withAnyResEntry(R.id.next_button);
+        IUi2Locator signinProgressSpinner =
+                Ui2Locators.withAnyResEntry(R.id.fre_native_and_policy_load_progress_spinner);
 
         // Used in DefaultSearchEngineFirstRunFragment FRE page.
         IUi2Locator defaultSearchEngineNextButton =
@@ -106,11 +118,10 @@ public class ChromeSmokeTest {
         // These locators show up in one FRE page or another
         IUi2Locator[] frePageDetectors = new IUi2Locator[] {
                 playServicesUpdateText,
-                termsAcceptButton,
                 signinSkipButton,
                 signinContinueButton,
+                signinProgressSpinner,
                 noAddAccountButton,
-                dataSaverPromoNextButton,
                 defaultSearchEngineNextButton,
                 urlBar,
         };
@@ -119,14 +130,18 @@ public class ChromeSmokeTest {
         while (true) {
             // Wait for an FRE page to show up.
             waitUntilAnyVisible(frePageDetectors);
-            // If the update play services alert is visible, dismiss it.
-            if (uiLocatorHelper.isOnScreen(playServicesUpdateText)) {
-                UiAutomatorUtils.getInstance().clickOutsideOf(updatePlayServicesPanel);
-                // Different FRE versions show up randomly and in different order,
-                // figure out which one we are on and proceed.
-            } else if (uiLocatorHelper.isOnScreen(termsAcceptButton)) {
-                // Click on the accept terms in FRE.
-                UiAutomatorUtils.getInstance().click(termsAcceptButton);
+            // Different FRE versions show up randomly and in different order,
+            // figure out which one we are on and proceed.
+            if (uiLocatorHelper.isOnScreen(urlBar)) {
+                // FRE is over.
+                break;
+            } else if (uiLocatorHelper.isOnScreen(playServicesUpdateText)) {
+                // If the update play services alert is a modal, dismiss it.
+                // Otherwise its just a toast/notification that should not
+                // interfere with the test.
+                if (uiLocatorHelper.isOnScreen(updatePlayServicesPanel)) {
+                    UiAutomatorUtils.getInstance().clickOutsideOf(updatePlayServicesPanel);
+                }
             } else if (uiLocatorHelper.isOnScreen(noAddAccountButton)) {
                 // Do not add an account.
                 UiAutomatorUtils.getInstance().click(noAddAccountButton);
@@ -137,15 +152,11 @@ public class ChromeSmokeTest {
                 // Sometimes there is only the continue button (eg: when signin is
                 // disabled.)
                 UiAutomatorUtils.getInstance().click(signinContinueButton);
-            } else if (uiLocatorHelper.isOnScreen(dataSaverPromoNextButton)) {
-                // Just press next on Data saver promo.
-                UiAutomatorUtils.getInstance().click(dataSaverPromoNextButton);
+            } else if (uiLocatorHelper.isOnScreen(signinProgressSpinner)) {
+                // Do nothing and wait.
             } else if (uiLocatorHelper.isOnScreen(defaultSearchEngineNextButton)) {
                 // Just press next on choosing the default SE.
                 UiAutomatorUtils.getInstance().click(defaultSearchEngineNextButton);
-            } else if (uiLocatorHelper.isOnScreen(urlBar)) {
-                // FRE is over.
-                break;
             } else {
                 throw new RuntimeException("Unexpected FRE or Start page detected.");
             }
@@ -159,9 +170,12 @@ public class ChromeSmokeTest {
     }
 
     @Test
-    public void testHello() {
-        Context context = InstrumentationRegistry.getContext();
-        final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(DATA_URL));
+    public void testHello() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        String url = sEmbeddedTestServerRule.getServer().getURL(TEST_PAGE);
+        final Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        intent.addCategory(Intent.CATEGORY_BROWSABLE);
+        intent.addCategory(Intent.CATEGORY_DEFAULT);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.setComponent(new ComponentName(mPackageName, ACTIVITY_NAME));
         context.startActivity(intent);
@@ -175,7 +189,9 @@ public class ChromeSmokeTest {
         navigateThroughFRE();
 
         // FRE should be over and we should be shown the url we requested.
-        IUi2Locator dataUrlText = Ui2Locators.withText(DATA_URL);
+        assert url.startsWith("http://");
+        String urlWithoutScheme = url.substring(7);
+        IUi2Locator dataUrlText = Ui2Locators.withText(urlWithoutScheme);
         UiAutomatorUtils.getInstance().getLocatorHelper().verifyOnScreen(dataUrlText);
     }
 }

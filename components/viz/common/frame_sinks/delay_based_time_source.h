@@ -1,4 +1,4 @@
-// Copyright 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 
 #include "base/cancelable_callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "components/viz/common/viz_common_export.h"
 
@@ -82,7 +83,7 @@ class VIZ_COMMON_EXPORT DelayBasedTimeSource {
   raw_ptr<base::SingleThreadTaskRunner> task_runner_;
 
   base::RepeatingClosure tick_closure_;
-  base::OneShotTimer timer_;
+  base::DeadlineTimer timer_;
 };
 
 }  // namespace viz

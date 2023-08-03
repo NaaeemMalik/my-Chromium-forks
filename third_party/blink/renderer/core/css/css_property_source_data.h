@@ -32,7 +32,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_PROPERTY_SOURCE_DATA_H_
 
 #include "third_party/blink/renderer/core/css/style_rule.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -90,7 +90,8 @@ class CSSRuleSourceData final : public GarbageCollected<CSSRuleSourceData> {
 
   bool HasProperties() const {
     return type == StyleRule::kStyle || type == StyleRule::kFontFace ||
-           type == StyleRule::kPage || type == StyleRule::kKeyframe;
+           type == StyleRule::kPage || type == StyleRule::kKeyframe ||
+           type == StyleRule::kTry;
   }
 
   bool HasMedia() const {
@@ -98,6 +99,10 @@ class CSSRuleSourceData final : public GarbageCollected<CSSRuleSourceData> {
   }
 
   bool HasContainer() const { return type == StyleRule::kContainer; }
+
+  bool HasSupports() const { return type == StyleRule::kSupports; }
+
+  bool HasScope() const { return type == StyleRule::kScope; }
 
   StyleRule::RuleType type;
 

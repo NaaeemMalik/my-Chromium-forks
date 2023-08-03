@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,13 @@
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/wifi_configuration_sync_service_factory.h"
-#include "chromeos/components/sync_wifi/wifi_configuration_sync_service.h"
-#include "chromeos/network/network_handler.h"
-#include "chromeos/network/network_metadata_store.h"
-#include "chromeos/tpm/install_attributes.h"
+#include "chromeos/ash/components/install_attributes/install_attributes.h"
+#include "chromeos/ash/components/network/network_handler.h"
+#include "chromeos/ash/components/network/network_metadata_store.h"
+#include "chromeos/ash/components/sync_wifi/wifi_configuration_sync_service.h"
 #include "content/public/browser/notification_service.h"
 
-namespace chromeos {
+namespace ash {
 
 NetworkPrefStateObserver::NetworkPrefStateObserver() {
   // Initialize NetworkHandler with device prefs only.
@@ -59,4 +59,4 @@ void NetworkPrefStateObserver::InitializeNetworkPrefServices(Profile* profile) {
       g_browser_process->local_state());
 }
 
-}  // namespace chromeos
+}  // namespace ash

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/threading/sequenced_task_runner_handle.h"
 #include "chromecast/external_mojo/external_service_support/external_service.h"
 
 namespace chromecast {
@@ -85,6 +84,11 @@ FakeExternalConnector::Clone() {
   mojo::PendingRemote<external_mojo::mojom::TestExternalConnector> remote;
   child_receivers_.Add(this, remote.InitWithNewPipeAndPassReceiver());
   return std::make_unique<FakeExternalConnector>(std::move(remote));
+}
+
+mojo::PendingRemote<external_mojo::mojom::ExternalConnector>
+FakeExternalConnector::RequestConnector() {
+  return mojo::PendingRemote<external_mojo::mojom::ExternalConnector>();
 }
 
 void FakeExternalConnector::SendChromiumConnectorRequest(

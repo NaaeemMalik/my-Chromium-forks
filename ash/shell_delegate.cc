@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,6 +28,16 @@ bool ShellDelegate::IsUiDevToolsStarted() const {
 
 int ShellDelegate::GetUiDevToolsPort() const {
   return -1;
+}
+
+const GURL& ShellDelegate::GetLastCommittedURLForWindowIfAny(
+    aura::Window* window) {
+  return GURL::EmptyGURL();
+}
+
+void ShellDelegate::ShouldExitFullscreenBeforeLock(
+    ShellDelegate::ShouldExitFullscreenCallback callback) {
+  std::move(callback).Run(false);
 }
 
 }  // namespace ash

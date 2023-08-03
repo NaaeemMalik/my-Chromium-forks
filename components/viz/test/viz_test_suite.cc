@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,13 @@
 
 #include "base/threading/thread_id_name_manager.h"
 #include "components/viz/test/paths.h"
+#include "third_party/skia/include/core/SkGraphics.h"
 #include "ui/events/platform/platform_event_source.h"
 #include "ui/gl/test/gl_surface_test_support.h"
+
+static bool AlwaysUseAAA(const SkPath&) {
+  return true;
+}
 
 namespace viz {
 
@@ -40,6 +45,8 @@ void VizTestSuite::Initialize() {
   base::ThreadIdNameManager::GetInstance()->SetName("Main");
 
   base::DiscardableMemoryAllocator::SetInstance(&discardable_memory_allocator_);
+
+  SkGraphics::SetPathAnalyticAADecider(AlwaysUseAAA);
 }
 
 void VizTestSuite::Shutdown() {

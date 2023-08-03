@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,29 +9,42 @@
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
 #include "build/build_config.h"
+#include "mojo/buildflags.h"
 
 namespace mojo {
 namespace core {
 
-#if defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL) && \
+    !BUILDFLAG(MOJO_USE_APPLE_CHANNEL)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
 COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
-extern const base::Feature kMojoLinuxChannelSharedMem;
+BASE_DECLARE_FEATURE(kMojoLinuxChannelSharedMem);
 
 COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
 extern const base::FeatureParam<int> kMojoLinuxChannelSharedMemPages;
 
 COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
 extern const base::FeatureParam<bool> kMojoLinuxChannelSharedMemEfdZeroOnWake;
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
+        // BUILDFLAG(IS_ANDROID)
 
 COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
-extern const base::Feature kMojoPosixUseWritev;
+BASE_DECLARE_FEATURE(kMojoPosixUseWritev);
 
-#endif  // defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+#endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL) &&
+        // !BUILDFLAG(MOJO_USE_APPLE_CHANNEL)
 
 COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
-extern const base::Feature kMojoInlineMessagePayloads;
+BASE_DECLARE_FEATURE(kMojoInlineMessagePayloads);
+
+COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
+
+COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES) BASE_DECLARE_FEATURE(kMojoIpcz);
+
+#if BUILDFLAG(IS_ANDROID)
+COMPONENT_EXPORT(MOJO_CORE_EMBEDDER_FEATURES)
+BASE_DECLARE_FEATURE(kMojoDirectSharedMemoryAndroid);
+#endif
 
 }  // namespace core
 }  // namespace mojo

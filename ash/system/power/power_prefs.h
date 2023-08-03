@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/session/session_observer.h"
+#include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/tick_clock.h"
+#include "base/time/time.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 
 class PrefChangeRegistrar;
@@ -27,6 +29,7 @@ class ScreenIdleState;
 
 namespace ash {
 
+class LockOnLeaveController;
 class PowerPrefsTest;
 
 // Sends an updated power policy to the |power_policy_controller| whenever one
@@ -68,6 +71,7 @@ class ASH_EXPORT PowerPrefs : public chromeos::PowerManagerClient::Observer,
   void OnActiveUserPrefServiceChanged(PrefService* prefs) override;
 
   void UpdatePowerPolicyFromPrefs();
+  void UpdatePowerPolicyFromPrefsChange();
 
   // Observes either the signin screen prefs or active user prefs and loads
   // initial settings.
@@ -75,7 +79,7 @@ class ASH_EXPORT PowerPrefs : public chromeos::PowerManagerClient::Observer,
 
   void ObserveLocalStatePrefs(PrefService* prefs);
 
-  chromeos::PowerPolicyController* const
+  const raw_ptr<chromeos::PowerPolicyController, ExperimentalAsh>
       power_policy_controller_;  // Not owned.
 
   base::ScopedObservation<chromeos::PowerManagerClient,
@@ -84,8 +88,9 @@ class ASH_EXPORT PowerPrefs : public chromeos::PowerManagerClient::Observer,
 
   std::unique_ptr<PrefChangeRegistrar> profile_registrar_;
   std::unique_ptr<PrefChangeRegistrar> local_state_registrar_;
+  std::unique_ptr<LockOnLeaveController> lock_on_leave_controller_;
 
-  const base::TickClock* tick_clock_;  // Not owned.
+  raw_ptr<const base::TickClock, ExperimentalAsh> tick_clock_;  // Not owned.
 
   // Time at which the screen was locked. Unset if the screen is unlocked.
   base::TimeTicks screen_lock_time_;
@@ -94,7 +99,10 @@ class ASH_EXPORT PowerPrefs : public chromeos::PowerManagerClient::Observer,
   // Unset if the screen isn't currently turned off due to user inactivity.
   base::TimeTicks screen_idle_off_time_;
 
-  PrefService* local_state_ = nullptr;  // Not owned.
+  // The last observed quick dim state for the current pref service.
+  bool quick_dim_pref_enabled_ = false;
+
+  raw_ptr<PrefService, ExperimentalAsh> local_state_ = nullptr;  // Not owned.
 };
 
 }  // namespace ash

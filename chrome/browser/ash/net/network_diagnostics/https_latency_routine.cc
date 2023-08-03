@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
+#include "base/memory/raw_ptr.h"
 #include "base/time/default_tick_clock.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_util.h"
-#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/storage_partition.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -19,9 +20,12 @@
 #include "net/base/net_errors.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
+
 namespace {
+
+namespace mojom = ::chromeos::network_diagnostics::mojom;
 
 constexpr int kTotalHostsToQuery = 3;
 // The length of a random eight letter prefix.
@@ -69,10 +73,11 @@ class HttpsLatencyRoutine::HostResolver
   ~HostResolver() override;
 
   // network::mojom::ResolveHostClient:
-  void OnComplete(
-      int result,
-      const net::ResolveErrorInfo& resolve_error_info,
-      const absl::optional<net::AddressList>& resolved_addresses) override;
+  void OnComplete(int result,
+                  const net::ResolveErrorInfo& resolve_error_info,
+                  const absl::optional<net::AddressList>& resolved_addresses,
+                  const absl::optional<net::HostResolverEndpointResults>&
+                      endpoint_results_with_metadata) override;
 
   // Performs the DNS resolution.
   void Run(const GURL& url);
@@ -85,8 +90,9 @@ class HttpsLatencyRoutine::HostResolver
   void CreateHostResolver();
   void OnMojoConnectionError();
 
-  network::mojom::NetworkContext* network_context_ = nullptr;  // Unowned
-  HttpsLatencyRoutine* https_latency_;                         // Unowned
+  raw_ptr<network::mojom::NetworkContext, ExperimentalAsh> network_context_ =
+      nullptr;                                                   // Unowned
+  raw_ptr<HttpsLatencyRoutine, ExperimentalAsh> https_latency_;  // Unowned
   mojo::Receiver<network::mojom::ResolveHostClient> receiver_{this};
   mojo::Remote<network::mojom::HostResolver> host_resolver_;
 };
@@ -104,12 +110,15 @@ HttpsLatencyRoutine::HostResolver::~HostResolver() = default;
 void HttpsLatencyRoutine::HostResolver::OnComplete(
     int result,
     const net::ResolveErrorInfo& resolve_error_info,
-    const absl::optional<net::AddressList>& resolved_addresses) {
+    const absl::optional<net::AddressList>& resolved_addresses,
+    const absl::optional<net::HostResolverEndpointResults>&
+        endpoint_results_with_metadata) {
   receiver_.reset();
   host_resolver_.reset();
 
   https_latency_->OnHostResolutionComplete(result, resolve_error_info,
-                                           resolved_addresses);
+                                           resolved_addresses,
+                                           endpoint_results_with_metadata);
 }
 
 void HttpsLatencyRoutine::HostResolver::Run(const GURL& url) {
@@ -124,8 +133,11 @@ void HttpsLatencyRoutine::HostResolver::Run(const GURL& url) {
   parameters->cache_usage =
       network::mojom::ResolveHostParameters::CacheUsage::DISALLOWED;
 
-  host_resolver_->ResolveHost(net::HostPortPair::FromURL(url),
-                              net::NetworkIsolationKey::CreateTransient(),
+  // TODO(crbug.com/1355169): Consider passing a SchemeHostPort to trigger HTTPS
+  // DNS resource record query.
+  host_resolver_->ResolveHost(network::mojom::HostResolverHost::NewHostPortPair(
+                                  net::HostPortPair::FromURL(url)),
+                              net::NetworkAnonymizationKey::CreateTransient(),
                               std::move(parameters),
                               receiver_.BindNewPipeAndPassRemote());
 }
@@ -139,8 +151,10 @@ void HttpsLatencyRoutine::HostResolver::CreateHostResolver() {
 }
 
 void HttpsLatencyRoutine::HostResolver::OnMojoConnectionError() {
+  host_resolver_.reset();
   OnComplete(net::ERR_NAME_NOT_RESOLVED, net::ResolveErrorInfo(net::ERR_FAILED),
-             absl::nullopt);
+             /*resolved_addresses=*/absl::nullopt,
+             /*endpoint_results_with_metadata=*/absl::nullopt);
 }
 
 HttpsLatencyRoutine::HttpsLatencyRoutine()
@@ -215,7 +229,9 @@ void HttpsLatencyRoutine::AttemptNextResolution() {
 void HttpsLatencyRoutine::OnHostResolutionComplete(
     int result,
     const net::ResolveErrorInfo& resolve_error_info,
-    const absl::optional<net::AddressList>& resolved_addresses) {
+    const absl::optional<net::AddressList>& resolved_addresses,
+    const absl::optional<net::HostResolverEndpointResults>&
+        endpoint_results_with_metadata) {
   bool success = result == net::OK && !resolved_addresses->empty() &&
                  resolved_addresses.has_value();
   if (!success) {
@@ -257,4 +273,4 @@ void HttpsLatencyRoutine::OnHttpsRequestComplete(bool connected) {
 }
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash

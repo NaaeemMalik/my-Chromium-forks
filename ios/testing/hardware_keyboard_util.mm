@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -293,7 +293,7 @@ namespace {
 const double kKeyPressDelay = 0.02;
 
 // Utility to describe modifier flags. Useful in debugging.
-NSString* DescribeFlags(UIKeyModifierFlags flags) __attribute__((unused));
+[[maybe_unused]] NSString* DescribeFlags(UIKeyModifierFlags flags);
 NSString* DescribeFlags(UIKeyModifierFlags flags) {
   NSMutableString* s = [NSMutableString new];
   if (flags & UIKeyModifierAlphaShift) {
@@ -424,9 +424,10 @@ void SimulatePhysicalKeyboardEvent(UIKeyModifierFlags flags, NSString* input) {
     keyPressesFinished = YES;
   });
 
-  BOOL __unused result = base::test::ios::WaitUntilConditionOrTimeout(1.0, ^{
-    return keyPressesFinished;
-  });
+  BOOL __unused result =
+      base::test::ios::WaitUntilConditionOrTimeout(base::Seconds(1), ^{
+        return keyPressesFinished;
+      });
 }
 
 }  // namespace chrome_test_util

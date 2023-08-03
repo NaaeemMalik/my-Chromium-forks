@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@
 
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/values.h"
 #include "chromeos/components/quick_answers/search_result_parsers/result_parser.h"
 
-namespace ash {
 namespace quick_answers {
 namespace {
 
@@ -43,27 +42,28 @@ void SearchResponseParser::ProcessResponse(
   data_decoder::DataDecoder::ParseJsonIsolated(
       response_body->substr(strlen(kJsonSafetyPrefix)),
       base::BindOnce(&SearchResponseParser::OnJsonParsed,
-                     base::Unretained(this)));
+                     weak_factory_.GetWeakPtr()));
 }
 
 void SearchResponseParser::OnJsonParsed(
     data_decoder::DataDecoder::ValueOrError result) {
   DCHECK(complete_callback_);
 
-  if (!result.value) {
-    LOG(ERROR) << "JSON parsing failed: " << *result.error;
+  if (!result.has_value()) {
+    LOG(ERROR) << "JSON parsing failed: " << result.error();
     std::move(complete_callback_).Run(nullptr);
     return;
   }
 
   // Get the first result.
-  const Value* entries = result.value->FindListPath("results");
+  const Value::List* entries =
+      result->GetDict().FindListByDottedPath("results");
   if (!entries) {
     std::move(complete_callback_).Run(nullptr);
     return;
   }
 
-  for (const auto& entry : entries->GetList()) {
+  for (const auto& entry : *entries) {
     auto quick_answer = std::make_unique<QuickAnswer>();
     if (ProcessResult(&entry, quick_answer.get())) {
       std::move(complete_callback_).Run(std::move(quick_answer));
@@ -76,7 +76,8 @@ void SearchResponseParser::OnJsonParsed(
 
 bool SearchResponseParser::ProcessResult(const Value* result,
                                          QuickAnswer* quick_answer) {
-  auto one_namespace_type = result->FindIntPath("oneNamespaceType");
+  const base::Value::Dict& dict = result->GetDict();
+  auto one_namespace_type = dict.FindInt("oneNamespaceType");
   if (!one_namespace_type.has_value()) {
     // Can't find valid one namespace type from the response.
     LOG(ERROR) << "Can't find valid one namespace type from the response.";
@@ -88,8 +89,7 @@ bool SearchResponseParser::ProcessResult(const Value* result,
   if (!result_parser)
     return false;
 
-  return result_parser->Parse(result, quick_answer);
+  return result_parser->Parse(dict, quick_answer);
 }
 
 }  // namespace quick_answers
-}  // namespace ash

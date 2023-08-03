@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,6 @@ extern const CGFloat kAuthenticationHeaderImageHeight;
 
 // Height/Width of the avatar in authentication context.
 extern const CGFloat kAccountProfilePhotoDimension;
-
-// Font sizes
-extern const UIFontTextStyle kAuthenticationTitleFontStyle;
-extern const UIFontTextStyle kAuthenticationTextFontStyle;
 
 // Horizontal margin between the container view and any elements inside.
 extern const CGFloat kAuthenticationHorizontalMargin;

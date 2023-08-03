@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,11 +11,12 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/file.h"
+#include "base/functional/callback.h"
 #include "base/gtest_prod_util.h"
 #include "base/strings/string_piece.h"
 #include "base/values.h"
+#include "base/version.h"
 #include "components/component_updater/component_installer.h"
 
 namespace base {
@@ -28,10 +29,13 @@ class ComponentUpdateService;
 
 class FirstPartySetsComponentInstallerPolicy : public ComponentInstallerPolicy {
  public:
+  using SetsReadyOnceCallback =
+      base::OnceCallback<void(base::Version, base::File)>;
+
   // |on_sets_ready| will be called on the UI thread when the sets are ready. It
   // is exposed here for testing.
   explicit FirstPartySetsComponentInstallerPolicy(
-      base::RepeatingCallback<void(base::File)> on_sets_ready);
+      SetsReadyOnceCallback on_sets_ready);
   ~FirstPartySetsComponentInstallerPolicy() override;
 
   FirstPartySetsComponentInstallerPolicy(
@@ -39,10 +43,7 @@ class FirstPartySetsComponentInstallerPolicy : public ComponentInstallerPolicy {
   FirstPartySetsComponentInstallerPolicy operator=(
       const FirstPartySetsComponentInstallerPolicy&) = delete;
 
-  // Calls the callback with the current First-Party Sets data, if the data
-  // exists and can be read.
-  static void ReconfigureAfterNetworkRestart(
-      base::OnceCallback<void(base::File)>);
+  void OnRegistrationComplete();
 
   // Resets static state. Should only be used to clear state during testing.
   static void ResetForTesting();
@@ -52,37 +53,40 @@ class FirstPartySetsComponentInstallerPolicy : public ComponentInstallerPolicy {
 
   // Seeds a component at `install_dir` with the given `contents`. Only to be
   // used in testing.
-  static void WriteComponentForTesting(const base::FilePath& install_dir,
+  static void WriteComponentForTesting(base::Version version,
+                                       const base::FilePath& install_dir,
                                        base::StringPiece contents);
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerFeatureEnabledTest,
                            NonexistentFile_OnComponentReady);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerFeatureEnabledTest,
+                           NonexistentFile_OnRegistrationComplete);
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerFeatureEnabledTest,
                            LoadsSets_OnComponentReady);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
-                           LoadsSets_OnNetworkRestart);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerFeatureEnabledTest,
+                           IgnoreNewSets_NoInitialComponent);
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerFeatureEnabledTest,
                            IgnoreNewSets_OnComponentReady);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerFeatureEnabledTest,
                            IgnoreNewSets_OnNetworkRestart);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerFeatureDisabledTest,
                            GetInstallerAttributes_Disabled);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerNonDogFooderTest,
                            GetInstallerAttributes_NonDogfooder);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerDogFooderTest,
                            GetInstallerAttributes_Dogfooder);
-  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerTest,
+  FRIEND_TEST_ALL_PREFIXES(FirstPartySetsComponentInstallerV2FormatTest,
                            GetInstallerAttributes_V2OptOut);
 
   // The following methods override ComponentInstallerPolicy.
   bool SupportsGroupPolicyEnabledComponentUpdates() const override;
   bool RequiresNetworkEncryption() const override;
   update_client::CrxInstaller::Result OnCustomInstall(
-      const base::Value& manifest,
+      const base::Value::Dict& manifest,
       const base::FilePath& install_dir) override;
   void OnCustomUninstall() override;
-  bool VerifyInstallation(const base::Value& manifest,
+  bool VerifyInstallation(const base::Value::Dict& manifest,
                           const base::FilePath& install_dir) const override;
   // After the first call, ComponentReady will be no-op for new versions
   // delivered from Component Updater, i.e. new components will be installed
@@ -90,7 +94,7 @@ class FirstPartySetsComponentInstallerPolicy : public ComponentInstallerPolicy {
   // browser startup.
   void ComponentReady(const base::Version& version,
                       const base::FilePath& install_dir,
-                      base::Value manifest) override;
+                      base::Value::Dict manifest) override;
   base::FilePath GetRelativeInstallDir() const override;
   void GetHash(std::vector<uint8_t>* hash) const override;
   std::string GetName() const override;
@@ -98,7 +102,9 @@ class FirstPartySetsComponentInstallerPolicy : public ComponentInstallerPolicy {
 
   static base::FilePath GetInstalledPath(const base::FilePath& base);
 
-  base::RepeatingCallback<void(base::File)> on_sets_ready_;
+  // We use a OnceCallback to ensure we only pass along the sets file once
+  // during Chrome's lifetime (modulo reconfiguring the network service).
+  SetsReadyOnceCallback on_sets_ready_;
 };
 
 // Call once during startup to make the component update service aware of

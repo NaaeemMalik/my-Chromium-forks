@@ -1,5 +1,5 @@
-#!/usr/bin/env vpython
-# Copyright 2021 The Chromium Authors. All rights reserved.
+#!/usr/bin/env vpython3
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Unittests for test_result_util.py."""
@@ -13,9 +13,17 @@ import test_result_util
 from test_result_util import TestResult, TestStatus, ResultCollection
 import test_runner_test
 
-PASSED_RESULT = TestResult('passed/test', TestStatus.PASS, test_log='Logs')
+FAKE_TEST_LOC = {'repo': 'https://test', 'fileName': '//test.cc'}
+PASSED_RESULT = TestResult(
+    'passed/test', TestStatus.PASS, duration=1233, test_log='Logs')
+PASSED_RESULT_WITH_LOC = TestResult(
+    'passed/test',
+    TestStatus.PASS,
+    duration=1233,
+    test_log='Logs',
+    test_loc=FAKE_TEST_LOC)
 FAILED_RESULT = TestResult(
-    'failed/test', TestStatus.FAIL, test_log='line1\nline2')
+    'failed/test', TestStatus.FAIL, duration=1233, test_log='line1\nline2')
 FAILED_RESULT_DUPLICATE = TestResult(
     'failed/test', TestStatus.FAIL, test_log='line3\nline4')
 DISABLED_RESULT = TestResult(
@@ -39,12 +47,11 @@ class UtilTest(test_runner_test.TestCase):
     """Tests _validate_kwargs."""
     with self.assertRaises(AssertionError) as context:
       TestResult('name', TestStatus.PASS, unknown='foo')
-    expected_message = ("Invalid keyword argument(s) in {'unknown'} passed in!")
+    expected_message = ("Invalid keyword argument(s) in")
     self.assertTrue(expected_message in str(context.exception))
     with self.assertRaises(AssertionError) as context:
       ResultCollection(test_log='foo')
-    expected_message = (
-        "Invalid keyword argument(s) in {'test_log'} passed in!")
+    expected_message = ("Invalid keyword argument(s) in")
     self.assertTrue(expected_message in str(context.exception))
 
   def test_validate_test_status(self):
@@ -102,14 +109,42 @@ class TestResultTest(test_runner_test.TestCase):
         'disabled/test',
         'SKIP',
         True,
+        duration=None,
         test_log='',
         tags=[('test_name', 'disabled/test'), ('disabled_test', 'true')],
+        test_loc=None,
         file_artifacts={'name': '/path/to/name'})
     # Duplicate calls will only report once.
     disabled_test_result.report_to_result_sink(client)
     self.assertEqual(client.post.call_count, 1)
     disabled_test_result.report_to_result_sink(client)
     self.assertEqual(client.post.call_count, 1)
+
+    faileded_result = FAILED_RESULT
+    client = mock.MagicMock()
+    faileded_result.report_to_result_sink(client)
+    client.post.assert_called_with(
+        'failed/test',
+        'FAIL',
+        False,
+        duration=1233,
+        file_artifacts={},
+        tags=[('test_name', 'failed/test')],
+        test_loc=None,
+        test_log='line1\nline2')
+
+    passed_result = PASSED_RESULT_WITH_LOC
+    client = mock.MagicMock()
+    passed_result.report_to_result_sink(client)
+    client.post.assert_called_with(
+        'passed/test',
+        'PASS',
+        True,
+        duration=1233,
+        file_artifacts={},
+        tags=[('test_name', 'passed/test')],
+        test_loc=FAKE_TEST_LOC,
+        test_log='Logs')
 
 
 class ResultCollectionTest(test_runner_test.TestCase):

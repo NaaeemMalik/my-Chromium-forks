@@ -31,7 +31,6 @@
 
 #include <memory>
 #include <utility>
-
 #include "base/memory/ptr_util.h"
 #include "third_party/blink/renderer/platform/audio/fft_frame.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -50,7 +49,7 @@ class AudioChannel;
 //      m_fftFrame is the frequency-domain representation of the impulse
 //      response with the delay removed
 //      m_frameDelay is the leading delay of the original impulse response.
-class PLATFORM_EXPORT HRTFKernel {
+class HRTFKernel {
   USING_FAST_MALLOC(HRTFKernel);
 
  public:

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,12 @@ import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
 import android.view.ViewGroup;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelAnimation;
 import org.chromium.chrome.browser.contextualsearch.QuickActionCategory;
-import org.chromium.chrome.browser.contextualsearch.ResolvedSearchTerm.CardTag;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimator;
 import org.chromium.ui.base.LocalizationUtils;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
@@ -82,6 +81,9 @@ public class ContextualSearchBarControl {
      * This text control may not be initialized until the opacity is set beyond 0.
      */
     private float mSearchBarTermOpacity;
+
+    /** Whether we're showing the Context vs the Search Term. */
+    private boolean mIsShowingContext;
 
     // Dimensions used for laying out the search bar.
     private final float mTextLayerMinHeight;
@@ -211,9 +213,6 @@ public class ContextualSearchBarControl {
         // The space will be freed when the panel closes.
         if (percentage == TRANSPARENT_OPACITY) {
             mQuickActionControl.reset();
-            if (!ChromeFeatureList.isEnabled(ChromeFeatureList.CONTEXTUAL_SEARCH_FORCE_CAPTION)) {
-                mCaptionControl.hide();
-            }
             getImageControl().hideCustomImage(false);
         }
     }
@@ -238,36 +237,35 @@ public class ContextualSearchBarControl {
      */
     public void setContextDetails(String selection, String end) {
         cancelSearchTermResolutionAnimation();
-        hideCaption();
         mQuickActionControl.reset();
         mContextControl.setContextDetails(selection, end);
         resetSearchBarContextOpacity();
     }
 
     /**
-     * Updates the Bar to display a dictionary definition card.
-     * @param searchTerm The string that represents the search term to display.
-     * @param cardTagEnum Which kind of card is being shown in this update.
+     * Updates the Bar to display a dictionary definition icon.
      */
-    void updateForDictionaryDefinition(String searchTerm, @CardTag int cardTagEnum) {
-        if (!mCardIconControl.didUpdateControlsForDefinition(
-                    mContextControl, mImageControl, searchTerm, cardTagEnum)) {
-            // Can't style, just update with the text to display.
-            setSearchTerm(searchTerm);
-            animateSearchTermResolution();
-        }
+    void setVectorDrawableDefinitionIcon() {
+        mCardIconControl.setVectorDrawableDefinitionIcon();
+        mImageControl.setCardIconResourceId(mCardIconControl.getViewId());
     }
 
     /**
      * Sets the search term to display in the control.
      * @param searchTerm The string that represents the search term.
+     * @param pronunciation A string for the pronunciation when a Definition is shown.
      */
-    public void setSearchTerm(String searchTerm) {
+    public void setSearchTerm(String searchTerm, @Nullable String pronunciation) {
         cancelSearchTermResolutionAnimation();
-        hideCaption();
         mQuickActionControl.reset();
-        mSearchTermControl.setSearchTerm(searchTerm);
-        resetSearchBarTermOpacity();
+        // Multi-part search terms use the Context Control since it's able to display multiple.
+        if (pronunciation == null) {
+            mSearchTermControl.setSearchTerm(searchTerm);
+            resetSearchBarTermOpacity();
+        } else {
+            mContextControl.setContextDetails(searchTerm, pronunciation);
+            resetSearchBarContextOpacity();
+        }
     }
 
     /**
@@ -276,6 +274,20 @@ public class ContextualSearchBarControl {
      */
     public void setCaption(String caption) {
         mCaptionControl.setCaption(caption);
+    }
+
+    /**
+     * Hides the caption so it will not be displayed in the control.
+     */
+    void hideCaption() {
+        mCaptionControl.hide();
+    }
+
+    /**
+     * Hides the caption so it will not be displayed in the control.
+     */
+    boolean hasCaption() {
+        return mCaptionControl.hasCaption();
     }
 
     /**
@@ -374,6 +386,7 @@ public class ContextualSearchBarControl {
      * context is made visible and the search term invisible.
      */
     private void resetSearchBarContextOpacity() {
+        mIsShowingContext = true;
         mSearchBarContextOpacity = FULL_OPACITY;
         mSearchBarTermOpacity = TRANSPARENT_OPACITY;
     }
@@ -383,15 +396,9 @@ public class ContextualSearchBarControl {
      * term is made visible and the search context invisible.
      */
     private void resetSearchBarTermOpacity() {
+        mIsShowingContext = false;
         mSearchBarContextOpacity = TRANSPARENT_OPACITY;
         mSearchBarTermOpacity = FULL_OPACITY;
-    }
-
-    /**
-     * Hides the caption so it will not be displayed in the control.
-     */
-    private void hideCaption() {
-        mCaptionControl.hide();
     }
 
     // ============================================================================================
@@ -558,8 +565,9 @@ public class ContextualSearchBarControl {
                 Math.max(percentage - (1 - overlapPercentage), TRANSPARENT_OPACITY)
                 / overlapPercentage;
 
-        mSearchBarContextOpacity = fadingOutPercentage;
-        mSearchBarTermOpacity = fadingInPercentage;
+        // Reverse fading in/out if we're showing the multi-part search term in the context layout.
+        mSearchBarContextOpacity = mIsShowingContext ? fadingInPercentage : fadingOutPercentage;
+        mSearchBarTermOpacity = mIsShowingContext ? fadingOutPercentage : fadingInPercentage;
     }
 
     /**

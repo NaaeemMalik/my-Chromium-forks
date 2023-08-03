@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,6 +27,7 @@
 #include "third_party/blink/renderer/core/inspector/node_content_visibility_state.h"
 #include "third_party/blink/renderer/core/layout/hit_test_location.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
+#include "third_party/blink/renderer/core/layout/ng/flex/layout_ng_flexible_box.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/platform/cursors.h"
@@ -226,7 +227,13 @@ bool SearchingForNodeTool::HandleMouseMove(const WebMouseEvent& event) {
   if (node && node->IsShadowRoot())
     node = node->ParentOrShadowHostNode();
 
-  if (!node)
+  // Keep last behavior if Ctrl + Alt(Gr) key is being pressed.
+  bool hold_selected_node =
+      (event.GetModifiers() &
+       (WebInputEvent::kAltKey | WebInputEvent::kAltGrKey)) &&
+      (event.GetModifiers() &
+       (WebInputEvent::kControlKey | WebInputEvent::kMetaKey));
+  if (!node || hold_selected_node)
     return true;
 
   std::tie(node, content_visibility_state_) =
@@ -253,8 +260,13 @@ bool SearchingForNodeTool::HandleMouseMove(const WebMouseEvent& event) {
                   (WebInputEvent::kControlKey | WebInputEvent::kMetaKey);
 
   contrast_info_ = FetchContrast(node);
-  if (hovered_node_changed)
+  if (hovered_node_changed) {
+    if (auto* flexbox =
+            DynamicTo<LayoutNGFlexibleBox>(node->GetLayoutObject())) {
+      flexbox->SetNeedsLayoutForDevtools();
+    }
     NodeHighlightRequested(node);
+  }
   return true;
 }
 
@@ -307,7 +319,7 @@ void SearchingForNodeTool::NodeHighlightRequested(Node* node) {
 
 QuadHighlightTool::QuadHighlightTool(InspectorOverlayAgent* overlay,
                                      OverlayFrontend* frontend,
-                                     std::unique_ptr<FloatQuad> quad,
+                                     std::unique_ptr<gfx::QuadF> quad,
                                      Color color,
                                      Color outline_color)
     : InspectTool(overlay, frontend),
@@ -347,6 +359,9 @@ NodeHighlightTool::NodeHighlightTool(
   std::tie(node_, content_visibility_state_) =
       DetermineContentVisibilityState(node);
   contrast_info_ = FetchContrast(node_);
+  if (auto* flexbox = DynamicTo<LayoutNGFlexibleBox>(node->GetLayoutObject())) {
+    flexbox->SetNeedsLayoutForDevtools();
+  }
 }
 
 String NodeHighlightTool::GetOverlayName() {
@@ -386,7 +401,7 @@ void NodeHighlightTool::DrawNode() {
 }
 
 void NodeHighlightTool::DrawMatchingSelector() {
-  if (selector_list_.IsEmpty() || !node_)
+  if (selector_list_.empty() || !node_)
     return;
   DummyExceptionStateForTesting exception_state;
   ContainerNode* query_base = node_->ContainingShadowRoot();

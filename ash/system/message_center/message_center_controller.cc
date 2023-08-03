@@ -1,9 +1,10 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/system/message_center/message_center_controller.h"
 
+#include <memory>
 #include <utility>
 
 #include "ash/constants/ash_features.h"
@@ -15,6 +16,7 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/message_center/arc_notification_manager_delegate_impl.h"
 #include "ash/system/message_center/ash_message_center_lock_screen_controller.h"
+#include "ash/system/message_center/ash_notification_drag_controller.h"
 #include "ash/system/message_center/fullscreen_notification_blocker.h"
 #include "ash/system/message_center/inactive_user_notification_blocker.h"
 #include "ash/system/message_center/session_state_notification_blocker.h"
@@ -99,15 +101,25 @@ MessageCenterController::MessageCenterController() {
         std::make_unique<PopupNotificationBlocker>(MessageCenter::Get());
   }
 
-  if (chromeos::features::IsPhoneHubEnabled()) {
+  if (features::IsPhoneHubEnabled()) {
     phone_hub_notification_controller_ =
         std::make_unique<PhoneHubNotificationController>();
   }
 
-  // Set the system notification source display name ("Chrome OS" or "Chromium
-  // OS").
+  // When adding other notification blockers, ensure that they are initialized
+  // before the shell's `SnoopingProtectionController`. The notification blocker
+  // that it adds during its construction must be the last blocker, since it
+  // observes the states of all the others.
+  DCHECK(!Shell::Get()->snooping_protection_controller());
+
+  // Set the system notification source display name ("ChromeOS" or
+  // "ChromiumOS").
   message_center::MessageCenter::Get()->SetSystemNotificationAppName(
       l10n_util::GetStringUTF16(IDS_ASH_MESSAGE_CENTER_SYSTEM_APP_NAME));
+
+  if (features::IsNotificationImageDragEnabled()) {
+    drag_controller_ = std::make_unique<AshNotificationDragController>();
+  }
 }
 
 MessageCenterController::~MessageCenterController() {

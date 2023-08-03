@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -98,10 +98,6 @@ class CORE_EXPORT HTMLPortalElement : public HTMLFrameOwnerElement {
   // the console).
   bool CheckWithinFrameLimitOrWarn() const;
 
-  // Checks that the number of frames and portals on the page are within the
-  // limit.
-  bool IsCurrentlyWithinFrameLimit() const;
-
   enum class GuestContentsEligibility {
     // Can have a guest contents.
     kEligible,
@@ -134,7 +130,7 @@ class CORE_EXPORT HTMLPortalElement : public HTMLFrameOwnerElement {
   // Element overrides
   bool IsURLAttribute(const Attribute&) const override;
   void ParseAttribute(const AttributeModificationParams&) override;
-  LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
+  LayoutObject* CreateLayoutObject(const ComputedStyle&) override;
   bool SupportsFocus() const override;
 
   // HTMLFrameOwnerElement overrides
@@ -144,6 +140,11 @@ class CORE_EXPORT HTMLPortalElement : public HTMLFrameOwnerElement {
   }
   void AttachLayoutTree(AttachContext& context) override;
   network::mojom::ReferrerPolicy ReferrerPolicyAttribute() override;
+
+  bool IsPortalCreationOrAdoptionAllowed(const ContainerNode* node);
+
+  // Defers the portal creation if the current document is being prerendered.
+  void CreatePortalAndNavigate(const ContainerNode* node);
 
   Member<PortalContents> portal_;
 

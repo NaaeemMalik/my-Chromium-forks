@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,16 @@
 #include "build/chromeos_buildflags.h"
 #include "ui/aura/test/ui_controls_factory_aura.h"
 #include "ui/base/test/ui_controls.h"
-#include "ui/views/test/ui_controls_factory_desktop_aura_ozone.h"
+#include "ui/base/ui_base_switches.h"
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_WIN) || defined(OS_MAC) || \
-    (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
-#include "chrome/test/pixel/browser_skia_gold_pixel_diff.h"
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || \
+    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
 #include "ui/base/test/skia_gold_matching_algorithm.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/test/draw_waiter_for_test.h"
+#include "ui/views/test/view_skia_gold_pixel_diff.h"
 #include "ui/views/widget/widget.h"
 #endif
 
@@ -37,13 +38,10 @@ std::string NameFromTestCase() {
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_WIN) || (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(IS_WIN) || (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
 void InstallUIControlsAura() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   ui_controls::InstallUIControlsAura(aura::test::CreateUIControlsAura(nullptr));
-#elif defined(USE_OZONE)
-  ui_controls::InstallUIControlsAura(
-      views::test::CreateUIControlsDesktopAuraOzone());
 #else
   ui_controls::EnableUIControls();
 #endif
@@ -55,7 +53,13 @@ void InstallUIControlsAura() {
 TestBrowserUi::TestBrowserUi() {
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_WIN) || (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(IS_WIN) && defined(ARCH_CPU_ARM64)
+  // TODO(1429079): Make these pass with x64 win magic numbers.
+  SetPixelMatchAlgorithm(
+      std::make_unique<ui::test::FuzzySkiaGoldMatchingAlgorithm>(
+          /*max_different_pixels=*/1000, /*pixel_delta_threshold=*/255 * 3));
+#elif BUILDFLAG(IS_WIN) || \
+    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
   // Default to fuzzy diff. The magic number is chosen based on
   // past experiments.
   SetPixelMatchAlgorithm(
@@ -68,7 +72,7 @@ TestBrowserUi::~TestBrowserUi() = default;
 // TODO(https://crbug.com/958242) support Mac for pixel tests.
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if defined(OS_WIN) || (defined(OS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
+#if BUILDFLAG(IS_WIN) || (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS))
 bool TestBrowserUi::VerifyPixelUi(views::Widget* widget,
                                   const std::string& screenshot_prefix,
                                   const std::string& screenshot_name) {
@@ -86,7 +90,7 @@ bool TestBrowserUi::VerifyPixelUi(views::View* view,
   // Move the mouse away from the dialog to prvent any interference with the
   // screenshots.
   InstallUIControlsAura();
-  base::RunLoop run_loop;
+  base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
   EXPECT_TRUE(
       ui_controls::SendMouseMoveNotifyWhenDone(0, 0, run_loop.QuitClosure()));
   run_loop.Run();
@@ -95,14 +99,17 @@ bool TestBrowserUi::VerifyPixelUi(views::View* view,
   // and some not due to tests being run in parallel.
   view->GetWidget()->GetFocusManager()->ClearFocus();
 
-  // Wait for painting complete.
-  auto* compositor = view->GetWidget()->GetCompositor();
+  // Request that the compositor perform a frame and then wait for it to
+  // complete. Because there might not be anything left to draw after waiting
+  // for the mouse move above, request compositing so we don't wait forever.
+  ui::Compositor* const compositor = view->GetWidget()->GetCompositor();
+  compositor->ScheduleFullRedraw();
   ui::DrawWaiterForTest::WaitForCompositingEnded(compositor);
 
-  BrowserSkiaGoldPixelDiff pixel_diff;
-  pixel_diff.Init(view->GetWidget(), screenshot_prefix);
-  return pixel_diff.CompareScreenshot(screenshot_name, view,
-                                      GetPixelMatchAlgorithm());
+  views::ViewSkiaGoldPixelDiff pixel_diff;
+  pixel_diff.Init(screenshot_prefix);
+  return pixel_diff.CompareViewScreenshot(screenshot_name, view,
+                                          GetPixelMatchAlgorithm());
 }
 
 void TestBrowserUi::SetPixelMatchAlgorithm(
@@ -113,11 +120,24 @@ void TestBrowserUi::SetPixelMatchAlgorithm(
 
 void TestBrowserUi::ShowAndVerifyUi() {
   PreShow();
+#if BUILDFLAG(IS_WIN)
+  // Gold files for pixel tests are for light mode, so if dark mode is not
+  // forced, and host is in dark mode, skip test.
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kForceDarkMode) &&
+      ui::NativeTheme::GetInstanceForNativeUi()->ShouldUseDarkColors()) {
+    GTEST_SKIP() << "Host is in dark mode; skipping test";
+  }
+#endif  // BUILDFLAG(IS_WIN)
   ShowUi(NameFromTestCase());
   ASSERT_TRUE(VerifyUi());
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kTestLauncherInteractive))
+  if (IsInteractiveUi())
     WaitForUserDismissal();
   else
     DismissUi();
+}
+
+bool TestBrowserUi::IsInteractiveUi() const {
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kTestLauncherInteractive);
 }

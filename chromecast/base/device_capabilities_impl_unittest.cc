@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -183,7 +183,7 @@ base::Value GetSampleDynamicCapabilityNewValue() {
 bool JsonStringEquals(const std::string& json,
                       const std::string& key,
                       const base::Value& value) {
-  base::Value dict_value(base::Value::Type::DICTIONARY);
+  base::Value dict_value(base::Value::Type::DICT);
   dict_value.SetKey(key, value.Clone());
   std::string dict_json;
   return base::JSONWriter::Write(dict_value, &dict_json) && dict_json == json;
@@ -269,10 +269,10 @@ class DeviceCapabilitiesImplTest : public ::testing::Test {
 // Tests that class is in correct state after Create().
 TEST_F(DeviceCapabilitiesImplTest, Create) {
   std::string empty_dict_string;
-  base::JSONWriter::Write(base::Value(base::Value::Type::DICTIONARY),
+  base::JSONWriter::Write(base::Value(base::Value::Type::DICT),
                           &empty_dict_string);
   EXPECT_EQ(capabilities()->GetAllData()->json_string(), empty_dict_string);
-  EXPECT_TRUE(capabilities()->GetAllData()->dictionary().DictEmpty());
+  EXPECT_TRUE(capabilities()->GetAllData()->dictionary().empty());
 }
 
 // Tests Register() of a default capability.
@@ -287,7 +287,7 @@ TEST_F(DeviceCapabilitiesImplTest, Register) {
 
   EXPECT_EQ(capabilities()->GetValidator(key), &manager);
   std::string empty_dict_string;
-  base::JSONWriter::Write(base::Value(base::Value::Type::DICTIONARY),
+  base::JSONWriter::Write(base::Value(base::Value::Type::DICT),
                           &empty_dict_string);
   EXPECT_EQ(capabilities()->GetAllData()->json_string(), empty_dict_string);
   EXPECT_TRUE(capabilities()->GetCapability(key).is_none());
@@ -307,7 +307,7 @@ TEST_F(DeviceCapabilitiesImplTest, Unregister) {
 
   EXPECT_FALSE(capabilities()->GetValidator(key));
   std::string empty_dict_string;
-  base::JSONWriter::Write(base::Value(base::Value::Type::DICTIONARY),
+  base::JSONWriter::Write(base::Value(base::Value::Type::DICT),
                           &empty_dict_string);
   EXPECT_EQ(capabilities()->GetAllData()->json_string(), empty_dict_string);
   EXPECT_TRUE(capabilities()->GetCapability(key).is_none());
@@ -421,12 +421,12 @@ TEST_F(DeviceCapabilitiesImplTest, SetPublicPrivateCapabilities) {
   base::Value init_value(true);
 
   // Dictionary of only public values.
-  base::Value public_dict(base::Value::Type::DICTIONARY);
-  public_dict.SetKey(key_public, init_value.Clone());
+  base::Value::Dict public_dict;
+  public_dict.Set(key_public, init_value.Clone());
   // Dictionary of public and private values.
-  base::Value full_dict(base::Value::Type::DICTIONARY);
-  full_dict.SetKey(key_public, init_value.Clone());
-  full_dict.SetKey(key_private, init_value.Clone());
+  base::Value::Dict full_dict;
+  full_dict.Set(key_public, init_value.Clone());
+  full_dict.Set(key_private, init_value.Clone());
 
   FakeCapabilityManagerSimple public_manager(capabilities(), key_public,
                                              init_value.Clone(), true, false);
@@ -444,12 +444,12 @@ TEST_F(DeviceCapabilitiesImplTest, NoValidatorDefaultsToPublicCapability) {
   base::Value init_value(true);
 
   // Dictionary of only public values.
-  base::Value public_dict(base::Value::Type::DICTIONARY);
-  public_dict.SetKey(key_public, init_value.Clone());
+  base::Value::Dict public_dict;
+  public_dict.Set(key_public, init_value.Clone());
   // Dictionary of public and private values.
-  base::Value full_dict(base::Value::Type::DICTIONARY);
-  full_dict.SetKey(key_public, init_value.Clone());
-  full_dict.SetKey(key_private, init_value.Clone());
+  base::Value::Dict full_dict;
+  full_dict.Set(key_public, init_value.Clone());
+  full_dict.Set(key_private, init_value.Clone());
 
   // We will not create a validator for the public capability; instead we will
   // set the capability directly. It will be registered as a public capability.

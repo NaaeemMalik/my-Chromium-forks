@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,10 @@
 
 #include "ash/animation/animation_change_type.h"
 #include "ash/app_list/app_list_controller_impl.h"
+#include "ash/constants/ash_constants.h"
+#include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/metrics/login_unlock_throughput_recorder.h"
 #include "ash/public/cpp/keyboard/keyboard_controller_observer.h"
 #include "ash/public/cpp/shelf_item_delegate.h"
 #include "ash/public/cpp/shelf_model.h"
@@ -16,6 +19,8 @@
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/root_window_controller.h"
 #include "ash/shelf/hotseat_widget.h"
+#include "ash/shelf/login_shelf_widget.h"
+#include "ash/shelf/scrollable_shelf_view.h"
 #include "ash/shelf/shelf_controller.h"
 #include "ash/shelf/shelf_focus_cycler.h"
 #include "ash/shelf/shelf_layout_manager.h"
@@ -27,10 +32,11 @@
 #include "ash/shell.h"
 #include "ash/system/status_area_widget.h"
 #include "ash/wm/work_area_insets.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/i18n/rtl.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
@@ -43,9 +49,7 @@ namespace {
 
 bool IsAppListBackground(ShelfBackgroundType background_type) {
   switch (background_type) {
-    case ShelfBackgroundType::kAppList:
     case ShelfBackgroundType::kHomeLauncher:
-    case ShelfBackgroundType::kMaximizedWithAppList:
       return true;
     case ShelfBackgroundType::kDefaultBg:
     case ShelfBackgroundType::kMaximized:
@@ -239,12 +243,13 @@ class Shelf::AutoHideEventHandler : public ui::EventHandler {
       shelf_layout_manager->LockAutoHideState(true);
     } else if (event->type() == ui::ET_TOUCH_RELEASED ||
                event->type() == ui::ET_TOUCH_CANCELLED) {
+      // Unlock auto hide (and eventually recompute auto hide state).
       shelf_layout_manager->LockAutoHideState(false);
     }
   }
 
  private:
-  Shelf* shelf_;
+  raw_ptr<Shelf, ExperimentalAsh> shelf_;
 };
 
 // Shelf::AutoDimEventHandler -----------------------------------------------
@@ -256,7 +261,7 @@ class Shelf::AutoDimEventHandler : public ui::EventHandler,
  public:
   explicit AutoDimEventHandler(Shelf* shelf) : shelf_(shelf) {
     Shell::Get()->AddPreTargetHandler(this);
-    shelf_observation_.Observe(shelf_);
+    shelf_observation_.Observe(shelf_.get());
     UndimShelf();
   }
 
@@ -310,7 +315,7 @@ class Shelf::AutoDimEventHandler : public ui::EventHandler,
   }
 
   // ShelfObserver:
-  void WillChangeVisibilityState(ShelfVisibilityState new_state) override {
+  void OnShelfVisibilityStateChanged(ShelfVisibilityState new_state) override {
     // Shelf should be undimmed when it is shown.
     if (new_state != ShelfVisibilityState::SHELF_HIDDEN)
       UndimShelf();
@@ -318,7 +323,7 @@ class Shelf::AutoDimEventHandler : public ui::EventHandler,
 
  private:
   // Unowned pointer to the shelf that owns this event handler.
-  Shelf* shelf_;
+  raw_ptr<Shelf, ExperimentalAsh> shelf_;
   // OneShotTimer that dims shelf due to inactivity.
   base::OneShotTimer dim_shelf_timer_;
   // An observer that notifies the AutoDimHandler that shelf visibility has
@@ -328,6 +333,30 @@ class Shelf::AutoDimEventHandler : public ui::EventHandler,
   // Delay before dimming the shelf.
   const base::TimeDelta kDimDelay = base::Seconds(5);
 };
+
+// Shelf::ScopedDisableAutoHide ----------------------------------------------
+
+Shelf::ScopedDisableAutoHide::ScopedDisableAutoHide(Shelf* shelf)
+    : shelf_(shelf->GetWeakPtr()) {
+  CHECK(shelf);
+
+  ++shelf_->disable_auto_hide_;
+  if (shelf_->disable_auto_hide_ == 1) {
+    shelf_->UpdateVisibilityState();
+  }
+}
+
+Shelf::ScopedDisableAutoHide::~ScopedDisableAutoHide() {
+  if (!shelf_) {
+    return;
+  }
+
+  --shelf_->disable_auto_hide_;
+  CHECK_GE(shelf_->disable_auto_hide_, 0);
+  if (shelf_->disable_auto_hide_ == 0) {
+    shelf_->UpdateVisibilityState();
+  }
+}
 
 // Shelf ---------------------------------------------------------------------
 
@@ -373,6 +402,13 @@ void Shelf::ActivateShelfItemOnDisplay(int item_index, int64_t display_id) {
       ui::ET_KEY_RELEASED, ui::VKEY_UNKNOWN, ui::EF_NONE);
   item_delegate->ItemSelected(std::move(event), display_id, LAUNCH_FROM_SHELF,
                               base::DoNothing(), base::NullCallback());
+}
+
+// static
+void Shelf::UpdateShelfVisibility() {
+  for (auto* root : Shell::Get()->GetAllRootWindows()) {
+    Shelf::ForWindow(root)->UpdateVisibilityState();
+  }
 }
 
 void Shelf::CreateNavigationWidget(aura::Window* container) {
@@ -421,6 +457,10 @@ void Shelf::CreateShelfWidget(aura::Window* root) {
   // Create the various shelf components.
   CreateHotseatWidget(shelf_container);
   CreateNavigationWidget(shelf_container);
+  if (features::IsUseLoginShelfWidgetEnabled()) {
+    login_shelf_widget_ =
+        std::make_unique<LoginShelfWidget>(/*shelf=*/this, shelf_container);
+  }
 
   // Must occur after |shelf_widget_| is constructed because the system tray
   // constructors call back into Shelf::shelf_widget().
@@ -434,13 +474,20 @@ void Shelf::CreateShelfWidget(aura::Window* root) {
 }
 
 void Shelf::ShutdownShelfWidget() {
+  for (auto& observer : observers_)
+    observer.OnShelfShuttingDown();
+
+  // Remove observers prior to destroying child widgets, this prevents
+  // activation changes from triggering during shutdown, see
+  // https://crbug.com/1307898.
+  shelf_widget_->Shutdown();
+
   // The contents view of the hotseat widget may rely on the status area widget.
   // So do explicit destruction here.
   hotseat_widget_.reset();
   status_area_widget_.reset();
   navigation_widget_.reset();
-
-  shelf_widget_->Shutdown();
+  login_shelf_widget_.reset();
 }
 
 void Shelf::DestroyShelfWidget() {
@@ -469,7 +516,7 @@ void Shelf::SetAlignment(ShelfAlignment alignment) {
 
   if (shelf_locking_manager_.is_locked() &&
       alignment != ShelfAlignment::kBottomLocked) {
-    shelf_locking_manager_.set_stored_alignment(alignment);
+    shelf_locking_manager_.set_in_session_alignment(alignment);
     return;
   }
 
@@ -480,14 +527,14 @@ void Shelf::SetAlignment(ShelfAlignment alignment) {
   alignment_ = alignment;
   tooltip_->Close();
   if (needs_relayout) {
-    shelf_layout_manager_->LayoutShelf();
+    shelf_layout_manager_->HandleShelfAlignmentChange();
     Shell::Get()->NotifyShelfAlignmentChanged(GetWindow()->GetRootWindow(),
                                               old_alignment);
   }
 }
 
-bool Shelf::IsHorizontalAlignment() const {
-  switch (alignment_) {
+bool IsHorizontalAlignment(ShelfAlignment alignment) {
+  switch (alignment) {
     case ShelfAlignment::kBottom:
     case ShelfAlignment::kBottomLocked:
       return true;
@@ -499,6 +546,10 @@ bool Shelf::IsHorizontalAlignment() const {
   return true;
 }
 
+bool Shelf::IsHorizontalAlignment() const {
+  return ash::IsHorizontalAlignment(alignment_);
+}
+
 void Shelf::SetAutoHideBehavior(ShelfAutoHideBehavior auto_hide_behavior) {
   DCHECK(shelf_layout_manager_);
 
@@ -506,8 +557,9 @@ void Shelf::SetAutoHideBehavior(ShelfAutoHideBehavior auto_hide_behavior) {
     return;
 
   auto_hide_behavior_ = auto_hide_behavior;
-  Shell::Get()->NotifyShelfAutoHideBehaviorChanged(
-      GetWindow()->GetRootWindow());
+
+  for (auto& observer : observers_)
+    observer.OnShelfAutoHideBehaviorChanged();
 }
 
 ShelfAutoHideState Shelf::GetAutoHideState() const {
@@ -525,7 +577,7 @@ ShelfBackgroundType Shelf::GetBackgroundType() const {
 
 void Shelf::UpdateVisibilityState() {
   if (shelf_layout_manager_)
-    shelf_layout_manager_->UpdateVisibilityState();
+    shelf_layout_manager_->UpdateVisibilityState(/*force_layout=*/false);
 }
 
 void Shelf::MaybeUpdateShelfBackground() {
@@ -578,16 +630,14 @@ void Shelf::ProcessScrollEvent(ui::ScrollEvent* event) {
   if (!shelf_layout_manager_->is_active_session_state())
     return;
 
+  // Introduce the swipe up gesture behind a flag over certain conditions.
+  if (!shelf_layout_manager_->IsBubbleLauncherShowOnGestureScrollAvailable())
+    return;
+
   auto* app_list_controller = Shell::Get()->app_list_controller();
   DCHECK(app_list_controller);
-  // If the App List is not visible, send Scroll events to the
-  // |shelf_layout_manager_| because these events are used to show the App
-  // List.
-  if (app_list_controller->IsVisible(shelf_layout_manager_->display_.id())) {
-    app_list_controller->ProcessScrollEvent(*event);
-  } else {
-    shelf_layout_manager_->ProcessScrollEventFromShelf(event);
-  }
+
+  shelf_layout_manager_->ProcessScrollEventFromShelf(event);
   event->SetHandled();
 }
 
@@ -596,15 +646,14 @@ void Shelf::ProcessMouseWheelEvent(ui::MouseWheelEvent* event) {
       !IsHorizontalAlignment())
     return;
 
+  // Introduce the swipe up gesture behind a flag over certain conditions.
+  if (!shelf_layout_manager_->IsBubbleLauncherShowOnGestureScrollAvailable())
+    return;
+
   auto* app_list_controller = Shell::Get()->app_list_controller();
   DCHECK(app_list_controller);
-  // If the App List is not visible, send MouseWheel events to the
-  // |shelf_layout_manager_| because these events are used to show the App List.
-  if (app_list_controller->IsVisible(shelf_layout_manager_->display_.id())) {
-    app_list_controller->ProcessMouseWheelEvent(*event);
-  } else {
-    shelf_layout_manager_->ProcessMouseWheelEventFromShelf(event);
-  }
+
+  shelf_layout_manager_->ProcessMouseWheelEventFromShelf(event);
   event->SetHandled();
 }
 
@@ -625,22 +674,21 @@ StatusAreaWidget* Shelf::GetStatusAreaWidget() const {
   return shelf_widget_ ? shelf_widget_->status_area_widget() : nullptr;
 }
 
-TrayBackgroundView* Shelf::GetSystemTrayAnchorView() const {
-  return GetStatusAreaWidget()->GetSystemTrayAnchor();
-}
-
 gfx::Rect Shelf::GetSystemTrayAnchorRect() const {
   gfx::Rect work_area = GetWorkAreaInsets()->user_work_area_bounds();
   switch (alignment_) {
     case ShelfAlignment::kBottom:
     case ShelfAlignment::kBottomLocked:
-      return gfx::Rect(
-          base::i18n::IsRTL() ? work_area.x() : work_area.right() - 1,
-          work_area.bottom() - 1, 0, 0);
+      return gfx::Rect(base::i18n::IsRTL()
+                           ? work_area.x()
+                           : work_area.right() - kShelfDisplayOffset,
+                       work_area.bottom() - kShelfDisplayOffset, 0, 0);
     case ShelfAlignment::kLeft:
-      return gfx::Rect(work_area.x(), work_area.bottom() - 1, 0, 0);
+      return gfx::Rect(work_area.x(), work_area.bottom() - kShelfDisplayOffset,
+                       0, 0);
     case ShelfAlignment::kRight:
-      return gfx::Rect(work_area.right() - 1, work_area.bottom() - 1, 0, 0);
+      return gfx::Rect(work_area.right() - kShelfDisplayOffset,
+                       work_area.bottom() - kShelfDisplayOffset, 0, 0);
   }
   NOTREACHED();
   return gfx::Rect();
@@ -705,17 +753,19 @@ void Shelf::WillDeleteShelfLayoutManager() {
   shelf_layout_manager_ = nullptr;
 }
 
-void Shelf::WillChangeVisibilityState(ShelfVisibilityState new_state) {
-  for (auto& observer : observers_)
-    observer.WillChangeVisibilityState(new_state);
+void Shelf::OnShelfVisibilityStateChanged(ShelfVisibilityState new_state) {
+  if (!auto_dim_event_handler_ && switches::IsUsingShelfAutoDim()) {
+    auto_dim_event_handler_ = std::make_unique<AutoDimEventHandler>(this);
+  }
+
   if (new_state != SHELF_AUTO_HIDE) {
     auto_hide_event_handler_.reset();
   } else if (!auto_hide_event_handler_) {
     auto_hide_event_handler_ = std::make_unique<AutoHideEventHandler>(this);
   }
 
-  if (!auto_dim_event_handler_ && switches::IsUsingShelfAutoDim()) {
-    auto_dim_event_handler_ = std::make_unique<AutoDimEventHandler>(this);
+  for (auto& observer : observers_) {
+    observer.OnShelfVisibilityStateChanged(new_state);
   }
 }
 
@@ -764,6 +814,10 @@ WorkAreaInsets* Shelf::GetWorkAreaInsets() const {
   const aura::Window* window = GetWindow();
   DCHECK(window);
   return WorkAreaInsets::ForWindow(window->GetRootWindow());
+}
+
+base::WeakPtr<Shelf> Shelf::GetWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
 }
 
 }  // namespace ash

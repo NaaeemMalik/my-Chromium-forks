@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
 #include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
@@ -22,6 +21,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/extensions/chrome_content_verifier_delegate.h"
 #include "chrome/browser/extensions/chrome_extensions_browser_client.h"
+#include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/testing_profile.h"
@@ -37,7 +37,6 @@
 #include "extensions/browser/extension_protocols.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
-#include "extensions/browser/info_map.h"
 #include "extensions/browser/unloaded_extension_reason.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
@@ -54,7 +53,6 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/common/loader/previews_state.h"
 #include "third_party/blink/public/common/loader/referrer_utils.h"
 #include "third_party/blink/public/common/privacy_budget/identifiability_metrics.h"
 #include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
@@ -87,11 +85,11 @@ base::FilePath GetContentVerifierTestPath() {
 scoped_refptr<Extension> CreateTestExtension(const std::string& name,
                                              bool incognito_split_mode,
                                              const ExtensionId& extension_id) {
-  base::DictionaryValue manifest;
-  manifest.SetString("name", name);
-  manifest.SetString("version", "1");
-  manifest.SetInteger("manifest_version", 2);
-  manifest.SetString("incognito", incognito_split_mode ? "split" : "spanning");
+  base::Value::Dict manifest;
+  manifest.Set("name", name);
+  manifest.Set("version", "1");
+  manifest.Set("manifest_version", 2);
+  manifest.Set("incognito", incognito_split_mode ? "split" : "spanning");
 
   base::FilePath path = GetTestPath("response_headers");
 
@@ -109,7 +107,7 @@ scoped_refptr<Extension> CreateTestExtension(const std::string& name,
 }
 
 scoped_refptr<Extension> CreateWebStoreExtension() {
-  std::unique_ptr<base::DictionaryValue> manifest =
+  base::Value::Dict manifest =
       DictionaryBuilder()
           .Set("name", "WebStore")
           .Set("version", "1")
@@ -126,7 +124,7 @@ scoped_refptr<Extension> CreateWebStoreExtension() {
 
   std::string error;
   scoped_refptr<Extension> extension(
-      Extension::Create(path, mojom::ManifestLocation::kComponent, *manifest,
+      Extension::Create(path, mojom::ManifestLocation::kComponent, manifest,
                         Extension::NO_FLAGS, &error));
   EXPECT_TRUE(extension.get()) << error;
   return extension;
@@ -154,7 +152,7 @@ network::ResourceRequest CreateResourceRequest(
       url::Origin::Create(url);  // ensure initiator set.
   request.referrer_policy = blink::ReferrerUtils::GetDefaultNetReferrerPolicy();
   request.destination = destination;
-  request.is_main_frame =
+  request.is_outermost_main_frame =
       destination == network::mojom::RequestDestination::kDocument;
   return request;
 }
@@ -212,7 +210,8 @@ class ExtensionProtocolsTestBase : public testing::Test {
     content_verifier_ = new ContentVerifier(
         browser_context(),
         std::make_unique<ChromeContentVerifierDelegate>(browser_context()));
-    info_map()->SetContentVerifier(content_verifier_.get());
+    static_cast<TestExtensionSystem*>(ExtensionSystem::Get(browser_context()))
+        ->set_content_verifier(content_verifier_.get());
   }
 
   void TearDown() override {
@@ -235,8 +234,6 @@ class ExtensionProtocolsTestBase : public testing::Test {
   void AddExtension(const scoped_refptr<const Extension>& extension,
                     bool incognito_enabled,
                     bool notifications_disabled) {
-    info_map()->AddExtension(extension.get(), base::Time::Now(),
-                             incognito_enabled, notifications_disabled);
     EXPECT_TRUE(extension_registry()->AddEnabled(extension));
     ExtensionPrefs::Get(browser_context())
         ->SetIsIncognitoEnabled(extension->id(), incognito_enabled);
@@ -244,7 +241,6 @@ class ExtensionProtocolsTestBase : public testing::Test {
 
   void RemoveExtension(const scoped_refptr<const Extension>& extension,
                        const UnloadedExtensionReason reason) {
-    info_map()->RemoveExtension(extension->id(), reason);
     EXPECT_TRUE(extension_registry()->RemoveEnabled(extension->id()));
     if (reason == UnloadedExtensionReason::DISABLE)
       EXPECT_TRUE(extension_registry()->AddDisabled(extension));
@@ -252,10 +248,10 @@ class ExtensionProtocolsTestBase : public testing::Test {
 
   // Helper method to create a URL request/loader, call RequestOrLoad on it, and
   // return the result. If |extension| hasn't already been added to
-  // info_map(), this will add it.
+  // extension_registry(), this will add it.
   GetResult DoRequestOrLoad(const scoped_refptr<Extension> extension,
                             const std::string& relative_path) {
-    if (!info_map()->extensions().Contains(extension->id())) {
+    if (!extension_registry()->enabled_extensions().Contains(extension->id())) {
       AddExtension(extension.get(),
                    /*incognito_enabled=*/false,
                    /*notifications_disabled=*/false);
@@ -266,10 +262,6 @@ class ExtensionProtocolsTestBase : public testing::Test {
 
   ExtensionRegistry* extension_registry() {
     return ExtensionRegistry::Get(browser_context());
-  }
-
-  InfoMap* info_map() {
-    return ExtensionSystem::Get(browser_context())->info_map();
   }
 
   content::BrowserContext* browser_context() {
@@ -354,7 +346,7 @@ class ExtensionProtocolsTestBase : public testing::Test {
   content::WebContents* web_contents() { return contents_.get(); }
 
   content::RenderFrameHost* main_rfh() {
-    return web_contents()->GetMainFrame();
+    return web_contents()->GetPrimaryMainFrame();
   }
 
   content::BrowserTaskEnvironment task_environment_;
@@ -405,7 +397,7 @@ TEST_F(ExtensionProtocolsIncognitoTest, IncognitoRequest) {
       {"split enabled", true, true, true, false},
   };
 
-  for (size_t i = 0; i < base::size(cases); ++i) {
+  for (size_t i = 0; i < std::size(cases); ++i) {
     scoped_refptr<Extension> extension =
         CreateTestExtension(cases[i].name, cases[i].incognito_split_mode);
     AddExtension(extension, cases[i].incognito_enabled, false);
@@ -624,7 +616,7 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForFileAccessErrors) {
     EXPECT_EQ(ContentVerifyJob::NONE, observer.WaitForJobFinished());
   }
 
-#if !defined(OS_FUCHSIA)  // Fuchsia does not support file permissions.
+#if !BUILDFLAG(IS_FUCHSIA)  // Fuchsia does not support file permissions.
   // chmod -r 1024.js.
   {
     TestContentVerifySingleJobObserver observer(extension_id, kRelativePath);
@@ -638,7 +630,7 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForFileAccessErrors) {
     // TODO(lazyboy): We may want to update this to more closely reflect the
     // real flow.
   }
-#endif  // !defined(OS_FUCHSIA)
+#endif  // !BUILDFLAG(IS_FUCHSIA)
 
   // Delete 1024.js.
   {
@@ -687,7 +679,7 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForZeroByteFile) {
     EXPECT_EQ(ContentVerifyJob::NONE, observer.WaitForJobFinished());
   }
 
-#if !defined(OS_FUCHSIA)  // Fuchsia does not support file permissions.
+#if !BUILDFLAG(IS_FUCHSIA)  // Fuchsia does not support file permissions.
   // chmod -r empty.js.
   // Unreadable empty file doesn't generate hash mismatch. Note that this is the
   // current behavior of ContentVerifyJob.
@@ -699,7 +691,7 @@ TEST_F(ExtensionProtocolsTest, VerificationSeenForZeroByteFile) {
               DoRequestOrLoad(extension, kEmptyJs).result());
     EXPECT_EQ(ContentVerifyJob::NONE, observer.WaitForJobFinished());
   }
-#endif  // !defined(OS_FUCHSIA)
+#endif  // !BUILDFLAG(IS_FUCHSIA)
 
   // rm empty.js.
   // Deleted empty file doesn't generate hash mismatch. Note that this is the
@@ -779,9 +771,8 @@ TEST_F(ExtensionProtocolsTest, MimeTypesForKnownFiles) {
         "web_accessible_resources": ["*"]
       })";
   test_dir.WriteManifest(kManifest);
-  std::unique_ptr<base::DictionaryValue> manifest =
-      base::DictionaryValue::From(base::test::ParseJsonDeprecated(kManifest));
-  ASSERT_TRUE(manifest);
+  base::Value::Dict manifest = base::test::ParseJsonDict(kManifest);
+  ASSERT_FALSE(manifest.empty());
 
   test_dir.WriteFile(FILE_PATH_LITERAL("json_file.json"), "{}");
   test_dir.WriteFile(FILE_PATH_LITERAL("js_file.js"), "function() {}");

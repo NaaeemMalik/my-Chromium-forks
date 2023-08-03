@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -21,7 +21,10 @@ bool ZipString(const base::FilePath& filename,
 // creating a system_logs.txt file attached to feedback reports.
 std::string LogsToString(const FeedbackCommon::SystemLogsMap& sys_info);
 
-#if !defined(OS_WIN)
+// Removes URL fields from the autofill logs.
+void RemoveUrlsFromAutofillData(std::string& autofill_metadata);
+
+#if !BUILDFLAG(IS_WIN)
 // Returns true if the data from the file specified by |path| is read into
 // |contents| successfully.
 // If the file size is greater than |max_size| in bytes, the data will be

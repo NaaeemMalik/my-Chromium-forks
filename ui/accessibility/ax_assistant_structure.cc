@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,7 @@
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node.h"
 #include "ui/accessibility/ax_role_properties.h"
+#include "ui/accessibility/ax_selection.h"
 #include "ui/accessibility/ax_serializable_tree.h"
 #include "ui/accessibility/platform/ax_android_constants.h"
 #include "ui/gfx/geometry/rect_conversions.h"
@@ -78,9 +79,9 @@ std::u16string GetInnerText(const AXNode* node) {
     return node->GetString16Attribute(ax::mojom::StringAttribute::kName);
   }
   std::u16string text;
-  for (size_t i = 0; i < node->GetUnignoredChildCount(); ++i) {
-    AXNode* child = node->GetUnignoredChildAtIndex(i);
-    text += GetInnerText(child);
+  for (auto iter = node->UnignoredChildrenBegin();
+       iter != node->UnignoredChildrenEnd(); ++iter) {
+    text += GetInnerText(iter.get());
   }
   return text;
 }
@@ -122,8 +123,9 @@ std::u16string GetText(const AXNode* node) {
 
     switch (node->GetRole()) {
       case ax::mojom::Role::kComboBoxMenuButton:
-      case ax::mojom::Role::kTextFieldWithComboBox:
+      case ax::mojom::Role::kComboBoxSelect:
       case ax::mojom::Role::kPopUpButton:
+      case ax::mojom::Role::kTextFieldWithComboBox:
       case ax::mojom::Role::kTextField:
         return value;
       default:
@@ -160,9 +162,9 @@ std::u16string GetText(const AXNode* node) {
   }
 
   if (text.empty() && IsLeaf(node)) {
-    for (size_t i = 0; i < node->GetUnignoredChildCount(); ++i) {
-      AXNode* child = node->GetUnignoredChildAtIndex(i);
-      text += GetText(child);
+    for (auto iter = node->UnignoredChildrenBegin();
+         iter != node->UnignoredChildrenEnd(); ++iter) {
+      text += GetInnerText(iter.get());
     }
   }
 
@@ -245,10 +247,10 @@ void WalkAXTreeDepthFirst(const AXNode* node,
   result->text_size = -1.0;
   result->bgcolor = 0;
   result->color = 0;
-  result->bold = 0;
-  result->italic = 0;
-  result->line_through = 0;
-  result->underline = 0;
+  result->bold = false;
+  result->italic = false;
+  result->line_through = false;
+  result->underline = false;
 
   if (node->HasFloatAttribute(ax::mojom::FloatAttribute::kFontSize)) {
     result->text_size =
@@ -265,20 +267,32 @@ void WalkAXTreeDepthFirst(const AXNode* node,
 
   const gfx::Rect& absolute_rect =
       gfx::ToEnclosingRect(tree->GetTreeBounds(node));
+  const gfx::Rect& unclipped_rect = gfx::ToEnclosingRect(
+      tree->GetTreeBounds(node, nullptr, /* clip_bounds = */ false));
+
   gfx::Rect parent_relative_rect = absolute_rect;
+  gfx::Rect parent_relative_unclipped_rect = unclipped_rect;
   bool is_root = !node->GetUnignoredParent();
   if (!is_root) {
     parent_relative_rect.Offset(-rect.OffsetFromOrigin());
+    parent_relative_unclipped_rect.Offset(-rect.OffsetFromOrigin());
   }
   result->rect = gfx::Rect(parent_relative_rect.x(), parent_relative_rect.y(),
                            absolute_rect.width(), absolute_rect.height());
+  result->unclipped_rect = gfx::Rect(
+      parent_relative_unclipped_rect.x(), parent_relative_unclipped_rect.y(),
+      unclipped_rect.width(), unclipped_rect.height());
 
+  // Selection state comes from the tree data rather than
+  // GetUnignoredSelection() which uses AXPosition, as AXPosition requires a
+  // valid and registered AXTreeID, which exists only when accessibility is
+  // enabled. As an AXTreeSnapshotter does not enable accessibility, it is not
+  // able to use AXPosition.
   if (IsLeaf(node) && update.has_tree_data) {
     int start_selection = 0;
     int end_selection = 0;
-    AXTree::Selection unignored_selection = tree->GetUnignoredSelection();
-    if (unignored_selection.anchor_object_id == node->id()) {
-      start_selection = unignored_selection.anchor_offset;
+    if (update.tree_data.sel_anchor_object_id == node->id()) {
+      start_selection = update.tree_data.sel_anchor_offset;
       config->should_select_leaf = true;
     }
 
@@ -286,8 +300,8 @@ void WalkAXTreeDepthFirst(const AXNode* node,
       end_selection = static_cast<int32_t>(GetText(node).length());
     }
 
-    if (unignored_selection.focus_object_id == node->id()) {
-      end_selection = unignored_selection.focus_offset;
+    if (update.tree_data.sel_focus_object_id == node->id()) {
+      end_selection = update.tree_data.sel_focus_offset;
       config->should_select_leaf = false;
     }
     if (end_selection > 0)
@@ -306,11 +320,11 @@ void WalkAXTreeDepthFirst(const AXNode* node,
   if (!class_name.empty())
     result->html_attributes.push_back({"class", class_name});
 
-  for (size_t i = 0; i < node->GetUnignoredChildCount(); ++i) {
-    AXNode* child = node->GetUnignoredChildAtIndex(i);
+  for (auto iter = node->UnignoredChildrenBegin();
+       iter != node->UnignoredChildrenEnd(); ++iter) {
     auto* n = AddChild(assistant_tree);
     result->children_indices.push_back(assistant_tree->nodes.size() - 1);
-    WalkAXTreeDepthFirst(child, absolute_rect, update, tree, config,
+    WalkAXTreeDepthFirst(iter.get(), absolute_rect, update, tree, config,
                          assistant_tree, n);
   }
 }
@@ -378,12 +392,15 @@ const char* AXRoleToAndroidClassName(ax::mojom::Role role, bool has_parent) {
     case ax::mojom::Role::kInputTime:
       return kAXSpinnerClassname;
     case ax::mojom::Role::kButton:
+    case ax::mojom::Role::kPopUpButton:
     case ax::mojom::Role::kPdfActionableHighlight:
       return kAXButtonClassname;
     case ax::mojom::Role::kCheckBox:
       return kAXCheckBoxClassname;
     case ax::mojom::Role::kRadioButton:
       return kAXRadioButtonClassname;
+    case ax::mojom::Role::kRadioGroup:
+      return kAXRadioGroupClassname;
     case ax::mojom::Role::kSwitch:
     case ax::mojom::Role::kToggleButton:
       return kAXToggleButtonClassname;

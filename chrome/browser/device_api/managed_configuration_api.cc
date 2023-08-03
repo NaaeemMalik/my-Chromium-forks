@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,10 @@
 #include <memory>
 #include <tuple>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/json/json_string_value_serializer.h"
-#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
@@ -27,6 +26,7 @@
 #include "extensions/browser/extension_file_task_runner.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/origin.h"
 
 namespace {
@@ -144,13 +144,13 @@ void ManagedConfigurationAPI::RegisterProfilePrefs(
 void ManagedConfigurationAPI::GetOriginPolicyConfiguration(
     const url::Origin& origin,
     const std::vector<std::string>& keys,
-    base::OnceCallback<void(std::unique_ptr<base::DictionaryValue>)> callback) {
+    base::OnceCallback<void(absl::optional<base::Value::Dict>)> callback) {
   if (!CanHaveManagedStore(origin)) {
-    return std::move(callback).Run(nullptr);
+    return std::move(callback).Run(absl::nullopt);
   }
 
   if (!base::Contains(store_map_, origin))
-    return std::move(callback).Run(nullptr);
+    return std::move(callback).Run(absl::nullopt);
 
   store_map_[origin]
       .AsyncCall(&ManagedConfigurationStore::Get)
@@ -188,12 +188,12 @@ const std::set<url::Origin>& ManagedConfigurationAPI::GetManagedOrigins()
 }
 
 void ManagedConfigurationAPI::OnConfigurationPolicyChanged() {
-  const base::Value* managed_configurations =
+  const base::Value::List& managed_configurations =
       profile_->GetPrefs()->GetList(prefs::kManagedConfigurationPerOrigin);
 
   std::set<url::Origin> current_origins;
 
-  for (const auto& entry : managed_configurations->GetList()) {
+  for (const auto& entry : managed_configurations) {
     const std::string* url = entry.FindStringKey(kOriginKey);
     if (!url)
       continue;
@@ -248,15 +248,15 @@ void ManagedConfigurationAPI::UpdateStoredDataForOrigin(
     const std::string& configuration_hash) {
   const std::string* last_hash_value =
       profile_->GetPrefs()
-          ->GetDictionary(prefs::kLastManagedConfigurationHashForOrigin)
-          ->FindStringKey(GetOriginEncoded(origin));
+          ->GetDict(prefs::kLastManagedConfigurationHashForOrigin)
+          .FindString(GetOriginEncoded(origin));
 
   // Nothing to be stored here, the hash value is the same.
   if (last_hash_value && *last_hash_value == configuration_hash)
     return;
 
   if (configuration_url.empty()) {
-    PostStoreConfiguration(origin, base::DictionaryValue());
+    PostStoreConfiguration(origin, base::Value::Dict());
     return;
   }
 
@@ -296,23 +296,23 @@ void ManagedConfigurationAPI::ProcessDecodedConfiguration(
     const url::Origin& origin,
     const std::string& url_hash,
     const data_decoder::DataDecoder::ValueOrError decoding_result) {
-  if (!decoding_result.value || !decoding_result.value->is_dict()) {
+  if (!decoding_result.has_value() || !decoding_result->is_dict()) {
     VLOG(1) << "Could not fetch managed configuration for app with origin = "
             << origin.Serialize();
-    PostStoreConfiguration(origin, base::DictionaryValue());
+    PostStoreConfiguration(origin, base::Value::Dict());
     return;
   }
-  DictionaryPrefUpdate update(profile_->GetPrefs(),
+  ScopedDictPrefUpdate update(profile_->GetPrefs(),
                               prefs::kLastManagedConfigurationHashForOrigin);
-  update.Get()->SetStringKey(GetOriginEncoded(origin), url_hash);
+  update->Set(GetOriginEncoded(origin), url_hash);
 
   // We need to transform each value into a string.
-  base::DictionaryValue result_dict;
-  for (auto item : decoding_result.value->DictItems()) {
+  base::Value::Dict result_dict;
+  for (auto item : decoding_result->GetDict()) {
     std::string result;
     JSONStringValueSerializer serializer(&result);
     serializer.Serialize(item.second);
-    result_dict.SetString(item.first, result);
+    result_dict.SetByDottedPath(item.first, result);
   }
 
   PostStoreConfiguration(origin, std::move(result_dict));
@@ -320,7 +320,7 @@ void ManagedConfigurationAPI::ProcessDecodedConfiguration(
 
 void ManagedConfigurationAPI::PostStoreConfiguration(
     const url::Origin& origin,
-    base::DictionaryValue configuration) {
+    base::Value::Dict configuration) {
   MaybeCreateStoreForOrigin(origin);
   store_map_[origin]
       .AsyncCall(&ManagedConfigurationStore::SetCurrentPolicy)

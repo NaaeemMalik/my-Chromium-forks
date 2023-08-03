@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,7 @@
 
 #include <memory>
 
-#include "base/bind.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/functional/bind.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -17,14 +16,14 @@
 #include "services/data_decoder/gzipper.h"
 #include "services/data_decoder/json_parser_impl.h"
 #include "services/data_decoder/public/mojom/image_decoder.mojom.h"
-#include "services/data_decoder/web_bundler.h"
+#include "services/data_decoder/structured_headers_parser_impl.h"
 #include "services/data_decoder/xml_parser.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
 #include "services/data_decoder/ble_scan_parser_impl.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
-#if !defined(OS_IOS)
+#if !BUILDFLAG(IS_IOS)
 #include "services/data_decoder/image_decoder_impl.h"
 #endif
 
@@ -46,7 +45,7 @@ void DataDecoderService::BindReceiver(
 
 void DataDecoderService::BindImageDecoder(
     mojo::PendingReceiver<mojom::ImageDecoder> receiver) {
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
   LOG(FATAL) << "ImageDecoder not supported on iOS.";
 #else
   if (drop_image_decoders_)
@@ -61,6 +60,12 @@ void DataDecoderService::BindJsonParser(
   if (drop_json_parsers_)
     return;
   mojo::MakeSelfOwnedReceiver(std::make_unique<JsonParserImpl>(),
+                              std::move(receiver));
+}
+
+void DataDecoderService::BindStructuredHeadersParser(
+    mojo::PendingReceiver<mojom::StructuredHeadersParser> receiver) {
+  mojo::MakeSelfOwnedReceiver(std::make_unique<StructuredHeadersParserImpl>(),
                               std::move(receiver));
 }
 
@@ -79,16 +84,6 @@ void DataDecoderService::BindWebBundleParserFactory(
     mojo::MakeSelfOwnedReceiver(
         std::make_unique<web_package::WebBundleParserFactory>(),
         std::move(receiver));
-  }
-}
-
-void DataDecoderService::BindWebBundler(
-    mojo::PendingReceiver<mojom::WebBundler> receiver) {
-  if (web_bundler_binder_) {
-    web_bundler_binder_.Run(std::move(receiver));
-  } else {
-    mojo::MakeSelfOwnedReceiver(std::make_unique<WebBundler>(),
-                                std::move(receiver));
   }
 }
 

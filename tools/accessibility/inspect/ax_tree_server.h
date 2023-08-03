@@ -1,15 +1,16 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef AX_TREE_SERVER_H_
 #define AX_TREE_SERVER_H_
 
-#include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
 #include "build/build_config.h"
+#include "ui/accessibility/platform/inspect/ax_api_type.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -23,13 +24,17 @@ namespace content {
 class AXTreeServer final {
  public:
   AXTreeServer(const ui::AXTreeSelector& selector,
-               const ui::AXInspectScenario& scenario);
+               const ui::AXInspectScenario& scenario,
+               ui::AXApiType::Type type);
 
   AXTreeServer(const AXTreeServer&) = delete;
   AXTreeServer& operator=(const AXTreeServer&) = delete;
 
+  // If an error occurs during initialization, set bit here.
+  bool error;
+
  private:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Only one COM initializer per thread is permitted.
   base::win::ScopedCOMInitializer com_initializer_;
 #endif

@@ -1,13 +1,15 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ASH_SYSTEM_TIME_TIME_OF_DAY_H_
 #define ASH_SYSTEM_TIME_TIME_OF_DAY_H_
 
+#include <ostream>
 #include <string>
 
 #include "ash/ash_export.h"
+#include "base/time/clock.h"
 #include "base/time/time.h"
 
 namespace ash {
@@ -36,6 +38,10 @@ class ASH_EXPORT TimeOfDay {
     return offset_minutes_from_zero_hour_;
   }
 
+  // Sets `clock_` with a given `clock`, but this class does not own it.
+  // The clock is used to determine current time in `GetNow()`.
+  TimeOfDay& SetClock(const base::Clock* clock);
+
   // Converts to an actual point in time today. If this fail for some reason,
   // base::Time() will be returned.
   base::Time ToTimeToday() const;
@@ -44,8 +50,18 @@ class ASH_EXPORT TimeOfDay {
   std::string ToString() const;
 
  private:
+  // Gets now time from the `clock_`, used for testing, or `base::Time::Now()`
+  // if `clock_` does not exist.
+  base::Time GetNow() const;
+
   int offset_minutes_from_zero_hour_;
+
+  // Optional Used in tests to override the time of "Now".
+  const base::Clock* clock_ = nullptr;  // Not owned.
 };
+
+ASH_EXPORT std::ostream& operator<<(std::ostream& os,
+                                    const TimeOfDay& time_of_day);
 
 }  // namespace ash
 

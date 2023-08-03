@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,25 +9,20 @@
  */
 
 import 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
-import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
-import 'gtx://resources/cr_elements/icons.m.js';
-import 'gtx://resources/cr_elements/shared_vars_css.m.js';
-import '../settings_shared_css.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.js';
+import 'gtx://resources/cr_elements/icons.html.js';
+import 'gtx://resources/cr_elements/cr_shared_vars.css.js';
+import '../settings_shared.css.js';
 import '../site_favicon.js';
 
-import {ListPropertyUpdateMixin} from 'gtx://resources/js/list_property_update_mixin.js';
-import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
+import {ListPropertyUpdateMixin} from 'gtx://resources/cr_elements/list_property_update_mixin.js';
+import {WebUiListenerMixin} from 'gtx://resources/cr_elements/web_ui_listener_mixin.js';
 import {IronListElement} from 'gtx://resources/polymer/v3_0/iron-list/iron-list.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {DomRepeatEvent, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {SiteSettingsMixin} from './site_settings_mixin.js';
 import {ZoomLevelEntry} from './site_settings_prefs_browser_proxy.js';
-
-interface RepeaterEvent {
-  model: {
-    index: number,
-  }
-}
+import {getTemplate} from './zoom_levels.html.js';
 
 export interface ZoomLevelsElement {
   $: {
@@ -38,7 +33,7 @@ export interface ZoomLevelsElement {
 }
 
 const ZoomLevelsElementBase = ListPropertyUpdateMixin(
-    SiteSettingsMixin(WebUIListenerMixin(PolymerElement)));
+    SiteSettingsMixin(WebUiListenerMixin(PolymerElement)));
 
 export class ZoomLevelsElement extends ZoomLevelsElementBase {
   static get is() {
@@ -46,7 +41,7 @@ export class ZoomLevelsElement extends ZoomLevelsElementBase {
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -66,15 +61,15 @@ export class ZoomLevelsElement extends ZoomLevelsElementBase {
     };
   }
 
-  private sites_: Array<ZoomLevelEntry>;
+  private sites_: ZoomLevelEntry[];
   private showNoSites_: boolean;
 
-  ready() {
+  override ready() {
     super.ready();
 
-    this.addWebUIListener(
+    this.addWebUiListener(
         'onZoomLevelsChanged',
-        (sites: Array<ZoomLevelEntry>) => this.onZoomLevelsChanged_(sites));
+        (sites: ZoomLevelEntry[]) => this.onZoomLevelsChanged_(sites));
     this.browserProxy.fetchZoomLevels();
   }
 
@@ -82,7 +77,7 @@ export class ZoomLevelsElement extends ZoomLevelsElementBase {
    * A handler for when zoom levels change.
    * @param sites The up to date list of sites and their zoom levels.
    */
-  private onZoomLevelsChanged_(sites: Array<ZoomLevelEntry>) {
+  private onZoomLevelsChanged_(sites: ZoomLevelEntry[]) {
     this.updateList('sites_', item => item.origin, sites);
     this.showNoSites_ = this.sites_.length === 0;
   }
@@ -90,7 +85,7 @@ export class ZoomLevelsElement extends ZoomLevelsElementBase {
   /**
    * A handler for when a zoom level for a site is deleted.
    */
-  private removeZoomLevel_(event: RepeaterEvent) {
+  private removeZoomLevel_(event: DomRepeatEvent<ZoomLevelEntry>) {
     const site = this.sites_[event.model.index];
     this.browserProxy.removeZoomLevel(site.origin);
   }

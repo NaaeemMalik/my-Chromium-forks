@@ -1,26 +1,31 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/feed/core/v2/api_test/feed_api_test.h"
+#include <string>
 #include "base/time/time.h"
 #include "components/feed/core/proto/v2/wire/reliability_logging_enums.pb.h"
 #include "components/feed/core/proto/v2/wire/web_feeds.pb.h"
 #include "components/feed/core/v2/enums.h"
 #include "components/feed/core/v2/feed_network.h"
+#include "components/feed/core/v2/public/logging_parameters.h"
 #include "components/feed/core/v2/public/reliability_logging_bridge.h"
+#include "components/feed/core/v2/types.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "components/feed/core/common/pref_names.h"
 #include "components/feed/core/proto/v2/keyvalue_store.pb.h"
@@ -32,6 +37,7 @@
 #include "components/feed/core/proto/v2/xsurface.pb.h"
 #include "components/feed/core/shared_prefs/pref_names.h"
 #include "components/feed/core/v2/config.h"
+#include "components/feed/core/v2/feedstore_util.h"
 #include "components/feed/core/v2/prefs.h"
 #include "components/feed/core/v2/test/callback_receiver.h"
 #include "components/feed/core/v2/test/proto_printer.h"
@@ -39,6 +45,7 @@
 #include "components/feed/core/v2/test/test_util.h"
 #include "components/feed/feed_feature_list.h"
 #include "components/leveldb_proto/public/proto_database_provider.h"
+#include "components/signin/public/base/signin_pref_names.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace feed {
@@ -50,7 +57,8 @@ std::unique_ptr<StreamModel> LoadModelFromStore(const StreamType& stream_type,
   std::unique_ptr<StreamModelUpdateRequest> data =
       StoredModelData(stream_type, store);
   if (data) {
-    auto model = std::make_unique<StreamModel>(context);
+    auto model = std::make_unique<StreamModel>(
+        context, MakeLoggingParameters("client-instance", *data));
     model->Update(std::move(data));
     return model;
   }
@@ -66,9 +74,11 @@ std::unique_ptr<StreamModelUpdateRequest> StoredModelData(
   };
   LoadStreamFromStoreTask load_task(
       LoadStreamFromStoreTask::LoadType::kFullLoad, nullptr, stream_type, store,
-      /*missed_last_refresh=*/false, base::BindLambdaForTesting(complete));
-  // We want to load the data no matter how stale.
+      /*missed_last_refresh=*/false, /*is_web_feed_subscriber=*/true,
+      base::BindLambdaForTesting(complete));
+  // We want to load the data no matter how stale, or which account.
   load_task.IgnoreStalenessForTesting();
+  load_task.IngoreAccountForTesting();
 
   base::RunLoop run_loop;
   load_task.Execute(run_loop.QuitClosure());
@@ -86,7 +96,7 @@ std::string ModelStateFor(
     std::vector<feedstore::DataOperation> operations,
     std::vector<feedstore::DataOperation> more_operations) {
   StreamModel::Context context;
-  StreamModel model(&context);
+  StreamModel model(&context, LoggingParameters{});
   model.Update(std::move(update_request));
   model.ExecuteOperations(operations);
   model.ExecuteOperations(more_operations);
@@ -110,7 +120,7 @@ feedwire::FeedAction MakeFeedAction(int64_t id, size_t pad_size) {
     pad = " " + std::string(pad_size - 1, 'a');
   }
 
-  action.mutable_action_payload()->set_action_payload_data(
+  action.mutable_action_payload()->add_batched_action_payload_data(
       base::StrCat({base::NumberToString(id), pad}));
   return action;
 }
@@ -137,6 +147,17 @@ feedwire::ThereAndBackAgainData MakeThereAndBackAgainData(int64_t id) {
   *msg.mutable_action_payload() = MakeFeedAction(id).action_payload();
   return msg;
 }
+std::string DatastoreEntryToString(base::StringPiece key,
+                                   base::StringPiece value) {
+  if (base::StartsWith(key, "/app/webfeed-follow-state/")) {
+    feedxsurface::WebFeedFollowState pb;
+    if (pb.ParseFromArray(value.data(), value.size())) {
+      return feedxsurface::WebFeedFollowState_FollowState_Name(
+          pb.follow_state());
+    }
+  }
+  return static_cast<std::string>(value);
+}
 
 TestUnreadContentObserver::TestUnreadContentObserver() = default;
 TestUnreadContentObserver::~TestUnreadContentObserver() = default;
@@ -146,8 +167,9 @@ void TestUnreadContentObserver::HasUnreadContentChanged(
 }
 
 TestSurfaceBase::TestSurfaceBase(const StreamType& stream_type,
-                                 FeedStream* stream)
-    : FeedStreamSurface(stream_type) {
+                                 FeedStream* stream,
+                                 SingleWebFeedEntryPoint entry_point)
+    : FeedStreamSurface(stream_type, entry_point) {
   if (stream)
     Attach(stream);
 }
@@ -183,10 +205,14 @@ void TestSurfaceBase::StreamUpdate(const feedui::StreamUpdate& stream_update) {
 }
 void TestSurfaceBase::ReplaceDataStoreEntry(base::StringPiece key,
                                             base::StringPiece data) {
-  data_store_entries_[std::string(key)] = std::string(data);
+  described_datastore_updates_.push_back(
+      base::StrCat({"write ", key, ": ", DatastoreEntryToString(key, data)}));
+  data_store_entries_[static_cast<std::string>(key)] =
+      static_cast<std::string>(data);
 }
 void TestSurfaceBase::RemoveDataStoreEntry(base::StringPiece key) {
-  data_store_entries_.erase(std::string(key));
+  described_datastore_updates_.push_back(base::StrCat({"delete ", key}));
+  data_store_entries_.erase(static_cast<std::string>(key));
 }
 ReliabilityLoggingBridge& TestSurfaceBase::GetReliabilityLoggingBridge() {
   return reliability_logging_bridge;
@@ -196,6 +222,7 @@ void TestSurfaceBase::Clear() {
   initial_state = absl::nullopt;
   update = absl::nullopt;
   described_updates_.clear();
+  described_datastore_updates_.clear();
 }
 
 std::string TestSurfaceBase::DescribeUpdates() {
@@ -203,14 +230,31 @@ std::string TestSurfaceBase::DescribeUpdates() {
   described_updates_.clear();
   return result;
 }
+std::vector<std::string> TestSurfaceBase::DescribeDataStoreUpdates() {
+  std::vector<std::string> result;
+  std::swap(result, described_datastore_updates_);
+  return result;
+}
 
 std::string TestSurfaceBase::DescribeState() {
   return described_updates_.empty() ? "" : described_updates_.back();
 }
-
 std::map<std::string, std::string> TestSurfaceBase::GetDataStoreEntries()
     const {
   return data_store_entries_;
+}
+std::string TestSurfaceBase::DescribeDataStore() const {
+  std::stringstream ss;
+  for (std::pair<std::string, std::string> entry : data_store_entries_) {
+    ss << entry.first << ": "
+       << DatastoreEntryToString(entry.first, entry.second) << '\n';
+  }
+  return ss.str();
+}
+LoggingParameters TestSurfaceBase::GetLoggingParameters() const {
+  if (update)
+    return FromProto(update->logging_parameters());
+  return {};
 }
 std::string TestSurfaceBase::CurrentState() {
   if (update && IsInitialLoadSpinnerUpdate(*update))
@@ -230,6 +274,7 @@ std::string TestSurfaceBase::CurrentState() {
     if (update->logging_parameters().logging_enabled()) {
       // View actions will always be enabled if logging is enabled.
       CHECK(update->logging_parameters().view_actions_enabled());
+      CHECK_NE("", update->logging_parameters().email());
       logging_parameters_description = update->logging_parameters().email();
     } else if (!update->logging_parameters().email().empty()) {
       if (update->logging_parameters().view_actions_enabled()) {
@@ -288,9 +333,17 @@ bool TestSurfaceBase::IsInitialLoadSpinnerUpdate(
 }
 
 TestForYouSurface::TestForYouSurface(FeedStream* stream)
-    : TestSurfaceBase(kForYouStream, stream) {}
+    : TestSurfaceBase(StreamType(StreamKind::kForYou), stream) {}
 TestWebFeedSurface::TestWebFeedSurface(FeedStream* stream)
-    : TestSurfaceBase(kWebFeedStream, stream) {}
+    : TestSurfaceBase(StreamType(StreamKind::kFollowing), stream) {}
+TestSingleWebFeedSurface::TestSingleWebFeedSurface(
+    FeedStream* stream,
+    std::string web_feed_id,
+    SingleWebFeedEntryPoint entry_point)
+    : TestSurfaceBase(
+          StreamType(StreamKind::kSingleWebFeed, web_feed_id, entry_point),
+          stream,
+          entry_point) {}
 
 TestReliabilityLoggingBridge::TestReliabilityLoggingBridge() = default;
 TestReliabilityLoggingBridge::~TestReliabilityLoggingBridge() = default;
@@ -338,6 +391,13 @@ void TestReliabilityLoggingBridge::LogWebFeedRequestStart(
     NetworkRequestId id,
     base::TimeTicks timestamp) {
   events_.push_back(base::StrCat({"LogWebFeedRequestStart id=",
+                                  base::NumberToString(id.GetUnsafeValue())}));
+}
+
+void TestReliabilityLoggingBridge::LogSingleWebFeedRequestStart(
+    NetworkRequestId id,
+    base::TimeTicks timestamp) {
+  events_.push_back(base::StrCat({"LogSingleWebFeedRequestStart id=",
                                   base::NumberToString(id.GetUnsafeValue())}));
 }
 
@@ -405,9 +465,10 @@ TestFeedNetwork::~TestFeedNetwork() = default;
 void TestFeedNetwork::SendQueryRequest(
     NetworkRequestType request_type,
     const feedwire::Request& request,
-    const std::string& gaia,
+    const AccountInfo& account_info,
     base::OnceCallback<void(QueryRequestResult)> callback) {
-  last_gaia = gaia;
+  sent_request_types_.push_back(NetworkRequestType::kFeedQuery);
+  last_account_info = account_info;
   ++send_query_call_count;
   // Emulate a successful response.
   // The response body is currently an empty message, because most of the
@@ -422,7 +483,7 @@ void TestFeedNetwork::SendQueryRequest(
 
   result.response_info.response_body_bytes = 100;
   result.response_info.fetch_duration = base::Milliseconds(42);
-  result.response_info.was_signed_in = true;
+  result.response_info.account_info = account_info;
   if (injected_response_) {
     result.response_body = std::make_unique<feedwire::Response>(
         std::move(injected_response_.value()));
@@ -467,9 +528,11 @@ void TestFeedNetwork::SendDiscoverApiRequest(
     base::StringPiece api_path,
     base::StringPiece method,
     std::string request_bytes,
-    const std::string& gaia,
+    const AccountInfo& account_info,
+    absl::optional<RequestMetadata> request_metadata,
     base::OnceCallback<void(RawResponse)> callback) {
-  last_gaia = gaia;
+  sent_request_types_.push_back(request_type);
+  last_account_info = account_info;
   api_requests_sent_[request_type] = request_bytes;
   ++api_request_count_[request_type];
   std::vector<RawResponse>& injected_responses =
@@ -478,9 +541,11 @@ void TestFeedNetwork::SendDiscoverApiRequest(
   bool is_feed_query_request =
       request_type == NetworkRequestType::kFeedQuery ||
       request_type == WebFeedListContentsDiscoverApi::kRequestType ||
+      request_type == SingleWebFeedListContentsDiscoverApi::kRequestType ||
       request_type == QueryInteractiveFeedDiscoverApi::kRequestType ||
       request_type == QueryBackgroundFeedDiscoverApi::kRequestType ||
-      request_type == QueryNextPageDiscoverApi::kRequestType;
+      request_type == QueryNextPageDiscoverApi::kRequestType ||
+      request_type == QueryWebFeedDiscoverApi::kRequestType;
 
   if (is_feed_query_request) {
     feedwire::Request request_proto;
@@ -524,6 +589,11 @@ void TestFeedNetwork::SendDiscoverApiRequest(
       case WebFeedListContentsDiscoverApi::kRequestType: {
         feedwire::Response response;
         InjectApiResponse<WebFeedListContentsDiscoverApi>(response);
+        break;
+      }
+      case SingleWebFeedListContentsDiscoverApi::kRequestType: {
+        feedwire::Response response;
+        InjectApiResponse<SingleWebFeedListContentsDiscoverApi>(response);
         break;
       }
       case QueryInteractiveFeedDiscoverApi::kRequestType: {
@@ -646,8 +716,8 @@ void TestFeedNetwork::Reply(base::OnceClosure reply_closure) {
     if (on_reply_added_)
       on_reply_added_.Run();
   } else {
-    base::SequencedTaskRunnerHandle::Get()->PostTask(FROM_HERE,
-                                                     std::move(reply_closure));
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, std::move(reply_closure));
   }
 }
 
@@ -656,17 +726,29 @@ TestWireResponseTranslator::~TestWireResponseTranslator() = default;
 RefreshResponseData TestWireResponseTranslator::TranslateWireResponse(
     feedwire::Response response,
     StreamModelUpdateRequest::Source source,
-    bool was_signed_in_request,
+    const AccountInfo& account_info,
     base::Time current_time) const {
   if (!injected_responses_.empty()) {
     if (injected_responses_[0].model_update_request)
       injected_responses_[0].model_update_request->source = source;
     RefreshResponseData result = std::move(injected_responses_[0]);
     injected_responses_.erase(injected_responses_.begin());
+    // Update the injected response so that it matches the account info.
+    if (result.model_update_request) {
+      if (account_info.IsEmpty()) {
+        result.model_update_request->stream_data.set_signed_in(false);
+        result.model_update_request->stream_data.clear_gaia();
+        result.model_update_request->stream_data.clear_email();
+      } else {
+        result.model_update_request->stream_data.set_signed_in(true);
+        result.model_update_request->stream_data.set_gaia(account_info.gaia);
+        result.model_update_request->stream_data.set_email(account_info.email);
+      }
+    }
     return result;
   }
   return WireResponseTranslator::TranslateWireResponse(
-      std::move(response), source, was_signed_in_request, current_time);
+      std::move(response), source, account_info, current_time);
 }
 void TestWireResponseTranslator::InjectResponse(
     std::unique_ptr<StreamModelUpdateRequest> response,
@@ -675,6 +757,7 @@ void TestWireResponseTranslator::InjectResponse(
   RefreshResponseData data;
   data.model_update_request = std::move(response);
   data.session_id = std::move(session_id);
+  data.last_fetch_timestamp = base::Time::Now();
   InjectResponse(std::move(data));
 }
 void TestWireResponseTranslator::InjectResponse(
@@ -719,22 +802,16 @@ void TestMetricsReporter::ContentSliceViewed(const StreamType& stream_type,
 }
 void TestMetricsReporter::OnLoadStream(
     const StreamType& stream_type,
-    LoadStreamStatus load_from_store_status,
-    LoadStreamStatus final_status,
-    bool is_initial_load,
-    bool loaded_new_content_from_network,
-    base::TimeDelta stored_content_age,
+    const LoadStreamResultSummary& result_summary,
     const ContentStats& content_stats,
-    const RequestMetadata& request_metadata,
-    std::unique_ptr<LoadLatencyTimes> latencies) {
-  load_stream_from_store_status = load_from_store_status;
-  load_stream_status = final_status;
-  LOG(INFO) << "OnLoadStream: " << final_status
-            << " (store status: " << load_from_store_status << ")";
-  MetricsReporter::OnLoadStream(
-      stream_type, load_from_store_status, final_status, is_initial_load,
-      loaded_new_content_from_network, stored_content_age, content_stats,
-      request_metadata, std::move(latencies));
+    std::unique_ptr<LoadLatencyTimes> load_latencies) {
+  load_stream_from_store_status = result_summary.load_from_store_status;
+  load_stream_status = result_summary.final_status;
+  LOG(INFO) << "OnLoadStream: " << result_summary.final_status
+            << " (store status: " << result_summary.load_from_store_status
+            << ")";
+  MetricsReporter::OnLoadStream(stream_type, result_summary, content_stats,
+                                std::move(load_latencies));
 }
 void TestMetricsReporter::OnLoadMoreBegin(const StreamType& stream_type,
                                           SurfaceId surface_id) {
@@ -764,10 +841,6 @@ TestMetricsReporter::StreamMetrics& TestMetricsReporter::Stream(
   return for_you;
 }
 
-void TestMetricsReporter::OnClearAll(base::TimeDelta since_last_clear) {
-  time_since_last_clear = since_last_clear;
-  MetricsReporter::OnClearAll(time_since_last_clear.value());
-}
 void TestMetricsReporter::OnUploadActions(UploadActionsStatus status) {
   upload_action_status = status;
   MetricsReporter::OnUploadActions(status);
@@ -785,13 +858,14 @@ void FeedApiTest::SetUp() {
   // Disable fetching of recommended web feeds at startup to
   // avoid a delayed task in tests that don't need it.
   config.fetch_web_feed_info_delay = base::TimeDelta();
-  // `use_feed_query_requests_for_web_feeds` is a temporary option for
+  // `use_feed_query_requests` is a temporary option for
   // debugging, setting it to false tests the preferred endpoint.
-  config.use_feed_query_requests_for_web_feeds = false;
+  config.use_feed_query_requests = false;
   SetFeedConfigForTesting(config);
 
   feed::prefs::RegisterFeedSharedProfilePrefs(profile_prefs_.registry());
   feed::RegisterProfilePrefs(profile_prefs_.registry());
+  profile_prefs_.registry()->RegisterBooleanPref(::prefs::kSigninAllowed, true);
   metrics_reporter_ = std::make_unique<TestMetricsReporter>(&profile_prefs_);
 
   shared_url_loader_factory_ =
@@ -825,16 +899,23 @@ bool FeedApiTest::IsEulaAccepted() {
 bool FeedApiTest::IsOffline() {
   return is_offline_;
 }
-std::string FeedApiTest::GetSyncSignedInGaia() {
-  return signed_in_gaia_;
+AccountInfo FeedApiTest::GetAccountInfo() {
+  return account_info_;
 }
-std::string FeedApiTest::GetSyncSignedInEmail() {
-  return signed_in_gaia_.empty() ? "" : signed_in_email_;
+bool FeedApiTest::IsSigninAllowed() {
+  return is_signin_allowed_;
+}
+bool FeedApiTest::IsSyncOn() {
+  return is_sync_on_;
 }
 void FeedApiTest::RegisterFollowingFeedFollowCountFieldTrial(
     size_t follow_count) {
   register_following_feed_follow_count_field_trial_calls_.push_back(
       follow_count);
+}
+void FeedApiTest::RegisterFeedUserSettingsFieldTrial(base::StringPiece group) {
+  register_feed_user_settings_field_trial_calls_.push_back(
+      static_cast<std::string>(group));
 }
 DisplayMetrics FeedApiTest::GetDisplayMetrics() {
   DisplayMetrics result;
@@ -848,6 +929,9 @@ std::string FeedApiTest::GetLanguageTag() {
 }
 bool FeedApiTest::IsAutoplayEnabled() {
   return false;
+}
+TabGroupEnabledState FeedApiTest::GetTabGroupEnabledState() {
+  return TabGroupEnabledState::kNone;
 }
 void FeedApiTest::ClearAll() {
   if (on_clear_all_)
@@ -875,7 +959,8 @@ void FeedApiTest::CreateStream(bool wait_for_initialization,
 }
 
 std::unique_ptr<StreamModel> FeedApiTest::CreateStreamModel() {
-  return std::make_unique<StreamModel>(&stream_model_context_);
+  return std::make_unique<StreamModel>(&stream_model_context_,
+                                       LoggingParameters{});
 }
 
 bool FeedApiTest::IsTaskQueueIdle() const {
@@ -884,10 +969,28 @@ bool FeedApiTest::IsTaskQueueIdle() const {
 }
 
 void FeedApiTest::WaitForIdleTaskQueue() {
-  RunLoopUntil(base::BindLambdaForTesting([&]() {
-    return IsTaskQueueIdle() &&
-           !stream_->subscriptions().is_loading_model_for_testing();
-  }));
+  RunLoopUntil(
+      base::BindLambdaForTesting([&]() {
+        return IsTaskQueueIdle() &&
+               !stream_->subscriptions().is_loading_model_for_testing();
+      }),
+      base::BindLambdaForTesting([&]() -> std::string {
+        std::stringstream ss;
+        if (!IsTaskQueueIdle()) {
+          ss << "Task queue not idle. Queue state:\n"
+             << stream_->GetTaskQueueForTesting().GetStateForTesting() << '\n';
+        }
+        if (stream_->subscriptions().is_loading_model_for_testing()) {
+          ss << "Subscription model still loading\n";
+        }
+
+        return ss.str();
+      }));
+}
+
+void FeedApiTest::WaitForModelToAutoUnload() {
+  task_environment_.FastForwardBy(GetFeedConfig().model_unload_timeout +
+                                  base::Seconds(1));
 }
 
 void FeedApiTest::UnloadModel(const StreamType& stream_type) {
@@ -921,17 +1024,26 @@ std::string FeedApiTest::DumpStoreState(bool print_keys) {
 void FeedApiTest::FollowWebFeed(const WebFeedPageInformation page_info) {
   CallbackReceiver<WebFeedSubscriptions::FollowWebFeedResult> callback;
   network_.InjectResponse(SuccessfulFollowResponse(page_info.url().host()));
-  stream_->subscriptions().FollowWebFeed(page_info, callback.Bind());
+  stream_->subscriptions().FollowWebFeed(
+      page_info, feedwire::webfeed::WebFeedChangeReason::WEB_PAGE_MENU,
+      callback.Bind());
 
   EXPECT_EQ(WebFeedSubscriptionRequestStatus::kSuccess,
             callback.RunAndGetResult().request_status);
 }
-
+LoggingParameters FeedApiTest::CreateLoggingParameters() {
+  LoggingParameters result;
+  result.logging_enabled = true;
+  result.view_actions_enabled = true;
+  result.client_instance_id = "instance1";
+  result.email = account_info_.email;
+  return result;
+}
 void FeedApiTest::UploadActions(std::vector<feedwire::FeedAction> actions) {
   size_t actions_remaining = actions.size();
   for (feedwire::FeedAction& action : actions) {
-    stream_->UploadAction(action, (--actions_remaining) == 0ul,
-                          base::DoNothing());
+    stream_->UploadAction(action, CreateLoggingParameters(),
+                          (--actions_remaining) == 0ul, base::DoNothing());
   }
 }
 

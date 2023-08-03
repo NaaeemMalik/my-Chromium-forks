@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include <map>
 
+#include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -49,8 +50,7 @@ class AppWindowMetricsTracker : public content::WebContentsObserver {
 
   // content::WebContentsObserver:
   void RenderFrameCreated(content::RenderFrameHost* frame_host) override;
-  void DocumentOnLoadCompletedInMainFrame(
-      content::RenderFrameHost* render_frame_host) override;
+  void DocumentOnLoadCompletedInPrimaryMainFrame() override;
 
  private:
   // NOTE: Used in histograms - do not change order, or remove entries.
@@ -67,7 +67,7 @@ class AppWindowMetricsTracker : public content::WebContentsObserver {
 
   void SetState(State state);
 
-  const base::TickClock* clock_;
+  raw_ptr<const base::TickClock, ExperimentalAsh> clock_;
 
   State state_ = State::kInitial;
 

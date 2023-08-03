@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,10 +12,12 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_css_style_sheet.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_css_style_sheet_init.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_observable_array_css_style_sheet.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_medialist_string.h"
 #include "third_party/blink/renderer/core/css/css_rule.h"
 #include "third_party/blink/renderer/core/css/css_rule_list.h"
 #include "third_party/blink/renderer/core/css/media_list.h"
+#include "third_party/blink/renderer/core/css/properties/longhands.h"
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
@@ -65,17 +67,17 @@ TEST_F(CSSStyleSheetTest,
 
   HeapVector<Member<CSSStyleSheet>> adopted_sheets;
   adopted_sheets.push_back(sheet);
-  shadow_a.SetAdoptedStyleSheets(adopted_sheets);
-  shadow_b.SetAdoptedStyleSheets(adopted_sheets);
+  shadow_a.SetAdoptedStyleSheetsForTesting(adopted_sheets);
+  shadow_b.SetAdoptedStyleSheetsForTesting(adopted_sheets);
 
   EXPECT_EQ(sheet->adopted_tree_scopes_.size(), 2u);
-  EXPECT_EQ(shadow_a.AdoptedStyleSheets().size(), 1u);
-  EXPECT_EQ(shadow_b.AdoptedStyleSheets().size(), 1u);
+  EXPECT_EQ(shadow_a.AdoptedStyleSheets()->size(), 1u);
+  EXPECT_EQ(shadow_b.AdoptedStyleSheets()->size(), 1u);
 
   host_a->remove();
   WebHeap::CollectAllGarbageForTesting();
   EXPECT_EQ(sheet->adopted_tree_scopes_.size(), 1u);
-  EXPECT_EQ(shadow_b.AdoptedStyleSheets().size(), 1u);
+  EXPECT_EQ(shadow_b.AdoptedStyleSheets()->size(), 1u);
 }
 
 TEST_F(CSSStyleSheetTest, AdoptedStyleSheetMediaQueryEvalChange) {
@@ -92,11 +94,10 @@ TEST_F(CSSStyleSheetTest, AdoptedStyleSheetMediaQueryEvalChange) {
       "(prefers-reduced-motion: reduce) {#blue{color:blue}}",
       ASSERT_NO_EXCEPTION);
 
-  HeapVector<Member<CSSStyleSheet>> empty_adopted_sheets;
   HeapVector<Member<CSSStyleSheet>> adopted_sheets;
   adopted_sheets.push_back(sheet);
 
-  GetDocument().SetAdoptedStyleSheets(adopted_sheets);
+  GetDocument().SetAdoptedStyleSheetsForTesting(adopted_sheets);
   UpdateAllLifecyclePhasesForTest();
 
   ASSERT_TRUE(sheet->Contents());
@@ -106,7 +107,7 @@ TEST_F(CSSStyleSheetTest, AdoptedStyleSheetMediaQueryEvalChange) {
   EXPECT_EQ(Color::kBlack, green->GetComputedStyle()->VisitedDependentColor(
                                GetCSSPropertyColor()));
 
-  GetDocument().SetAdoptedStyleSheets(empty_adopted_sheets);
+  GetDocument().ClearAdoptedStyleSheets();
   UpdateAllLifecyclePhasesForTest();
 
   ASSERT_TRUE(sheet->Contents()->HasRuleSet());
@@ -118,18 +119,18 @@ TEST_F(CSSStyleSheetTest, AdoptedStyleSheetMediaQueryEvalChange) {
   GetDocument().View()->SetLayoutSize(gfx::Size(200, 500));
   UpdateAllLifecyclePhasesForTest();
 
-  GetDocument().SetAdoptedStyleSheets(adopted_sheets);
+  GetDocument().SetAdoptedStyleSheetsForTesting(adopted_sheets);
   UpdateAllLifecyclePhasesForTest();
 
   ASSERT_TRUE(sheet->Contents()->HasRuleSet());
   EXPECT_NE(rule_set, &sheet->Contents()->GetRuleSet());
   EXPECT_EQ(
-      MakeRGB(0, 128, 0),
+      Color::FromRGB(0, 128, 0),
       green->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
   EXPECT_EQ(Color::kBlack, blue->GetComputedStyle()->VisitedDependentColor(
                                GetCSSPropertyColor()));
 
-  GetDocument().SetAdoptedStyleSheets(empty_adopted_sheets);
+  GetDocument().ClearAdoptedStyleSheets();
   GetDocument().GetSettings()->SetPrefersReducedMotion(true);
   UpdateAllLifecyclePhasesForTest();
 
@@ -138,14 +139,15 @@ TEST_F(CSSStyleSheetTest, AdoptedStyleSheetMediaQueryEvalChange) {
   EXPECT_EQ(Color::kBlack, blue->GetComputedStyle()->VisitedDependentColor(
                                GetCSSPropertyColor()));
 
-  GetDocument().SetAdoptedStyleSheets(adopted_sheets);
+  GetDocument().SetAdoptedStyleSheetsForTesting(adopted_sheets);
   UpdateAllLifecyclePhasesForTest();
 
   EXPECT_EQ(
-      MakeRGB(0, 128, 0),
+      Color::FromRGB(0, 128, 0),
       green->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
-  EXPECT_EQ(MakeRGB(0, 0, 255), blue->GetComputedStyle()->VisitedDependentColor(
-                                    GetCSSPropertyColor()));
+  EXPECT_EQ(
+      Color::FromRGB(0, 0, 255),
+      blue->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
 }
 
 }  // namespace blink

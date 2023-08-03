@@ -1,9 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'gtx://resources/cr_elements/cr_checkbox/cr_checkbox.m.js';
 import './scan_settings_section.js';
+import './strings.m.js';
 
 import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
 import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';

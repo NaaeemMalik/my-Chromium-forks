@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,8 @@
 #include <stdint.h>
 #include <tuple>
 
-#include "base/callback_forward.h"
 #include "base/containers/queue.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
@@ -80,12 +80,6 @@ class HidConnection : public base::RefCountedThreadSafe<HidConnection> {
                          WriteCallback callback);
 
  protected:
-  enum HidReportType {
-    kInput,
-    kOutput,
-    kFeature,
-  };
-
   friend class base::RefCountedThreadSafe<HidConnection>;
 
   HidConnection(scoped_refptr<HidDeviceInfo> device_info,

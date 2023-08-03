@@ -1,18 +1,17 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/history/ios_browsing_history_driver.h"
 
-#include <utility>
+#import <utility>
 
-#include "base/check.h"
-#include "base/strings/utf_string_conversions.h"
-#include "components/browsing_data/core/history_notice_utils.h"
-#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
-#include "ios/chrome/browser/history/history_utils.h"
-#include "ios/chrome/browser/history/web_history_service_factory.h"
-#include "ios/chrome/browser/ui/history/history_consumer.h"
+#import "base/check.h"
+#import "base/strings/utf_string_conversions.h"
+#import "components/browsing_data/core/history_notice_utils.h"
+#import "ios/chrome/browser/history/history_utils.h"
+#import "ios/chrome/browser/ui/history/history_consumer.h"
+#import "ios/chrome/browser/ui/history/ios_browsing_history_driver_delegate.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -23,15 +22,13 @@ using history::BrowsingHistoryService;
 #pragma mark - IOSBrowsingHistoryDriver
 
 IOSBrowsingHistoryDriver::IOSBrowsingHistoryDriver(
-    ChromeBrowserState* browser_state,
-    id<HistoryConsumer> consumer)
-    : browser_state_(browser_state), consumer_(consumer) {
-  DCHECK(browser_state_);
+    WebHistoryServiceGetter history_service_getter,
+    IOSBrowsingHistoryDriverDelegate* delegate)
+    : history_service_getter_(history_service_getter), delegate_(delegate) {
+  DCHECK(!history_service_getter_.is_null());
 }
 
-IOSBrowsingHistoryDriver::~IOSBrowsingHistoryDriver() {
-  consumer_ = nil;
-}
+IOSBrowsingHistoryDriver::~IOSBrowsingHistoryDriver() = default;
 
 #pragma mark - Private methods
 
@@ -39,10 +36,8 @@ void IOSBrowsingHistoryDriver::OnQueryComplete(
     const std::vector<BrowsingHistoryService::HistoryEntry>& results,
     const BrowsingHistoryService::QueryResultsInfo& query_results_info,
     base::OnceClosure continuation_closure) {
-  [consumer_
-      historyQueryWasCompletedWithResults:results
-                         queryResultsInfo:query_results_info
-                      continuationClosure:std::move(continuation_closure)];
+  delegate_->HistoryQueryCompleted(results, query_results_info,
+                                   std::move(continuation_closure));
 }
 
 void IOSBrowsingHistoryDriver::OnRemoveVisitsComplete() {
@@ -59,13 +54,13 @@ void IOSBrowsingHistoryDriver::OnRemoveVisits(
 }
 
 void IOSBrowsingHistoryDriver::HistoryDeleted() {
-  [consumer_ historyWasDeleted];
+  delegate_->HistoryWasDeleted();
 }
 
 void IOSBrowsingHistoryDriver::HasOtherFormsOfBrowsingHistory(
     bool has_other_forms,
     bool has_synced_results) {
-  [consumer_ showNoticeAboutOtherFormsOfBrowsingHistory:has_other_forms];
+  delegate_->ShowNoticeAboutOtherFormsOfBrowsingHistory(has_other_forms);
 }
 
 bool IOSBrowsingHistoryDriver::AllowHistoryDeletions() {
@@ -80,7 +75,7 @@ bool IOSBrowsingHistoryDriver::ShouldHideWebHistoryUrl(const GURL& url) {
 }
 
 history::WebHistoryService* IOSBrowsingHistoryDriver::GetWebHistoryService() {
-  return ios::WebHistoryServiceFactory::GetForBrowserState(browser_state_);
+  return history_service_getter_.Run();
 }
 
 void IOSBrowsingHistoryDriver::ShouldShowNoticeAboutOtherFormsOfBrowsingHistory(

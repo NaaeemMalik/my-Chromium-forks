@@ -1,12 +1,12 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "services/resource_coordinator/public/cpp/memory_instrumentation/client_process_impl.h"
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/containers/flat_map.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/strings/string_piece.h"
 #include "base/synchronization/lock.h"
 #include "base/task/single_thread_task_runner.h"
@@ -54,7 +54,7 @@ ClientProcessImpl::ClientProcessImpl(
     coordinator_.Bind(std::move(coordinator));
   }
 
-  task_runner_ = base::ThreadTaskRunnerHandle::Get();
+  task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
 
   // TODO(primiano): this is a temporary workaround to tell the
   // base::MemoryDumpManager that it is special and should coordinate periodic
@@ -150,7 +150,7 @@ void ClientProcessImpl::RequestOSMemoryDump(
   args.pids = pids;
   args.callback = std::move(callback);
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // If the most recent chrome memory dump hasn't finished, wait for that to
   // finish.
   if (most_recent_chrome_memory_dump_guid_.has_value()) {

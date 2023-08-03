@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,58 +7,62 @@
 #include <vector>
 
 #include "base/feature_list.h"
-#include "base/strings/string_split.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "url/origin.h"
 
 namespace device {
 
-#if defined(OS_WIN)
-const base::Feature kWebAuthUseNativeWinApi{"WebAuthenticationUseNativeWinApi",
-                                            base::FEATURE_ENABLED_BY_DEFAULT};
-#endif  // defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
+BASE_FEATURE(kWebAuthUseNativeWinApi,
+             "WebAuthenticationUseNativeWinApi",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+#endif  // BUILDFLAG(IS_WIN)
 
-extern const base::Feature kWebAuthCableServerLink {
-  // This feature is default-enabled in the same cases as |kWebAuthCable|.
-  "WebAuthenticationCableServerLink",
+BASE_FEATURE(kWebAuthCableExtensionAnywhere,
+             "WebAuthenticationCableExtensionAnywhere",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-// If updating this, also update kWebAuthCable.
-#if BUILDFLAG(IS_CHROMEOS_LACROS) || defined(OS_LINUX)
-      base::FEATURE_DISABLED_BY_DEFAULT
-#else
-      base::FEATURE_ENABLED_BY_DEFAULT
-#endif
-};
+#if BUILDFLAG(IS_CHROMEOS)
+BASE_FEATURE(kWebAuthCrosPlatformAuthenticator,
+             "WebAuthenticationCrosPlatformAuthenticator",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
-extern const base::Feature kWebAuthCableSecondFactor {
-  "WebAuthenticationCableSecondFactor",
-// TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-// If updating this, also update kWebAuthCableServerLink.
-#if BUILDFLAG(IS_CHROMEOS_LACROS) || defined(OS_LINUX)
-      base::FEATURE_DISABLED_BY_DEFAULT
-#else
-      base::FEATURE_ENABLED_BY_DEFAULT
-#endif
-};
+BASE_FEATURE(kWebAuthnGoogleCorpRemoteDesktopClientPrivilege,
+             "WebAuthenticationGoogleCorpRemoteDesktopClientPrivilege",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
-extern const base::Feature kWebAuthPhoneSupport{
-    "WebAuthenticationPhoneSupport", base::FEATURE_DISABLED_BY_DEFAULT};
+BASE_FEATURE(kWebAuthPasskeysUI,
+             "WebAuthenticationPasskeysUI",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
-extern const base::Feature kWebAuthCableExtensionAnywhere{
-    "WebAuthenticationCableExtensionAnywhere",
-    base::FEATURE_DISABLED_BY_DEFAULT};
+// Added in M112. Remove in or after M115.
+BASE_FEATURE(kWebAuthnCredProtectThree,
+             "WebAuthenticationCredProtectThree",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-const base::Feature kWebAuthCrosPlatformAuthenticator{
-    "WebAuthenticationCrosPlatformAuthenticator",
-    base::FEATURE_ENABLED_BY_DEFAULT};
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+// Added in M112. Enabled in M113. Remove in or after M116.
+BASE_FEATURE(kWebAuthnPRFAsAuthenticator,
+             "WebAuthenticationPRFAsAuthenticator",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
-extern const base::Feature kU2fPermissionPrompt{
-    "U2fPermissionPrompt", base::FEATURE_ENABLED_BY_DEFAULT};
+// Added in M113. Remove in or after M116.
+BASE_FEATURE(kWebAuthnMacPlatformAuthenticatorOptionalUv,
+             "WebAuthenticationMacPlatformAuthenticatorOptionalUv",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kWebAuthnPhoneConfirmationSheet,
+             "WebAuthenticationPhoneConfirmationSheet",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+// Add in M113. Remove in or after M116.
+BASE_FEATURE(kWebAuthnNewPrioritiesImpl,
+             "WebAuthenticationNewPrioritiesImpl",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+// Added in M114. Not yet enabled by default.
+BASE_FEATURE(kWebAuthnAndroidCredMan,
+             "WebAuthenticationAndroidCredMan",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 }  // namespace device

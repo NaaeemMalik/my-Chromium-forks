@@ -1,39 +1,44 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/page_info/chrome_page_info_ui_delegate.h"
 
-#include "base/strings/utf_string_conversions.h"
+#include "base/feature_list.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "chrome/browser/content_settings/chrome_content_settings_utils.h"
-#include "chrome/browser/page_info/about_this_site_service_factory.h"
+#include "chrome/browser/page_info/page_info_features.h"
 #include "chrome/browser/permissions/permission_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/chrome_pages.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/pref_names.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/page_info/core/about_this_site_service.h"
+#include "components/page_info/core/features.h"
+#include "components/permissions/permission_decision_auto_blocker.h"
 #include "components/permissions/permission_manager.h"
+#include "components/permissions/permissions_client.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
-#include "components/ukm/content/source_url_recorder.h"
+#include "content/public/browser/permission_controller.h"
+#include "content/public/browser/permission_result.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/url_util.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/window_open_disposition_utils.h"
 #include "ui/events/event.h"
 #include "url/gurl.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/extensions/window_controller_list.h"
+#include "chrome/browser/page_info/about_this_site_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/page_info/about_this_site_side_panel.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/ui/web_applications/web_app_ui_utils.h"
 #endif
 
 ChromePageInfoUiDelegate::ChromePageInfoUiDelegate(
@@ -76,7 +81,9 @@ std::u16string ChromePageInfoUiDelegate::GetAutomaticallyBlockedReason(
     case ContentSettingsType::IDLE_DETECTION: {
       if (GetProfile()->IsOffTheRecord()) {
         return l10n_util::GetStringUTF16(
-            IDS_PAGE_INFO_STATE_TEXT_NOT_ALLOWED_IN_INCOGNITO);
+            GetProfile()->IsGuestSession()
+                ? IDS_PAGE_INFO_STATE_TEXT_NOT_ALLOWED_IN_GUEST
+                : IDS_PAGE_INFO_STATE_TEXT_NOT_ALLOWED_IN_INCOGNITO);
       }
       break;
     }
@@ -97,47 +104,49 @@ std::u16string ChromePageInfoUiDelegate::GetAutomaticallyBlockedReason(
   return std::u16string();
 }
 
+#if !BUILDFLAG(IS_ANDROID)
 absl::optional<page_info::proto::SiteInfo>
 ChromePageInfoUiDelegate::GetAboutThisSiteInfo() {
+  Browser* browser = chrome::FindBrowserWithWebContents(web_contents_);
+  if (!browser || !browser->is_type_normal()) {
+    // TODO(crbug.com/1435450): SidePanel is not available. Evaluate if we can
+    //                          show ATP in a different way.
+    return absl::nullopt;
+  }
   if (auto* service =
           AboutThisSiteServiceFactory::GetForProfile(GetProfile())) {
     return service->GetAboutThisSiteInfo(
-        site_url_, ukm::GetSourceIdForWebContentsDocument(web_contents_));
+        site_url_, web_contents_->GetPrimaryMainFrame()->GetPageUkmSourceId());
   }
+
   return absl::nullopt;
 }
 
-void ChromePageInfoUiDelegate::AboutThisSiteSourceClicked(
-    GURL url,
+void ChromePageInfoUiDelegate::OpenMoreAboutThisPageUrl(
+    const GURL& url,
     const ui::Event& event) {
-  // TODO(crbug.com/1250653): Consider moving this to presenter as other methods
-  // that open web pages.
-  web_contents_->OpenURL(content::OpenURLParams(
-      url, content::Referrer(),
-      ui::DispositionFromEventFlags(event.flags(),
-                                    WindowOpenDisposition::NEW_FOREGROUND_TAB),
-      ui::PAGE_TRANSITION_LINK, /*is_renderer_initiated=*/false));
+  DCHECK(page_info::IsAboutThisSiteFeatureEnabled());
+  ShowAboutThisSiteSidePanel(web_contents_, url);
 }
+#endif
 
 bool ChromePageInfoUiDelegate::ShouldShowAsk(ContentSettingsType type) {
   return permissions::PermissionUtil::IsGuardContentSetting(type);
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 bool ChromePageInfoUiDelegate::ShouldShowSiteSettings(int* link_text_id,
                                                       int* tooltip_text_id) {
   if (GetProfile()->IsGuestSession())
     return false;
 
+  if (web_app::GetLabelIdsForAppManagementLinkInPageInfo(
+          web_contents_, link_text_id, tooltip_text_id)) {
+    return true;
+  }
+
   *link_text_id = IDS_PAGE_INFO_SITE_SETTINGS_LINK;
   *tooltip_text_id = IDS_PAGE_INFO_SITE_SETTINGS_TOOLTIP;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  Browser* browser = chrome::FindBrowserWithWebContents(web_contents_);
-  if (web_app::AppBrowserController::IsWebApp(browser)) {
-    *link_text_id = IDS_PAGE_INFO_APP_SETTINGS_LINK;
-    *tooltip_text_id = IDS_PAGE_INFO_APP_SETTINGS_TOOLTIP;
-  }
-#endif
 
   return true;
 }
@@ -156,12 +165,23 @@ bool ChromePageInfoUiDelegate::IsMultipleTabsOpen() {
     DCHECK(tabs);
     for (int i = 0; i < tabs->count(); ++i) {
       content::WebContents* const web_contents = tabs->GetWebContentsAt(i);
-      if (web_contents->GetURL().DeprecatedGetOriginAsURL() == site_origin) {
+      if (web_contents->GetLastCommittedURL().DeprecatedGetOriginAsURL() ==
+          site_origin) {
         count++;
       }
     }
   }
   return count > 1;
+}
+
+void ChromePageInfoUiDelegate::ShowPrivacySandboxAdPersonalization() {
+  Browser* browser = chrome::FindBrowserWithWebContents(web_contents_);
+  chrome::ShowPrivacySandboxAdPersonalization(browser);
+}
+
+void ChromePageInfoUiDelegate::ShowPrivacySandboxSettings() {
+  Browser* browser = chrome::FindBrowserWithWebContents(web_contents_);
+  chrome::ShowPrivacySandboxSettings(browser);
 }
 
 std::u16string ChromePageInfoUiDelegate::GetPermissionDetail(
@@ -180,10 +200,21 @@ bool ChromePageInfoUiDelegate::IsBlockAutoPlayEnabled() {
 }
 #endif
 
-permissions::PermissionResult ChromePageInfoUiDelegate::GetPermissionStatus(
-    ContentSettingsType type) {
-  return PermissionManagerFactory::GetForProfile(GetProfile())
-      ->GetPermissionStatus(type, site_url_, site_url_);
+permissions::PermissionResult ChromePageInfoUiDelegate::GetPermissionResult(
+    blink::PermissionType permission) {
+  content::PermissionResult permission_result =
+      GetProfile()
+          ->GetPermissionController()
+          ->GetPermissionResultForOriginWithoutContext(
+              permission, url::Origin::Create(site_url_));
+  return permissions::PermissionUtil::ToPermissionResult(permission_result);
+}
+
+absl::optional<permissions::PermissionResult>
+ChromePageInfoUiDelegate::GetEmbargoResult(ContentSettingsType type) {
+  return permissions::PermissionsClient::Get()
+      ->GetPermissionDecisionAutoBlocker(GetProfile())
+      ->GetEmbargoResult(site_url_, type);
 }
 
 Profile* ChromePageInfoUiDelegate::GetProfile() const {

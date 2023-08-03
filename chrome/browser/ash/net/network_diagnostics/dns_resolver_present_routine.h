@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 
 #include <vector>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_routine.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom.h"
 #include "mojo/public/cpp/bindings/remote.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 // Tests whether the current network is set up correctly for performing DNS
@@ -27,7 +27,7 @@ class DnsResolverPresentRoutine : public NetworkDiagnosticsRoutine {
 
   // NetworkDiagnosticsRoutine:
   bool CanRun() override;
-  mojom::RoutineType Type() override;
+  chromeos::network_diagnostics::mojom::RoutineType Type() override;
   void Run() override;
   void AnalyzeResultsAndExecuteCallback() override;
 
@@ -43,12 +43,13 @@ class DnsResolverPresentRoutine : public NetworkDiagnosticsRoutine {
   bool connected_network_ = false;
   bool name_servers_are_found_ = false;
   bool name_servers_are_valid_ = false;
-  std::vector<mojom::DnsResolverPresentProblem> problems_;
+  std::vector<chromeos::network_diagnostics::mojom::DnsResolverPresentProblem>
+      problems_;
   mojo::Remote<chromeos::network_config::mojom::CrosNetworkConfig>
       remote_cros_network_config_;
 };
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_DIAGNOSTICS_DNS_RESOLVER_PRESENT_ROUTINE_H_

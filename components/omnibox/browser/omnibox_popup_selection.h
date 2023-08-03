@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ struct OmniboxPopupSelection {
     kAllLines
   };
 
-  // See `Selection::state` below for details. The numeric values are to aid
+  // See `state` below for details. The numeric values are to aid
   // comparison only. They are not persisted anywhere and can be freely changed.
   enum LineState {
     // This means the Header above this row is highlighted, and the
@@ -63,11 +63,12 @@ struct OmniboxPopupSelection {
     LINE_STATE_MAX_VALUE
   };
 
-  // The sentinel value for Selection::line which means no line is selected.
+  // The sentinel value for `line` which means no line is selected.
   static const size_t kNoMatch;
 
-  // The selected line.  This is kNoMatch when nothing is selected,
-  // which should only be true when the popup is closed.
+  // The selected line. This is `kNoMatch` when nothing is selected, which
+  // should only be true when a) the popup is closed or b) an empty suggestion
+  // is selected (e.g. the default suggestion in zero-input mode).
   size_t line;
 
   // If the selected line has both a normal match and a keyword match, this
@@ -77,8 +78,15 @@ struct OmniboxPopupSelection {
   // match (if FOCUSED_BUTTON_*) is selected.
   LineState state;
 
-  explicit OmniboxPopupSelection(size_t line, LineState state = NORMAL)
-      : line(line), state(state) {}
+  // When `state` is `FOCUSED_BUTTON_ACTION`, this indicates which action
+  // is selected by index into `AutocompleteMatch::actions`. Other states
+  // keep an unused zero index.
+  size_t action_index;
+
+  explicit OmniboxPopupSelection(size_t line,
+                                 LineState state = NORMAL,
+                                 size_t action_index = 0)
+      : line(line), state(state), action_index(action_index) {}
 
   bool operator==(const OmniboxPopupSelection&) const;
   bool operator!=(const OmniboxPopupSelection&) const;

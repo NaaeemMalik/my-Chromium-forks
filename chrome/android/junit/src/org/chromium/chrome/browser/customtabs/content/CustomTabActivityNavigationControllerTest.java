@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,12 +26,15 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.task.test.ShadowPostTask;
+import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.chrome.browser.back_press.MinimizeAppAndCloseTabBackPressHandler;
+import org.chromium.chrome.browser.back_press.MinimizeAppAndCloseTabBackPressHandler.MinimizeAppAndCloseTabType;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController.FinishHandler;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController.FinishReason;
 import org.chromium.chrome.browser.customtabs.shadows.ShadowExternalNavigationDelegateImpl;
 import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.testing.local.LocalRobolectricTestRunner;
 import org.chromium.url.GURL;
 
 /**
@@ -40,11 +43,10 @@ import org.chromium.url.GURL;
  * {@link CustomTabActivityNavigationController#navigate} is tested in integration with other
  * classes in {@link CustomTabActivityUrlLoadingTest}.
  */
-@RunWith(LocalRobolectricTestRunner.class)
-@Config(manifest = Config.NONE, shadows = {
-    ShadowExternalNavigationDelegateImpl.class, ShadowPostTask.class})
+@RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE,
+        shadows = {ShadowExternalNavigationDelegateImpl.class, ShadowPostTask.class})
 public class CustomTabActivityNavigationControllerTest {
-
     @Rule
     public final CustomTabActivityContentTestEnvironment env =
             new CustomTabActivityContentTestEnvironment();
@@ -58,7 +60,7 @@ public class CustomTabActivityNavigationControllerTest {
     public void setUp() {
         ShadowPostTask.setTestImpl(new ShadowPostTask.TestImpl() {
             @Override
-            public void postDelayedTask(TaskTraits taskTraits, Runnable task, long delay) {}
+            public void postDelayedTask(@TaskTraits int taskTraits, Runnable task, long delay) {}
         });
         MockitoAnnotations.initMocks(this);
         mNavigationController = env.createNavigationController(mTabController);
@@ -69,21 +71,42 @@ public class CustomTabActivityNavigationControllerTest {
     }
 
     @Test
-    public void finishes_IfBackNavigationClosesTheOnlyTab() {
+    public void finishes_IfBackNavigationClosesTheOnlyTabWithNoUnloadEvents() {
+        HistogramWatcher histogramWatcher = HistogramWatcher.newSingleRecordWatcher(
+                MinimizeAppAndCloseTabBackPressHandler.getHistogramNameForTesting(),
+                MinimizeAppAndCloseTabType.MINIMIZE_APP);
         when(mTabController.onlyOneTabRemaining()).thenReturn(true);
+        when(mTabController.dispatchBeforeUnloadIfNeeded()).thenReturn(false);
 
         mNavigationController.navigateOnBack();
+        histogramWatcher.assertExpected();
         verify(mFinishHandler).onFinish(eq(FinishReason.USER_NAVIGATION));
     }
 
     @Test
     public void doesntFinish_IfBackNavigationReplacesTabWithPreviousOne() {
+        HistogramWatcher histogramWatcher = HistogramWatcher.newSingleRecordWatcher(
+                MinimizeAppAndCloseTabBackPressHandler.getHistogramNameForTesting(),
+                MinimizeAppAndCloseTabType.CLOSE_TAB);
         doAnswer((Answer<Void>) invocation -> {
             env.tabProvider.swapTab(env.prepareTab());
             return null;
         }).when(mTabController).closeTab();
 
         mNavigationController.navigateOnBack();
+        histogramWatcher.assertExpected();
+        verify(mFinishHandler, never()).onFinish(anyInt());
+    }
+
+    @Test
+    public void doesntFinish_IfBackNavigationHappensWithBeforeUnloadHandler() {
+        HistogramWatcher histogramWatcher = HistogramWatcher.newSingleRecordWatcher(
+                MinimizeAppAndCloseTabBackPressHandler.getHistogramNameForTesting(),
+                MinimizeAppAndCloseTabType.CLOSE_TAB);
+        when(mTabController.dispatchBeforeUnloadIfNeeded()).thenReturn(true);
+
+        mNavigationController.navigateOnBack();
+        histogramWatcher.assertExpected();
         verify(mFinishHandler, never()).onFinish(anyInt());
     }
 
@@ -115,6 +138,7 @@ public class CustomTabActivityNavigationControllerTest {
         mNavigationController.openCurrentUrlInBrowser(false);
         verify(mTabController, never()).detachAndStartReparenting(any(), any(), any());
         verify(env.activity).startActivity(any(), any());
+        verify(mFinishHandler).onFinish(FinishReason.OPEN_IN_BROWSER);
     }
 
     @Test

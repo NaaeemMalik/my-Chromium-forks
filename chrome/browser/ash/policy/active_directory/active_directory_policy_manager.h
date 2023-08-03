@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -36,6 +35,12 @@ class ActiveDirectoryPolicyManager
       public CloudPolicyStore::Observer,
       public ComponentActiveDirectoryPolicyService::Delegate {
  public:
+  // Policy fetch interval when Chromad is disabled. It's shorter than the
+  // default interval, to reduce the average waiting time to start the
+  // migration, after the `ChromadToCloudMigrationEnabled` policy is set.
+  static constexpr base::TimeDelta kFetchIntervalChromadDisabled =
+      base::Minutes(30);
+
   ActiveDirectoryPolicyManager(const ActiveDirectoryPolicyManager&) = delete;
   ActiveDirectoryPolicyManager& operator=(const ActiveDirectoryPolicyManager&) =
       delete;

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -106,7 +106,7 @@ public class UrlBarMediatorUnitTest {
         Assert.assertFalse(mMediator.setUrlBarData(data1, UrlBar.ScrollType.SCROLL_TO_TLD, 4));
         Assert.assertFalse(mMediator.setUrlBarData(data2, UrlBar.ScrollType.SCROLL_TO_TLD, 4));
 
-        Mockito.verifyZeroInteractions(observer);
+        Mockito.verifyNoMoreInteractions(observer);
     }
 
     @Test

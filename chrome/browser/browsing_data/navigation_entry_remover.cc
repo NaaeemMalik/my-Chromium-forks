@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <functional>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
@@ -19,7 +19,7 @@
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
@@ -102,7 +102,7 @@ void DeleteTabNavigationEntries(
                        : base::BindRepeating(&UrlMatcherForNavigationEntry,
                                              std::cref(url_set));
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   auto session_predicate =
       time_range.IsValid()
           ? base::BindRepeating(&ShouldDeleteSerializedNavigationEntry,

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -36,14 +36,14 @@
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/lacros_service.h"
+#include "chromeos/startup/browser_params_proxy.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 namespace {
 
-content::WebUIDataSource* CreateComponentsUIHTMLSource(Profile* profile) {
-  content::WebUIDataSource* source =
-      content::WebUIDataSource::Create(chrome::kChromeUIComponentsHost);
+void CreateAndAddComponentsUIHTMLSource(Profile* profile) {
+  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
+      profile, chrome::kChromeUIComponentsHost);
 
   source->OverrideContentSecurityPolicy(
       network::mojom::CSPDirectiveName::ScriptSrc,
@@ -60,7 +60,7 @@ content::WebUIDataSource* CreateComponentsUIHTMLSource(Profile* profile) {
     {"noComponents", IDS_COMPONENTS_NO_COMPONENTS},
     {"statusLabel", IDS_COMPONENTS_STATUS_LABEL},
     {"checkingLabel", IDS_COMPONENTS_CHECKING_LABEL},
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
     {"os-components-text1", IDS_COMPONENTS_OS_TEXT1_LABEL},
     {"os-components-text2", IDS_COMPONENTS_OS_TEXT2_LABEL},
     {"os-components-link", IDS_COMPONENTS_OS_LINK},
@@ -74,9 +74,9 @@ content::WebUIDataSource* CreateComponentsUIHTMLSource(Profile* profile) {
       user_manager::UserManager::Get()->IsLoggedInAsGuest() ||
           user_manager::UserManager::Get()->IsLoggedInAsPublicAccount()
 #elif BUILDFLAG(IS_CHROMEOS_LACROS)
-      chromeos::LacrosService::Get()->init_params()->session_type ==
-              crosapi::mojom::SessionType::kPublicSession ||
-          profile->IsGuestSession()
+                      chromeos::BrowserParamsProxy::Get()->SessionType() ==
+                              crosapi::mojom::SessionType::kPublicSession ||
+                          profile->IsGuestSession()
 #else
       profile->IsOffTheRecord()
 #endif
@@ -84,7 +84,6 @@ content::WebUIDataSource* CreateComponentsUIHTMLSource(Profile* profile) {
   source->UseStringsJs();
   source->AddResourcePath("components.js", IDR_COMPONENTS_COMPONENTS_JS);
   source->SetDefaultResource(IDR_COMPONENTS_COMPONENTS_HTML);
-  return source;
 }
 
 }  // namespace
@@ -99,9 +98,8 @@ ComponentsUI::ComponentsUI(content::WebUI* web_ui) : WebUIController(web_ui) {
   web_ui->AddMessageHandler(std::make_unique<ComponentsHandler>(
       g_browser_process->component_updater()));
 
-  // Set up the gtx://components/ source.
-  Profile* profile = Profile::FromWebUI(web_ui);
-  content::WebUIDataSource::Add(profile, CreateComponentsUIHTMLSource(profile));
+  // Set up the chrome://components/ source.
+  CreateAndAddComponentsUIHTMLSource(Profile::FromWebUI(web_ui));
 }
 
 ComponentsUI::~ComponentsUI() {}

@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.autofill.settings;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
@@ -12,6 +13,8 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
@@ -20,27 +23,34 @@ import androidx.preference.PreferenceScreen;
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.StrictModeContext;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.autofill.AutofillUiUtils;
+import org.chromium.chrome.browser.autofill.AutofillEditorBase;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
+import org.chromium.chrome.browser.autofill.Source;
 import org.chromium.chrome.browser.autofill.prefeditor.EditorDialog;
-import org.chromium.chrome.browser.autofill.prefeditor.EditorObserverForTest;
+import org.chromium.chrome.browser.feedback.FragmentHelpAndFeedbackLauncher;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.payments.AutofillAddress;
 import org.chromium.chrome.browser.payments.SettingsAutofillAndPaymentsObserver;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
+import org.chromium.chrome.browser.sync.SyncService;
+import org.chromium.components.autofill.prefeditor.EditorObserverForTest;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
+import org.chromium.components.sync.UserSelectableType;
 
 /**
  * Autofill profiles fragment, which allows the user to edit autofill profiles.
  */
-public class AutofillProfilesFragment extends PreferenceFragmentCompat
-        implements PersonalDataManager.PersonalDataManagerObserver {
+public class AutofillProfilesFragment
+        extends PreferenceFragmentCompat implements PersonalDataManager.PersonalDataManagerObserver,
+                                                    FragmentHelpAndFeedbackLauncher {
     private static EditorObserverForTest sObserverForTest;
     static final String PREF_NEW_PROFILE = "new_profile";
+    private @Nullable EditorDialog mEditorDialog;
 
-    EditorDialog mLastEditorDialogForTest;
+    private HelpAndFeedbackLauncher mHelpAndFeedbackLauncher;
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
@@ -55,6 +65,14 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
     }
 
     @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (mEditorDialog != null) {
+            mEditorDialog.onConfigurationChanged();
+        }
+    }
+
+    @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         menu.clear();
         MenuItem help =
@@ -65,8 +83,8 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.menu_id_targeted_help) {
-            AutofillUiUtils.launchAutofillHelpPage(
-                    getActivity(), Profile.getLastUsedRegularProfile());
+            mHelpAndFeedbackLauncher.show(
+                    getActivity(), getActivity().getString(R.string.help_context_autofill), null);
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -102,13 +120,14 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
             }
 
             @Override
-            public boolean isPreferenceClickDisabledByPolicy(Preference preference) {
+            public boolean isPreferenceClickDisabled(Preference preference) {
                 return PersonalDataManager.isAutofillProfileManaged()
                         && !PersonalDataManager.isAutofillProfileEnabled();
             }
         });
         getPreferenceScreen().addPreference(autofillSwitch);
 
+        final boolean addressSyncEnabled = isAddressSyncEnabled();
         for (AutofillProfile profile : PersonalDataManager.getInstance().getProfilesForSettings()) {
             assert profile.getIsLocal();
             // Add a preference for the profile.
@@ -116,6 +135,11 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
             pref.setTitle(profile.getFullName());
             pref.setSummary(profile.getLabel());
             pref.setKey(pref.getTitle().toString()); // For testing.
+            if (!addressSyncEnabled && profile.getSource() != Source.ACCOUNT) {
+                // Conditionally set local profile icon for address profiles that are neither
+                // synced, nor saved in the account.
+                pref.setWidgetLayoutResource(R.layout.autofill_local_profile_icon);
+            }
             Bundle args = pref.getExtras();
             args.putString(AutofillEditorBase.AUTOFILL_GUID, profile.getGUID());
             try (StrictModeContext ignored = StrictModeContext.allowDiskWrites()) {
@@ -170,8 +194,7 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
     public void onDisplayPreferenceDialog(Preference preference) {
         if (preference instanceof AutofillProfileEditorPreference) {
             String guid = ((AutofillProfileEditorPreference) preference).getGUID();
-            EditorDialog editorDialog = prepareEditorDialog(guid);
-            mLastEditorDialogForTest = editorDialog;
+            mEditorDialog = prepareEditorDialog(guid);
             AutofillAddress autofillAddress = null;
             if (guid != null) {
                 AutofillProfile profile = PersonalDataManager.getInstance().getProfile(guid);
@@ -179,7 +202,7 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
                     autofillAddress = new AutofillAddress(getActivity(), profile);
                 }
             }
-            editAddress(editorDialog, autofillAddress);
+            editAddress(mEditorDialog, autofillAddress);
             return;
         }
 
@@ -196,12 +219,14 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
             }
         };
 
-        return new EditorDialog(getActivity(), runnable, Profile.getLastUsedRegularProfile());
+        return new EditorDialog(
+                getActivity(), runnable, Profile.getLastUsedRegularProfile(), false);
     }
 
     private void editAddress(EditorDialog dialog, AutofillAddress autofillAddress) {
-        AddressEditor addressEditor =
-                new AddressEditor(AddressEditor.Purpose.AUTOFILL_SETTINGS, /*saveToDisk=*/true);
+        AddressEditor addressEditor = new AddressEditor(
+                /*saveToDisk=*/true, /*isUpdate=*/autofillAddress != null,
+                /*isMigrationToAccount=*/false);
         addressEditor.setEditorDialog(dialog);
 
         /*
@@ -224,11 +249,23 @@ public class AutofillProfilesFragment extends PreferenceFragmentCompat
         });
     }
 
+    private boolean isAddressSyncEnabled() {
+        SyncService syncService = SyncService.get();
+        return syncService != null && syncService.isSyncFeatureEnabled()
+                && syncService.getSelectedTypes().contains(UserSelectableType.AUTOFILL);
+    }
+
     private Context getStyledContext() {
         return getPreferenceManager().getContext();
     }
 
+    @VisibleForTesting
     EditorDialog getEditorDialogForTest() {
-        return mLastEditorDialogForTest;
+        return mEditorDialog;
+    }
+
+    @Override
+    public void setHelpAndFeedbackLauncher(HelpAndFeedbackLauncher helpAndFeedbackLauncher) {
+        mHelpAndFeedbackLauncher = helpAndFeedbackLauncher;
     }
 }

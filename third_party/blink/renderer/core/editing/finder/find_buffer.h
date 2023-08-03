@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_FINDER_FIND_BUFFER_H_
 
 #include "third_party/abseil-cpp/absl/types/optional.h"
+#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/display_lock/display_lock_context.h"
 #include "third_party/blink/renderer/core/editing/finder/find_options.h"
 #include "third_party/blink/renderer/core/editing/iterators/text_searcher_icu.h"
@@ -77,21 +78,24 @@ class CORE_EXPORT FindBuffer {
             const String& search_text,
             const blink::FindOptions options);
 
-    class CORE_EXPORT Iterator
-        : public std::iterator<std::forward_iterator_tag, BufferMatchResult> {
+    class CORE_EXPORT Iterator {
       STACK_ALLOCATED();
 
      public:
-      Iterator() = default;
-      Iterator(const FindBuffer& find_buffer,
-               TextSearcherICU* text_searcher,
-               const String& search_text);
+      using iterator_category = std::forward_iterator_tag;
+      using value_type = BufferMatchResult;
+      using difference_type = std::ptrdiff_t;
+      using pointer = BufferMatchResult*;
+      using reference = BufferMatchResult&;
 
-      bool operator==(const Iterator& other) {
+      Iterator() = default;
+      Iterator(const FindBuffer& find_buffer, TextSearcherICU* text_searcher);
+
+      bool operator==(const Iterator& other) const {
         return has_match_ == other.has_match_;
       }
 
-      bool operator!=(const Iterator& other) {
+      bool operator!=(const Iterator& other) const {
         return has_match_ != other.has_match_;
       }
 
@@ -149,6 +153,9 @@ class CORE_EXPORT FindBuffer {
   // surpassed. Saves the next starting node after the block (first node in
   // another LayoutBlockFlow or after |end_position|) to |node_after_block_|.
   void CollectTextUntilBlockBoundary(const EphemeralRangeInFlatTree& range);
+
+  // Replaces nodes that should be ignored with appropriate char constants.
+  void ReplaceNodeWithCharConstants(const Node& node);
 
   // Mapping for position in buffer -> actual node where the text came from,
   // along with the offset in the NGOffsetMapping of this find_buffer.

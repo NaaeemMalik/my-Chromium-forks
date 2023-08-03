@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ export enum CloseTabAction {
 }
 
 export interface TabsApiProxy {
-  activateTab(tabId: number): Promise<chrome.tabs.Tab>;
+  activateTab(tabId: number): void;
 
   /**
    * @return Object of group IDs as strings mapped to their visual data.
@@ -38,16 +38,9 @@ export interface TabsApiProxy {
   isVisible(): boolean;
 
   /**
-   * @return Object with CSS variables as keys and rgba strings as values
-   */
-  getColors(): Promise<{colors: {[key: string]: string}}>;
-
-  /**
    * @return Object with CSS variables as keys and pixel lengths as values
    */
   getLayout(): Promise<{layout: {[key: string]: string}}>;
-
-  observeThemeChanges(): void;
 
   showEditDialogForGroup(
       groupId: string, locationX: number, locationY: number, width: number,
@@ -89,9 +82,7 @@ export class TabsApiProxyImpl implements TabsApiProxy {
   }
 
   activateTab(tabId: number) {
-    return new Promise<chrome.tabs.Tab>(resolve => {
-      chrome.tabs.update(tabId, {active: true}, tab => resolve(tab!));
-    });
+    this.handler.activateTab(tabId);
   }
 
   getGroupVisualData() {
@@ -136,17 +127,8 @@ export class TabsApiProxyImpl implements TabsApiProxy {
     return document.visibilityState === 'visible';
   }
 
-  getColors() {
-    return this.handler.getThemeColors();
-  }
-
   getLayout() {
     return this.handler.getLayout();
-  }
-
-  observeThemeChanges() {
-    // TODO(crbug.com/1234500): Migrate to mojo as well.
-    chrome.send('observeThemeChanges');
   }
 
   showEditDialogForGroup(

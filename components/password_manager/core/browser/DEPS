@@ -7,6 +7,7 @@ include_rules = [
   "+components/pref_registry",
   "+components/security_state",
   "+components/safe_browsing/buildflags.h",
+  "+components/safe_browsing/core/browser/password_protection",
   "+components/safe_browsing/core/common/safe_browsing_prefs.h",
   "+components/safe_browsing/core/common/features.h",
   "+components/signin/public",
@@ -16,11 +17,12 @@ include_rules = [
   "+components/sync/test",
   "+components/sync_preferences",
   "+components/ukm",
+  "+components/undo",
   "+components/url_formatter",
   "+components/variations",
-  "+components/webdata/common",
   "+components/variations/net",
   "+components/version_info",
+  "+components/webdata/common",
   "+crypto",
   "+google_apis",
   "+grit",
@@ -39,5 +41,8 @@ specific_include_rules = {
   ],
   "http_credentials_cleaner_unittest\.cc": [
     "+services/network",
+  ],
+  ".*unit_test\.cc": [
+    "+components/autofill/core/browser/test_utils",
   ],
 }

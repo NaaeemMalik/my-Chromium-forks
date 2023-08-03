@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -100,29 +100,28 @@ GeneratedPasswordLeakDetectionPref::SetPref(const base::Value* value) {
   return extensions::settings_private::SetPrefResult::SUCCESS;
 }
 
-std::unique_ptr<settings_api::PrefObject>
-GeneratedPasswordLeakDetectionPref::GetPrefObject() const {
+settings_api::PrefObject GeneratedPasswordLeakDetectionPref::GetPrefObject()
+    const {
   auto* backing_preference = profile_->GetPrefs()->FindPreference(
       password_manager::prefs::kPasswordLeakDetectionEnabled);
 
-  auto pref_object = std::make_unique<settings_api::PrefObject>();
-  pref_object->key = kGeneratedPasswordLeakDetectionPref;
-  pref_object->type = settings_api::PREF_TYPE_BOOLEAN;
-  pref_object->value =
-      std::make_unique<base::Value>(backing_preference->GetValue()->GetBool() &&
-                                    IsUserAllowedToUseLeakDetection(profile_));
-  pref_object->user_control_disabled =
-      std::make_unique<bool>(!IsSafeBrowsingStandard(profile_) ||
-                             !IsUserAllowedToUseLeakDetection(profile_));
+  settings_api::PrefObject pref_object;
+  pref_object.key = kGeneratedPasswordLeakDetectionPref;
+  pref_object.type = settings_api::PREF_TYPE_BOOLEAN;
+  pref_object.value = base::Value(backing_preference->GetValue()->GetBool() &&
+                                  IsUserAllowedToUseLeakDetection(profile_));
+  pref_object.user_control_disabled =
+      !IsSafeBrowsingStandard(profile_) ||
+      !IsUserAllowedToUseLeakDetection(profile_);
   if (!backing_preference->IsUserModifiable()) {
-    pref_object->enforcement = settings_api::Enforcement::ENFORCEMENT_ENFORCED;
+    pref_object.enforcement = settings_api::Enforcement::ENFORCEMENT_ENFORCED;
     extensions::settings_private::GeneratedPref::ApplyControlledByFromPref(
-        pref_object.get(), backing_preference);
+        &pref_object, backing_preference);
   } else if (backing_preference->GetRecommendedValue()) {
-    pref_object->enforcement =
+    pref_object.enforcement =
         settings_api::Enforcement::ENFORCEMENT_RECOMMENDED;
-    pref_object->recommended_value = std::make_unique<base::Value>(
-        backing_preference->GetRecommendedValue()->GetBool());
+    pref_object.recommended_value =
+        base::Value(backing_preference->GetRecommendedValue()->GetBool());
   }
 
   return pref_object;

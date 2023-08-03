@@ -1,24 +1,27 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <map>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
 #include "chrome/browser/safe_browsing/download_protection/download_protection_util.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/ppapi/ppapi_test.h"
 #include "chrome/test/ppapi/ppapi_test_select_file_dialog_factory.h"
+#include "components/prefs/pref_service.h"
 #include "components/safe_browsing/buildflags.h"
 #include "components/services/quarantine/test_support.h"
+#include "content/public/browser/global_routing_id.h"
 #include "content/public/test/browser_test.h"
 #include "ppapi/shared_impl/test_utils.h"
 
@@ -53,8 +56,7 @@ class FakeDownloadProtectionService : public DownloadProtectionService {
 
   void CheckPPAPIDownloadRequest(
       const GURL& requestor_url,
-      const GURL& initiating_frame_url_unused,
-      content::WebContents* web_contents_unused,
+      content::RenderFrameHost* unused_initiating_frame,
       const base::FilePath& default_file_path,
       const std::vector<base::FilePath::StringType>& alternate_extensions,
       Profile* /* profile */,
@@ -131,6 +133,27 @@ class PPAPIFileChooserTestWithSBService : public PPAPIFileChooserTest {
     SafeBrowsingService::RegisterFactory(nullptr);
   }
 
+  void TestSaveAsRealTimeDownloadProtectionRequestPolicy(bool policy_value) {
+    PrefService* pref_service = browser()->profile()->GetPrefs();
+    pref_service->SetBoolean(
+        prefs::kRealTimeDownloadProtectionRequestAllowedByPolicy, policy_value);
+    safe_browsing_test_configuration_.default_result =
+        safe_browsing::DownloadCheckResult::SAFE;
+    safe_browsing_test_configuration_.result_map.insert(
+        std::make_pair(base::FilePath::StringType(FILE_PATH_LITERAL(".exe")),
+                       safe_browsing::DownloadCheckResult::DANGEROUS));
+    PPAPITestSelectFileDialogFactory::Mode mode;
+    if (policy_value) {
+      mode = PPAPITestSelectFileDialogFactory::NOT_REACHED;
+    } else {
+      mode = PPAPITestSelectFileDialogFactory::RESPOND_WITH_FILE_LIST;
+    }
+
+    PPAPITestSelectFileDialogFactory test_dialog_factory(
+        mode, PPAPITestSelectFileDialogFactory::SelectedFileInfoList());
+    RunTestViaHTTP("FileChooser_SaveAsDangerousExecutableDisallowed");
+  }
+
  protected:
   SafeBrowsingTestConfiguration safe_browsing_test_configuration_;
 
@@ -149,9 +172,7 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_Open_Success) {
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
 
   base::FilePath existing_filename = temp_dir.GetPath().AppendASCII("foo");
-  ASSERT_EQ(
-      static_cast<int>(sizeof(kContents) - 1),
-      base::WriteFile(existing_filename, kContents, sizeof(kContents) - 1));
+  ASSERT_TRUE(base::WriteFile(existing_filename, kContents));
 
   PPAPITestSelectFileDialogFactory::SelectedFileInfoList file_info_list;
   file_info_list.push_back(
@@ -237,19 +258,12 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_SaveAs_Cancel) {
   RunTestViaHTTP("FileChooser_SaveAsCancel");
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // On Windows, tests that a file downloaded via PPAPI FileChooser API has the
 // mark-of-the-web. The PPAPI FileChooser implementation invokes QuarantineFile
 // in order to mark the file as being downloaded from the web as soon as the
 // file is created. This MotW prevents the file being opened without due
 // security warnings if the file is executable.
-//
-// This test is disabled on Mac even though quarantine support is implemented on
-// Mac. New files created on Mac only receive the MOTW if the process creating
-// them comes from an app with LSFileQuarantineEnabled in its Info.plist. Since
-// PPAPI delegates file creation to the browser process, which in browser_tests
-// is not part of an app, files downloaded by them do not receive the MOTW and
-// this test fails.
 IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_Quarantine) {
   base::ScopedAllowBlockingForTesting allow_blocking;
   base::ScopedTempDir temp_dir;
@@ -269,7 +283,7 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_Quarantine) {
   ASSERT_TRUE(base::PathExists(actual_filename));
   EXPECT_TRUE(quarantine::IsFileQuarantined(actual_filename, GURL(), GURL()));
 }
-#endif  // defined(OS_WIN) || defined(OS_MAC)
+#endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(FULL_SAFE_BROWSING)
 // These tests only make sense when SafeBrowsing is enabled. They verify
@@ -341,9 +355,7 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTestWithSBService,
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
 
   base::FilePath existing_filename = temp_dir.GetPath().AppendASCII("foo");
-  ASSERT_EQ(
-      static_cast<int>(sizeof(kContents) - 1),
-      base::WriteFile(existing_filename, kContents, sizeof(kContents) - 1));
+  ASSERT_TRUE(base::WriteFile(existing_filename, kContents));
 
   safe_browsing_test_configuration_.default_result =
       safe_browsing::DownloadCheckResult::DANGEROUS;
@@ -354,6 +366,18 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTestWithSBService,
   PPAPITestSelectFileDialogFactory test_dialog_factory(
       PPAPITestSelectFileDialogFactory::RESPOND_WITH_FILE_LIST, file_info_list);
   RunTestViaHTTP("FileChooser_OpenSimple");
+}
+
+IN_PROC_BROWSER_TEST_F(
+    PPAPIFileChooserTestWithSBService,
+    FileChooser_SaveAs_RealTimeDownloadProtectionRequestPolicyEnabled_Allowed) {
+  TestSaveAsRealTimeDownloadProtectionRequestPolicy(true);
+}
+
+IN_PROC_BROWSER_TEST_F(
+    PPAPIFileChooserTestWithSBService,
+    FileChooser_SaveAs_RealTimeDownloadProtectionRequestPolicyDisabled_SkippedCheck) {
+  TestSaveAsRealTimeDownloadProtectionRequestPolicy(false);
 }
 
 #endif  // FULL_SAFE_BROWSING

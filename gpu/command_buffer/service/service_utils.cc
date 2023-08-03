@@ -1,4 +1,4 @@
-// Copyright (c) 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,8 +79,7 @@ gl::GLContextAttribs GenerateGLContextAttribs(
     attribs.client_minor_es_version = 0;
   }
 
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kDisableES3GLContext)) {
+  if (gl::GetGlWorkarounds().disable_es3gl_context) {
     // Forcefully disable ES3 contexts
     attribs.client_major_es_version = 2;
     attribs.client_minor_es_version = 0;
@@ -158,10 +157,11 @@ GpuPreferences ParseGpuPreferences(const base::CommandLine* command_line) {
   gpu_preferences.enable_webgpu =
       command_line->HasSwitch(switches::kEnableUnsafeWebGPU) ||
       base::FeatureList::IsEnabled(features::kWebGPUService);
-  gpu_preferences.enable_webgpu_spirv =
+  gpu_preferences.enable_unsafe_webgpu =
       command_line->HasSwitch(switches::kEnableUnsafeWebGPU);
-  gpu_preferences.force_webgpu_compat =
-      command_line->HasSwitch(switches::kForceWebGPUCompat);
+  gpu_preferences.use_webgpu_adapter = ParseWebGPUAdapterName(command_line);
+  gpu_preferences.use_webgpu_power_preference =
+      ParseWebGPUPowerPreference(command_line);
   if (command_line->HasSwitch(switches::kEnableDawnBackendValidation)) {
     auto value = command_line->GetSwitchValueASCII(
         switches::kEnableDawnBackendValidation);
@@ -183,10 +183,16 @@ GpuPreferences ParseGpuPreferences(const base::CommandLine* command_line) {
         command_line->GetSwitchValueASCII(switches::kDisableDawnFeatures), ",",
         base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
   }
-  gpu_preferences.gr_context_type = ParseGrContextType();
+  gpu_preferences.gr_context_type = ParseGrContextType(command_line);
   gpu_preferences.use_vulkan = ParseVulkanImplementationName(command_line);
+
+#if BUILDFLAG(IS_FUCHSIA)
+  // Vulkan Surface is not used on Fuchsia.
+  gpu_preferences.disable_vulkan_surface = true;
+#else
   gpu_preferences.disable_vulkan_surface =
       command_line->HasSwitch(switches::kDisableVulkanSurface);
+#endif
 
   gpu_preferences.enable_gpu_blocked_time_metric =
       command_line->HasSwitch(switches::kEnableGpuBlockedTime);
@@ -194,23 +200,34 @@ GpuPreferences ParseGpuPreferences(const base::CommandLine* command_line) {
   return gpu_preferences;
 }
 
-GrContextType ParseGrContextType() {
+GrContextType ParseGrContextType(const base::CommandLine* command_line) {
+#if BUILDFLAG(ENABLE_SKIA_GRAPHITE)
+  if (base::FeatureList::IsEnabled(features::kSkiaGraphite)) {
+    [[maybe_unused]] auto value =
+        command_line->GetSwitchValueASCII(switches::kSkiaGraphiteBackend);
 #if BUILDFLAG(SKIA_USE_DAWN)
-  if (base::FeatureList::IsEnabled(features::kSkiaDawn))
-    return GrContextType::kDawn;
-#endif
-#if defined(OS_MAC)
-  return base::FeatureList::IsEnabled(features::kMetal) ? GrContextType::kMetal
-                                                        : GrContextType::kGL;
-#else
-  return features::IsUsingVulkan() ? GrContextType::kVulkan
-                                   : GrContextType::kGL;
-#endif
+    if (value.empty() || value == switches::kSkiaGraphiteBackendDawn) {
+      return GrContextType::kGraphiteDawn;
+    }
+#endif  // BUILDFLAG(SKIA_USE_DAWN)
+#if BUILDFLAG(SKIA_USE_METAL)
+    if (value == switches::kSkiaGraphiteBackendMetal) {
+      return GrContextType::kGraphiteMetal;
+    }
+#endif  // BUILDFLAG(SKIA_USE_METAL)
+  }
+#endif  // BUILDFLAG(ENABLE_SKIA_GRAPHITE)
+
+  if (features::IsUsingVulkan()) {
+    return GrContextType::kVulkan;
+  }
+
+  return GrContextType::kGL;
 }
 
 VulkanImplementationName ParseVulkanImplementationName(
     const base::CommandLine* command_line) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (command_line->HasSwitch(switches::kWebViewDrawFunctorUsesVulkan) &&
       base::FeatureList::IsEnabled(features::kWebViewVulkan)) {
     return VulkanImplementationName::kForcedNative;
@@ -246,6 +263,49 @@ VulkanImplementationName ParseVulkanImplementationName(
   // GrContext is not going to use Vulkan.
   return VulkanImplementationName::kNone;
 #endif
+}
+
+WebGPUAdapterName ParseWebGPUAdapterName(
+    const base::CommandLine* command_line) {
+  if (command_line->HasSwitch(switches::kUseWebGPUAdapter)) {
+    auto value = command_line->GetSwitchValueASCII(switches::kUseWebGPUAdapter);
+    if (value.empty()) {
+      return WebGPUAdapterName::kDefault;
+    } else if (value == "compat") {
+      return WebGPUAdapterName::kCompat;
+    } else if (value == "swiftshader") {
+      return WebGPUAdapterName::kSwiftShader;
+    } else if (value == "default") {
+      return WebGPUAdapterName::kDefault;
+    } else {
+      DLOG(ERROR) << "Invalid switch " << switches::kUseWebGPUAdapter << "="
+                  << value << ".";
+    }
+  }
+  return WebGPUAdapterName::kDefault;
+}
+
+WebGPUPowerPreference ParseWebGPUPowerPreference(
+    const base::CommandLine* command_line) {
+  if (command_line->HasSwitch(switches::kUseWebGPUPowerPreference)) {
+    auto value =
+        command_line->GetSwitchValueASCII(switches::kUseWebGPUPowerPreference);
+    if (value.empty()) {
+      return WebGPUPowerPreference::kDefaultLowPower;
+    } else if (value == "default-low-power") {
+      return WebGPUPowerPreference::kDefaultLowPower;
+    } else if (value == "default-high-performance") {
+      return WebGPUPowerPreference::kDefaultHighPerformance;
+    } else if (value == "force-low-power") {
+      return WebGPUPowerPreference::kForceLowPower;
+    } else if (value == "force-high-performance") {
+      return WebGPUPowerPreference::kForceHighPerformance;
+    } else {
+      DLOG(ERROR) << "Invalid switch " << switches::kUseWebGPUPowerPreference
+                  << "=" << value << ".";
+    }
+  }
+  return WebGPUPowerPreference::kDefaultLowPower;
 }
 
 }  // namespace gles2

@@ -55,9 +55,9 @@ class LayoutSVGModelObject : public LayoutObject {
     return StrokeBoundingBox();
   }
 
-  void AbsoluteQuads(Vector<FloatQuad>&,
+  void AbsoluteQuads(Vector<gfx::QuadF>&,
                      MapCoordinatesFlags mode = 0) const override;
-  FloatRect LocalBoundingBoxRectForAccessibility() const final;
+  gfx::RectF LocalBoundingBoxRectForAccessibility() const final;
 
   void MapLocalToAncestor(const LayoutBoxModelObject* ancestor,
                           TransformState&,
@@ -90,7 +90,8 @@ class LayoutSVGModelObject : public LayoutObject {
   // LayoutSVGModelObject subclasses should use GetElement() instead.
   void GetNode() const = delete;
 
-  void AddOutlineRects(Vector<PhysicalRect>&,
+  void AddOutlineRects(OutlineRectCollector&,
+                       OutlineInfo*,
                        const PhysicalOffset& additional_offset,
                        NGOutlineType) const final;
 };

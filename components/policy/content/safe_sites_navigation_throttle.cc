@@ -1,13 +1,13 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/policy/content/safe_sites_navigation_throttle.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/strings/string_piece.h"
 #include "components/policy/content/safe_search_service.h"
-#include "components/policy/core/browser/url_util.h"
+#include "components/url_matcher/url_util.h"
 #include "content/public/browser/navigation_handle.h"
 #include "url/gurl.h"
 
@@ -57,7 +57,7 @@ SafeSitesNavigationThrottle::WillStartRequest() {
   if (!url.SchemeIsHTTPOrHTTPS())
     return PROCEED;
 
-  GURL effective_url = policy::url_util::GetEmbeddedURL(url);
+  GURL effective_url = url_matcher::util::GetEmbeddedURL(url);
   if (!effective_url.is_valid())
     effective_url = url;
 

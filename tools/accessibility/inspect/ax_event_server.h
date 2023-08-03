@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "build/build_config.h"
 #include "ui/accessibility/platform/inspect/ax_event_recorder.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -36,7 +36,7 @@ class AXEventServer final {
  private:
   void OnEvent(const std::string& event) const;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Only one COM initializer per thread is permitted.
   base::win::ScopedCOMInitializer com_initializer_;
 #endif

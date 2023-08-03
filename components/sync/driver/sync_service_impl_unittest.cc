@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,49 +9,47 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/test/bind.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "components/policy/core/common/policy_service_impl.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
 #include "components/signin/public/identity_manager/primary_account_mutator.h"
+#include "components/sync/base/command_line_switches.h"
+#include "components/sync/base/features.h"
 #include "components/sync/base/model_type.h"
 #include "components/sync/base/pref_names.h"
+#include "components/sync/base/stop_source.h"
 #include "components/sync/base/sync_util.h"
 #include "components/sync/base/user_selectable_type.h"
 #include "components/sync/driver/configure_context.h"
 #include "components/sync/driver/data_type_manager_impl.h"
-#include "components/sync/driver/fake_data_type_controller.h"
-#include "components/sync/driver/fake_sync_api_component_factory.h"
-#include "components/sync/driver/mock_trusted_vault_client.h"
-#include "components/sync/driver/sync_client_mock.h"
-#include "components/sync/driver/sync_driver_switches.h"
-#include "components/sync/driver/sync_service_impl_bundle.h"
 #include "components/sync/driver/sync_service_observer.h"
-#include "components/sync/driver/sync_service_utils.h"
 #include "components/sync/driver/sync_token_status.h"
 #include "components/sync/engine/nigori/key_derivation_params.h"
-#include "components/sync/invalidations/switches.h"
-#include "components/sync/test/engine/fake_sync_engine.h"
+#include "components/sync/test/fake_data_type_controller.h"
+#include "components/sync/test/fake_sync_api_component_factory.h"
+#include "components/sync/test/fake_sync_engine.h"
+#include "components/sync/test/mock_trusted_vault_client.h"
+#include "components/sync/test/sync_client_mock.h"
+#include "components/sync/test/sync_service_impl_bundle.h"
 #include "components/version_info/version_info_values.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using testing::_;
+using testing::AllOf;
 using testing::AnyNumber;
+using testing::AtLeast;
 using testing::ByMove;
 using testing::Eq;
 using testing::Not;
@@ -60,6 +58,10 @@ using testing::Return;
 namespace syncer {
 
 namespace {
+
+MATCHER_P(ContainsDataType, type, "") {
+  return arg.Has(type);
+}
 
 constexpr char kTestUser[] = "test_user@gmail.com";
 
@@ -92,7 +94,7 @@ class SyncServiceImplTest : public ::testing::Test {
 
   void SetUp() override {
     base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-        switches::kSyncDeferredStartupTimeoutSeconds, "0");
+        kSyncDeferredStartupTimeoutSeconds, "0");
   }
 
   void TearDown() override {
@@ -106,7 +108,6 @@ class SyncServiceImplTest : public ::testing::Test {
   }
 
   void CreateService(SyncServiceImpl::StartBehavior behavior,
-                     policy::PolicyService* policy_service = nullptr,
                      std::vector<std::pair<ModelType, bool>>
                          registered_types_and_transport_mode_support = {
                              {BOOKMARKS, false},
@@ -115,10 +116,8 @@ class SyncServiceImplTest : public ::testing::Test {
 
     // Default includes a regular controller and a transport-mode controller.
     DataTypeController::TypeVector controllers;
-    for (const auto& type_and_transport_mode_support :
+    for (const auto& [type, transport_mode_support] :
          registered_types_and_transport_mode_support) {
-      ModelType type = type_and_transport_mode_support.first;
-      bool transport_mode_support = type_and_transport_mode_support.second;
       auto controller = std::make_unique<FakeDataTypeController>(
           type, transport_mode_support);
       // Hold a raw pointer to directly interact with the controller.
@@ -132,11 +131,9 @@ class SyncServiceImplTest : public ::testing::Test {
     ON_CALL(*sync_client, CreateDataTypeControllers)
         .WillByDefault(Return(ByMove(std::move(controllers))));
 
-    auto init_params = sync_service_impl_bundle_.CreateBasicInitParams(
-        behavior, std::move(sync_client));
-    init_params.policy_service = policy_service;
-
-    service_ = std::make_unique<SyncServiceImpl>(std::move(init_params));
+    service_ = std::make_unique<SyncServiceImpl>(
+        sync_service_impl_bundle_.CreateBasicInitParams(
+            behavior, std::move(sync_client)));
   }
 
   void CreateServiceWithLocalSyncBackend() {
@@ -255,20 +252,6 @@ class SyncServiceImplTest : public ::testing::Test {
   std::map<ModelType, FakeDataTypeController*> controller_map_;
 };
 
-class SyncServiceImplTestWithSyncInvalidationsServiceCreated
-    : public SyncServiceImplTest {
- public:
-  SyncServiceImplTestWithSyncInvalidationsServiceCreated() {
-    override_features_.InitAndEnableFeature(
-        switches::kSyncSendInterestedDataTypes);
-  }
-
-  ~SyncServiceImplTestWithSyncInvalidationsServiceCreated() override = default;
-
- private:
-  base::test::ScopedFeatureList override_features_;
-};
-
 // Verify that the server URLs are sane.
 TEST_F(SyncServiceImplTest, InitialState) {
   CreateService(SyncServiceImpl::MANUAL_START);
@@ -323,14 +306,12 @@ TEST_F(SyncServiceImplTest, NeedsConfirmation) {
 TEST_F(SyncServiceImplTest, ModelTypesForTransportMode) {
   SignIn();
   CreateService(SyncServiceImpl::MANUAL_START);
-  InitializeForNthSync();
+  InitializeForFirstSync();
 
-  // Disable sync-the-feature.
-  service()->GetUserSettings()->SetSyncRequested(false);
   ASSERT_FALSE(service()->IsSyncFeatureActive());
   ASSERT_FALSE(service()->IsSyncFeatureEnabled());
 
-  // Sync-the-transport should become active again.
+  // Sync-the-transport should become active.
   base::RunLoop().RunUntilIdle();
   ASSERT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
@@ -351,7 +332,8 @@ TEST_F(SyncServiceImplTest, SetupInProgress) {
   TestSyncServiceObserver observer;
   service()->AddObserver(&observer);
 
-  auto sync_blocker = service()->GetSetupInProgressHandle();
+  std::unique_ptr<SyncSetupInProgressHandle> sync_blocker =
+      service()->GetSetupInProgressHandle();
   EXPECT_TRUE(observer.setup_in_progress());
   sync_blocker.reset();
   EXPECT_FALSE(observer.setup_in_progress());
@@ -359,36 +341,9 @@ TEST_F(SyncServiceImplTest, SetupInProgress) {
   service()->RemoveObserver(&observer);
 }
 
-// Verify that we wait for policies to load before starting the sync engine.
-TEST_F(SyncServiceImplTest, WaitForPoliciesToStart) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(switches::kSyncRequiresPoliciesLoaded);
-  std::unique_ptr<policy::PolicyServiceImpl> policy_service =
-      policy::PolicyServiceImpl::CreateWithThrottledInitialization(
-          policy::PolicyServiceImpl::Providers());
-
-  SignIn();
-  CreateService(SyncServiceImpl::MANUAL_START, policy_service.get());
-  InitializeForNthSync();
-  EXPECT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
-  EXPECT_EQ(SyncService::TransportState::START_DEFERRED,
-            service()->GetTransportState());
-
-  EXPECT_EQ(
-      syncer::UploadState::INITIALIZING,
-      syncer::GetUploadToGoogleState(service(), syncer::ModelType::BOOKMARKS));
-
-  policy_service->UnthrottleInitialization();
-  base::RunLoop().RunUntilIdle();
-
-  EXPECT_EQ(SyncService::TransportState::ACTIVE,
-            service()->GetTransportState());
-}
-
 // Verify that disable by enterprise policy works.
 TEST_F(SyncServiceImplTest, DisabledByPolicyBeforeInit) {
-  prefs()->SetManagedPref(prefs::kSyncManaged,
-                          std::make_unique<base::Value>(true));
+  prefs()->SetManagedPref(prefs::kSyncManaged, base::Value(true));
   SignIn();
   CreateService(SyncServiceImpl::MANUAL_START);
   InitializeForNthSync();
@@ -403,8 +358,7 @@ TEST_F(SyncServiceImplTest, DisabledByPolicyBeforeInit) {
 }
 
 TEST_F(SyncServiceImplTest, DisabledByPolicyBeforeInitThenPolicyRemoved) {
-  prefs()->SetManagedPref(prefs::kSyncManaged,
-                          std::make_unique<base::Value>(true));
+  prefs()->SetManagedPref(prefs::kSyncManaged, base::Value(true));
   SignIn();
   CreateService(SyncServiceImpl::MANUAL_START);
   InitializeForNthSync();
@@ -419,8 +373,7 @@ TEST_F(SyncServiceImplTest, DisabledByPolicyBeforeInitThenPolicyRemoved) {
 
   // Remove the policy. Sync-the-feature is still disabled, sync-the-transport
   // can run.
-  prefs()->SetManagedPref(prefs::kSyncManaged,
-                          std::make_unique<base::Value>(false));
+  prefs()->SetManagedPref(prefs::kSyncManaged, base::Value(false));
   EXPECT_EQ(
       SyncService::DisableReasonSet(SyncService::DISABLE_REASON_USER_CHOICE),
       service()->GetDisableReasons());
@@ -430,7 +383,7 @@ TEST_F(SyncServiceImplTest, DisabledByPolicyBeforeInitThenPolicyRemoved) {
 
   // Once we mark first setup complete again (it was cleared by the policy) and
   // set SyncRequested to true, sync starts up.
-  service()->GetUserSettings()->SetSyncRequested(true);
+  service()->SetSyncFeatureRequested();
   service()->GetUserSettings()->SetFirstSetupComplete(
       syncer::SyncFirstSetupCompleteSource::BASIC_FLOW);
   base::RunLoop().RunUntilIdle();
@@ -450,8 +403,7 @@ TEST_F(SyncServiceImplTest, DisabledByPolicyAfterInit) {
   ASSERT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
 
-  prefs()->SetManagedPref(prefs::kSyncManaged,
-                          std::make_unique<base::Value>(true));
+  prefs()->SetManagedPref(prefs::kSyncManaged, base::Value(true));
 
   // Sync was disabled due to the policy, setting SyncRequested to false and
   // causing DISABLE_REASON_USER_CHOICE.
@@ -460,25 +412,6 @@ TEST_F(SyncServiceImplTest, DisabledByPolicyAfterInit) {
                 SyncService::DISABLE_REASON_USER_CHOICE),
             service()->GetDisableReasons());
   EXPECT_EQ(SyncService::TransportState::DISABLED,
-            service()->GetTransportState());
-}
-
-TEST_F(SyncServiceImplTest,
-       ShouldDisableSyncFeatureWhenSyncDisallowedByPlatform) {
-  SignIn();
-  CreateService(SyncServiceImpl::MANUAL_START);
-  InitializeForNthSync();
-
-  ASSERT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
-  ASSERT_EQ(SyncService::TransportState::ACTIVE,
-            service()->GetTransportState());
-
-  service()->SetSyncAllowedByPlatform(false);
-  EXPECT_FALSE(service()->IsSyncFeatureEnabled());
-  EXPECT_FALSE(service()->IsSyncFeatureActive());
-  // Sync-the-transport should become active again.
-  base::RunLoop().RunUntilIdle();
-  EXPECT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
 }
 
@@ -496,7 +429,7 @@ TEST_F(SyncServiceImplTest, AbortedByShutdown) {
   ShutdownAndDeleteService();
 }
 
-// Test SetSyncRequested(false) before we've initialized the backend.
+// Test StopAndClear() before the backend's initialization completes.
 TEST_F(SyncServiceImplTest, EarlyRequestStop) {
   SignIn();
   CreateService(SyncServiceImpl::MANUAL_START);
@@ -510,7 +443,7 @@ TEST_F(SyncServiceImplTest, EarlyRequestStop) {
   // Request stop. This should immediately restart the service in standalone
   // transport mode.
   component_factory()->AllowFakeEngineInitCompletion(true);
-  service()->GetUserSettings()->SetSyncRequested(false);
+  service()->StopAndClear();
   EXPECT_EQ(
       SyncService::DisableReasonSet(SyncService::DISABLE_REASON_USER_CHOICE),
       service()->GetDisableReasons());
@@ -521,7 +454,9 @@ TEST_F(SyncServiceImplTest, EarlyRequestStop) {
   EXPECT_FALSE(service()->IsSyncFeatureEnabled());
 
   // Request start. Now Sync-the-feature should start again.
-  service()->GetUserSettings()->SetSyncRequested(true);
+  service()->SetSyncFeatureRequested();
+  service()->GetUserSettings()->SetFirstSetupComplete(
+      syncer::SyncFirstSetupCompleteSource::BASIC_FLOW);
   EXPECT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(SyncService::TransportState::ACTIVE,
@@ -530,7 +465,7 @@ TEST_F(SyncServiceImplTest, EarlyRequestStop) {
   EXPECT_TRUE(service()->IsSyncFeatureEnabled());
 }
 
-// Test SetSyncRequested(false) after we've initialized the backend.
+// Test StopAndClear() after we've initialized the backend.
 TEST_F(SyncServiceImplTest, DisableAndEnableSyncTemporarily) {
   SignIn();
   CreateService(SyncServiceImpl::MANUAL_START);
@@ -538,14 +473,13 @@ TEST_F(SyncServiceImplTest, DisableAndEnableSyncTemporarily) {
 
   SyncPrefs sync_prefs(prefs());
 
-  ASSERT_TRUE(sync_prefs.IsSyncRequested());
   ASSERT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
   ASSERT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
   ASSERT_TRUE(service()->IsSyncFeatureActive());
   ASSERT_TRUE(service()->IsSyncFeatureEnabled());
 
-  service()->GetUserSettings()->SetSyncRequested(false);
+  service()->StopAndClear();
   EXPECT_FALSE(sync_prefs.IsSyncRequested());
   EXPECT_EQ(
       SyncService::DisableReasonSet(SyncService::DISABLE_REASON_USER_CHOICE),
@@ -556,9 +490,10 @@ TEST_F(SyncServiceImplTest, DisableAndEnableSyncTemporarily) {
   EXPECT_FALSE(service()->IsSyncFeatureActive());
   EXPECT_FALSE(service()->IsSyncFeatureEnabled());
 
-  service()->GetUserSettings()->SetSyncRequested(true);
-  EXPECT_TRUE(sync_prefs.IsSyncRequested());
+  service()->SetSyncFeatureRequested();
   EXPECT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
+  service()->GetUserSettings()->SetFirstSetupComplete(
+      syncer::SyncFirstSetupCompleteSource::BASIC_FLOW);
   base::RunLoop().RunUntilIdle();
   EXPECT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
@@ -579,10 +514,11 @@ TEST_F(SyncServiceImplTest, SignOutDisablesSyncTransportAndSyncFeature) {
             service()->GetTransportState());
 
   // Sign-out.
-  auto* account_mutator = identity_manager()->GetPrimaryAccountMutator();
+  signin::PrimaryAccountMutator* account_mutator =
+      identity_manager()->GetPrimaryAccountMutator();
   DCHECK(account_mutator) << "Account mutator should only be null on ChromeOS.";
   account_mutator->ClearPrimaryAccount(
-      signin_metrics::SIGNOUT_TEST,
+      signin_metrics::ProfileSignout::kTest,
       signin_metrics::SignoutDelete::kIgnoreMetric);
   // Wait for SyncServiceImpl to be notified.
   base::RunLoop().RunUntilIdle();
@@ -602,24 +538,28 @@ TEST_F(SyncServiceImplTest,
   CreateService(SyncServiceImpl::MANUAL_START);
   InitializeForNthSync();
   ASSERT_TRUE(service()->GetUserSettings()->IsFirstSetupComplete());
-  ASSERT_TRUE(service()->GetUserSettings()->IsSyncRequested());
+  ASSERT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
   ASSERT_EQ(0, component_factory()->clear_transport_data_call_count());
 
   // Sign-out.
-  auto* account_mutator = identity_manager()->GetPrimaryAccountMutator();
+  signin::PrimaryAccountMutator* account_mutator =
+      identity_manager()->GetPrimaryAccountMutator();
   DCHECK(account_mutator) << "Account mutator should only be null on ChromeOS.";
   account_mutator->ClearPrimaryAccount(
-      signin_metrics::SIGNOUT_TEST,
+      signin_metrics::ProfileSignout::kTest,
       signin_metrics::SignoutDelete::kIgnoreMetric);
   // Wait for SyncServiceImpl to be notified.
   base::RunLoop().RunUntilIdle();
   // These are specific to sync-the-feature and should be cleared.
   EXPECT_FALSE(service()->GetUserSettings()->IsFirstSetupComplete());
-  EXPECT_FALSE(service()->GetUserSettings()->IsSyncRequested());
+  EXPECT_EQ(
+      SyncService::DisableReasonSet(SyncService::DISABLE_REASON_NOT_SIGNED_IN,
+                                    SyncService::DISABLE_REASON_USER_CHOICE),
+      service()->GetDisableReasons());
   EXPECT_EQ(1, component_factory()->clear_transport_data_call_count());
 }
 
-TEST_F(SyncServiceImplTest, SyncRequestedSetToFalseIfStartsSignedOut) {
+TEST_F(SyncServiceImplTest, DisableReasonUserChoiceIfStartsSignedOut) {
   // Set up bad state.
   SyncPrefs sync_prefs(prefs());
   sync_prefs.SetSyncRequested(true);
@@ -627,8 +567,8 @@ TEST_F(SyncServiceImplTest, SyncRequestedSetToFalseIfStartsSignedOut) {
   CreateService(SyncServiceImpl::MANUAL_START);
   service()->Initialize();
 
-  // There's no signed-in user, so SyncRequested should have been set to false.
-  EXPECT_FALSE(service()->GetUserSettings()->IsSyncRequested());
+  EXPECT_TRUE(service()->GetDisableReasons().Has(
+      SyncService::DISABLE_REASON_USER_CHOICE));
 }
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
 
@@ -789,13 +729,14 @@ TEST_F(SyncServiceImplTest, SignOutRevokeAccessToken) {
   base::RunLoop().RunUntilIdle();
   EXPECT_FALSE(service()->GetAccessTokenForTest().empty());
 
-  auto* account_mutator = identity_manager()->GetPrimaryAccountMutator();
+  signin::PrimaryAccountMutator* account_mutator =
+      identity_manager()->GetPrimaryAccountMutator();
 
   // GetPrimaryAccountMutator() returns nullptr on ChromeOS only.
   DCHECK(account_mutator);
 
   account_mutator->ClearPrimaryAccount(
-      signin_metrics::SIGNOUT_TEST,
+      signin_metrics::ProfileSignout::kTest,
       signin_metrics::SignoutDelete::kIgnoreMetric);
   EXPECT_TRUE(service()->GetAccessTokenForTest().empty());
 }
@@ -852,7 +793,6 @@ TEST_F(SyncServiceImplTest, StopSyncAndClearTwiceDoesNotCrash) {
   // Calling StopAndClear while already stopped should not crash. This may
   // (under some circumstances) happen when the user enables sync again but hits
   // the cancel button at the end of the process.
-  ASSERT_FALSE(service()->GetUserSettings()->IsSyncRequested());
   service()->StopAndClear();
   EXPECT_FALSE(service()->IsSyncFeatureEnabled());
 }
@@ -904,8 +844,8 @@ TEST_F(SyncServiceImplTest, CredentialErrorReturned) {
             service()->GetAuthError().state());
   EXPECT_EQ(GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS,
             observer.auth_error().state());
-  // The overall state should remain ACTIVE.
-  EXPECT_EQ(SyncService::TransportState::ACTIVE,
+  // Sync should pause.
+  EXPECT_EQ(SyncService::TransportState::PAUSED,
             service()->GetTransportState());
 
   service()->RemoveObserver(&observer);
@@ -958,8 +898,8 @@ TEST_F(SyncServiceImplTest, CredentialErrorClearsOnNewToken) {
   // Check that the invalid token is returned from sync.
   ASSERT_EQ(GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS,
             service()->GetAuthError().state());
-  // The overall state should remain ACTIVE.
-  ASSERT_EQ(SyncService::TransportState::ACTIVE,
+  // Sync should pause.
+  ASSERT_EQ(SyncService::TransportState::PAUSED,
             service()->GetTransportState());
 
   // Now emulate Chrome receiving a new, valid LST.
@@ -980,13 +920,13 @@ TEST_F(SyncServiceImplTest, CredentialErrorClearsOnNewToken) {
 
 // Verify that the disable sync flag disables sync.
 TEST_F(SyncServiceImplTest, DisableSyncFlag) {
-  base::CommandLine::ForCurrentProcess()->AppendSwitch(switches::kDisableSync);
-  EXPECT_FALSE(switches::IsSyncAllowedByFlag());
+  base::CommandLine::ForCurrentProcess()->AppendSwitch(kDisableSync);
+  EXPECT_FALSE(IsSyncAllowedByFlag());
 }
 
 // Verify that no disable sync flag enables sync.
 TEST_F(SyncServiceImplTest, NoDisableSyncFlag) {
-  EXPECT_TRUE(switches::IsSyncAllowedByFlag());
+  EXPECT_TRUE(IsSyncAllowedByFlag());
 }
 
 // Test that when SyncServiceImpl receives actionable error
@@ -1000,7 +940,7 @@ TEST_F(SyncServiceImplTest, ResetSyncData) {
 
   SyncProtocolError client_cmd;
   client_cmd.action = RESET_LOCAL_SYNC_DATA;
-  service()->OnActionableError(client_cmd);
+  service()->OnActionableProtocolError(client_cmd);
 }
 
 // Test that when SyncServiceImpl receives actionable error
@@ -1014,18 +954,17 @@ TEST_F(SyncServiceImplTest, DisableSyncOnClient) {
             service()->GetTransportState());
   ASSERT_EQ(0, get_controller(BOOKMARKS)->model()->clear_metadata_call_count());
 
-  EXPECT_CALL(*trusted_vault_client(),
-              ClearDataForAccount(Eq(identity_manager()->GetPrimaryAccountInfo(
-                  signin::ConsentLevel::kSync))));
+  EXPECT_CALL(
+      *trusted_vault_client(),
+      ClearLocalDataForAccount(Eq(identity_manager()->GetPrimaryAccountInfo(
+          signin::ConsentLevel::kSync))));
 
   SyncProtocolError client_cmd;
   client_cmd.action = DISABLE_SYNC_ON_CLIENT;
-  service()->OnActionableError(client_cmd);
+  service()->OnActionableProtocolError(client_cmd);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
-  // ChromeOS does not support signout.
-  // TODO(https://crbug.com/1233933): Update this when Lacros profiles support
-  //                                  signed-in-but-not-consented-to-sync state.
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  // Ash does not support signout.
   EXPECT_TRUE(
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
   EXPECT_EQ(
@@ -1039,6 +978,10 @@ TEST_F(SyncServiceImplTest, DisableSyncOnClient) {
 #else
   EXPECT_FALSE(
       identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSync));
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+  EXPECT_FALSE(
+      identity_manager()->HasPrimaryAccount(signin::ConsentLevel::kSignin));
+#endif
   EXPECT_EQ(
       SyncService::DisableReasonSet(SyncService::DISABLE_REASON_NOT_SIGNED_IN,
                                     SyncService::DISABLE_REASON_USER_CHOICE),
@@ -1048,36 +991,93 @@ TEST_F(SyncServiceImplTest, DisableSyncOnClient) {
   EXPECT_TRUE(service()->GetLastSyncedTimeForDebugging().is_null());
 #endif
 
-  EXPECT_EQ(1, get_controller(BOOKMARKS)->model()->clear_metadata_call_count());
+  EXPECT_GT(get_controller(BOOKMARKS)->model()->clear_metadata_call_count(), 0);
 
   EXPECT_FALSE(service()->IsSyncFeatureEnabled());
   EXPECT_FALSE(service()->IsSyncFeatureActive());
 }
 
+TEST_F(SyncServiceImplTest,
+       DisableSyncOnClientLogsPassphraseTypeForNotMyBirthday) {
+  const PassphraseType kPassphraseType = PassphraseType::kKeystorePassphrase;
+
+  SignIn();
+  CreateService(SyncServiceImpl::MANUAL_START);
+  InitializeForNthSync();
+
+  service()->GetEncryptionObserverForTest()->OnPassphraseTypeChanged(
+      kPassphraseType, /*passphrase_time=*/base::Time());
+
+  ASSERT_EQ(SyncService::TransportState::ACTIVE,
+            service()->GetTransportState());
+  ASSERT_TRUE(service()->IsSyncFeatureEnabled());
+  ASSERT_EQ(kPassphraseType, service()->GetUserSettings()->GetPassphraseType());
+
+  SyncProtocolError client_cmd;
+  client_cmd.action = DISABLE_SYNC_ON_CLIENT;
+  client_cmd.error_type = NOT_MY_BIRTHDAY;
+
+  base::HistogramTester histogram_tester;
+  service()->OnActionableProtocolError(client_cmd);
+
+  ASSERT_FALSE(service()->IsSyncFeatureEnabled());
+
+  histogram_tester.ExpectUniqueSample(
+      "Sync.PassphraseTypeUponNotMyBirthdayOrEncryptionObsolete",
+      /*sample=*/kPassphraseType,
+      /*expected_bucket_count=*/1);
+}
+
+TEST_F(SyncServiceImplTest,
+       DisableSyncOnClientLogsPassphraseTypeForEncryptionObsolete) {
+  const PassphraseType kPassphraseType = PassphraseType::kKeystorePassphrase;
+
+  SignIn();
+  CreateService(SyncServiceImpl::MANUAL_START);
+  InitializeForNthSync();
+
+  service()->GetEncryptionObserverForTest()->OnPassphraseTypeChanged(
+      kPassphraseType, /*passphrase_time=*/base::Time());
+
+  ASSERT_EQ(SyncService::TransportState::ACTIVE,
+            service()->GetTransportState());
+  ASSERT_TRUE(service()->IsSyncFeatureEnabled());
+  ASSERT_EQ(kPassphraseType, service()->GetUserSettings()->GetPassphraseType());
+
+  SyncProtocolError client_cmd;
+  client_cmd.action = DISABLE_SYNC_ON_CLIENT;
+  client_cmd.error_type = ENCRYPTION_OBSOLETE;
+
+  base::HistogramTester histogram_tester;
+  service()->OnActionableProtocolError(client_cmd);
+
+  ASSERT_FALSE(service()->IsSyncFeatureEnabled());
+
+  histogram_tester.ExpectUniqueSample(
+      "Sync.PassphraseTypeUponNotMyBirthdayOrEncryptionObsolete",
+      /*sample=*/kPassphraseType,
+      /*expected_bucket_count=*/1);
+}
+
 // Verify a that local sync mode isn't impacted by sync being disabled.
 TEST_F(SyncServiceImplTest, LocalBackendUnimpactedByPolicy) {
-  prefs()->SetManagedPref(prefs::kSyncManaged,
-                          std::make_unique<base::Value>(false));
+  prefs()->SetManagedPref(prefs::kSyncManaged, base::Value(false));
   CreateServiceWithLocalSyncBackend();
   InitializeForNthSync();
   EXPECT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
   EXPECT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
 
-  prefs()->SetManagedPref(prefs::kSyncManaged,
-                          std::make_unique<base::Value>(true));
+  // The transport should continue active even if kSyncManaged becomes true.
+  prefs()->SetManagedPref(prefs::kSyncManaged, base::Value(true));
 
   EXPECT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
   EXPECT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
 
-  // Note: If standalone transport is enabled, then setting kSyncManaged to
-  // false will immediately start up the engine. Otherwise, the RequestStart
-  // call below will trigger it.
-  prefs()->SetManagedPref(prefs::kSyncManaged,
-                          std::make_unique<base::Value>(false));
+  // Setting kSyncManaged back to false should also make no difference.
+  prefs()->SetManagedPref(prefs::kSyncManaged, base::Value(false));
 
-  service()->GetUserSettings()->SetSyncRequested(true);
   EXPECT_EQ(SyncService::DisableReasonSet(), service()->GetDisableReasons());
   EXPECT_EQ(SyncService::TransportState::ACTIVE,
             service()->GetTransportState());
@@ -1130,101 +1130,126 @@ TEST_F(SyncServiceImplTest, ShouldProvideDisableReasonsAfterShutdown) {
   EXPECT_FALSE(service()->GetDisableReasons().Empty());
 }
 
-#if defined(OS_ANDROID)
-TEST_F(SyncServiceImplTest, DecoupleFromMasterSyncIfInitializedSignedOut) {
-  SyncPrefs sync_prefs(prefs());
-  CreateService(SyncServiceImpl::MANUAL_START);
-  ASSERT_FALSE(sync_prefs.GetDecoupledFromAndroidMasterSync());
-
-  service()->Initialize();
-  EXPECT_TRUE(sync_prefs.GetDecoupledFromAndroidMasterSync());
-}
-
-TEST_F(SyncServiceImplTest, DecoupleFromMasterSyncIfSignsOut) {
-  SyncPrefs sync_prefs(prefs());
+TEST_F(SyncServiceImplTest, ShouldSendDataTypesToSyncInvalidationsService) {
   SignIn();
-  CreateService(SyncServiceImpl::MANUAL_START);
+  CreateService(SyncServiceImpl::MANUAL_START,
+                /*registered_types_and_transport_mode_support=*/
+                {
+                    {BOOKMARKS, false},
+                    {DEVICE_INFO, true},
+                });
+  EXPECT_CALL(*sync_invalidations_service(),
+              SetInterestedDataTypes(AllOf(ContainsDataType(BOOKMARKS),
+                                           ContainsDataType(DEVICE_INFO))));
   InitializeForNthSync();
-  ASSERT_FALSE(sync_prefs.GetDecoupledFromAndroidMasterSync());
-
-  // Sign-out.
-  auto* account_mutator = identity_manager()->GetPrimaryAccountMutator();
-  DCHECK(account_mutator) << "Account mutator should only be null on ChromeOS.";
-  account_mutator->ClearPrimaryAccount(
-      signin_metrics::SIGNOUT_TEST,
-      signin_metrics::SignoutDelete::kIgnoreMetric);
-  // Wait for SyncServiceImpl to be notified.
-  base::RunLoop().RunUntilIdle();
-  EXPECT_TRUE(sync_prefs.GetDecoupledFromAndroidMasterSync());
+  EXPECT_TRUE(engine()->started_handling_invalidations());
 }
-#endif  // defined(OS_ANDROID)
 
-TEST_F(SyncServiceImplTestWithSyncInvalidationsServiceCreated,
-       ShouldSendDataTypesToSyncInvalidationsService) {
+TEST_F(SyncServiceImplTest, ShouldEnableAndDisableInvalidationsForSessions) {
   SignIn();
-  CreateService(SyncServiceImpl::MANUAL_START);
-  EXPECT_CALL(*sync_invalidations_service(), SetInterestedDataTypes);
-  InitializeForFirstSync();
-}
-
-MATCHER(ContainsSessions, "") {
-  return arg.Has(SESSIONS);
-}
-
-TEST_F(SyncServiceImplTestWithSyncInvalidationsServiceCreated,
-       ShouldEnableAndDisableInvalidationsForSessions) {
-  SignIn();
-  CreateService(SyncServiceImpl::MANUAL_START, nullptr,
+  CreateService(SyncServiceImpl::MANUAL_START,
                 {{SESSIONS, false}, {TYPED_URLS, false}});
   InitializeForNthSync();
 
   EXPECT_CALL(*sync_invalidations_service(),
-              SetInterestedDataTypes(ContainsSessions()));
+              SetInterestedDataTypes(ContainsDataType(SESSIONS)));
   service()->SetInvalidationsForSessionsEnabled(true);
   EXPECT_CALL(*sync_invalidations_service(),
-              SetInterestedDataTypes(Not(ContainsSessions())));
+              SetInterestedDataTypes(Not(ContainsDataType(SESSIONS))));
   service()->SetInvalidationsForSessionsEnabled(false);
 }
 
-TEST_F(SyncServiceImplTestWithSyncInvalidationsServiceCreated,
+TEST_F(SyncServiceImplTest, ShouldNotSubscribeToProxyTypes) {
+  SignIn();
+  CreateService(SyncServiceImpl::MANUAL_START,
+                /*registered_types_and_transport_mode_support=*/
+                {
+                    {BOOKMARKS, false},
+                    {DEVICE_INFO, true},
+                });
+  get_controller(BOOKMARKS)
+      ->model()
+      ->EnableSkipEngineConnectionForActivationResponse();
+  EXPECT_CALL(*sync_invalidations_service(),
+              SetInterestedDataTypes(AllOf(ContainsDataType(DEVICE_INFO),
+                                           Not(ContainsDataType(BOOKMARKS)))));
+  InitializeForNthSync();
+}
+
+TEST_F(SyncServiceImplTest,
        ShouldActivateSyncInvalidationsServiceWhenSyncIsInitialized) {
   SignIn();
   CreateService(SyncServiceImpl::MANUAL_START);
-  EXPECT_CALL(*sync_invalidations_service(), SetActive(true)).Times(0);
-  EXPECT_CALL(*sync_invalidations_service(), SetActive(true));
+
+  // Invalidations may start listening twice. The first one during
+  // initialization, the second once everything is configured.
+  EXPECT_CALL(*sync_invalidations_service(), StartListening())
+      .Times(AtLeast(1));
   InitializeForFirstSync();
 }
 
-TEST_F(SyncServiceImplTestWithSyncInvalidationsServiceCreated,
-       ShouldActivateSyncInvalidationsServiceOnSignIn) {
-  CreateService(SyncServiceImpl::MANUAL_START);
-  EXPECT_CALL(*sync_invalidations_service(), SetActive(false))
-      .Times(AnyNumber());
+TEST_F(SyncServiceImplTest,
+       ShouldNotStartListeningInvalidationsWhenLocalSyncEnabled) {
+  CreateServiceWithLocalSyncBackend();
+  EXPECT_CALL(*sync_invalidations_service(), StartListening()).Times(0);
   InitializeForFirstSync();
-  EXPECT_CALL(*sync_invalidations_service(), SetActive(true));
-  SignIn();
 }
 
-// CrOS does not support signout.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-TEST_F(SyncServiceImplTestWithSyncInvalidationsServiceCreated,
-       ShouldDectivateSyncInvalidationsServiceOnSignOut) {
+TEST_F(SyncServiceImplTest,
+       ShouldNotStopListeningPermanentlyOnShutdownBrowserAndKeepData) {
   SignIn();
   CreateService(SyncServiceImpl::MANUAL_START);
-  EXPECT_CALL(*sync_invalidations_service(), SetActive(true));
   InitializeForFirstSync();
-
-  auto* account_mutator = identity_manager()->GetPrimaryAccountMutator();
-  // GetPrimaryAccountMutator() returns nullptr on ChromeOS only.
-  DCHECK(account_mutator);
-
-  // Sign out.
-  EXPECT_CALL(*sync_invalidations_service(), SetActive(false));
-  account_mutator->ClearPrimaryAccount(
-      signin_metrics::SIGNOUT_TEST,
-      signin_metrics::SignoutDelete::kIgnoreMetric);
+  EXPECT_CALL(*sync_invalidations_service(), StopListeningPermanently())
+      .Times(0);
+  ShutdownAndDeleteService();
 }
-#endif
+
+TEST_F(SyncServiceImplTest,
+       ShouldStopListeningPermanentlyOnDisableSyncAndClearData) {
+  SignIn();
+  CreateService(SyncServiceImpl::MANUAL_START);
+  InitializeForFirstSync();
+  EXPECT_CALL(*sync_invalidations_service(), StopListeningPermanently());
+  service()->StopAndClear();
+}
+
+TEST_F(SyncServiceImplTest, ShouldCallStopUponResetEngineIfAlreadyShutDown) {
+  base::test::ScopedFeatureList feature_list(
+      syncer::kSyncAllowClearingMetadataWhenDataTypeIsStopped);
+
+  // The intention here is to stop sync without clearing metadata by getting to
+  // a sync paused state by simulating a credential rejection error.
+
+  // Sign in and enable sync.
+  SignIn();
+  CreateService(SyncServiceImpl::MANUAL_START);
+  InitializeForNthSync();
+  ASSERT_EQ(SyncService::TransportState::ACTIVE,
+            service()->GetTransportState());
+
+  // At this point, the real SyncEngine would try to connect to the server, fail
+  // (because it has no access token), and eventually call
+  // OnConnectionStatusChange(CONNECTION_AUTH_ERROR). Since our fake SyncEngine
+  // doesn't do any of this, call that explicitly here.
+  service()->OnConnectionStatusChange(CONNECTION_AUTH_ERROR);
+
+  base::RunLoop().RunUntilIdle();
+
+  // Simulate the credentials getting locally rejected by the client by setting
+  // the refresh token to a special invalid value.
+  identity_test_env()->SetInvalidRefreshTokenForPrimaryAccount();
+
+  // The Sync engine should have been shut down.
+  ASSERT_FALSE(service()->IsEngineInitialized());
+  ASSERT_EQ(SyncService::TransportState::PAUSED,
+            service()->GetTransportState());
+
+  EXPECT_EQ(0, get_controller(BOOKMARKS)->model()->clear_metadata_call_count());
+  // Clearing metadata should work even if the engine is not running.
+  service()->StopAndClear();
+  EXPECT_EQ(1, get_controller(BOOKMARKS)->model()->clear_metadata_call_count());
+}
 
 }  // namespace
 }  // namespace syncer

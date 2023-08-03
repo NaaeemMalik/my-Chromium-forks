@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 #include "ash/constants/ash_pref_names.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -164,7 +164,9 @@ void PrivacyScreenController::OnDisplayModeChanged(
   display::DisplaySnapshot* privacy_screen_display = GetSupportedDisplay();
   current_status_ =
       privacy_screen_display &&
-      privacy_screen_display->privacy_screen_state() == display::kEnabled;
+      (privacy_screen_display->privacy_screen_state() == display::kEnabled ||
+       privacy_screen_display->privacy_screen_state() ==
+           display::kEnabledLocked);
 
   InitFromUserPrefs();
   applying_login_screen_prefs_ = false;

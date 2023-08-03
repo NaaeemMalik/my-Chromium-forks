@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.browserservices;
 
 import android.net.Uri;
+import android.os.Bundle;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.browser.customtabs.CustomTabsService;
@@ -12,24 +13,36 @@ import androidx.browser.customtabs.CustomTabsSessionToken;
 import androidx.browser.customtabs.PostMessageBackend;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.Log;
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
-import org.chromium.chrome.browser.browserservices.verification.OriginVerifier;
-import org.chromium.chrome.browser.browserservices.verification.OriginVerifier.OriginVerificationListener;
+import org.chromium.base.task.TaskTraits;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.components.content_relationship_verification.OriginVerifier;
+import org.chromium.components.content_relationship_verification.OriginVerifier.OriginVerificationListener;
 import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.content_public.browser.GlobalRenderFrameHostId;
 import org.chromium.content_public.browser.LifecycleState;
+import org.chromium.content_public.browser.MessagePayload;
 import org.chromium.content_public.browser.MessagePort;
 import org.chromium.content_public.browser.MessagePort.MessageCallback;
 import org.chromium.content_public.browser.NavigationHandle;
-import org.chromium.content_public.browser.UiThreadTaskTraits;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.net.GURLUtils;
+import org.chromium.url.GURL;
 
 /**
  * A class that handles postMessage communications with a designated {@link CustomTabsSessionToken}.
  */
 public class PostMessageHandler implements OriginVerificationListener {
+    private static final String TAG = "PostMessageHandler";
+
+    // TODO(crbug.com/1418044): This should get moved into androidx.browser.
+    private static final String POST_MESSAGE_ORIGIN =
+            "androidx.browser.customtabs.POST_MESSAGE_ORIGIN";
+
     private final MessageCallback mMessageCallback;
     private final PostMessageBackend mPostMessageBackend;
     private WebContents mWebContents;
@@ -46,11 +59,23 @@ public class PostMessageHandler implements OriginVerificationListener {
      */
     public PostMessageHandler(PostMessageBackend postMessageBackend) {
         mPostMessageBackend = postMessageBackend;
-        mMessageCallback = new MessageCallback() {
-            @Override
-            public void onMessage(String message, MessagePort[] sentPorts) {
-                mPostMessageBackend.onPostMessage(message, null);
+        mMessageCallback = (messagePayload, sentPorts) -> {
+            if (mChannel[0].isTransferred()) {
+                Log.e(TAG, "Discarding postMessage as channel has been transferred.");
+                return;
             }
+
+            Bundle bundle = null;
+            if (ChromeFeatureList.isEnabled(ChromeFeatureList.TRUSTED_WEB_ACTIVITY_POST_MESSAGE)) {
+                GURL url = mWebContents.getMainFrame().getLastCommittedURL();
+                if (url != null) {
+                    String origin = GURLUtils.getOrigin(url.getSpec());
+                    bundle = new Bundle();
+                    bundle.putString(POST_MESSAGE_ORIGIN, origin);
+                }
+            }
+            mPostMessageBackend.onPostMessage(messagePayload.getAsString(), bundle);
+            RecordHistogram.recordBooleanHistogram("CustomTabs.PostMessage.OnMessage", true);
         };
     }
 
@@ -74,9 +99,9 @@ public class PostMessageHandler implements OriginVerificationListener {
             private boolean mNavigatedOnce;
 
             @Override
-            public void didFinishNavigation(NavigationHandle navigation) {
-                if (mNavigatedOnce && navigation.hasCommitted() && navigation.isInPrimaryMainFrame()
-                        && !navigation.isSameDocument() && mChannel != null) {
+            public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
+                if (mNavigatedOnce && navigation.hasCommitted() && !navigation.isSameDocument()
+                        && mChannel != null) {
                     webContents.removeObserver(this);
                     disconnectChannel();
                     return;
@@ -85,14 +110,14 @@ public class PostMessageHandler implements OriginVerificationListener {
             }
 
             @Override
-            public void renderProcessGone(boolean wasOomProtected) {
+            public void renderProcessGone() {
                 disconnectChannel();
             }
 
             @Override
-            public void documentLoadedInFrame(GlobalRenderFrameHostId rfhId,
-                    boolean isInPrimaryMainFrame, @LifecycleState int rfhLifecycleState) {
-                if (!isInPrimaryMainFrame || mChannel != null) {
+            public void documentLoadedInPrimaryMainFrame(
+                    GlobalRenderFrameHostId rfhId, @LifecycleState int rfhLifecycleState) {
+                if (mChannel != null) {
                     return;
                 }
                 initializeWithWebContents(webContents);
@@ -104,8 +129,8 @@ public class PostMessageHandler implements OriginVerificationListener {
         mChannel = webContents.createMessageChannel();
         mChannel[0].setMessageCallback(mMessageCallback, null);
 
-        webContents.postMessageToMainFrame(
-                "", mPostMessageUri.toString(), "", new MessagePort[] {mChannel[1]});
+        webContents.postMessageToMainFrame(new MessagePayload(""), mPostMessageUri.toString(), "",
+                new MessagePort[] {mChannel[1]});
 
         mPostMessageBackend.onNotifyMessageChannelReady(null);
     }
@@ -142,15 +167,21 @@ public class PostMessageHandler implements OriginVerificationListener {
         if (mWebContents == null || mWebContents.isDestroyed()) {
             return CustomTabsService.RESULT_FAILURE_MESSAGING_ERROR;
         }
-        PostTask.postTask(UiThreadTaskTraits.DEFAULT, new Runnable() {
+        if (mChannel[0].isTransferred()) {
+            Log.e(TAG, "Not sending postMessage as channel has been transferred.");
+            return CustomTabsService.RESULT_FAILURE_MESSAGING_ERROR;
+        }
+        PostTask.postTask(TaskTraits.UI_DEFAULT, new Runnable() {
             @Override
             public void run() {
                 // It is still possible that the page has navigated while this task is in the queue.
                 // If that happens fail gracefully.
                 if (mChannel == null || mChannel[0].isClosed()) return;
-                mChannel[0].postMessage(message, null);
+                mChannel[0].postMessage(new MessagePayload(message), null);
             }
         });
+        RecordHistogram.recordBooleanHistogram(
+                "CustomTabs.PostMessage.PostMessageFromClientApp", true);
         return CustomTabsService.RESULT_SUCCESS;
     }
 

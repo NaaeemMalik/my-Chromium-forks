@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,7 +47,8 @@
     var message = new SDK.ConsoleMessage(
         null, Protocol.Log.LogEntrySource.Violation, level, text,
         {type: Protocol.Runtime.ConsoleAPICalledEventType.Log, url});
-    SDK.consoleModel.addMessage(message);
+    const consoleModel = SDK.targetManager.primaryPageTarget().model(SDK.ConsoleModel);
+    consoleModel.addMessage(message);
   }
 
   /**
@@ -59,6 +60,7 @@
         null, SDK.ConsoleMessage.FrontendMessageSource.ConsoleAPI,
         Protocol.Log.LogEntryLevel.Info, text,
         {type: Protocol.Runtime.ConsoleAPICalledEventType.Log, url});
-    SDK.consoleModel.addMessage(message);
+    const consoleModel = SDK.targetManager.primaryPageTarget().model(SDK.ConsoleModel);
+    consoleModel.addMessage(message);
   }
 })();

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,17 +12,19 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/memory_mapped_file.h"
+#include "base/functional/callback.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/lock.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/thread_annotations.h"
 #include "base/threading/sequence_local_storage_slot.h"
 #include "content/common/content_export.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "third_party/blink/public/mojom/dwrite_font_proxy/dwrite_font_proxy.mojom.h"
-#include "third_party/blink/public/platform/web_font_prewarmer.h"
+#include "third_party/blink/public/platform/web_font_rendering_client.h"
 
 namespace content {
 
@@ -41,7 +43,7 @@ class DWriteFontCollectionProxy
           IDWriteFontCollection,
           IDWriteFontCollectionLoader,
           IDWriteFontFileLoader>,
-      public blink::WebFontPrewarmer {
+      public blink::WebFontRenderingClient {
  public:
   // Factory method to avoid exporting the class and all it derives from.
   //
@@ -109,7 +111,10 @@ class DWriteFontCollectionProxy
 
   bool LoadFamilyNames(UINT32 family_index, IDWriteLocalizedStrings** strings);
 
-  // blink::WebFontPrewarmer:
+  // `blink::WebFontRenderingClient` overrides
+  void BindFontProxyUsingBroker(
+      blink::ThreadSafeBrowserInterfaceBrokerProxy* interface_broker) override;
+
   void PrewarmFamily(const blink::WebString& family_name) override;
 
   blink::mojom::DWriteFontProxy& GetFontProxy();
@@ -128,17 +133,22 @@ class DWriteFontCollectionProxy
       EXCLUSIVE_LOCKS_REQUIRED(families_lock_);
   DWriteFontFamilyProxy* GetOrCreateFamilyLockRequired(UINT32 family_index)
       EXCLUSIVE_LOCKS_REQUIRED(families_lock_);
-  absl::optional<UINT32> FindFamilyIndexLockRequired(
-      const std::u16string& family_name,
-      HRESULT* hresult_out = nullptr) EXCLUSIVE_LOCKS_REQUIRED(families_lock_);
+  absl::optional<UINT32> FindFamilyIndex(const std::u16string& family_name,
+                                         HRESULT* hresult_out = nullptr)
+      LOCKS_EXCLUDED(families_lock_);
 
   HRESULT FindFamilyName(const std::u16string& family_name,
                          UINT32* index,
-                         BOOL* exists) LOCKS_EXCLUDED(families_lock_);
-  DWriteFontFamilyProxy* FindFamily(const std::u16string& family_name)
-      LOCKS_EXCLUDED(families_lock_);
+                         BOOL* exists);
+  DWriteFontFamilyProxy* FindFamily(const std::u16string& family_name);
 
   void PrewarmFamilyOnWorker(const std::u16string family_name);
+
+  // Special values for |family_names_|.
+  enum FamilyIndex : UINT32 { kFamilyNotFound = UINT32_MAX };
+  static bool IsValidFamilyIndex(UINT32 index) {
+    return index != kFamilyNotFound;
+  }
 
   base::Lock families_lock_;
 

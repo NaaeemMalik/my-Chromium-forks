@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,8 +36,8 @@ class MediaEngagementSession : public base::RefCounted<MediaEngagementSession> {
   MediaEngagementSession(const MediaEngagementSession&) = delete;
   MediaEngagementSession& operator=(const MediaEngagementSession&) = delete;
 
-  // Returns whether the session's origin is same origin with |origin|.
-  bool IsSameOriginWith(const url::Origin& origin) const;
+  // Returns whether the session's origin is same origin with |url|.
+  bool IsSameOriginWith(const GURL& url) const;
 
   // Record that the session received a significant playback from a media
   // element.

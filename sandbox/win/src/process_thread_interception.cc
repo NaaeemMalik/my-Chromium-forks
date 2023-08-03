@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 
-#include "base/win/windows_version.h"
 #include "sandbox/win/src/crosscall_client.h"
 #include "sandbox/win/src/ipc_tags.h"
 #include "sandbox/win/src/policy_params.h"
@@ -17,8 +16,6 @@
 #include "sandbox/win/src/target_services.h"
 
 namespace sandbox {
-
-SANDBOX_INTERCEPT NtExports g_nt;
 
 // Hooks NtOpenThread and proxy the call to the broker if it's trying to
 // open a thread in the same process.

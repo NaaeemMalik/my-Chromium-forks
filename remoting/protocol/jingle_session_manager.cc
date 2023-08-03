@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@
 
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "remoting/protocol/authenticator.h"
 #include "remoting/protocol/content_description.h"
 #include "remoting/protocol/jingle_messages.h"
@@ -14,14 +14,13 @@
 #include "remoting/protocol/transport.h"
 #include "remoting/signaling/iq_sender.h"
 #include "remoting/signaling/signal_strategy.h"
+#include "remoting/signaling/xmpp_constants.h"
 #include "third_party/libjingle_xmpp/xmllite/xmlelement.h"
-#include "third_party/libjingle_xmpp/xmpp/constants.h"
 #include "third_party/webrtc/rtc_base/socket_address.h"
 
 using jingle_xmpp::QName;
 
-namespace remoting {
-namespace protocol {
+namespace remoting::protocol {
 
 JingleSessionManager::JingleSessionManager(SignalStrategy* signal_strategy)
     : signal_strategy_(signal_strategy),
@@ -65,10 +64,12 @@ void JingleSessionManager::OnSignalStrategyStateChange(
 
 bool JingleSessionManager::OnSignalStrategyIncomingStanza(
     const jingle_xmpp::XmlElement* stanza) {
-  if (!JingleMessage::IsJingleMessage(stanza))
+  if (!JingleMessage::IsJingleMessage(stanza)) {
     return false;
+  }
 
-  std::unique_ptr<jingle_xmpp::XmlElement> stanza_copy(new jingle_xmpp::XmlElement(*stanza));
+  std::unique_ptr<jingle_xmpp::XmlElement> stanza_copy(
+      new jingle_xmpp::XmlElement(*stanza));
   std::unique_ptr<JingleMessage> message(new JingleMessage());
   std::string error_msg;
   if (!message->ParseXml(stanza, &error_msg)) {
@@ -87,7 +88,7 @@ bool JingleSessionManager::OnSignalStrategyIncomingStanza(
             signal_strategy_->GetLocalAddress().id(), message->from.id());
 
     JingleSession* session = new JingleSession(this);
-    session->InitializeIncomingConnection(stanza->Attr(jingle_xmpp::QN_ID), *message,
+    session->InitializeIncomingConnection(stanza->Attr(kQNameId), *message,
                                           std::move(authenticator));
     sessions_[session->session_id_] = session;
 
@@ -99,8 +100,9 @@ bool JingleSessionManager::OnSignalStrategyIncomingStanza(
     }
 
     IncomingSessionResponse response = SessionManager::DECLINE;
-    if (!incoming_session_callback_.is_null())
+    if (!incoming_session_callback_.is_null()) {
       incoming_session_callback_.Run(session, &response);
+    }
 
     if (response == SessionManager::ACCEPT) {
       session->AcceptIncomingConnection(*message);
@@ -135,7 +137,7 @@ bool JingleSessionManager::OnSignalStrategyIncomingStanza(
   }
 
   it->second->OnIncomingMessage(
-      stanza->Attr(jingle_xmpp::QN_ID), std::move(message),
+      stanza->Attr(kQNameId), std::move(message),
       base::BindOnce(&JingleSessionManager::SendReply, base::Unretained(this),
                      std::move(stanza_copy)));
   return true;
@@ -152,5 +154,4 @@ void JingleSessionManager::SessionDestroyed(JingleSession* session) {
   sessions_.erase(session->session_id_);
 }
 
-}  // namespace protocol
-}  // namespace remoting
+}  // namespace remoting::protocol

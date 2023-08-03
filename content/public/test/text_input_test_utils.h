@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "content/public/test/test_utils.h"
@@ -21,7 +21,7 @@
 #include "ui/events/event_constants.h"
 #endif
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "content/public/test/fake_local_frame.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #endif
@@ -314,7 +314,7 @@ class TestInputMethodObserver {
   TestInputMethodObserver();
 };
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 // Helper class to test LocalFrame::GetStringForRange.
 class TextInputTestLocalFrame : public FakeLocalFrame {
  public:

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,7 +35,7 @@ var tests = [
           break;
         }
       }
-      chrome.test.assertTrue(info != null);
+      chrome.test.assertNe(null, info);
       var extId = info.id;
       chrome.test.assertFalse(info.incognitoAccess.isActive);
       chrome.test.assertFalse(info.fileAccess.isActive);

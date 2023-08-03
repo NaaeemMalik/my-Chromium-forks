@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 
-#include "base/memory/ref_counted.h"
 #include "base/threading/thread_checker.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -17,15 +16,13 @@
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/p2p_socket_type.h"
 #include "services/network/public/mojom/p2p.mojom-blink.h"
-#include "third_party/blink/renderer/platform/heap/persistent.h"
+#include "third_party/blink/renderer/platform/heap/cross_thread_persistent.h"
 #include "third_party/blink/renderer/platform/p2p/socket_client.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
-namespace base {
-class TimeTicks;
-}  // namespace base
-
 namespace blink {
+
+using network::mojom::blink::P2PReceivedPacketPtr;
 
 class P2PSocketDispatcher;
 
@@ -55,7 +52,7 @@ class P2PSocketClientImpl : public blink::P2PSocketClient,
   // Send the |data| to the |address| using Differentiated Services Code Point
   // |dscp|. Return value is the unique packet_id for this packet.
   uint64_t Send(const net::IPEndPoint& address,
-                const Vector<int8_t>& data,
+                base::span<const uint8_t> data,
                 const rtc::PacketOptions& options) override;
 
   // Setting socket options.
@@ -83,7 +80,7 @@ class P2PSocketClientImpl : public blink::P2PSocketClient,
   // Helper function to be called by Send to handle different threading
   // condition.
   void SendWithPacketId(const net::IPEndPoint& address,
-                        const Vector<int8_t>& data,
+                        base::span<const uint8_t> data,
                         const rtc::PacketOptions& options,
                         uint64_t packet_id);
 
@@ -91,9 +88,7 @@ class P2PSocketClientImpl : public blink::P2PSocketClient,
   void SocketCreated(const net::IPEndPoint& local_address,
                      const net::IPEndPoint& remote_address) override;
   void SendComplete(const network::P2PSendPacketMetrics& send_metrics) override;
-  void DataReceived(const net::IPEndPoint& socket_address,
-                    const Vector<int8_t>& data,
-                    base::TimeTicks timestamp) override;
+  void DataReceived(WTF::Vector<P2PReceivedPacketPtr> packets) override;
 
   void OnConnectionError();
 

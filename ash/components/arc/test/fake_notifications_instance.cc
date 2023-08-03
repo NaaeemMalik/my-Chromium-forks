@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/components/arc/test/fake_notifications_instance.h"
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 
 namespace arc {
 
@@ -36,11 +36,6 @@ void FakeNotificationsInstance::SetDoNotDisturbStatusOnAndroid(
 }
 
 void FakeNotificationsInstance::CancelPress(const std::string& key) {}
-
-void FakeNotificationsInstance::InitDeprecated(
-    mojo::PendingRemote<mojom::NotificationsHost> host_remote) {
-  Init(std::move(host_remote), base::DoNothing());
-}
 
 void FakeNotificationsInstance::Init(
     mojo::PendingRemote<mojom::NotificationsHost> host_remote,

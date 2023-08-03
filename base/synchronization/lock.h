@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,14 +6,13 @@
 #define BASE_SYNCHRONIZATION_LOCK_H_
 
 #include "base/base_export.h"
-#include "base/check_op.h"
 #include "base/dcheck_is_on.h"
 #include "base/synchronization/lock_impl.h"
 #include "base/thread_annotations.h"
 #include "build/build_config.h"
 
 #if DCHECK_IS_ON()
-#include "base/threading/platform_thread.h"
+#include "base/threading/platform_thread_ref.h"
 #endif
 
 namespace base {
@@ -43,6 +42,7 @@ class LOCKABLE BASE_EXPORT Lock {
 
   // Null implementation if not debug.
   void AssertAcquired() const ASSERT_EXCLUSIVE_LOCK() {}
+  void AssertNotHeld() const {}
 #else
   Lock();
   ~Lock();
@@ -68,17 +68,18 @@ class LOCKABLE BASE_EXPORT Lock {
   }
 
   void AssertAcquired() const ASSERT_EXCLUSIVE_LOCK();
+  void AssertNotHeld() const;
 #endif  // DCHECK_IS_ON()
 
   // Whether Lock mitigates priority inversion when used from different thread
   // priorities.
   static bool HandlesMultipleThreadPriorities() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     // Windows mitigates priority inversion by randomly boosting the priority of
     // ready threads.
     // https://msdn.microsoft.com/library/windows/desktop/ms684831.aspx
     return true;
-#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
+#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
     // POSIX mitigates priority inversion by setting the priority of a thread
     // holding a Lock to the maximum priority of any other thread waiting on it.
     return internal::LockImpl::PriorityInheritanceAvailable();

@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,8 @@ namespace ui {
 class COMPONENT_EXPORT(UI_BASE_IME_WIN) InputMethodWinImm32
     : public InputMethodWinBase {
  public:
-  InputMethodWinImm32(internal::InputMethodDelegate* delegate,
-                      HWND toplevel_window_handle);
+  InputMethodWinImm32(ImeKeyEventDispatcher* ime_key_event_dispatcher,
+                      HWND attached_window_handle);
 
   InputMethodWinImm32(const InputMethodWinImm32&) = delete;
   InputMethodWinImm32& operator=(const InputMethodWinImm32&) = delete;
@@ -31,7 +31,7 @@ class COMPONENT_EXPORT(UI_BASE_IME_WIN) InputMethodWinImm32
   // Overridden from InputMethod:
   bool OnUntranslatedIMEMessage(const CHROME_MSG event,
                                 NativeEventResult* result) override;
-  void OnTextInputTypeChanged(const TextInputClient* client) override;
+  void OnTextInputTypeChanged(TextInputClient* client) override;
   void OnCaretBoundsChanged(const TextInputClient* client) override;
   void CancelComposition(const TextInputClient* client) override;
   void OnInputLocaleChanged() override;

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,8 +44,8 @@ struct CC_EXPORT RasterQuery {
 
 class CC_EXPORT RasterQueryQueue {
  public:
-  RasterQueryQueue(viz::RasterContextProvider* const worker_context_provider,
-                   bool oop_rasterization_enabled);
+  explicit RasterQueryQueue(
+      viz::RasterContextProvider* const worker_context_provider);
   virtual ~RasterQueryQueue();
 
   // These functions should never be called with the raster context lock
@@ -56,7 +56,6 @@ class CC_EXPORT RasterQueryQueue {
 
  private:
   const raw_ptr<viz::RasterContextProvider> worker_context_provider_;
-  const bool oop_rasterization_enabled_;
 
   // Note that this lock should never be acquired while holding the raster
   // context lock.

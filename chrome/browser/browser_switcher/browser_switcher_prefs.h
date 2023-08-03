@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,11 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/callback_list.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
@@ -38,13 +39,13 @@ class NoCopyUrl {
   explicit NoCopyUrl(const GURL& original);
   NoCopyUrl(const NoCopyUrl&) = delete;
 
-  const GURL& original() const { return original_; }
+  const GURL& original() const { return *original_; }
   base::StringPiece host_and_port() const { return host_and_port_; }
-  base::StringPiece spec() const { return original_.spec(); }
+  base::StringPiece spec() const { return original_->spec(); }
   base::StringPiece spec_without_port() const { return spec_without_port_; }
 
  private:
-  const GURL& original_;
+  const raw_ref<const GURL> original_;
   // If there is a port number, then this is "<host>:<port>". Otherwise, this is
   // just the host.
   std::string host_and_port_;
@@ -52,7 +53,23 @@ class NoCopyUrl {
   std::string spec_without_port_;
 };
 
-// A single "rule" from a sitelist or greylist.
+// A named pair type, for rules that haven't been pre-processed and
+// canonicalized (e.g., just loaded from prefs or policies).
+struct RawRuleSet {
+  RawRuleSet();
+  RawRuleSet(std::vector<std::string>&& sitelist,
+             std::vector<std::string>&& greylist);
+  RawRuleSet(RawRuleSet&&);
+  ~RawRuleSet();
+
+  RawRuleSet& operator=(RawRuleSet&&);
+
+  std::vector<std::string> sitelist;
+  std::vector<std::string> greylist;
+};
+
+// A single "rule" from a sitelist or greylist, after pre-processing and
+// canonicalization.
 class Rule {
  public:
   explicit Rule(base::StringPiece original_rule);
@@ -85,7 +102,7 @@ class Rule {
   bool inverted_;
 };
 
-// A named pair type.
+// A named pair type, for pre-processed and canonicalized rules.
 struct RuleSet {
   RuleSet();
   RuleSet(RuleSet&&);
@@ -155,18 +172,18 @@ class BrowserSwitcherPrefs : public KeyedService,
 
   // Retrieves or stores the locally cached external sitelist from the
   // PrefStore.
-  std::vector<std::string> GetCachedExternalSitelist() const;
-  void SetCachedExternalSitelist(const std::vector<std::string>& sitelist);
+  RawRuleSet GetCachedExternalSitelist() const;
+  void SetCachedExternalSitelist(const RawRuleSet& sitelist);
 
   // Retrieves or stores the locally cached external greylist from the
   // PrefStore.
-  std::vector<std::string> GetCachedExternalGreylist() const;
-  void SetCachedExternalGreylist(const std::vector<std::string>& greylist);
+  RawRuleSet GetCachedExternalGreylist() const;
+  void SetCachedExternalGreylist(const RawRuleSet& greylist);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Retrieves or stores the locally cached IEEM sitelist from the PrefStore.
-  std::vector<std::string> GetCachedIeemSitelist() const;
-  void SetCachedIeemSitelist(const std::vector<std::string>& sitelist);
+  RawRuleSet GetCachedIeemSitelist() const;
+  void SetCachedIeemSitelist(const RawRuleSet& sitelist);
 #endif
 
   // Returns the URL to download for an external XML sitelist. If the pref is
@@ -177,7 +194,7 @@ class BrowserSwitcherPrefs : public KeyedService,
   // not managed, returns an invalid URL.
   GURL GetExternalGreylistUrl() const;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Returns true if Chrome should download and apply the XML sitelist from
   // IEEM's SiteList policy. If the pref is not managed, returns false.
   bool UseIeSitelist() const;
@@ -214,7 +231,7 @@ class BrowserSwitcherPrefs : public KeyedService,
   void ParsingModeChanged();
   void UrlListChanged();
   void GreylistChanged();
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   void ChromePathChanged();
   void ChromeParametersChanged();
 #endif
@@ -226,7 +243,7 @@ class BrowserSwitcherPrefs : public KeyedService,
   // pref on the same registrar.
 
   // Listens on *some* prefs, to apply a filter to them
-  // (e.g. convert ListValue => vector<string>).
+  // (e.g. convert Value::List => vector<string>).
   PrefChangeRegistrar filtering_change_registrar_;
 
   // Listens on *all* BrowserSwitcher prefs, to notify observers when prefs
@@ -238,11 +255,15 @@ class BrowserSwitcherPrefs : public KeyedService,
   std::string alt_browser_path_;
   std::vector<std::string> alt_browser_params_;
   ParsingMode parsing_mode_ = ParsingMode::kDefault;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   base::FilePath chrome_path_;
   std::vector<std::string> chrome_params_;
 #endif
 
+  // Rules from the BrowserSwitcherUrlList and BrowserSwitcherGreylist policies.
+  //
+  // Other rules are parsed from XML, and stored in BrowserSwitcherSitelist
+  // instead of here.
   RuleSet rules_;
 
   // List of prefs (pref names) that changed since the last policy refresh.
@@ -265,12 +286,14 @@ extern const char kUrlList[];
 extern const char kUrlGreylist[];
 extern const char kExternalSitelistUrl[];
 extern const char kCachedExternalSitelist[];
+extern const char kCachedExternalSitelistGreylist[];
 extern const char kExternalGreylistUrl[];
 extern const char kCachedExternalGreylist[];
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 extern const char kUseIeSitelist[];
 extern const char kCachedIeSitelist[];
+extern const char kCachedIeSitelistGreylist[];
 extern const char kChromePath[];
 extern const char kChromeParameters[];
 #endif

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,6 +64,8 @@ using CRUUpdatePolicyDictionary =
 - (nullable NSString*)targetChannel:(nonnull NSString*)appid;
 - (nullable NSString*)targetVersionPrefix:(nonnull NSString*)appid;
 - (int)rollbackToTargetVersion:(nonnull NSString*)appid;
+
+- (nullable NSArray<NSString*>*)appsWithPolicy;
 
 // |policies| should be the dictionary value read from managed preferences
 // under the key "updatePolicies".

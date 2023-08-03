@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,18 +27,18 @@ class MapCoordinatesTest : public RenderingTest {
                                     const LayoutBoxModelObject* ancestor,
                                     PhysicalOffset,
                                     MapCoordinatesFlags = 0) const;
-  FloatQuad MapLocalToAncestor(const LayoutObject*,
-                               const LayoutBoxModelObject* ancestor,
-                               FloatQuad,
-                               MapCoordinatesFlags = 0) const;
+  gfx::QuadF MapLocalToAncestor(const LayoutObject*,
+                                const LayoutBoxModelObject* ancestor,
+                                gfx::QuadF,
+                                MapCoordinatesFlags = 0) const;
   PhysicalOffset MapAncestorToLocal(const LayoutObject*,
                                     const LayoutBoxModelObject* ancestor,
                                     PhysicalOffset,
                                     MapCoordinatesFlags = 0) const;
-  FloatQuad MapAncestorToLocal(const LayoutObject*,
-                               const LayoutBoxModelObject* ancestor,
-                               FloatQuad,
-                               MapCoordinatesFlags = 0) const;
+  gfx::QuadF MapAncestorToLocal(const LayoutObject*,
+                                const LayoutBoxModelObject* ancestor,
+                                gfx::QuadF,
+                                MapCoordinatesFlags = 0) const;
 
   // Adjust point by the scroll offset of the LayoutView.  This only has an
   // effect if root layer scrolling is enabled.  The only reason for doing
@@ -75,10 +75,10 @@ PhysicalOffset MapCoordinatesTest::MapLocalToAncestor(
   return object->LocalToAncestorPoint(point, ancestor, mode);
 }
 
-FloatQuad MapCoordinatesTest::MapLocalToAncestor(
+gfx::QuadF MapCoordinatesTest::MapLocalToAncestor(
     const LayoutObject* object,
     const LayoutBoxModelObject* ancestor,
-    FloatQuad quad,
+    gfx::QuadF quad,
     MapCoordinatesFlags mode) const {
   return object->LocalToAncestorQuad(quad, ancestor, mode);
 }
@@ -91,10 +91,10 @@ PhysicalOffset MapCoordinatesTest::MapAncestorToLocal(
   return object->AncestorToLocalPoint(ancestor, point, mode);
 }
 
-FloatQuad MapCoordinatesTest::MapAncestorToLocal(
+gfx::QuadF MapCoordinatesTest::MapAncestorToLocal(
     const LayoutObject* object,
     const LayoutBoxModelObject* ancestor,
-    FloatQuad quad,
+    gfx::QuadF quad,
     MapCoordinatesFlags mode) const {
   return object->AncestorToLocalQuad(ancestor, quad, mode);
 }
@@ -179,10 +179,7 @@ TEST_F(MapCoordinatesTest, TextInRelPosInline) {
   ASSERT_TRUE(text->IsText());
   PhysicalOffset mapped_point =
       MapLocalToAncestor(text, text->ContainingBlock(), PhysicalOffset(10, 30));
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(10, 30), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(17, 34), mapped_point);
+  EXPECT_EQ(PhysicalOffset(10, 30), mapped_point);
   mapped_point =
       MapAncestorToLocal(text, text->ContainingBlock(), mapped_point);
   EXPECT_EQ(PhysicalOffset(10, 30), mapped_point);
@@ -197,10 +194,7 @@ TEST_F(MapCoordinatesTest, RelposInline) {
   PhysicalOffset mapped_point =
       MapLocalToAncestor(target, To<LayoutBoxModelObject>(target->Parent()),
                          PhysicalOffset(10, 10));
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(10, 10), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(60, 110), mapped_point);
+  EXPECT_EQ(PhysicalOffset(10, 10), mapped_point);
   mapped_point = MapAncestorToLocal(
       target, To<LayoutBoxModelObject>(target->Parent()), mapped_point);
   EXPECT_EQ(PhysicalOffset(10, 10), mapped_point);
@@ -222,37 +216,22 @@ TEST_F(MapCoordinatesTest, RelposInlineInRelposInline) {
 
   PhysicalOffset mapped_point =
       MapLocalToAncestor(target, containing_block, PhysicalOffset(20, 10));
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(75, 116), mapped_point);
+  EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
   mapped_point = MapAncestorToLocal(target, containing_block, mapped_point);
   EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
 
   // Walk each ancestor in the chain separately, to verify each step on the way.
   mapped_point = MapLocalToAncestor(target, parent, PhysicalOffset(20, 10));
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(70, 110), mapped_point);
+  EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
 
   mapped_point = MapLocalToAncestor(parent, containing_block, mapped_point);
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(75, 116), mapped_point);
+  EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
 
   mapped_point = MapAncestorToLocal(parent, containing_block, mapped_point);
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(70, 110), mapped_point);
+  EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
 
   mapped_point = MapAncestorToLocal(target, parent, mapped_point);
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
+  EXPECT_EQ(PhysicalOffset(20, 10), mapped_point);
 }
 
 TEST_F(MapCoordinatesTest, RelPosBlock) {
@@ -1356,13 +1335,7 @@ TEST_F(MapCoordinatesTest, Table) {
   LayoutBox* tr = td->ParentBox();
   ASSERT_TRUE(tr->IsTableRow());
   mapped_point = MapLocalToAncestor(td, tr, PhysicalOffset(2, 47));
-  // TablesNG and Legacy row inline starts differ:
-  // TablesNG inline start does not include border-spacing,
-  // Legacy does.
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(116, 47), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(126, 47), mapped_point);
+  EXPECT_EQ(PhysicalOffset(116, 47), mapped_point);
   mapped_point = MapAncestorToLocal(td, tr, mapped_point);
   EXPECT_EQ(PhysicalOffset(2, 47), mapped_point);
 
@@ -1376,11 +1349,7 @@ TEST_F(MapCoordinatesTest, Table) {
   LayoutBox* table = tbody->ParentBox();
   ASSERT_TRUE(table->IsTable());
   mapped_point = MapLocalToAncestor(tbody, table, PhysicalOffset(126, 161));
-  // TablesNG and Legacy row inline starts differ.
-  if (RuntimeEnabledFeatures::LayoutNGEnabled())
-    EXPECT_EQ(PhysicalOffset(141, 290), mapped_point);
-  else
-    EXPECT_EQ(PhysicalOffset(131, 290), mapped_point);
+  EXPECT_EQ(PhysicalOffset(141, 290), mapped_point);
   mapped_point = MapAncestorToLocal(tbody, table, mapped_point);
   EXPECT_EQ(PhysicalOffset(126, 161), mapped_point);
 
@@ -1394,8 +1363,8 @@ static bool FloatValuesAlmostEqual(float expected, float actual) {
   return fabs(expected - actual) < 0.01;
 }
 
-static bool FloatQuadsAlmostEqual(const FloatQuad& expected,
-                                  const FloatQuad& actual) {
+static bool QuadsAlmostEqual(const gfx::QuadF& expected,
+                             const gfx::QuadF& actual) {
   return FloatValuesAlmostEqual(expected.p1().x(), actual.p1().x()) &&
          FloatValuesAlmostEqual(expected.p1().y(), actual.p1().y()) &&
          FloatValuesAlmostEqual(expected.p2().x(), actual.p2().x()) &&
@@ -1407,11 +1376,11 @@ static bool FloatQuadsAlmostEqual(const FloatQuad& expected,
 }
 
 // If comparison fails, pretty-print the error using EXPECT_EQ()
-#define EXPECT_FLOAT_QUAD_EQ(expected, actual)      \
-  do {                                              \
-    if (!FloatQuadsAlmostEqual(expected, actual)) { \
-      EXPECT_EQ(expected, actual);                  \
-    }                                               \
+#define EXPECT_QUADF_EQ(expected, actual)      \
+  do {                                         \
+    if (!QuadsAlmostEqual(expected, actual)) { \
+      EXPECT_EQ(expected, actual);             \
+    }                                          \
   } while (false)
 
 TEST_F(MapCoordinatesTest, Transforms) {
@@ -1430,48 +1399,48 @@ TEST_F(MapCoordinatesTest, Transforms) {
   auto* target = GetLayoutBoxByElementId("target");
   auto* container = GetLayoutBoxByElementId("container");
 
-  FloatQuad initial_quad(gfx::PointF(0, 0), gfx::PointF(200, 0),
-                         gfx::PointF(200, 200), gfx::PointF(0, 200));
-  FloatQuad mapped_quad = MapLocalToAncestor(target, container, initial_quad);
-  EXPECT_FLOAT_QUAD_EQ(FloatQuad(gfx::PointF(200, 0), gfx::PointF(200, 200),
-                                 gfx::PointF(0, 200), gfx::PointF(0, 0)),
-                       mapped_quad);
+  gfx::QuadF initial_quad(gfx::PointF(0, 0), gfx::PointF(200, 0),
+                          gfx::PointF(200, 200), gfx::PointF(0, 200));
+  gfx::QuadF mapped_quad = MapLocalToAncestor(target, container, initial_quad);
+  EXPECT_QUADF_EQ(gfx::QuadF(gfx::PointF(200, 0), gfx::PointF(200, 200),
+                             gfx::PointF(0, 200), gfx::PointF(0, 0)),
+                  mapped_quad);
   mapped_quad = MapAncestorToLocal(target, container, mapped_quad);
-  EXPECT_FLOAT_QUAD_EQ(initial_quad, mapped_quad);
+  EXPECT_QUADF_EQ(initial_quad, mapped_quad);
 
   // Walk each ancestor in the chain separately, to verify each step on the way.
   auto* inner_transform = GetLayoutBoxByElementId("innerTransform");
   auto* outer_transform = GetLayoutBoxByElementId("outerTransform");
 
   mapped_quad = MapLocalToAncestor(target, inner_transform, initial_quad);
-  EXPECT_FLOAT_QUAD_EQ(FloatQuad(gfx::PointF(0, 0), gfx::PointF(200, 0),
-                                 gfx::PointF(200, 200), gfx::PointF(0, 200)),
-                       mapped_quad);
+  EXPECT_QUADF_EQ(gfx::QuadF(gfx::PointF(0, 0), gfx::PointF(200, 0),
+                             gfx::PointF(200, 200), gfx::PointF(0, 200)),
+                  mapped_quad);
   mapped_quad = MapAncestorToLocal(target, inner_transform, mapped_quad);
-  EXPECT_FLOAT_QUAD_EQ(initial_quad, mapped_quad);
+  EXPECT_QUADF_EQ(initial_quad, mapped_quad);
 
-  initial_quad = FloatQuad(gfx::PointF(0, 0), gfx::PointF(200, 0),
-                           gfx::PointF(200, 200), gfx::PointF(0, 200));
+  initial_quad = gfx::QuadF(gfx::PointF(0, 0), gfx::PointF(200, 0),
+                            gfx::PointF(200, 200), gfx::PointF(0, 200));
   mapped_quad =
       MapLocalToAncestor(inner_transform, outer_transform, initial_quad);
   // Clockwise rotation by 45 degrees.
-  EXPECT_FLOAT_QUAD_EQ(
-      FloatQuad(gfx::PointF(100, -41.42), gfx::PointF(241.42, 100),
-                gfx::PointF(100, 241.42), gfx::PointF(-41.42, 100)),
+  EXPECT_QUADF_EQ(
+      gfx::QuadF(gfx::PointF(100, -41.42), gfx::PointF(241.42, 100),
+                 gfx::PointF(100, 241.42), gfx::PointF(-41.42, 100)),
       mapped_quad);
   mapped_quad =
       MapAncestorToLocal(inner_transform, outer_transform, mapped_quad);
-  EXPECT_FLOAT_QUAD_EQ(initial_quad, mapped_quad);
+  EXPECT_QUADF_EQ(initial_quad, mapped_quad);
 
-  initial_quad = FloatQuad(gfx::PointF(100, -41.42), gfx::PointF(241.42, 100),
-                           gfx::PointF(100, 241.42), gfx::PointF(-41.42, 100));
+  initial_quad = gfx::QuadF(gfx::PointF(100, -41.42), gfx::PointF(241.42, 100),
+                            gfx::PointF(100, 241.42), gfx::PointF(-41.42, 100));
   mapped_quad = MapLocalToAncestor(outer_transform, container, initial_quad);
   // Another clockwise rotation by 45 degrees. So now 90 degrees in total.
-  EXPECT_FLOAT_QUAD_EQ(FloatQuad(gfx::PointF(200, 0), gfx::PointF(200, 200),
-                                 gfx::PointF(0, 200), gfx::PointF(0, 0)),
-                       mapped_quad);
+  EXPECT_QUADF_EQ(gfx::QuadF(gfx::PointF(200, 0), gfx::PointF(200, 200),
+                             gfx::PointF(0, 200), gfx::PointF(0, 0)),
+                  mapped_quad);
   mapped_quad = MapAncestorToLocal(outer_transform, container, mapped_quad);
-  EXPECT_FLOAT_QUAD_EQ(initial_quad, mapped_quad);
+  EXPECT_QUADF_EQ(initial_quad, mapped_quad);
 }
 
 TEST_F(MapCoordinatesTest, SVGShape) {
@@ -1639,13 +1608,13 @@ TEST_F(MapCoordinatesTest, LocalToAbsoluteTransform) {
   )HTML");
   auto* container =
       To<LayoutBoxModelObject>(GetLayoutObjectByElementId("container"));
-  TransformationMatrix container_matrix = container->LocalToAbsoluteTransform();
+  gfx::Transform container_matrix = container->LocalToAbsoluteTransform();
   EXPECT_TRUE(container_matrix.IsIdentity());
 
   LayoutObject* child = GetLayoutObjectByElementId("child");
-  TransformationMatrix child_matrix = child->LocalToAbsoluteTransform();
+  gfx::Transform child_matrix = child->LocalToAbsoluteTransform();
   EXPECT_FALSE(child_matrix.IsIdentityOrTranslation());
-  EXPECT_TRUE(child_matrix.IsAffine());
+  EXPECT_TRUE(child_matrix.Is2dTransform());
   EXPECT_EQ(gfx::PointF(), child_matrix.ProjectPoint(gfx::PointF()));
   EXPECT_EQ(gfx::PointF(20.0f, 40.0f),
             child_matrix.ProjectPoint(gfx::PointF(10.0f, 20.0f)));
@@ -1670,7 +1639,7 @@ TEST_F(MapCoordinatesTest, LocalToAncestorTransform) {
   auto* rotate2 =
       To<LayoutBoxModelObject>(GetLayoutObjectByElementId("rotate2"));
   LayoutObject* child = GetLayoutObjectByElementId("child");
-  TransformationMatrix matrix;
+  gfx::Transform matrix;
 
   matrix = child->LocalToAncestorTransform(rotate2);
   EXPECT_TRUE(matrix.IsIdentity());
@@ -1678,7 +1647,7 @@ TEST_F(MapCoordinatesTest, LocalToAncestorTransform) {
   // Rotate (100, 0) 90 degrees to (0, 100)
   matrix = child->LocalToAncestorTransform(rotate1);
   EXPECT_FALSE(matrix.IsIdentity());
-  EXPECT_TRUE(matrix.IsAffine());
+  EXPECT_TRUE(matrix.Is2dTransform());
   EXPECT_NEAR(0.0, matrix.ProjectPoint(gfx::PointF(100.0, 0.0)).x(),
               LayoutUnit::Epsilon());
   EXPECT_NEAR(100.0, matrix.ProjectPoint(gfx::PointF(100.0, 0.0)).y(),
@@ -1687,7 +1656,7 @@ TEST_F(MapCoordinatesTest, LocalToAncestorTransform) {
   // Rotate (100, 0) 135 degrees to (-70.7, 70.7)
   matrix = child->LocalToAncestorTransform(container);
   EXPECT_FALSE(matrix.IsIdentity());
-  EXPECT_TRUE(matrix.IsAffine());
+  EXPECT_TRUE(matrix.Is2dTransform());
   EXPECT_NEAR(-100.0 * sqrt(2.0) / 2.0,
               matrix.ProjectPoint(gfx::PointF(100.0, 0.0)).x(),
               LayoutUnit::Epsilon());
@@ -1713,7 +1682,7 @@ TEST_F(MapCoordinatesTest, LocalToAbsoluteTransformFlattens) {
   )HTML");
   LayoutObject* child1 = GetLayoutObjectByElementId("child1");
   LayoutObject* child2 = GetLayoutObjectByElementId("child2");
-  TransformationMatrix matrix;
+  gfx::Transform matrix;
 
   matrix = child1->LocalToAbsoluteTransform();
 
@@ -1759,8 +1728,9 @@ TEST_F(MapCoordinatesTest, Transform3DWithOffset) {
   )HTML");
 
   auto* target = GetLayoutObjectByElementId("target");
-  EXPECT_EQ(FloatRect(0, 100, 100, 100),
-            MapLocalToAncestor(target, nullptr, FloatRect(0, 0, 100, 100)));
+  EXPECT_EQ(gfx::QuadF(gfx::RectF(0, 100, 100, 100)),
+            MapLocalToAncestor(target, nullptr,
+                               gfx::QuadF(gfx::RectF(0, 0, 100, 100))));
 }
 
 TEST_F(MapCoordinatesTest, Transform3DWithOffset2) {
@@ -1781,8 +1751,9 @@ TEST_F(MapCoordinatesTest, Transform3DWithOffset2) {
   )HTML");
 
   auto* target = GetLayoutObjectByElementId("target");
-  EXPECT_EQ(FloatRect(0, 200, 200, 200),
-            MapLocalToAncestor(target, nullptr, FloatRect(0, 0, 100, 100)));
+  EXPECT_EQ(gfx::QuadF(gfx::RectF(0, 200, 200, 200)),
+            MapLocalToAncestor(target, nullptr,
+                               gfx::QuadF(gfx::RectF(0, 0, 100, 100))));
 }
 
 // This test verifies that the mapped location of a div within a scroller
@@ -1909,10 +1880,117 @@ TEST_F(MapCoordinatesTest, IgnoreScrollOffsetWithWritingModes) {
       MapLocalToAncestor(box, scroller, PhysicalOffset(), kIgnoreScrollOffset));
 }
 
+TEST_F(MapCoordinatesTest, FixedPositionWithScrollOffset) {
+  SetBodyInnerHTML(R"HTML(
+    <div id="target" style="position: fixed; top: 200px; left: 100px"></div>
+    <div style="height: 10000px"></div>
+  )HTML");
+
+  auto* target = GetLayoutObjectByElementId("target");
+  PhysicalOffset expected(100, 200);
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset()));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset()));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset(),
+                                         kIgnoreScrollOffset));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset(),
+                               kIgnoreScrollOffset));
+
+  // Scroll offset doesn't affect MapLocalToAncestor(), regardless of
+  // kIgnoreScrollOffset.
+  GetLayoutView().GetScrollableArea()->ScrollToAbsolutePosition(
+      gfx::PointF(0, 400));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset()));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset()));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset(),
+                                         kIgnoreScrollOffset));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset(),
+                               kIgnoreScrollOffset));
+}
+
+TEST_F(MapCoordinatesTest, FixedPositionWithScrollOffsetVerticalRL) {
+  SetBodyInnerHTML(R"HTML(
+    <style>body { writing-mode: vertical-rl; margin: 0; }</style>
+    <div id="target" style="position: fixed; top: 200px; left: 100px"></div>
+    <div style="width: 10000px"></div>
+  )HTML");
+
+  auto* target = GetLayoutObjectByElementId("target");
+  PhysicalOffset expected(100, 200);
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset()));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset()));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset(),
+                                         kIgnoreScrollOffset));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset(),
+                               kIgnoreScrollOffset));
+
+  // Scroll offset doesn't affect MapLocalToAncestor(), regardless of
+  // kIgnoreScrollOffset.
+  GetLayoutView().GetScrollableArea()->ScrollToAbsolutePosition(
+      gfx::PointF(400, 0));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset()));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset()));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset(),
+                                         kIgnoreScrollOffset));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset(),
+                               kIgnoreScrollOffset));
+}
+
+TEST_F(MapCoordinatesTest, FixedPositionUnderTransformWithScrollOffset) {
+  SetBodyInnerHTML(R"HTML(
+    <style>body { margin: 0 }</style>
+    <div style="will-change: transform">
+      <div id="target" style="position: fixed; top: 200px; left: 100px"></div>
+    </div>
+    <div style="height: 10000px"></div>
+  )HTML");
+
+  auto* target = GetLayoutObjectByElementId("target");
+  PhysicalOffset expected(100, 200);
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset()));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset()));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset(),
+                                         kIgnoreScrollOffset));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset(),
+                               kIgnoreScrollOffset));
+
+  // Fixed position under transform is treated like absolute position, so is
+  // affected by scroll offset.
+  GetLayoutView().GetScrollableArea()->ScrollToAbsolutePosition(
+      gfx::PointF(0, 400));
+  PhysicalOffset expected_scrolled(100, -200);
+  EXPECT_EQ(expected_scrolled,
+            MapLocalToAncestor(target, nullptr, PhysicalOffset()));
+  EXPECT_EQ(expected_scrolled,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset()));
+  EXPECT_EQ(expected, MapLocalToAncestor(target, nullptr, PhysicalOffset(),
+                                         kIgnoreScrollOffset));
+  EXPECT_EQ(expected,
+            MapLocalToAncestor(target, &GetLayoutView(), PhysicalOffset(),
+                               kIgnoreScrollOffset));
+}
+
+#if BUILDFLAG(IS_FUCHSIA)
+// TODO(crbug.com/1313287): Fix this test on Fuchsia and re-enable.
+#define MAYBE_IgnoreScrollOffsetWithWritingModesAndNonOverlayScrollbar \
+  DISABLED_IgnoreScrollOffsetWithWritingModesAndNonOverlayScrollbar
+#else
+#define MAYBE_IgnoreScrollOffsetWithWritingModesAndNonOverlayScrollbar \
+  IgnoreScrollOffsetWithWritingModesAndNonOverlayScrollbar
+#endif
 // This test verifies that ignoring scroll offset works with writing modes and
 // non-overlay scrollbar.
 TEST_F(MapCoordinatesTest,
-       IgnoreScrollOffsetWithWritingModesAndNonOverlayScrollbar) {
+       MAYBE_IgnoreScrollOffsetWithWritingModesAndNonOverlayScrollbar) {
   USE_NON_OVERLAY_SCROLLBARS();
 
   SetBodyInnerHTML(R"HTML(

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,15 @@
 #include <memory>
 
 #include "ash/ambient/ambient_constants.h"
+#include "ash/ambient/ambient_view_delegate_impl.h"
 #include "ash/ambient/model/ambient_backend_model.h"
 #include "ash/ambient/ui/ambient_background_image_view.h"
-#include "ash/ambient/ui/ambient_view_delegate.h"
+#include "ash/ambient/ui/ambient_slideshow_peripheral_ui.h"
 #include "ash/ambient/ui/ambient_view_ids.h"
+#include "ash/ambient/ui/jitter_calculator.h"
+#include "ash/public/cpp/ambient/ambient_ui_model.h"
 #include "ash/public/cpp/metrics_util.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/aura/window.h"
@@ -39,7 +42,12 @@ void ReportSmoothness(int value) {
 }  // namespace
 
 // PhotoView ------------------------------------------------------------------
-PhotoView::PhotoView(AmbientViewDelegate* delegate) : delegate_(delegate) {
+PhotoView::PhotoView(AmbientViewDelegateImpl* delegate,
+                     bool peripheral_ui_visible)
+    : peripheral_ui_visible_(peripheral_ui_visible),
+      delegate_(delegate),
+      glanceable_info_jitter_calculator_(
+          AmbientSlideshowPeripheralUi::CreateDefaultJitterCalculator()) {
   DCHECK(delegate_);
   SetID(AmbientViewID::kAmbientPhotoView);
   Init();
@@ -56,7 +64,10 @@ void PhotoView::OnImageAdded() {
     return;
   }
 
-  UpdateImage(delegate_->GetAmbientBackendModel()->GetNextImage());
+  PhotoWithDetails next_image;
+  delegate_->GetAmbientBackendModel()->GetCurrentAndNextImages(
+      /*current_image=*/nullptr, &next_image);
+  UpdateImage(next_image);
 }
 
 void PhotoView::Init() {
@@ -65,12 +76,17 @@ void PhotoView::Init() {
   SetLayoutManager(std::make_unique<views::FillLayout>());
 
   for (auto*& image_view : image_views_) {
-    // Creates image views.
-    image_view =
-        AddChildView(std::make_unique<AmbientBackgroundImageView>(delegate_));
+    // Creates image views. The same |glanceable_info_jitter_calculator_|
+    // instance is shared between the AmbientBackgroundImageViews so that the
+    // glanceable info on screen does not shift too much at once when
+    // transitioning between AmbientBackgroundImageViews in
+    // StartTransitionAnimation().
+    image_view = AddChildView(std::make_unique<AmbientBackgroundImageView>(
+        delegate_, glanceable_info_jitter_calculator_.get()));
     // Each image view will be animated on its own layer.
     image_view->SetPaintToLayer();
     image_view->layer()->SetFillsBoundsOpaquely(false);
+    image_view->SetPeripheralUiVisibility(peripheral_ui_visible_);
   }
 
   // Hides one image view initially for fade in animation.
@@ -83,8 +99,12 @@ void PhotoView::Init() {
   // |AmbientBackendModelObserver::OnImagesReady| has been called.
   // |AmbientBackendModel| has two images ready and views should be constructed
   // for each one.
-  UpdateImage(model->GetCurrentImage());
-  UpdateImage(model->GetNextImage());
+  PhotoWithDetails current_image, next_image;
+  model->GetCurrentAndNextImages(&current_image, &next_image);
+  UpdateImage(current_image);
+  UpdateImage(next_image);
+  delegate_->NotifyObserversMarkerHit(
+      AmbientPhotoConfig::Marker::kUiStartRendering);
 }
 
 void PhotoView::UpdateImage(const PhotoWithDetails& next_image) {
@@ -98,6 +118,14 @@ void PhotoView::UpdateImage(const PhotoWithDetails& next_image) {
       ->UpdateImageDetails(base::UTF8ToUTF16(next_image.details),
                            base::UTF8ToUTF16(next_image.related_details));
   image_index_ = 1 - image_index_;
+  photo_refresh_timer_.Start(FROM_HERE,
+                             AmbientUiModel::Get()->photo_refresh_interval(),
+                             this, &PhotoView::OnImageCycleComplete);
+}
+
+void PhotoView::OnImageCycleComplete() {
+  delegate_->NotifyObserversMarkerHit(
+      AmbientPhotoConfig::Marker::kUiCycleEnded);
 }
 
 void PhotoView::StartTransitionAnimation() {
@@ -137,8 +165,10 @@ void PhotoView::StartTransitionAnimation() {
 }
 
 void PhotoView::OnImplicitAnimationsCompleted() {
-  UpdateImage(delegate_->GetAmbientBackendModel()->GetNextImage());
-  delegate_->OnPhotoTransitionAnimationCompleted();
+  PhotoWithDetails next_image;
+  delegate_->GetAmbientBackendModel()->GetCurrentAndNextImages(
+      /*current_image=*/nullptr, &next_image);
+  UpdateImage(next_image);
 }
 
 bool PhotoView::NeedToAnimateTransition() const {
@@ -149,6 +179,10 @@ bool PhotoView::NeedToAnimateTransition() const {
 
 gfx::ImageSkia PhotoView::GetVisibleImageForTesting() {
   return image_views_.at(image_index_)->GetCurrentImage();
+}
+
+JitterCalculator* PhotoView::GetJitterCalculatorForTesting() {
+  return glanceable_info_jitter_calculator_.get();
 }
 
 BEGIN_METADATA(PhotoView, views::View)

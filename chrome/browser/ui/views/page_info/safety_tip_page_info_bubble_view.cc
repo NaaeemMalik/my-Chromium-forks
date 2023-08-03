@@ -1,17 +1,16 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/page_info/safety_tip_page_info_bubble_view.h"
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
+#include "chrome/browser/lookalikes/safety_tip_ui_helper.h"
 #include "chrome/browser/platform_util.h"
-#include "chrome/browser/reputation/reputation_service.h"
-#include "chrome/browser/reputation/safety_tip_ui_helper.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
+#include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/page_info/page_info_view_factory.h"
@@ -32,28 +31,6 @@
 #include "ui/views/style/typography.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
-
-namespace {
-
-int GetSafetyTipBannerId(security_state::SafetyTipStatus safety_tip_status,
-                         bool is_dark) {
-  switch (safety_tip_status) {
-    case security_state::SafetyTipStatus::kBadReputation:
-    case security_state::SafetyTipStatus::kLookalike:
-      return is_dark ? IDR_SAFETY_TIP_ILLUSTRATION_DARK
-                     : IDR_SAFETY_TIP_ILLUSTRATION_LIGHT;
-    case security_state::SafetyTipStatus::kBadReputationIgnored:
-    case security_state::SafetyTipStatus::kLookalikeIgnored:
-    case security_state::SafetyTipStatus::kDigitalAssetLinkMatch:
-    case security_state::SafetyTipStatus::kBadKeyword:
-    case security_state::SafetyTipStatus::kUnknown:
-    case security_state::SafetyTipStatus::kNone:
-      NOTREACHED();
-      return 0;
-  }
-}
-
-}  // namespace
 
 SafetyTipPageInfoBubbleView::SafetyTipPageInfoBubbleView(
     views::View* anchor_view,
@@ -98,7 +75,7 @@ SafetyTipPageInfoBubbleView::SafetyTipPageInfoBubbleView(
   new_title->SetText(title_text);
   new_title->AddStyleRange(gfx::Range(0, title_text.length()), name_style);
   GetBubbleFrameView()->SetTitleView(std::move(new_title));
-  set_margins(gfx::Insets(0, 0, margins().bottom(), 0));
+  set_margins(gfx::Insets::TLBR(0, 0, margins().bottom(), 0));
 
   // Configure layout.
   ChromeLayoutProvider* layout_provider = ChromeLayoutProvider::Get();
@@ -106,19 +83,17 @@ SafetyTipPageInfoBubbleView::SafetyTipPageInfoBubbleView(
       views::DialogContentType::kText, views::DialogContentType::kText);
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical,
-      gfx::Insets(insets.top(), insets.left(), 0, insets.right()),
+      gfx::Insets::TLBR(insets.top(), insets.left(), 0, insets.right()),
       insets.bottom()));
 
-  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  const bool use_dark =
-      color_utils::IsDark(GetBubbleFrameView()->GetBackgroundColor());
-  const gfx::ImageSkia* image =
-      rb.GetNativeImageNamed(GetSafetyTipBannerId(safety_tip_status, use_dark))
-          .ToImageSkia();
-  auto image_view = std::make_unique<NonAccessibleImageView>();
-  image_view->SetImage(*image);
-  views::BubbleFrameView* frame_view = GetBubbleFrameView();
-  frame_view->SetHeaderView(std::move(image_view));
+  // Configure header view.
+  auto& bundle = ui::ResourceBundle::GetSharedInstance();
+  auto header_view = std::make_unique<ThemeTrackingNonAccessibleImageView>(
+      *bundle.GetImageSkiaNamed(IDR_SAFETY_TIP_ILLUSTRATION_LIGHT),
+      *bundle.GetImageSkiaNamed(IDR_SAFETY_TIP_ILLUSTRATION_DARK),
+      base::BindRepeating(&views::BubbleDialogDelegate::GetBackgroundColor,
+                          base::Unretained(this)));
+  GetBubbleFrameView()->SetHeaderView(std::move(header_view));
 
   // Add text description.
   auto* text_label = AddChildView(std::make_unique<views::Label>(
@@ -130,38 +105,32 @@ SafetyTipPageInfoBubbleView::SafetyTipPageInfoBubbleView(
                             views::DISTANCE_BUBBLE_PREFERRED_WIDTH) -
                         insets.left() - insets.right());
 
-  // Suspicious site safety tips don't have a call to action, as they are used
-  // for drawing users' attention to the omnibox to see if they leave the site
-  // on their own once they notice the omnibox. (https://crbug.com/1146471)
-  if (safety_tip_status != security_state::SafetyTipStatus::kBadReputation) {
-    auto* button_view = AddChildView(std::make_unique<views::BoxLayoutView>());
-    button_view->SetCrossAxisAlignment(
-        views::BoxLayout::CrossAxisAlignment::kCenter);
+  auto* button_view = AddChildView(std::make_unique<views::BoxLayoutView>());
+  button_view->SetCrossAxisAlignment(
+      views::BoxLayout::CrossAxisAlignment::kCenter);
 
-    // Learn more link.
-    info_link_ = button_view->AddChildView(std::make_unique<views::Link>(
-        l10n_util::GetStringUTF16(IDS_PAGE_INFO_SAFETY_TIP_MORE_INFO_LINK)));
-    info_link_->SetCallback(base::BindRepeating(
-        &SafetyTipPageInfoBubbleView::OpenHelpCenter, base::Unretained(this)));
+  // Learn more link.
+  info_link_ = button_view->AddChildView(std::make_unique<views::Link>(
+      l10n_util::GetStringUTF16(IDS_PAGE_INFO_SAFETY_TIP_MORE_INFO_LINK)));
+  info_link_->SetCallback(base::BindRepeating(
+      &SafetyTipPageInfoBubbleView::OpenHelpCenter, base::Unretained(this)));
 
-    auto* flex_view =
-        button_view->AddChildView(std::make_unique<views::View>());
-    button_view->SetFlexForView(flex_view, 1);
+  auto* flex_view = button_view->AddChildView(std::make_unique<views::View>());
+  button_view->SetFlexForView(flex_view, 1);
 
-    // Leave site button.
-    leave_button_ =
-        button_view->AddChildView(std::make_unique<views::MdTextButton>(
-            base::BindRepeating(
-                [](SafetyTipPageInfoBubbleView* view) {
-                  view->ExecuteLeaveCommand();
-                },
-                this),
-            l10n_util::GetStringUTF16(
-                GetSafetyTipLeaveButtonId(safety_tip_status))));
-    leave_button_->SetProminent(true);
-    leave_button_->SetID(
-        PageInfoViewFactory::VIEW_ID_PAGE_INFO_BUTTON_LEAVE_SITE);
-  }
+  // Leave site button.
+  leave_button_ =
+      button_view->AddChildView(std::make_unique<views::MdTextButton>(
+          base::BindRepeating(
+              [](SafetyTipPageInfoBubbleView* view) {
+                view->ExecuteLeaveCommand();
+              },
+              this),
+          l10n_util::GetStringUTF16(
+              GetSafetyTipLeaveButtonId(safety_tip_status))));
+  leave_button_->SetProminent(true);
+  leave_button_->SetID(
+      PageInfoViewFactory::VIEW_ID_PAGE_INFO_BUTTON_LEAVE_SITE);
 }
 
 SafetyTipPageInfoBubbleView::~SafetyTipPageInfoBubbleView() {}
@@ -213,7 +182,7 @@ void SafetyTipPageInfoBubbleView::OpenHelpCenter() {
 
 void SafetyTipPageInfoBubbleView::RenderFrameDeleted(
     content::RenderFrameHost* render_frame_host) {
-  if (render_frame_host != web_contents()->GetMainFrame()) {
+  if (!render_frame_host->IsInPrimaryMainFrame()) {
     return;
   }
 

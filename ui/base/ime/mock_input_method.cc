@@ -1,32 +1,36 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/base/ime/mock_input_method.h"
 
-#include "base/callback.h"
-#include "base/callback_helpers.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
+#include "base/observer_list.h"
 #include "build/build_config.h"
-#include "ui/base/ime/input_method_delegate.h"
+#include "ui/base/ime/ime_key_event_dispatcher.h"
 #include "ui/base/ime/text_input_client.h"
 #include "ui/events/event.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
 #endif
 
 namespace ui {
 
-MockInputMethod::MockInputMethod(internal::InputMethodDelegate* delegate)
-    : text_input_client_(nullptr), delegate_(delegate) {}
+MockInputMethod::MockInputMethod(
+    ImeKeyEventDispatcher* ime_key_event_dispatcher)
+    : text_input_client_(nullptr),
+      ime_key_event_dispatcher_(ime_key_event_dispatcher) {}
 
 MockInputMethod::~MockInputMethod() {
   for (InputMethodObserver& observer : observer_list_)
     observer.OnInputMethodDestroyed(this);
 }
 
-void MockInputMethod::SetDelegate(internal::InputMethodDelegate* delegate) {
-  delegate_ = delegate;
+void MockInputMethod::SetImeKeyEventDispatcher(
+    ImeKeyEventDispatcher* ime_key_event_dispatcher) {
+  ime_key_event_dispatcher_ = ime_key_event_dispatcher;
 }
 
 void MockInputMethod::SetFocusedTextInputClient(TextInputClient* client) {
@@ -54,7 +58,7 @@ ui::EventDispatchDetails MockInputMethod::DispatchKeyEvent(
     if (event->handled())
       return EventDispatchDetails();
   }
-  return delegate_->DispatchKeyEventPostIME(event);
+  return ime_key_event_dispatcher_->DispatchKeyEventPostIME(event);
 }
 
 void MockInputMethod::OnFocus() {
@@ -69,7 +73,7 @@ void MockInputMethod::OnBlur() {
     observer.OnBlur();
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 bool MockInputMethod::OnUntranslatedIMEMessage(const CHROME_MSG event,
                                                NativeEventResult* result) {
   if (result)
@@ -84,7 +88,7 @@ bool MockInputMethod::IsInputLocaleCJK() const {
 }
 #endif
 
-void MockInputMethod::OnTextInputTypeChanged(const TextInputClient* client) {
+void MockInputMethod::OnTextInputTypeChanged(TextInputClient* client) {
   for (InputMethodObserver& observer : observer_list_)
     observer.OnTextInputStateChanged(client);
 }
@@ -103,10 +107,6 @@ TextInputType MockInputMethod::GetTextInputType() const {
 
 bool MockInputMethod::IsCandidatePopupOpen() const {
   return false;
-}
-
-void MockInputMethod::ShowVirtualKeyboardIfEnabled() {
-  SetVirtualKeyboardVisibilityIfEnabled(true);
 }
 
 void MockInputMethod::SetVirtualKeyboardVisibilityIfEnabled(bool should_show) {

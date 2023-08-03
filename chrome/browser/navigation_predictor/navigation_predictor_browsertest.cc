@@ -1,8 +1,9 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <memory>
+#include <tuple>
 
 #include "base/run_loop.h"
 #include "base/sequence_checker.h"
@@ -14,7 +15,7 @@
 #include "chrome/browser/navigation_predictor/navigation_predictor.h"
 #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service.h"
 #include "chrome/browser/navigation_predictor/navigation_predictor_keyed_service_factory.h"
-#include "chrome/browser/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.h"
+#include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/subresource_filter/subresource_filter_browser_test_harness.h"
 #include "chrome/browser/ui/browser.h"
@@ -180,7 +181,8 @@ class TestObserver : public NavigationPredictorKeyedService::Observer {
   SEQUENCE_CHECKER(sequence_checker_);
 };
 
-IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, Pipeline) {
+// TODO(crbug.com/1417581): Flaky on multiple platforms.
+IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, DISABLED_Pipeline) {
   auto test_ukm_recorder = std::make_unique<ukm::TestAutoSetUkmRecorder>();
   ResetUKM();
 
@@ -264,7 +266,9 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, PipelineHttp) {
 }
 
 // Make sure AnchorsData gets cleared between navigations.
-IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, MultipleNavigations) {
+// TODO(crbug.com/1417581): Flaky on multiple platforms.
+IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest,
+                       DISABLED_MultipleNavigations) {
   auto test_ukm_recorder = std::make_unique<ukm::TestAutoSetUkmRecorder>();
   ResetUKM();
 
@@ -304,7 +308,13 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, MultipleNavigations) {
 }
 
 // Tests that anchors from iframes are reported.
-IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, PageWithIframe) {
+// TODO(crbug.com/1427913): Flaky on Windows ASAN and ChromeOS dbg.
+#if BUILDFLAG(IS_WIN) || (BUILDFLAG(IS_CHROMEOS) && !defined(NDEBUG))
+#define MAYBE_PageWithIframe DISABLED_PageWithIframe
+#else
+#define MAYBE_PageWithIframe PageWithIframe
+#endif
+IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, MAYBE_PageWithIframe) {
   auto test_ukm_recorder = std::make_unique<ukm::TestAutoSetUkmRecorder>();
   ResetUKM();
 
@@ -339,8 +349,9 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, PageWithIframe) {
 
 // Tests cross-origin iframe. For now we don't log cross-origin links, so this
 // test just makes sure the iframe is ignored and the browser doesn't crash.
+// TODO(crbug.com/1417581): Flaky on multiple platforms.
 IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest,
-                       PageWithCrossOriginIframe) {
+                       DISABLED_PageWithCrossOriginIframe) {
   auto test_ukm_recorder = std::make_unique<ukm::TestAutoSetUkmRecorder>();
   ResetUKM();
 
@@ -471,8 +482,15 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest,
 }
 
 // Tests that the browser counts anchors from anywhere on the page.
+// TODO(crbug.com/1415981): Flaky on Windows ASAN.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_ViewportOnlyAndUrlIncrementByOne \
+  DISABLED_ViewportOnlyAndUrlIncrementByOne
+#else
+#define MAYBE_ViewportOnlyAndUrlIncrementByOne ViewportOnlyAndUrlIncrementByOne
+#endif
 IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest,
-                       ViewportOnlyAndUrlIncrementByOne) {
+                       MAYBE_ViewportOnlyAndUrlIncrementByOne) {
   auto test_ukm_recorder = std::make_unique<ukm::TestAutoSetUkmRecorder>();
   ResetUKM();
 
@@ -501,7 +519,13 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest,
 
 // Test that anchors are dispated to the single observer, except for anchors
 // linking to the same page (e.g. fragment links).
-IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, SingleObserver) {
+// TODO(crbug.com/1415578): Failing on Windows and ChromeOS.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_SingleObserver DISABLED_SingleObserver
+#else
+#define MAYBE_SingleObserver SingleObserver
+#endif
+IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, MAYBE_SingleObserver) {
   TestObserver observer;
 
   NavigationPredictorKeyedService* service =
@@ -534,8 +558,9 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, SingleObserver) {
 // anchors outside the viewport. Reactive prefetch relies on anchors from
 // outside the viewport to be included since hints are only requested at onload
 // predictions after that point are ignored.
+// TODO(crbug.com/1408027): Test is flaky.
 IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest,
-                       SingleObserverPastViewport) {
+                       DISABLED_SingleObserverPastViewport) {
   TestObserver observer;
 
   NavigationPredictorKeyedService* service =
@@ -566,7 +591,13 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest,
 }
 
 // Same as NavigationScoreSingleObserver test but with more than one observer.
-IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, TwoObservers) {
+// TODO(crbug.com/1416900): Flaky on Linux and Chrome OS.
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_TwoObservers DISABLED_TwoObservers
+#else
+#define MAYBE_TwoObservers TwoObservers
+#endif
+IN_PROC_BROWSER_TEST_F(NavigationPredictorBrowserTest, MAYBE_TwoObservers) {
   TestObserver observer_1;
   TestObserver observer_2;
 
@@ -672,10 +703,11 @@ class NavigationPredictorPrerenderBrowserTest
   content::test::PrerenderTestHelper prerender_test_helper_;
 };
 
+// TODO(crbug.com/1416494): Re-enable this test. Test is flaky.
 // Test that prerendering doesn't create a predictor object and doesn't affect
 // the primary page's behavior.
 IN_PROC_BROWSER_TEST_F(NavigationPredictorPrerenderBrowserTest,
-                       PrerenderingDontCreatePredictor) {
+                       DISABLED_PrerenderingDontCreatePredictor) {
   auto test_ukm_recorder = std::make_unique<ukm::TestAutoSetUkmRecorder>();
   ResetUKM();
 
@@ -732,8 +764,10 @@ class NavigationPredictorFencedFrameBrowserTest
   content::test::FencedFrameTestHelper fenced_frame_helper_;
 };
 
-IN_PROC_BROWSER_TEST_F(NavigationPredictorFencedFrameBrowserTest,
-                       EnsureFencedFrameDoesNotCreateNavigationPredictor) {
+// Disabled for being flaky. crbug.com/1418424
+IN_PROC_BROWSER_TEST_F(
+    NavigationPredictorFencedFrameBrowserTest,
+    DISABLED_EnsureFencedFrameDoesNotCreateNavigationPredictor) {
   auto test_ukm_recorder = std::make_unique<ukm::TestAutoSetUkmRecorder>();
   ResetUKM();
 
@@ -750,8 +784,8 @@ IN_PROC_BROWSER_TEST_F(NavigationPredictorFencedFrameBrowserTest,
   // Create a fenced frame.
   const GURL& fenced_frame_url =
       test_server()->GetURL("/fenced_frames/simple_page_with_anchors.html");
-  ignore_result(fenced_frame_test_helper().CreateFencedFrame(
-      web_contents()->GetMainFrame(), fenced_frame_url));
+  std::ignore = fenced_frame_test_helper().CreateFencedFrame(
+      web_contents()->GetPrimaryMainFrame(), fenced_frame_url);
 
   // Make sure the fenced frame doesn't log any anchors.
   anchor_entries = test_ukm_recorder->GetEntriesByName(AnchorEntry::kEntryName);

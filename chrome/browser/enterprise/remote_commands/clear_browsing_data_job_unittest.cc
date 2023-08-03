@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,10 +39,10 @@ enterprise_management::RemoteCommand CreateCommandProto(
       enterprise_management::RemoteCommand_Type_BROWSER_CLEAR_BROWSING_DATA);
   command_proto.set_command_id(kUniqueID);
 
-  base::Value root(base::Value::Type::DICTIONARY);
-  root.SetStringKey(kProfilePathField, profile_path);
-  root.SetBoolKey(kClearCacheField, clear_cache);
-  root.SetBoolKey(kClearCookiesField, clear_cookies);
+  base::Value::Dict root;
+  root.Set(kProfilePathField, profile_path);
+  root.Set(kClearCacheField, clear_cache);
+  root.Set(kClearCookiesField, clear_cookies);
 
   std::string payload;
   base::JSONWriter::Write(root, &payload);
@@ -125,8 +125,8 @@ TEST_F(ClearBrowsingDataJobTest, CanParseWithMissingDataTypes) {
       enterprise_management::RemoteCommand_Type_BROWSER_CLEAR_BROWSING_DATA);
   command_proto.set_command_id(kUniqueID);
 
-  base::Value root(base::Value::Type::DICTIONARY);
-  root.SetStringKey(kProfilePathField, kTestProfilePath);
+  base::Value::Dict root;
+  root.Set(kProfilePathField, kTestProfilePath);
 
   std::string payload;
   base::JSONWriter::Write(root, &payload);
@@ -157,9 +157,9 @@ TEST_F(ClearBrowsingDataJobTest, DontInitWhenMissingProfilePath) {
       enterprise_management::RemoteCommand_Type_BROWSER_CLEAR_BROWSING_DATA);
   command_proto.set_command_id(kUniqueID);
 
-  base::Value root(base::Value::Type::DICTIONARY);
-  root.SetBoolKey(kClearCacheField, true);
-  root.SetBoolKey(kClearCookiesField, true);
+  base::Value::Dict root;
+  root.Set(kClearCacheField, true);
+  root.Set(kClearCookiesField, true);
 
   std::string payload;
   base::JSONWriter::Write(root, &payload);
@@ -307,7 +307,7 @@ TEST_F(ClearBrowsingDataJobTest, HandleProfilPathCaseSensitivity) {
 
   bool done = false;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // On windows, paths are case-insensitive so passing a lowercase path should
   // still result in success.
   auto expected = policy::RemoteCommandJob::SUCCEEDED;
@@ -315,7 +315,7 @@ TEST_F(ClearBrowsingDataJobTest, HandleProfilPathCaseSensitivity) {
   // On other platforms, paths are case-sensitive, so passing a lower case path
   // will result in the profile not being found.
   auto expected = policy::RemoteCommandJob::FAILED;
-#endif  // OS_WIN
+#endif  // BUILDFLAG(IS_WIN)
 
   EXPECT_TRUE(job->Run(base::Time::Now(), base::TimeTicks::Now(),
                        base::BindLambdaForTesting([&] {

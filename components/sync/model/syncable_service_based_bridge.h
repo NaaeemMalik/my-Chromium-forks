@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@
 #include <memory>
 #include <string>
 
-#include "base/callback_forward.h"
-#include "base/compiler_specific.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -53,10 +52,10 @@ class SyncableServiceBasedBridge : public ModelTypeSyncBridge {
 
   // ModelTypeSyncBridge implementation.
   std::unique_ptr<MetadataChangeList> CreateMetadataChangeList() override;
-  absl::optional<ModelError> MergeSyncData(
+  absl::optional<ModelError> MergeFullSyncData(
       std::unique_ptr<MetadataChangeList> metadata_change_list,
       EntityChangeList entity_change_list) override;
-  absl::optional<ModelError> ApplySyncChanges(
+  absl::optional<ModelError> ApplyIncrementalSyncChanges(
       std::unique_ptr<MetadataChangeList> metadata_change_list,
       EntityChangeList entity_change_list) override;
   void GetData(StorageKeyList storage_keys, DataCallback callback) override;
@@ -68,7 +67,7 @@ class SyncableServiceBasedBridge : public ModelTypeSyncBridge {
   ConflictResolution ResolveConflict(
       const std::string& storage_key,
       const EntityData& remote_data) const override;
-  void ApplyStopSyncChanges(
+  void ApplyDisableSyncChanges(
       std::unique_ptr<MetadataChangeList> delete_metadata_change_list) override;
   size_t EstimateSyncOverheadMemoryUsage() const override;
 
@@ -87,7 +86,7 @@ class SyncableServiceBasedBridge : public ModelTypeSyncBridge {
   void OnReadAllMetadataForInit(const absl::optional<ModelError>& error,
                                 std::unique_ptr<MetadataBatch> metadata_batch);
   void OnSyncableServiceReady(std::unique_ptr<MetadataBatch> metadata_batch);
-  absl::optional<ModelError> StartSyncableService() WARN_UNUSED_RESULT;
+  [[nodiscard]] absl::optional<ModelError> StartSyncableService();
   SyncChangeList StoreAndConvertRemoteChanges(
       std::unique_ptr<MetadataChangeList> metadata_change_list,
       EntityChangeList input_entity_change_list);
@@ -111,6 +110,9 @@ class SyncableServiceBasedBridge : public ModelTypeSyncBridge {
   // In-memory copy of |store_|, needed for remote deletions, because we need to
   // provide specifics of the deleted entity to the SyncableService.
   InMemoryStore in_memory_store_;
+
+  // Time when this object was created, and store creation/loading was started.
+  base::Time init_start_time_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

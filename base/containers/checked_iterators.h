@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 
 #include "base/check_op.h"
 #include "base/containers/util.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "build/build_config.h"
 
 namespace base {
@@ -30,7 +31,7 @@ class CheckedContiguousIterator {
 
   // Required for certain libc++ algorithm optimizations that are not available
   // for NaCl.
-#if defined(_LIBCPP_VERSION) && !defined(OS_NACL)
+#if defined(_LIBCPP_VERSION) && !BUILDFLAG(IS_NACL)
   template <typename Ptr>
   friend struct std::pointer_traits;
 #endif
@@ -185,10 +186,10 @@ class CheckedContiguousIterator {
     return current_[rhs];
   }
 
-  static bool IsRangeMoveSafe(const CheckedContiguousIterator& from_begin,
-                              const CheckedContiguousIterator& from_end,
-                              const CheckedContiguousIterator& to)
-      WARN_UNUSED_RESULT {
+  [[nodiscard]] static bool IsRangeMoveSafe(
+      const CheckedContiguousIterator& from_begin,
+      const CheckedContiguousIterator& from_end,
+      const CheckedContiguousIterator& to) {
     if (from_end < from_begin)
       return false;
     const auto from_begin_uintptr = get_uintptr(from_begin.current_);
@@ -207,9 +208,15 @@ class CheckedContiguousIterator {
     CHECK_EQ(end_, other.end_);
   }
 
-  const T* start_ = nullptr;
-  T* current_ = nullptr;
-  const T* end_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union, #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION const T* start_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union, #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION T* current_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union, #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION const T* end_ = nullptr;
 };
 
 template <typename T>
@@ -217,7 +224,7 @@ using CheckedContiguousConstIterator = CheckedContiguousIterator<const T>;
 
 }  // namespace base
 
-#if defined(_LIBCPP_VERSION) && !defined(OS_NACL)
+#if defined(_LIBCPP_VERSION) && !BUILDFLAG(IS_NACL)
 // Specialize both std::__is_cpp17_contiguous_iterator and std::pointer_traits
 // for CCI in case we compile with libc++ outside of NaCl. The former is
 // required to enable certain algorithm optimizations (e.g. std::copy can be a

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,19 +10,16 @@
 #include <array>
 #include <iosfwd>
 #include <list>
-#include <map>
 #include <string>
 #include <vector>
 
-#include "base/compiler_specific.h"
-#include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "components/autofill/core/browser/autofill_type.h"
 #include "components/autofill/core/browser/data_model/address.h"
 #include "components/autofill/core/browser/data_model/autofill_data_model.h"
+#include "components/autofill/core/browser/data_model/birthdate.h"
 #include "components/autofill/core/browser/data_model/contact_info.h"
 #include "components/autofill/core/browser/data_model/phone_number.h"
-#include "components/autofill/core/browser/proto/server.pb.h"
 
 namespace autofill {
 
@@ -36,6 +33,8 @@ struct AutofillMetadata;
 // to the requested form group type.
 class AutofillProfile : public AutofillDataModel {
  public:
+  // `RecordType` is deprecated and `SERVER_PROFILE` essentially unused.
+  // TODO(crbug.com/1177366): Remove
   enum RecordType {
     // A profile stored and editable locally.
     LOCAL_PROFILE,
@@ -43,7 +42,26 @@ class AutofillProfile : public AutofillDataModel {
     SERVER_PROFILE,
   };
 
-  AutofillProfile(const std::string& guid, const std::string& origin);
+  // Describes where the profile is stored and how it is synced.
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.autofill
+  enum class Source {
+    // Not synced at all or synced through the `AutofillProfileSyncBridge`. This
+    // corresponds to profiles that local to Autofill only.
+    kLocalOrSyncable = 0,
+    // Synced through the `ContactInfoSyncBridge`. This corresponds to profiles
+    // that are shared beyond Autofill across different services.
+    kAccount = 1,
+    kMaxValue = kAccount,
+  };
+
+  // The values used to represent Autofill in the `initial_creator_id()` and
+  // `last_modifier_id()`.
+  static constexpr int kInitialCreatorOrModifierChrome = 70073;
+
+  AutofillProfile(const std::string& guid,
+                  const std::string& origin,
+                  Source source = Source::kLocalOrSyncable);
+  explicit AutofillProfile(Source source);
 
   // Server profile constructor. The type must be SERVER_PROFILE (this serves
   // to differentiate this constructor). |server_id| can be empty. If empty,
@@ -59,7 +77,8 @@ class AutofillProfile : public AutofillDataModel {
 
   // AutofillDataModel:
   AutofillMetadata GetMetadata() const override;
-  bool SetMetadata(const AutofillMetadata metadata) override;
+  double GetRankingScore(base::Time current_time) const override;
+  bool SetMetadata(const AutofillMetadata& metadata) override;
   // Returns whether the profile is deletable: if it is not verified and has not
   // been used for longer than |kDisusedAddressDeletionTimeDelta|.
   bool IsDeletable() const override;
@@ -69,18 +88,18 @@ class AutofillProfile : public AutofillDataModel {
                         const std::string& app_locale,
                         ServerFieldTypeSet* matching_types) const override;
 
-  void GetMatchingTypesAndValidities(
-      const std::u16string& text,
-      const std::string& app_locale,
-      ServerFieldTypeSet* matching_types,
-      std::map<ServerFieldType, AutofillProfile::ValidityState>*
-          matching_types_validities) const;
-
   std::u16string GetRawInfo(ServerFieldType type) const override;
-  void SetRawInfoWithVerificationStatus(
+
+  int GetRawInfoAsInt(ServerFieldType type) const override;
+
+  void SetRawInfoWithVerificationStatus(ServerFieldType type,
+                                        const std::u16string& value,
+                                        VerificationStatus status) override;
+
+  void SetRawInfoAsIntWithVerificationStatus(
       ServerFieldType type,
-      const std::u16string& value,
-      structured_address::VerificationStatus status) override;
+      int value,
+      VerificationStatus status) override;
 
   void GetSupportedTypes(ServerFieldTypeSet* supported_types) const override;
 
@@ -114,9 +133,6 @@ class AutofillProfile : public AutofillDataModel {
   // the |new_profile|.
   bool EqualsForUpdatePurposes(const AutofillProfile& new_profile) const;
 
-  // Compares the values of kSupportedTypesByClientForValidation fields.
-  bool EqualsForClientValidationPurpose(const AutofillProfile& profile) const;
-
   // Same as operator==, but cares about differences in usage stats.
   bool EqualsIncludingUsageStatsForTesting(
       const AutofillProfile& profile) const;
@@ -127,11 +143,22 @@ class AutofillProfile : public AutofillDataModel {
   bool operator==(const AutofillProfile& profile) const;
   virtual bool operator!=(const AutofillProfile& profile) const;
 
-  // Like IsSubsetOf, but considers only the given |types|.
+  // Tests that for every supported type of AutofillProfile, the values of
+  // `this` and `profile` either agree or the value of `*this` is empty (meaning
+  // that `this` is a subset of `profile`).
+  // Note that a profile is considered a subset of itself.
+  // Comparisons are done using the `comparator`.
+  bool IsSubsetOf(const AutofillProfileComparator& comparator,
+                  const AutofillProfile& profile) const;
+
+  // Like `IsSubsetOf()`, but considers only the given `types`.
   bool IsSubsetOfForFieldSet(const AutofillProfileComparator& comparator,
                              const AutofillProfile& profile,
-                             const std::string& app_locale,
                              const ServerFieldTypeSet& types) const;
+
+  // Like `IsSubsetOf()`, but for strict superset instead of subset.
+  bool IsStrictSupersetOf(const AutofillProfileComparator& comparator,
+                          const AutofillProfile& profile) const;
 
   // Overwrites the data of |this| profile with data from the given |profile|.
   // Expects that the profiles have the same guid.
@@ -214,23 +241,6 @@ class AutofillProfile : public AutofillDataModel {
   // tokens. Should be called when a profile is used to fill a form.
   void LogVerificationStatuses();
 
-  // Returns true if the current profile has greater frescocency than the
-  // |other|. Frescocency is a combination of validation score and frecency to
-  // determine the relevance of the profile. Frescocency is a total order: it
-  // puts all the valid profiles before the invalid ones in case of frecency
-  // tie. Please see AutofillDataModel::HasGreaterFrecencyThan.
-  bool HasGreaterFrescocencyThan(const AutofillProfile* other,
-                                 base::Time comparison_time,
-                                 bool use_client_validation,
-                                 bool use_server_validation) const;
-
-  // Returns false if the profile has any invalid field, according to the client
-  // source of validation.
-  bool IsValidByClient() const;
-  // Returns false if the profile has any invalid field, according to the server
-  // source of validation.
-  bool IsValidByServer() const;
-
   const base::Time& previous_use_date() const { return previous_use_date_; }
   void set_previous_use_date(const base::Time& time) {
     previous_use_date_ = time;
@@ -239,56 +249,6 @@ class AutofillProfile : public AutofillDataModel {
   // Valid only when |record_type()| == |SERVER_PROFILE|.
   bool has_converted() const { return has_converted_; }
   void set_has_converted(bool has_converted) { has_converted_ = has_converted; }
-
-  // Returns the validity state of the specified autofill type.
-  ValidityState GetValidityState(ServerFieldType type,
-                                 ValidationSource source) const override;
-
-  // Sets the validity state of the specified autofill type.
-  // This should only be called from autofill profile validtion API or in tests.
-  void SetValidityState(ServerFieldType type,
-                        ValidityState validity,
-                        ValidationSource validation_source) const;
-
-  // Update the validity map based on the server side validity maps from the
-  // prefs.
-  void UpdateServerValidityMap(const ProfileValidityMap& validity_states) const;
-
-  // Returns whether autofill does the validation of the specified |type|.
-  static bool IsClientValidationSupportedForType(ServerFieldType type);
-
-  // Returns the bitfield value representing the validity state of this profile
-  // based on client validation source.
-  int GetClientValidityBitfieldValue() const;
-
-  // Sets the validity state of the profile based on the specified
-  // |bitfield_value| based on client validation source.
-  void SetClientValidityFromBitfieldValue(int bitfield_value) const;
-
-  // Returns true if type is a phone type and it's invalid, either explicitly,
-  // or by looking at its components.
-  bool IsAnInvalidPhoneNumber(ServerFieldType type) const;
-
-  const std::map<ServerFieldType, ValidityState>& GetServerValidityMap() const {
-    return server_validity_states_;
-  }
-
-  bool is_client_validity_states_updated() const {
-    return is_client_validity_states_updated_;
-  }
-
-  void set_is_client_validity_states_updated(
-      bool is_client_validity_states_updated) const {
-    is_client_validity_states_updated_ = is_client_validity_states_updated;
-  }
-
-  // Check for the validity of the data. Leave the field empty if the data is
-  // invalid and the relevant feature is enabled.
-  bool ShouldSkipFillingOrSuggesting(ServerFieldType type) const;
-
-  base::WeakPtr<const AutofillProfile> GetWeakPtr() const {
-    return weak_ptr_factory_.GetWeakPtr();
-  }
 
   // Calls |FinalizeAfterImport()| on all |FormGroup| members that are
   // implemented using the hybrid-structure |AddressComponent|.
@@ -322,19 +282,45 @@ class AutofillProfile : public AutofillDataModel {
     disallow_settings_visible_updates_ = disallow;
   }
 
+  Source source() const { return source_; }
+  void set_source_for_testing(AutofillProfile::Source source) {
+    source_ = source;
+  }
+
+  int initial_creator_id() const { return initial_creator_id_; }
+  void set_initial_creator_id(int creator_id) {
+    initial_creator_id_ = creator_id;
+  }
+
+  int last_modifier_id() const { return last_modifier_id_; }
+  void set_last_modifier_id(int modifier_id) {
+    last_modifier_id_ = modifier_id;
+  }
+
+  // Converts a kLocalOrSyncable profile to a kAccount profile and returns it.
+  // The converted profile shares the same content, but with a different GUID
+  // and with `source_` kAccount. Additional kAccount-specific metadata is set.
+  AutofillProfile ConvertToAccountProfile() const;
+
+  // Checks for non-empty setting-inaccessible fields and returns all that were
+  // found.
+  ServerFieldTypeSet FindInaccessibleProfileValues() const;
+
+  // Clears all specified |fields| from the profile.
+  void ClearFields(const ServerFieldTypeSet& fields);
+
  private:
   // FormGroup:
   std::u16string GetInfoImpl(const AutofillType& type,
                              const std::string& app_locale) const override;
 
-  structured_address::VerificationStatus GetVerificationStatusImpl(
+  VerificationStatus GetVerificationStatusImpl(
       const ServerFieldType type) const override;
 
-  bool SetInfoWithVerificationStatusImpl(
-      const AutofillType& type,
-      const std::u16string& value,
-      const std::string& app_locale,
-      structured_address::VerificationStatus status) override;
+  bool SetInfoWithVerificationStatusImpl(const AutofillType& type,
+                                         const std::u16string& value,
+                                         const std::string& app_locale,
+                                         VerificationStatus status) override;
 
   // Creates inferred labels for |profiles| at indices corresponding to
   // |indices|, and stores the results to the corresponding elements of
@@ -351,9 +337,9 @@ class AutofillProfile : public AutofillDataModel {
 
   // Utilities for listing and lookup of the data members that constitute
   // user-visible profile information.
-  std::array<const FormGroup*, 5> FormGroups() const {
+  std::array<const FormGroup*, 6> FormGroups() const {
     // Adjust the return type size as necessary.
-    return {&name_, &email_, &company_, &phone_number_, &address_};
+    return {&name_, &email_, &company_, &phone_number_, &address_, &birthdate_};
   }
 
   const FormGroup* FormGroupForType(const AutofillType& type) const;
@@ -368,6 +354,7 @@ class AutofillProfile : public AutofillDataModel {
   CompanyInfo company_;
   PhoneNumber phone_number_;
   Address address_;
+  Birthdate birthdate_;
 
   // The label is chosen by the user and can contain an arbitrary value.
   // However, there are two labels that play a special role to indicate that an
@@ -397,16 +384,18 @@ class AutofillProfile : public AutofillDataModel {
   // converted to a local profile.
   bool has_converted_;
 
-  // This flag denotes whether the client_validity_states_ are updated according
-  // to the changes in the autofill profile values.
-  mutable bool is_client_validity_states_updated_ = false;
+  Source source_;
 
-  // A map identifying what fields are valid according to server validation.
-  mutable std::map<ServerFieldType, ValidityState> server_validity_states_;
-
-  // A map identifying what fields are valid according to client validation.
-  mutable std::map<ServerFieldType, ValidityState> client_validity_states_;
-  mutable base::WeakPtrFactory<AutofillProfile> weak_ptr_factory_{this};
+  // Indicates the application that initially created the profile and the
+  // application that performed the last non-metadata modification of it.
+  // Only relevant for `source_ == kAccount` profiles, since `kLocalOrSyncable`
+  // profiles are only used within Autofill.
+  // The integer values represent a server-side enum `BillableService`, which is
+  // not duplicated in Chromium. For Autofill, the exact application that
+  // created/modified the profile is thus opaque. However, Autofill is
+  // represented by the value `kInitialCreatorOrModifierChrome`.
+  int initial_creator_id_ = 0;
+  int last_modifier_id_ = 0;
 };
 
 // So we can compare AutofillProfiles with EXPECT_EQ().

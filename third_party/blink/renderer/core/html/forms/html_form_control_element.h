@@ -88,6 +88,27 @@ class CORE_EXPORT HTMLFormControlElement : public HTMLElement,
   virtual bool IsActivatedSubmit() const { return false; }
   virtual void SetActivatedSubmit(bool) {}
 
+  struct PopoverTargetElement final {
+   public:
+    DISALLOW_NEW();
+    WeakMember<HTMLElement> popover;
+    PopoverTriggerAction action;
+    void Trace(Visitor* visitor) const { visitor->Trace(popover); }
+  };
+
+  enum class PopoverTriggerSupport {
+    kNone,
+    kSupported,
+  };
+
+  // Retrieves the popover target element and triggering behavior.
+  PopoverTargetElement popoverTargetElement();
+  virtual PopoverTriggerSupport SupportsPopoverTriggering() const {
+    return PopoverTriggerSupport::kNone;
+  }
+
+  void DefaultEventHandler(Event&) override;
+
   // Getter and setter for the PII type of the element derived from the autofill
   // field semantic prediction.
   virtual FormElementPiiType GetFormElementPiiType() const {
@@ -108,9 +129,8 @@ class CORE_EXPORT HTMLFormControlElement : public HTMLElement,
     return autofill_state_ != WebAutofillState::kNotFilled;
   }
   bool HighlightAutofilled() const {
-    return autofill_state_ == WebAutofillState::kPreviewed ||
-           (autofill_state_ == WebAutofillState::kAutofilled &&
-            !PreventHighlightingOfAutofilledFields());
+    return autofill_state_ == WebAutofillState::kAutofilled &&
+           !PreventHighlightingOfAutofilledFields();
   }
   void SetAutofillState(WebAutofillState = WebAutofillState::kAutofilled);
   void SetPreventHighlightingOfAutofilledFields(bool prevent_highlighting);
@@ -122,6 +142,8 @@ class CORE_EXPORT HTMLFormControlElement : public HTMLElement,
   // shipping address, .. .)
   WebString AutofillSection() const { return autofill_section_; }
   void SetAutofillSection(const WebString&);
+
+  bool IsAutocompleteEmailUrlOrPassword() const;
 
   const AtomicString& autocapitalize() const final;
 

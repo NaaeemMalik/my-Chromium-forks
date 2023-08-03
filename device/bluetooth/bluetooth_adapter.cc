@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,12 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/observer_list.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
 #include "components/device_event_log/device_event_log.h"
@@ -30,8 +31,8 @@ namespace device {
 BluetoothAdapter::ServiceOptions::ServiceOptions() = default;
 BluetoothAdapter::ServiceOptions::~ServiceOptions() = default;
 
-#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS) && !defined(OS_MAC) && \
-    !defined(OS_WIN) && !defined(OS_LINUX)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS) && \
+    !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_LINUX)
 // static
 scoped_refptr<BluetoothAdapter> BluetoothAdapter::CreateAdapter() {
   return nullptr;
@@ -42,7 +43,7 @@ base::WeakPtr<BluetoothAdapter> BluetoothAdapter::GetWeakPtrForTesting() {
   return GetWeakPtr();
 }
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 void BluetoothAdapter::Shutdown() {
   NOTIMPLEMENTED();
 }
@@ -317,15 +318,23 @@ void BluetoothAdapter::NotifyAdapterDiscoveryChangeCompletedForTesting() {
     observer.DiscoveryChangeCompletedForTesting();
 }
 
-#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
 void BluetoothAdapter::NotifyDevicePairedChanged(BluetoothDevice* device,
                                                  bool new_paired_status) {
   for (auto& observer : observers_)
     observer.DevicePairedChanged(this, device, new_paired_status);
 }
+
+void BluetoothAdapter::NotifyDeviceConnectedStateChanged(
+    BluetoothDevice* device,
+    bool is_connected) {
+  for (auto& observer : observers_) {
+    observer.DeviceConnectedStateChanged(this, device, is_connected);
+  }
+}
 #endif
 
-#if defined(OS_CHROMEOS) || defined(OS_LINUX)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
 void BluetoothAdapter::NotifyDeviceBatteryChanged(
     BluetoothDevice* device,
     BluetoothDevice::BatteryType type) {
@@ -337,7 +346,13 @@ void BluetoothAdapter::NotifyDeviceBatteryChanged(
 }
 #endif
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
+void BluetoothAdapter::NotifyDeviceBondedChanged(BluetoothDevice* device,
+                                                 bool new_bonded_status) {
+  for (auto& observer : observers_)
+    observer.DeviceBondedChanged(this, device, new_bonded_status);
+}
+
 void BluetoothAdapter::NotifyDeviceIsBlockedByPolicyChanged(
     BluetoothDevice* device,
     bool new_blocked_status) {
@@ -463,6 +478,15 @@ void BluetoothAdapter::NotifyGattDescriptorValueChanged(
   for (auto& observer : observers_)
     observer.GattDescriptorValueChanged(this, descriptor, value);
 }
+
+#if BUILDFLAG(IS_CHROMEOS)
+void BluetoothAdapter::
+    NotifyLowEnergyScanSessionHardwareOffloadingStatusChanged(
+        LowEnergyScanSessionHardwareOffloadingStatus status) {
+  for (auto& observer : observers_)
+    observer.LowEnergyScanSessionHardwareOffloadingStatusChanged(status);
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 BluetoothAdapter::SetPoweredCallbacks::SetPoweredCallbacks() = default;
 BluetoothAdapter::SetPoweredCallbacks::~SetPoweredCallbacks() = default;

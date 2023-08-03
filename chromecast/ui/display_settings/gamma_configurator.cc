@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,6 +65,9 @@ void GammaConfigurator::ApplyGammaLut() {
 }
 
 void GammaConfigurator::SetColorInversion(bool invert) {
+  if (is_inverted_ == invert)
+    return;
+
   is_inverted_ = invert;
 
   if (is_initialized_)

@@ -1,10 +1,11 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/reading_list/android/reading_list_notification_service.h"
 
 #include "base/feature_list.h"
+#include "base/time/time.h"
 #include "chrome/browser/notifications/scheduler/public/client_overview.h"
 #include "chrome/browser/notifications/scheduler/public/notification_data.h"
 #include "chrome/browser/notifications/scheduler/public/notification_params.h"
@@ -25,9 +26,8 @@ ReadingListNotificationService::Config::~Config() = default;
 
 // static
 bool ReadingListNotificationService::IsEnabled() {
-  return base::FeatureList::IsEnabled(reading_list::switches::kReadLater) &&
-         base::FeatureList::IsEnabled(
-             reading_list::switches::kReadLaterReminderNotification);
+  return base::FeatureList::IsEnabled(
+      reading_list::switches::kReadLaterReminderNotification);
 }
 
 ReadingListNotificationServiceImpl::ReadingListNotificationServiceImpl(

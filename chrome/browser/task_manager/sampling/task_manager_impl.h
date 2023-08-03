@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "base/lazy_instance.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
@@ -22,6 +23,7 @@
 #include "chrome/browser/task_manager/providers/task_provider_observer.h"
 #include "chrome/browser/task_manager/sampling/task_group.h"
 #include "chrome/browser/task_manager/task_manager_interface.h"
+#include "content/public/browser/global_routing_id.h"
 #include "gpu/ipc/common/memory_stats.h"
 #include "services/resource_coordinator/public/cpp/memory_instrumentation/global_memory_dump.h"
 
@@ -104,10 +106,12 @@ class TaskManagerImpl : public TaskManagerInterface,
   void TaskIdsListToBeInvalidated() override;
 #endif
 
-  void UpdateAccumulatedStatsNetworkForRoute(int process_id,
-                                             int route_id,
-                                             int64_t recv_bytes,
-                                             int64_t sent_bytes);
+  void UpdateAccumulatedStatsNetworkForRoute(
+      content::GlobalRenderFrameHostId render_frame_host_id,
+      int64_t recv_bytes,
+      int64_t sent_bytes);
+
+  bool is_running() const { return is_running_; }
 
  private:
   using PidToTaskGroupMap =
@@ -128,8 +132,11 @@ class TaskManagerImpl : public TaskManagerInterface,
   void StartUpdating() override;
   void StopUpdating() override;
 
-  // Lookup a task by child_id and possibly route_id.
-  Task* GetTaskByRoute(int child_id, int route_id) const;
+  // Lookup a task by the global RenderFrameHost id. The empty
+  // GlobalRenderFrameHostId works as well, which would lead to the task
+  // being attributed to the browser process.
+  Task* GetTaskByRoute(
+      content::GlobalRenderFrameHostId render_frame_host_id) const;
 
   PidToTaskGroupMap* GetVmPidToTaskGroupMap(Task::Type type);
   TaskGroup* GetTaskGroupByTaskId(TaskId task_id) const;
@@ -185,7 +192,8 @@ class TaskManagerImpl : public TaskManagerInterface,
   // Task provider handling crosapi task data.
   // Once CrosapiTaskProvider is created and added to the task_providers_, it
   // should never be removed from task_providers_ unless in the destructor.
-  CrosapiTaskProviderAsh* crosapi_task_provider_ = nullptr;
+  raw_ptr<CrosapiTaskProviderAsh, ExperimentalAsh> crosapi_task_provider_ =
+      nullptr;
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
   // This will be set to true while there are observers and the task manager is

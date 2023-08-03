@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,11 +7,12 @@ import './alert_indicator.js';
 import {CustomElement} from 'gtx://resources/js/custom_element.js';
 
 import {AlertIndicatorElement} from './alert_indicator.js';
+import {getTemplate} from './alert_indicators.html.js';
 import {TabAlertState} from './tabs.mojom-webui.js';
 
 export class AlertIndicatorsElement extends CustomElement {
-  static get template() {
-    return `{__html_template__}`;
+  static override get template() {
+    return getTemplate();
   }
 
   private containerEl_: HTMLElement;
@@ -20,7 +21,7 @@ export class AlertIndicatorsElement extends CustomElement {
   constructor() {
     super();
 
-    this.containerEl_ = this.$('#container') as HTMLElement;
+    this.containerEl_ = this.$<HTMLElement>('#container')!;
 
     const audioIndicator = new AlertIndicatorElement();
     const recordingIndicator = new AlertIndicatorElement();

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,6 +19,7 @@ extern const char kHostOverrideHost[];
 // The pref name for the feed host override auth token.
 extern const char kHostOverrideBlessNonce[];
 
+// TODO(b/213622639): This pref is unused and should be cleared / removed.
 // The pref name for the bit that determines whether the conditions are reached
 // to enable the upload of click and view actions in the feed with the notice
 // card when using the feature kInterestFeedConditionalClickAndViewActionUpload.
@@ -35,9 +36,9 @@ extern const char kLastFetchHadNoticeCard[];
 
 // The pref name for the bit that determines whether logging is enabled for the
 // feed in the last fetch of content. iOS only.
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
 extern const char kLastFetchHadLoggingEnabled[];
-#endif  // defined(OS_IOS)
+#endif  // BUILDFLAG(IS_IOS)
 
 // The pref name for the counter for the number of views on the privacy notice
 // card.
@@ -64,8 +65,6 @@ extern const char kMetricsData[];
 extern const char kClientInstanceId[];
 // The pref name for the Discover API endpoint override.
 extern const char kDiscoverAPIEndpointOverride[];
-// The pref name for storing the server experiments the client is in.
-extern const char kExperiments[];
 // If set to true, the WebFeed follow intro bypasses some gates and only checks
 // for recommended and scroll status.
 extern const char kEnableWebFeedFollowIntroDebug[];
@@ -78,14 +77,27 @@ extern const char kHasStoredData[];
 extern const char kWebFeedContentOrder[];
 // The last feed type that the user was viewing.
 extern const char kLastSeenFeedType[];
-// The pref name for the keys of the notices.
-extern const char kNoticeStates[];
+// The pref name for storing user actions. Used for personalizing feed for
+// unsigned users. The list is sorted by ascenting time stamp.
+extern const char kFeedOnDeviceUserActionsCollector[];
+// The pref name for the keys of the info cards.
+extern const char kInfoCardStates[];
+// The pref name for whether the user has opened/seen web feed at least once.
+extern const char kHasSeenWebFeed[];
+// The pref name for when the user last saw badge animation for web feed.
+extern const char kLastBadgeAnimationTime[];
+// The pref name for storing the server experiments the client is in.
+extern const char kExperimentsV2[];
+
+// Deprecated prefs
+
+// The pref name for storing the server experiments the client is in.
+extern const char kExperimentsDeprecated[];
 
 }  // namespace prefs
 
 void RegisterProfilePrefs(PrefRegistrySimple* registry);
-void MigrateObsoleteProfilePrefsFeb_2021(PrefService* prefs);
-void MigrateObsoleteProfilePrefsJune_2021(PrefService* prefs);
+void MigrateObsoleteProfilePrefsOct_2022(PrefService* prefs);
 
 }  // namespace feed
 

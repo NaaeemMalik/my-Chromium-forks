@@ -1,11 +1,13 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 
 #include "base/memory/ptr_util.h"
+#include "base/test/scoped_feature_list.h"
 #include "build/branding_buildflags.h"
+#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/defaults.h"
@@ -16,19 +18,30 @@
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/app_menu_icon_controller.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/upgrade_detector/upgrade_detector.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/menu_model_test.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/password_manager/core/common/password_manager_features.h"
+#include "components/performance_manager/public/features.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/color_palette.h"
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
 #include "components/policy/core/common/policy_pref_names.h"
-#endif  // defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ash/constants/ash_features.h"
+#include "chromeos/ash/components/standalone_browser/browser_support.h"
+#include "components/user_manager/fake_user_manager.h"
+
+using ash::standalone_browser::BrowserSupport;
+#endif
 
 namespace {
 
@@ -53,7 +66,7 @@ class MenuError : public GlobalError {
   bool HasBubbleView() override { return false; }
   bool HasShownBubbleView() override { return false; }
   void ShowBubbleView(Browser* browser) override { ADD_FAILURE(); }
-  GlobalErrorBubbleViewBase* GetBubbleView() override { return NULL; }
+  GlobalErrorBubbleViewBase* GetBubbleView() override { return nullptr; }
 
  private:
   int command_id_;
@@ -85,12 +98,47 @@ class AppMenuModelTest : public BrowserWithTestWindowTest,
 
   ~AppMenuModelTest() override = default;
 
+  void SetUp() override {
+    BrowserWithTestWindowTest::SetUp();
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+    auto* user_manager = static_cast<user_manager::FakeUserManager*>(
+        user_manager::UserManager::Get());
+    const auto account_id = AccountId::FromUserEmail("test@test");
+    auto* user = user_manager->AddUser(account_id);
+    user_manager->UserLoggedIn(account_id, user->username_hash(),
+                               /*browser_restart=*/false,
+                               /*is_child=*/false);
+#endif
+  }
+
   // Don't handle accelerators.
   bool GetAcceleratorForCommandId(int command_id,
                                   ui::Accelerator* accelerator) const override {
     return false;
   }
+
+ protected:
+  base::test::ScopedFeatureList feature_list_;
 };
+
+class ExtensionsMenuModelTest : public AppMenuModelTest,
+                                public testing::WithParamInterface<bool> {
+ public:
+  ExtensionsMenuModelTest() {
+    feature_list_.InitWithFeatureState(features::kExtensionsMenuInAppMenu,
+                                       GetParam());
+  }
+
+  ExtensionsMenuModelTest(const ExtensionsMenuModelTest&) = delete;
+  ExtensionsMenuModelTest& operator=(const ExtensionsMenuModelTest&) = delete;
+
+  ~ExtensionsMenuModelTest() override = default;
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    ExtensionsMenuModelTest,
+    /* features::kNewExtensionsTopLevelMenu enabled */ testing::Bool());
 
 // Copies parts of MenuModelTest::Delegate and combines them with the
 // AppMenuModel since AppMenuModel is now a SimpleMenuModel::Delegate and
@@ -136,34 +184,49 @@ TEST_F(AppMenuModelTest, Basics) {
   detector->NotifyUpgrade();
   EXPECT_TRUE(detector->notify_upgrade());
 
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  // Forcibly enable Lacros Profile migration, so that IDC_LACROS_DATA_MIGRATION
+  // becomes visible. Note that profile migration is only enabled if Lacros is
+  // the only browser.
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitWithFeatures(
+      {ash::features::kLacrosSupport, ash::features::kLacrosPrimary,
+       ash::features::kLacrosOnly},
+      {});
+  auto set_lacros_enabled = BrowserSupport::SetLacrosEnabledForTest(true);
+#endif
+
   FakeIconDelegate fake_delegate;
   AppMenuIconController app_menu_icon_controller(browser()->profile(),
                                                  &fake_delegate);
   TestAppMenuModel model(this, browser(), &app_menu_icon_controller);
   model.Init();
-  int itemCount = model.GetItemCount();
+  size_t item_count = model.GetItemCount();
 
   // Verify it has items. The number varies by platform, so we don't check
   // the exact number.
-  EXPECT_GT(itemCount, 10);
+  EXPECT_GT(item_count, 10u);
 
   // Verify that the upgrade item is visible if supported.
   EXPECT_EQ(browser_defaults::kShowUpgradeMenuItem,
             model.IsCommandIdVisible(IDC_UPGRADE_DIALOG));
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  EXPECT_TRUE(model.IsCommandIdVisible(IDC_LACROS_DATA_MIGRATION));
+#endif
 
   // Execute a couple of the items and make sure it gets back to our delegate.
   // We can't use CountEnabledExecutable() here because the encoding menu's
   // delegate is internal, it doesn't use the one we pass in.
   // Note: the second item in the menu may be a separator if the browser
   // supports showing upgrade status in the app menu.
-  int item_index = 1;
+  size_t item_index = 1;
   if (model.GetTypeAt(item_index) == ui::MenuModel::TYPE_SEPARATOR)
     ++item_index;
   model.ActivatedAt(item_index);
   EXPECT_TRUE(model.IsEnabledAt(item_index));
   // Make sure to use the index that is not separator in all configurations.
-  model.ActivatedAt(itemCount - 1);
-  EXPECT_TRUE(model.IsEnabledAt(itemCount - 1));
+  model.ActivatedAt(item_count - 1);
+  EXPECT_TRUE(model.IsEnabledAt(item_count - 1));
 
   EXPECT_EQ(model.execute_count_, 2);
   EXPECT_EQ(model.enable_count_, 2);
@@ -173,21 +236,21 @@ TEST_F(AppMenuModelTest, Basics) {
 
   // Choose something from the bookmark submenu and make sure it makes it back
   // to the delegate as well.
-  int bookmarks_model_index = -1;
-  for (int i = 0; i < itemCount; ++i) {
+  size_t bookmarks_model_index = 0;
+  for (size_t i = 0; i < item_count; ++i) {
     if (model.GetTypeAt(i) == ui::MenuModel::TYPE_SUBMENU) {
       // The bookmarks submenu comes after the Tabs and Downloads items.
       bookmarks_model_index = i + 2;
       break;
     }
   }
-  EXPECT_GT(bookmarks_model_index, -1);
+  EXPECT_GT(bookmarks_model_index, 0u);
   ui::MenuModel* bookmarks_model =
       model.GetSubmenuModelAt(bookmarks_model_index);
   EXPECT_TRUE(bookmarks_model);
   // The bookmarks model may be empty until we tell it we're going to show it.
   bookmarks_model->MenuWillShow();
-  EXPECT_GT(bookmarks_model->GetItemCount(), 1);
+  EXPECT_GT(bookmarks_model->GetItemCount(), 1u);
 
   // Bookmark manager item.
   bookmarks_model->ActivatedAt(4);
@@ -210,47 +273,78 @@ TEST_F(AppMenuModelTest, GlobalError) {
 
   AppMenuModel model(this, browser());
   model.Init();
-  int index1 = model.GetIndexOfCommandId(command1);
-  EXPECT_GT(index1, -1);
-  int index2 = model.GetIndexOfCommandId(command2);
-  EXPECT_GT(index2, -1);
+  absl::optional<size_t> index1 = model.GetIndexOfCommandId(command1);
+  ASSERT_TRUE(index1.has_value());
+  absl::optional<size_t> index2 = model.GetIndexOfCommandId(command2);
+  ASSERT_TRUE(index2.has_value());
 
-  EXPECT_TRUE(model.IsEnabledAt(index1));
+  EXPECT_TRUE(model.IsEnabledAt(index1.value()));
   EXPECT_EQ(0, error1->execute_count());
-  model.ActivatedAt(index1);
+  model.ActivatedAt(index1.value());
   EXPECT_EQ(1, error1->execute_count());
 
-  EXPECT_TRUE(model.IsEnabledAt(index2));
+  EXPECT_TRUE(model.IsEnabledAt(index2.value()));
   EXPECT_EQ(0, error2->execute_count());
-  model.ActivatedAt(index2);
+  model.ActivatedAt(index2.value());
   EXPECT_EQ(1, error1->execute_count());
 }
 
-#if defined(OS_CHROMEOS)
+// Tests that extensions sub menu (when enabled) generates the correct elements
+// or does not generate its elements when disabled.
+TEST_P(ExtensionsMenuModelTest, ExtensionsMenu) {
+  AppMenuModel model(this, browser());
+  model.Init();
+
+  if (GetParam()) {  // Menu enabled
+    ASSERT_TRUE(model.GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU));
+    ui::MenuModel* extensions_submenu = model.GetSubmenuModelAt(
+        model.GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU).value());
+    ASSERT_NE(extensions_submenu, nullptr);
+    ASSERT_EQ(2ul, extensions_submenu->GetItemCount());
+    EXPECT_EQ(IDC_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS,
+              extensions_submenu->GetCommandIdAt(0));
+    EXPECT_EQ(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
+              extensions_submenu->GetCommandIdAt(1));
+  } else {
+    EXPECT_FALSE(model.GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU));
+  }
+}
+
+TEST_F(AppMenuModelTest, PerformanceItem) {
+  AppMenuModel model(this, browser());
+  model.Init();
+  ToolsMenuModel toolModel(&model, browser());
+  size_t performance_index =
+      toolModel.GetIndexOfCommandId(IDC_PERFORMANCE).value();
+  EXPECT_TRUE(toolModel.IsEnabledAt(performance_index));
+}
+
+#if BUILDFLAG(IS_CHROMEOS)
 // Tests settings menu items is disabled in the app menu when
 // kSystemFeaturesDisableList is set.
 TEST_F(AppMenuModelTest, DisableSettingsItem) {
   AppMenuModel model(this, browser());
   model.Init();
-  const int options_index = model.GetIndexOfCommandId(IDC_OPTIONS);
+  const size_t options_index = model.GetIndexOfCommandId(IDC_OPTIONS).value();
   EXPECT_TRUE(model.IsEnabledAt(options_index));
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  const int help_menu_index = model.GetIndexOfCommandId(IDC_HELP_MENU);
+  const size_t help_menu_index =
+      model.GetIndexOfCommandId(IDC_HELP_MENU).value();
   ui::SimpleMenuModel* help_menu = static_cast<ui::SimpleMenuModel*>(
       model.GetSubmenuModelAt(help_menu_index));
-  const int about_index = help_menu->GetIndexOfCommandId(IDC_ABOUT);
+  const size_t about_index = help_menu->GetIndexOfCommandId(IDC_ABOUT).value();
   EXPECT_TRUE(help_menu->IsEnabledAt(about_index));
 #else
-  const int about_index = model.GetIndexOfCommandId(IDC_ABOUT);
+  const size_t about_index = model.GetIndexOfCommandId(IDC_ABOUT).value();
   EXPECT_TRUE(model.IsEnabledAt(about_index));
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
   {
-    ListPrefUpdate update(TestingBrowserProcess::GetGlobal()->local_state(),
-                          policy::policy_prefs::kSystemFeaturesDisableList);
-    base::ListValue* list = update.Get();
-    list->Append(policy::SystemFeature::kBrowserSettings);
+    ScopedListPrefUpdate update(
+        TestingBrowserProcess::GetGlobal()->local_state(),
+        policy::policy_prefs::kSystemFeaturesDisableList);
+    update->Append(static_cast<int>(policy::SystemFeature::kBrowserSettings));
   }
   EXPECT_FALSE(model.IsEnabledAt(options_index));
 
@@ -261,10 +355,10 @@ TEST_F(AppMenuModelTest, DisableSettingsItem) {
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
   {
-    ListPrefUpdate update(TestingBrowserProcess::GetGlobal()->local_state(),
-                          policy::policy_prefs::kSystemFeaturesDisableList);
-    base::ListValue* list = update.Get();
-    list->ClearList();
+    ScopedListPrefUpdate update(
+        TestingBrowserProcess::GetGlobal()->local_state(),
+        policy::policy_prefs::kSystemFeaturesDisableList);
+    update->clear();
   }
   EXPECT_TRUE(model.IsEnabledAt(options_index));
 
@@ -275,4 +369,4 @@ TEST_F(AppMenuModelTest, DisableSettingsItem) {
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 }
 
-#endif  // defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS)

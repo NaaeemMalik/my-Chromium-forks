@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_provider.h"
 #include "ash/system/tray/tray_constants.h"
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/insets.h"
@@ -63,7 +63,7 @@ QuickActionItem::QuickActionItem(Delegate* delegate,
   label_ = label_view->AddChildView(
       std::make_unique<views::Label>(l10n_util::GetStringUTF16(label_id)));
   label_->SetBorder(views::CreateEmptyBorder(
-      gfx::Insets(0, 0, /*bottom=*/kUnifiedFeaturePodInterLabelPadding, 0)));
+      gfx::Insets::TLBR(0, 0, kUnifiedFeaturePodInterLabelPadding, 0)));
   sub_label_ = label_view->AddChildView(std::make_unique<views::Label>());
   ConfigureLabel(label_, kUnifiedFeaturePodLabelLineHeight,
                  kUnifiedFeaturePodLabelFontSize);
@@ -74,9 +74,6 @@ QuickActionItem::QuickActionItem(Delegate* delegate,
       AshColorProvider::ContentLayerType::kTextColorSecondary);
 
   SetEnabled(true /* enabled */);
-
-  SetPaintToLayer();
-  layer()->SetFillsBoundsOpaquely(false);
 }
 
 QuickActionItem::~QuickActionItem() = default;

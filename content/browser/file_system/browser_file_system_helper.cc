@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,11 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/lazy_thread_pool_task_runner.h"
-#include "base/task/post_task.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "build/chromeos_buildflags.h"
@@ -208,11 +207,14 @@ void PrepareDropDataForChildProcess(
   DCHECK(isolated_context);
 
   for (auto& file_system_file : drop_data->file_system_files) {
-    // TODO(https://crbug.com/1221308): determine whether StorageKey should be
-    // replaced with a more meaningful value
-    storage::FileSystemURL file_system_url = file_system_context->CrackURL(
-        file_system_file.url,
-        blink::StorageKey(url::Origin::Create(file_system_file.url)));
+    storage::FileSystemURL file_system_url =
+        file_system_context->CrackURLInFirstPartyContext(file_system_file.url);
+
+    // Sandboxed filesystem files should never be handled via this path, so
+    // assert that none are sent from the renderer (wrapping these won't work
+    // anyway).
+    DCHECK(file_system_url.type() != storage::kFileSystemTypePersistent);
+    DCHECK(file_system_url.type() != storage::kFileSystemTypeTemporary);
 
     std::string register_name;
     storage::IsolatedContext::ScopedFSHandle filesystem =

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,10 @@
 namespace updater {
 
 bool ShouldUninstall(const std::vector<std::string>& app_ids,
-                     int server_starts) {
-  return app_ids.size() <= 1 && server_starts > kMaxServerStartsBeforeFirstReg;
+                     int server_starts,
+                     bool had_apps) {
+  return app_ids.size() <= 1 &&
+         (server_starts > kMaxServerStartsBeforeFirstReg || had_apps);
 }
 
 }  // namespace updater

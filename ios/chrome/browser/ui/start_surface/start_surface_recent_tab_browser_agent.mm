@@ -1,10 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/start_surface/start_surface_recent_tab_browser_agent.h"
 
-#import "ios/chrome/browser/ui/main/scene_state_browser_agent.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state_browser_agent.h"
 #import "ios/chrome/browser/ui/start_surface/start_surface_util.h"
 #import "ios/chrome/browser/web_state_list/web_state_list.h"
 
@@ -109,5 +109,11 @@ void StartSurfaceRecentTabBrowserAgent::OnFaviconUpdated(
         observer.MostRecentTabFaviconUpdated(favicon.ToUIImage());
       }
     }
+  }
+}
+
+void StartSurfaceRecentTabBrowserAgent::TitleWasSet(web::WebState* web_state) {
+  for (auto& observer : observers_) {
+    observer.MostRecentTabTitleUpdated(web_state->GetTitle());
   }
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,11 @@
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/pagination/pagination_model.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/observer_list.h"
 #include "chromeos/dbus/power/power_manager_client.h"
+#include "chromeos/dbus/power_manager/backlight.pb.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace display {
@@ -64,7 +66,8 @@ class ASH_EXPORT UnifiedSystemTrayModel
 
     // |by_user| is true when brightness is changed by user action.
     virtual void OnDisplayBrightnessChanged(bool by_user) {}
-    virtual void OnKeyboardBrightnessChanged(bool by_user) {}
+    virtual void OnKeyboardBrightnessChanged(
+        power_manager::BacklightBrightnessChange_Cause cause) {}
     virtual void OnSystemTrayButtonSizeChanged(
         SystemTrayButtonSize system_tray_size) {}
   };
@@ -145,7 +148,9 @@ class ASH_EXPORT UnifiedSystemTrayModel
   ~UnifiedSystemTrayModel();
 
   void DisplayBrightnessChanged(float brightness, bool by_user);
-  void KeyboardBrightnessChanged(float brightness, bool by_user);
+  void KeyboardBrightnessChanged(
+      float brightness,
+      power_manager::BacklightBrightnessChange_Cause cause);
   void SystemTrayButtonSizeChanged(SystemTrayButtonSize system_tray_size);
 
   // Get the display that owns the tray.
@@ -174,7 +179,7 @@ class ASH_EXPORT UnifiedSystemTrayModel
   // <notification ID, if notification is manually expanded>
   std::map<std::string, bool> notification_changes_;
 
-  Shelf* const shelf_;
+  const raw_ptr<Shelf, ExperimentalAsh> shelf_;
 
   std::unique_ptr<DBusObserver> dbus_observer_;
 

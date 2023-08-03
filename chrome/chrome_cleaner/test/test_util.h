@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -152,12 +152,12 @@ class ScopedTempDirNoWow64 : protected base::ScopedTempDir {
 
   // Creates a unique subdirectory under system32, bypassing Wow64 redirection,
   // and takes ownership of it.
-  bool CreateUniqueSystem32TempDir() WARN_UNUSED_RESULT;
+  [[nodiscard]] bool CreateUniqueSystem32TempDir();
 
   // Convenience function to call CreateUniqueSystem32TempDir and create an
   // empty file with the given |file_name| in the resulting directory.
-  bool CreateEmptyFileInUniqueSystem32TempDir(const std::wstring& file_name)
-      WARN_UNUSED_RESULT;
+  [[nodiscard]] bool CreateEmptyFileInUniqueSystem32TempDir(
+      const std::wstring& file_name);
 
   using base::ScopedTempDir::Delete;
   using base::ScopedTempDir::GetPath;
@@ -177,8 +177,7 @@ bool CheckTestPrivileges();
 
 // On Windows, sometimes the copied files don't have correct ACLs.
 // So we reset ACL before running the test.
-// For debug, it will reset ucrtbased.dll. For release, it will reset
-// ucrtbase.dll.
+// For debug, it will reset ucrtbased.dll. For release, it does nothing.
 // See crbug.com/956016.
 bool ResetAclForUcrtbase();
 

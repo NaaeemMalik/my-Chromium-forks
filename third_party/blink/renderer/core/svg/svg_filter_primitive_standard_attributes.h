@@ -23,7 +23,7 @@
 
 #include "third_party/blink/renderer/core/svg/svg_element.h"
 #include "third_party/blink/renderer/core/svg/svg_unit_types.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace gfx {
 class RectF;
@@ -73,8 +73,8 @@ class SVGFilterPrimitiveStandardAttributes : public SVGElement {
  private:
   bool IsFilterEffect() const final { return true; }
 
-  LayoutObject* CreateLayoutObject(const ComputedStyle&, LegacyLayout) override;
-  bool LayoutObjectIsNeeded(const ComputedStyle&) const final;
+  LayoutObject* CreateLayoutObject(const ComputedStyle&) override;
+  bool LayoutObjectIsNeeded(const DisplayStyle&) const final;
 
   Member<SVGAnimatedLength> x_;
   Member<SVGAnimatedLength> y_;

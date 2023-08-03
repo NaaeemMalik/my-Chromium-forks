@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -110,6 +110,8 @@ public class PlayerFrameScrollController {
      * Ensures that the given {@link Rect} is visible by scrolling the viewport to include it.
      */
     void scrollToMakeRectVisibleForAccessibility(Rect rect) {
+        if (rect == null) return;
+
         float scaleFactor = mViewport.getScale();
         Rect targetRect = new Rect((int) (rect.left * scaleFactor), (int) (rect.top * scaleFactor),
                 (int) (rect.right * scaleFactor), (int) (rect.bottom * scaleFactor));

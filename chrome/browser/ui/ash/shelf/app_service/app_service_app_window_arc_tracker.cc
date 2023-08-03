@@ -1,30 +1,33 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/ash/shelf/app_service/app_service_app_window_arc_tracker.h"
 
+#include "ash/components/arc/arc_util.h"
 #include "ash/constants/app_types.h"
 #include "ash/public/cpp/multi_user_window_manager.h"
 #include "ash/public/cpp/shelf_item_delegate.h"
 #include "ash/public/cpp/shelf_model.h"
 #include "ash/public/cpp/shelf_types.h"
 #include "ash/public/cpp/window_properties.h"
+#include "base/auto_reset.h"
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
-#include "base/task/post_task.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "chrome/browser/apps/app_service/app_icon/app_icon_factory.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
+#include "chrome/browser/ash/app_list/arc/arc_app_utils.h"
+#include "chrome/browser/ash/app_list/arc/intent.h"
 #include "chrome/browser/ash/app_restore/app_restore_arc_task_handler.h"
-#include "chrome/browser/ash/app_restore/arc_window_handler.h"
+#include "chrome/browser/ash/app_restore/arc_ghost_window_handler.h"
 #include "chrome/browser/ash/arc/arc_optin_uma.h"
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/arc/session/arc_session_manager.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/app_list/arc/arc_app_utils.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_window_manager_helper.h"
 #include "chrome/browser/ui/ash/shelf/app_service/app_service_app_window_shelf_controller.h"
 #include "chrome/browser/ui/ash/shelf/app_service/app_service_app_window_shelf_item_controller.h"
@@ -35,6 +38,7 @@
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller.h"
 #include "components/app_restore/full_restore_utils.h"
 #include "components/app_restore/window_properties.h"
+#include "components/exo/window_properties.h"
 #include "extensions/common/constants.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/gfx/image/image_skia.h"
@@ -45,6 +49,53 @@ constexpr int kArcAppWindowIconSize = extension_misc::EXTENSION_ICON_MEDIUM;
 constexpr char kArcPaymentAppPackage[] = "org.chromium.arc.payment_app";
 constexpr char kArcPaymentAppInvokePaymentAppActivity[] =
     "org.chromium.arc.payment_app.InvokePaymentAppActivity";
+
+// Calculates time delta from the current time and reference time encoded into
+// |intent| and defined by |param_key|. Returns false if could not be parsed or
+// not found. Result is returned in |out|.
+bool GetTimeDeltaFromIntent(const arc::Intent& intent,
+                            const std::string& param_key,
+                            base::TimeDelta* out) {
+  std::string time_ms_string;
+  if (!intent.GetExtraParamValue(param_key, &time_ms_string))
+    return false;
+
+  int64_t time_ms;
+  if (!base::StringToInt64(time_ms_string, &time_ms)) {
+    LOG(ERROR) << "Failed to parse start time value " << time_ms_string;
+    return false;
+  }
+
+  *out = (base::TimeTicks::Now() - base::TimeTicks()) -
+         base::Milliseconds(time_ms);
+  DCHECK_GE(*out, base::TimeDelta());
+  return true;
+}
+
+void HandlePlayStoreLaunch(const arc::Intent& intent) {
+  // Don't track initial Play Store launch. We currently shows Play Store in
+  // very rare case in-session provisioning.
+  if (intent.HasExtraParam(arc::kInitialStartParam))
+    return;
+
+  base::TimeDelta launch_time;
+  // This param is injected by |arc:: LaunchAppWithIntent|.
+  if (!GetTimeDeltaFromIntent(intent, arc::kRequestStartTimeParamKey,
+                              &launch_time)) {
+    return;
+  }
+  arc::UpdatePlayStoreLaunchTime(launch_time);
+}
+
+void MaybeHandleDeferredLaunch(const arc::Intent& intent) {
+  base::TimeDelta launch_time;
+  // This param is injected by |arc:: LaunchAppWithIntent|.
+  if (!GetTimeDeltaFromIntent(intent, arc::kRequestDeferredStartTimeParamKey,
+                              &launch_time)) {
+    return;
+  }
+  arc::UpdateDeferredLaunchTime(launch_time);
+}
 
 }  // namespace
 
@@ -147,6 +198,26 @@ void AppServiceAppWindowArcTracker::HandleWindowDestroying(
   }
 }
 
+void AppServiceAppWindowArcTracker::CloseWindows(const std::string& app_id) {
+  const std::vector<int> task_ids = GetTaskIdsForApp(app_id);
+  for (const auto task_id : task_ids)
+    arc::CloseTask(task_id);
+}
+
+void AppServiceAppWindowArcTracker::OnWindowPropertyChanged(
+    aura::Window* window,
+    const void* key,
+    intptr_t old) {
+  if (key != exo::kApplicationIdKey || old == 0)
+    return;
+  const std::string* old_val = reinterpret_cast<std::string*>(old);
+  const auto maybe_session_id = arc::GetSessionIdFromWindowAppId(*old_val);
+  const auto maybe_task_id = arc::GetWindowTaskId(window);
+  if (maybe_session_id.has_value() && maybe_task_id.has_value()) {
+    session_id_to_task_id_map_.erase(maybe_session_id.value());
+  }
+}
+
 void AppServiceAppWindowArcTracker::OnAppStatesChanged(
     const std::string& app_id,
     const ArcAppListPrefs::AppInfo& app_info) {
@@ -172,24 +243,23 @@ void AppServiceAppWindowArcTracker::OnTaskCreated(
     const std::string& activity_name,
     const std::string& intent,
     int32_t session_id) {
+  base::AutoReset<int> auto_reset(&task_id_being_created_, task_id);
+
   DCHECK(task_id_to_arc_app_window_info_.find(task_id) ==
          task_id_to_arc_app_window_info_.end());
-
-  const std::string arc_app_id =
-      ArcAppListPrefs::GetAppId(package_name, activity_name);
-  const arc::ArcAppShelfId arc_app_shelf_id =
-      arc::ArcAppShelfId::FromIntentAndAppId(intent, arc_app_id);
-  task_id_to_arc_app_window_info_[task_id] = std::make_unique<ArcAppWindowInfo>(
-      arc_app_shelf_id, intent, package_name);
 
   // If there is a ghost window for `session_id`, reuse the ghost window info,
   // and clear the ghost window info from `session_id_to_arc_app_window_info_`,
   // and reset `active_session_id_`.
   auto it = session_id_to_arc_app_window_info_.find(session_id);
   if (it != session_id_to_arc_app_window_info_.end()) {
+    const auto app_shelf_id = it->second->app_shelf_id();
+    task_id_to_arc_app_window_info_[task_id] =
+        std::make_unique<ArcAppWindowInfo>(app_shelf_id, intent, package_name);
+
+    session_id_to_task_id_map_[session_id] = task_id;
     task_id_to_arc_app_window_info_[task_id]->set_window(it->second->window());
 
-    const auto app_shelf_id = it->second->app_shelf_id();
     auto it_controller = app_shelf_group_to_controller_map_.find(app_shelf_id);
     if (it_controller != app_shelf_group_to_controller_map_.end())
       it_controller->second->RemoveSessionId(it->first);
@@ -197,12 +267,21 @@ void AppServiceAppWindowArcTracker::OnTaskCreated(
     session_id_to_arc_app_window_info_.erase(it);
     if (session_id == active_session_id_)
       active_session_id_ = arc::kNoTaskId;
+  } else {
+    const std::string arc_app_id =
+        ArcAppListPrefs::GetAppId(package_name, activity_name);
+    const arc::ArcAppShelfId arc_app_shelf_id =
+        arc::ArcAppShelfId::FromIntentAndAppId(intent, arc_app_id);
+    task_id_to_arc_app_window_info_[task_id] =
+        std::make_unique<ArcAppWindowInfo>(arc_app_shelf_id, intent,
+                                           package_name);
   }
 
   // Hide from shelf if there already is some task representing the window.
-  if (GetTaskIdSharingLogicalWindow(task_id) != arc::kNoTaskId)
+  if (GetTaskIdSharingLogicalWindow(task_id) != arc::kNoTaskId) {
     task_id_to_arc_app_window_info_[task_id]->set_window_hidden_from_shelf(
         true);
+  }
 
   // Hide any activities created from the ARC Payment activitity from the shelf
   // (they become overlays of TWA apps already on the shelf)
@@ -218,8 +297,15 @@ void AppServiceAppWindowArcTracker::OnTaskCreated(
   // control over it.
   AttachControllerToTask(task_id);
 
-  aura::Window* const window =
-      task_id_to_arc_app_window_info_[task_id]->window();
+  // TODO(crbug.com/1276603): Investigate why `task_id_to_arc_app_window_info_`
+  // doesn't have the `task_id` or why it->second is null.
+  auto task_id_it = task_id_to_arc_app_window_info_.find(task_id);
+  if (task_id_it == task_id_to_arc_app_window_info_.end() ||
+      !task_id_it->second) {
+    return;
+  }
+
+  aura::Window* const window = task_id_it->second->window();
   if (!window)
     return;
 
@@ -262,6 +348,9 @@ void AppServiceAppWindowArcTracker::OnTaskDescriptionChanged(
 }
 
 void AppServiceAppWindowArcTracker::OnTaskDestroyed(int32_t task_id) {
+  // Update crbug.com/1276603 with crash stack if this CHECK fires.
+  CHECK_NE(task_id_being_created_, task_id);
+
   auto it = task_id_to_arc_app_window_info_.find(task_id);
   if (it == task_id_to_arc_app_window_info_.end())
     return;
@@ -379,9 +468,12 @@ void AppServiceAppWindowArcTracker::AttachControllerToWindow(
   if (!info)
     return;
 
+  window->SetProperty(ash::kArcPackageNameKey, info->package_name());
   window->SetProperty<int>(ash::kShelfItemTypeKey, ash::TYPE_APP);
 
-  // Check if we have set the AppWindowBase for this task.
+  // Check if we have set the AppWindowBase for this task. If it was a session
+  // window (ARC ghost window) and replace by real task window, function will
+  // returen here.
   if (app_service_controller_->GetAppWindow(window))
     return;
 
@@ -404,12 +496,21 @@ void AppServiceAppWindowArcTracker::AttachControllerToWindow(
     app_window->SetDescription(info->title(), info->icon());
 
   window->SetProperty(ash::kShelfIDKey, shelf_id.Serialize());
-  window->SetProperty(ash::kArcPackageNameKey, info->package_name());
   window->SetProperty(ash::kAppIDKey, shelf_id.app_id);
   window->SetProperty(aura::client::kSkipImeProcessing, true);
 
+  if (info->launch_intent().empty())
+    return;
+
+  auto intent = arc::Intent::Get(info->launch_intent());
+  if (!intent) {
+    LOG(ERROR) << "Failed to parse launch intent: " << info->launch_intent();
+    return;
+  }
+
   if (info->app_shelf_id().app_id() == arc::kPlayStoreAppId)
-    HandlePlayStoreLaunch(info);
+    HandlePlayStoreLaunch(*intent);
+  MaybeHandleDeferredLaunch(*intent);
 }
 
 void AppServiceAppWindowArcTracker::AddCandidateWindow(aura::Window* window) {
@@ -450,8 +551,13 @@ void AppServiceAppWindowArcTracker::CheckAndAttachControllers() {
 }
 
 void AppServiceAppWindowArcTracker::AttachControllerToTask(int task_id) {
-  ArcAppWindowInfo* const app_window_info =
-      task_id_to_arc_app_window_info_[task_id].get();
+  // TODO(crbug.com/1276603): Investigate why `task_id_to_arc_app_window_info_`
+  // doesn't have the `task_id` or why it->second is null.
+  auto it = task_id_to_arc_app_window_info_.find(task_id);
+  if (it == task_id_to_arc_app_window_info_.end() || !it->second)
+    return;
+
+  ArcAppWindowInfo* const app_window_info = it->second.get();
   if (app_window_info->task_hidden_from_shelf())
     return;
 
@@ -483,6 +589,8 @@ void AppServiceAppWindowArcTracker::AttachControllerToTask(int task_id) {
 void AppServiceAppWindowArcTracker::AttachControllerToSession(int session_id) {
   ArcAppWindowInfo* const app_window_info =
       session_id_to_arc_app_window_info_[session_id].get();
+  CHECK(app_window_info);
+
   const arc::ArcAppShelfId& app_shelf_id = app_window_info->app_shelf_id();
   if (base::Contains(app_shelf_group_to_controller_map_, app_shelf_id)) {
     app_shelf_group_to_controller_map_[app_shelf_id]->AddSessionId(session_id);
@@ -508,16 +616,6 @@ void AppServiceAppWindowArcTracker::AttachControllerToSession(int session_id) {
   app_shelf_group_to_controller_map_[app_shelf_id] = item_controller;
 }
 
-void AppServiceAppWindowArcTracker::OnArcOptInManagementCheckStarted() {
-  // In case of retry this time is updated and we measure only successful run.
-  opt_in_management_check_start_time_ = base::Time::Now();
-}
-
-void AppServiceAppWindowArcTracker::OnArcSessionStopped(
-    arc::ArcStopReason stop_reason) {
-  opt_in_management_check_start_time_ = base::Time();
-}
-
 void AppServiceAppWindowArcTracker::OnArcPlayStoreEnabledChanged(bool enabled) {
   if (enabled)
     return;
@@ -531,37 +629,6 @@ void AppServiceAppWindowArcTracker::OnArcPlayStoreEnabledChanged(bool enabled) {
     OnSessionDestroyed(session_id);
 
   DCHECK(session_id_to_arc_app_window_info_.empty());
-}
-
-void AppServiceAppWindowArcTracker::HandlePlayStoreLaunch(
-    ArcAppWindowInfo* app_window_info) {
-  arc::Intent intent;
-  if (!arc::ParseIntent(app_window_info->launch_intent(), &intent))
-    return;
-
-  if (!opt_in_management_check_start_time_.is_null()) {
-    if (intent.HasExtraParam(arc::kInitialStartParam)) {
-      DCHECK(!arc::IsRobotOrOfflineDemoAccountMode());
-      arc::UpdatePlayStoreShownTimeDeprecated(
-          base::Time::Now() - opt_in_management_check_start_time_,
-          app_service_controller_->owner()->profile());
-      VLOG(1) << "Play Store is initially shown.";
-    }
-    opt_in_management_check_start_time_ = base::Time();
-    return;
-  }
-
-  for (const auto& param : intent.extra_params()) {
-    int64_t start_request_ms;
-    if (sscanf(param.c_str(), arc::kRequestStartTimeParamTemplate,
-               &start_request_ms) != 1)
-      continue;
-    const base::TimeDelta launch_time = base::TimeTicks::Now() -
-                                        base::TimeTicks() -
-                                        base::Milliseconds(start_request_ms);
-    DCHECK_GE(launch_time, base::TimeDelta());
-    arc::UpdatePlayStoreLaunchTime(launch_time);
-  }
 }
 
 int AppServiceAppWindowArcTracker::GetTaskIdSharingLogicalWindow(int task_id) {
@@ -635,6 +702,16 @@ ArcAppWindowInfo* AppServiceAppWindowArcTracker::GetArcAppWindowInfo(
   const auto session_id = arc::GetWindowSessionId(window);
   if (!session_id.has_value())
     return nullptr;
+
+  // Since OnTaskCreated is async with corresponding aura window create, so in
+  // some cases, the task has beend created but window property in aura window
+  // haven't been updated and still kept "session_id". In this case, if the
+  // session's task created, just return the latest task info.
+  if (base::Contains(session_id_to_task_id_map_, *session_id)) {
+    auto mapped_task_id = session_id_to_task_id_map_[*session_id];
+    if (base::Contains(task_id_to_arc_app_window_info_, mapped_task_id))
+      return task_id_to_arc_app_window_info_[mapped_task_id].get();
+  }
 
   const std::string* arc_app_id = window->GetProperty(app_restore::kAppIdKey);
   if (!arc_app_id || arc_app_id->empty())

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "content/public/browser/browser_task_traits.h"
+#include "base/functional/bind.h"
+#include "content/public/browser/browser_thread.h"
 #include "crypto/nss_util_internal.h"
 #include "crypto/scoped_nss_types.h"
 #include "net/cert/nss_profile_filter_chromeos.h"
 
-namespace chromeos {
+namespace ash {
 
 class ClientCertFilter::CertFilterIO {
  public:
@@ -145,4 +145,4 @@ void ClientCertFilter::OnInitComplete(base::OnceClosure callback) {
   std::move(callback).Run();
 }
 
-}  // namespace chromeos
+}  // namespace ash

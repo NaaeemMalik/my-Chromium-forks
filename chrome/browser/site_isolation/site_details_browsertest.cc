@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,8 @@
 #include <utility>
 #include <vector>
 
-#include "base/callback_helpers.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback_helpers.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
@@ -31,6 +31,7 @@
 #include "content/public/browser/render_process_host.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
+#include "content/public/test/back_forward_cache_util.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/fenced_frame_test_util.h"
@@ -117,7 +118,7 @@ MATCHER_P3(DependingOnPolicy,
            isolate_nothing,
            isolate_extensions,
            isolate_all_sites,
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
            std::string("(with oopifs disabled) ") +
                PrintToString(isolate_nothing)
 #else
@@ -128,7 +129,7 @@ MATCHER_P3(DependingOnPolicy,
                      PrintToString(isolate_extensions)
 #endif
 ) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   return ExplainMatchResult(isolate_nothing, arg, result_listener);
 #else
   return content::AreAllSitesIsolatedForTesting()
@@ -194,7 +195,7 @@ class SiteDetailsBrowserTest : public extensions::ExtensionBrowserTest {
   // resources and, optionally, a background process.
   const Extension* CreateExtension(const std::string& name,
                                    bool has_background_process) {
-    std::unique_ptr<TestExtensionDir> dir(new TestExtensionDir);
+    TestExtensionDir dir;
 
     DictionaryBuilder manifest;
     manifest.Set("name", name)
@@ -212,15 +213,15 @@ class SiteDetailsBrowserTest : public extensions::ExtensionBrowserTest {
           DictionaryBuilder()
               .Set("scripts", ListBuilder().Append("script.js").Build())
               .Build());
-      dir->WriteFile(FILE_PATH_LITERAL("script.js"),
-                     "console.log('" + name + " running');");
+      dir.WriteFile(FILE_PATH_LITERAL("script.js"),
+                    "console.log('" + name + " running');");
     }
 
-    dir->WriteFile(FILE_PATH_LITERAL("blank_iframe.html"),
-                   base::StringPrintf("<html><body>%s, blank iframe:"
-                                      "  <iframe width=80 height=80></iframe>"
-                                      "</body></html>",
-                                      name.c_str()));
+    dir.WriteFile(FILE_PATH_LITERAL("blank_iframe.html"),
+                  base::StringPrintf("<html><body>%s, blank iframe:"
+                                     "  <iframe width=80 height=80></iframe>"
+                                     "</body></html>",
+                                     name.c_str()));
     std::string iframe_url =
         embedded_test_server()
             ->GetURL("w.com", "/cross_site_iframe_factory.html?w")
@@ -229,22 +230,22 @@ class SiteDetailsBrowserTest : public extensions::ExtensionBrowserTest {
         embedded_test_server()
             ->GetURL("x.com", "/cross_site_iframe_factory.html?x")
             .spec();
-    dir->WriteFile(
+    dir.WriteFile(
         FILE_PATH_LITERAL("http_iframe.html"),
         base::StringPrintf("<html><body>%s, http:// iframe:"
                            "  <iframe width=80 height=80 src='%s'></iframe>"
                            "</body></html>",
                            name.c_str(), iframe_url.c_str()));
-    dir->WriteFile(FILE_PATH_LITERAL("two_http_iframes.html"),
-                   base::StringPrintf(
-                       "<html><body>%s, two http:// iframes:"
-                       "  <iframe width=80 height=80 src='%s'></iframe>"
-                       "  <iframe width=80 height=80 src='%s'></iframe>"
-                       "</body></html>",
-                       name.c_str(), iframe_url.c_str(), iframe_url2.c_str()));
-    dir->WriteManifest(manifest.ToJSON());
+    dir.WriteFile(FILE_PATH_LITERAL("two_http_iframes.html"),
+                  base::StringPrintf(
+                      "<html><body>%s, two http:// iframes:"
+                      "  <iframe width=80 height=80 src='%s'></iframe>"
+                      "  <iframe width=80 height=80 src='%s'></iframe>"
+                      "</body></html>",
+                      name.c_str(), iframe_url.c_str(), iframe_url2.c_str()));
+    dir.WriteManifest(manifest.ToJSON());
 
-    const Extension* extension = LoadExtension(dir->UnpackedPath());
+    const Extension* extension = LoadExtension(dir.UnpackedPath());
     EXPECT_TRUE(extension);
     temp_dirs_.push_back(std::move(dir));
     return extension;
@@ -252,7 +253,7 @@ class SiteDetailsBrowserTest : public extensions::ExtensionBrowserTest {
 
   const Extension* CreateHostedApp(const std::string& name,
                                    const GURL& app_url) {
-    std::unique_ptr<TestExtensionDir> dir(new TestExtensionDir);
+    TestExtensionDir dir;
 
     DictionaryBuilder manifest;
     manifest.Set("name", name)
@@ -265,9 +266,9 @@ class SiteDetailsBrowserTest : public extensions::ExtensionBrowserTest {
                 .Set("launch",
                      DictionaryBuilder().Set("web_url", app_url.spec()).Build())
                 .Build());
-    dir->WriteManifest(manifest.ToJSON());
+    dir.WriteManifest(manifest.ToJSON());
 
-    const Extension* extension = LoadExtension(dir->UnpackedPath());
+    const Extension* extension = LoadExtension(dir.UnpackedPath());
     EXPECT_TRUE(extension);
     temp_dirs_.push_back(std::move(dir));
     return extension;
@@ -292,7 +293,7 @@ class SiteDetailsBrowserTest : public extensions::ExtensionBrowserTest {
   }
 
  private:
-  std::vector<std::unique_ptr<TestExtensionDir>> temp_dirs_;
+  std::vector<TestExtensionDir> temp_dirs_;
 };
 
 // Test the accuracy of SiteDetails process estimation, in the presence of
@@ -354,7 +355,7 @@ IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest, DISABLED_ManyIframes) {
   // Open a second tab (different BrowsingInstance) with 4 sites (a through d).
   GURL abcd_url = embedded_test_server()->GetURL(
       "a.com", "/cross_site_iframe_factory.html?a(b(c(d())))");
-  AddTabAtIndex(1, abcd_url, ui::PAGE_TRANSITION_TYPED);
+  ASSERT_TRUE(AddTabAtIndex(1, abcd_url, ui::PAGE_TRANSITION_TYPED));
 
   details = new TestMemoryDetails();
   details->StartFetchAndWait();
@@ -377,7 +378,7 @@ IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest, DISABLED_ManyIframes) {
                         ElementsAre(Bucket(12, 1), Bucket(68, 1))));
 
   // Open a third tab (different BrowsingInstance) with the same 4 sites.
-  AddTabAtIndex(2, abcd_url, ui::PAGE_TRANSITION_TYPED);
+  ASSERT_TRUE(AddTabAtIndex(2, abcd_url, ui::PAGE_TRANSITION_TYPED));
 
   details = new TestMemoryDetails();
   details->StartFetchAndWait();
@@ -467,7 +468,7 @@ IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest, DISABLED_IsolateExtensions) {
   WebContents* tab1 = browser()->tab_strip_model()->GetWebContentsAt(0);
   GURL tab2_url = embedded_test_server()->GetURL(
       "a.com", "/cross_site_iframe_factory.html?a(d,e)");
-  AddTabAtIndex(1, tab2_url, ui::PAGE_TRANSITION_TYPED);
+  ASSERT_TRUE(AddTabAtIndex(1, tab2_url, ui::PAGE_TRANSITION_TYPED));
   WebContents* tab2 = browser()->tab_strip_model()->GetWebContentsAt(1);
 
   details = new TestMemoryDetails();
@@ -565,7 +566,8 @@ IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest, DISABLED_IsolateExtensions) {
   // be three processes estimated by IsolateExtensions: one for extension3, one
   // for extension1's background page, and one for the web iframe in tab2.
   browser()->tab_strip_model()->ActivateTabAt(
-      0, {TabStripModel::GestureType::kOther});
+      0, TabStripUserGestureDetails(
+             TabStripUserGestureDetails::GestureType::kOther));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), extension3->GetResourceURL("blank_iframe.html")));
   details = new TestMemoryDetails();
@@ -733,7 +735,7 @@ IN_PROC_BROWSER_TEST_F(SiteDetailsBrowserTest,
   // Open a tab, which will be in a different BrowsingInstance.
   GURL abcd_url = embedded_test_server()->GetURL(
       "a.com", "/cross_site_iframe_factory.html?a(b(c(d())))");
-  AddTabAtIndex(1, abcd_url, ui::PAGE_TRANSITION_TYPED);
+  ASSERT_TRUE(AddTabAtIndex(1, abcd_url, ui::PAGE_TRANSITION_TYPED));
 
   details = new TestMemoryDetails();
   details->StartFetchAndWait();
@@ -818,9 +820,7 @@ class PrerenderSiteDetailsBrowserTest : public InProcessBrowserTest {
   PrerenderSiteDetailsBrowserTest()
       : prerender_helper_(
             base::BindRepeating(&PrerenderSiteDetailsBrowserTest::web_contents,
-                                base::Unretained(this))) {
-    feature_list_.InitAndEnableFeature(blink::features::kPrerender2);
-  }
+                                base::Unretained(this))) {}
   ~PrerenderSiteDetailsBrowserTest() override = default;
 
   PrerenderSiteDetailsBrowserTest(const PrerenderSiteDetailsBrowserTest&) =
@@ -841,9 +841,6 @@ class PrerenderSiteDetailsBrowserTest : public InProcessBrowserTest {
     return browser()->tab_strip_model()->GetActiveWebContents();
   }
   content::test::PrerenderTestHelper prerender_helper_;
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(PrerenderSiteDetailsBrowserTest,
@@ -875,6 +872,7 @@ class FencedFrameSiteDetailsBrowserTest : public InProcessBrowserTest {
       const FencedFrameSiteDetailsBrowserTest&) = delete;
 
   void SetUpOnMainThread() override {
+    host_resolver()->AddRule("*", "127.0.0.1");
     ASSERT_TRUE(embedded_test_server()->Start());
   }
 
@@ -892,15 +890,16 @@ class FencedFrameSiteDetailsBrowserTest : public InProcessBrowserTest {
 
 IN_PROC_BROWSER_TEST_F(FencedFrameSiteDetailsBrowserTest,
                        MemoryDetailsForFencedFrame) {
-  auto initial_url = embedded_test_server()->GetURL("/empty.html");
+  content::IsolateAllSitesForTesting(base::CommandLine::ForCurrentProcess());
+  auto initial_url = embedded_test_server()->GetURL("a.com", "/empty.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), initial_url));
 
   // Load a fenced frame.
   GURL fenced_frame_url =
-      embedded_test_server()->GetURL("/fenced_frames/iframe.html");
+      embedded_test_server()->GetURL("b.com", "/fenced_frames/iframe.html");
   content::RenderFrameHost* fenced_frame_host =
       fenced_frame_test_helper().CreateFencedFrame(
-          web_contents()->GetMainFrame(), fenced_frame_url);
+          web_contents()->GetPrimaryMainFrame(), fenced_frame_url);
   ASSERT_TRUE(fenced_frame_host);
 
   scoped_refptr<TestMemoryDetails> details = new TestMemoryDetails();
@@ -917,10 +916,9 @@ class BackForwardCacheSiteDetailsBrowserTest : public InProcessBrowserTest {
   BackForwardCacheSiteDetailsBrowserTest() {
     // Enable BackForwardCache.
     feature_list_.InitWithFeaturesAndParameters(
-        {{features::kBackForwardCache,
-          {{"TimeToLiveInBackForwardCacheInSeconds", "3600"}}}},
-        // Allow BackForwardCache for all devices regardless of their memory.
-        {features::kBackForwardCacheMemoryControls});
+        content::GetDefaultEnabledBackForwardCacheFeaturesForTesting(
+            /*ignore_outstanding_network_request=*/false),
+        content::GetDefaultDisabledBackForwardCacheFeaturesForTesting());
   }
   ~BackForwardCacheSiteDetailsBrowserTest() override = default;
 

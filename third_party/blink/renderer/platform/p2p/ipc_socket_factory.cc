@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,11 @@
 
 #include "base/compiler_specific.h"
 #include "base/logging.h"
-#include "base/metrics/histogram_macros.h"
+#include "base/memory/weak_ptr.h"
 #include "base/strings/stringprintf.h"
 #include "base/threading/thread_checker.h"
 #include "base/trace_event/trace_event.h"
-#include "jingle/glue/utils.h"
+#include "components/webrtc/net_address_utils.h"
 #include "net/base/ip_address.h"
 #include "net/base/port_util.h"
 #include "third_party/blink/public/platform/modules/webrtc/webrtc_logging.h"
@@ -67,7 +67,23 @@ bool JingleSocketOptionToP2PSocketOption(rtc::Socket::Option option,
   return true;
 }
 
-const size_t kMaximumInFlightBytes = 64 * 1024;  // 64 KB
+// 640KB, 10x max UDP packet size. This controls the maximum size we can write
+// to the IPC buffer, which is consumed by the shared network service process.
+//
+// If this buffer is too small, we'll see more MaxPendingBytesWouldBlock
+// events and text log entries from WebRTC (search for kSendErrorLogLimit).
+// As is, rate limiting in the layer in WebRTC that calls this layer, isn't very
+// sophisticated and the cost of being blocked by this limit can be quite high.
+// After being blocked, this implementation will fire an event once bytes have
+// been freed up, which is then fanned out to all potentially waiting writers.
+// That can create a storm of calls to `Send[To]` which may then cause multiple
+// blocking errors again, both wasting CPU and spamming the log.
+// The network service is single threaded and shared with other render
+// processes. So having this max value large enough to accommodate multiple
+// buffers, allows for more efficient bulk processing and less back-and-forth
+// synchronizing between the render processes and network service.
+// See also: bugs.webrtc.org/9622 and crbug/856088.
+const size_t kDefaultMaximumInFlightBytes = 10 * 64 * 1024;
 
 // IpcPacketSocket implements rtc::AsyncPacketSocket interface
 // using P2PSocketClient that works over IPC-channel. It must be used
@@ -125,7 +141,7 @@ class IpcPacketSocket : public rtc::AsyncPacketSocket,
       const network::P2PSendPacketMetrics& send_metrics) override;
   void OnError() override;
   void OnDataReceived(const net::IPEndPoint& address,
-                      const Vector<int8_t>& data,
+                      base::span<const uint8_t> data,
                       const base::TimeTicks& timestamp) override;
 
  private:
@@ -179,6 +195,9 @@ class IpcPacketSocket : public rtc::AsyncPacketSocket,
   // quickly restricts the client to a sustainable steady-state rate.
   size_t send_bytes_available_;
 
+  // The current limit for maximum bytes in flight.
+  size_t max_in_flight_bytes_;
+
   // Used to detect when browser doesn't send SendComplete message for some
   // packets. In normal case, the first packet should be the one that we're
   // going to receive the next completion signal.
@@ -196,10 +215,6 @@ class IpcPacketSocket : public rtc::AsyncPacketSocket,
   // send_bytes_available_.
   size_t max_discard_bytes_sequence_;
   size_t current_discard_bytes_sequence_;
-
-  // Track the total number of packets and the number of packets discarded.
-  int packets_discarded_;
-  int total_packets_;
 };
 
 // Simple wrapper around P2PAsyncAddressResolver. The main purpose of this
@@ -214,6 +229,7 @@ class AsyncAddressResolverImpl : public rtc::AsyncResolverInterface {
 
   // rtc::AsyncResolverInterface interface.
   void Start(const rtc::SocketAddress& addr) override;
+  void Start(const rtc::SocketAddress& addr, int address_family) override;
   bool GetResolvedAddress(int family, rtc::SocketAddress* addr) const override;
   int GetError() const override;
   void Destroy(bool wait) override;
@@ -225,21 +241,22 @@ class AsyncAddressResolverImpl : public rtc::AsyncResolverInterface {
 
   THREAD_CHECKER(thread_checker_);
 
-  rtc::SocketAddress addr_;                // Address to resolve.
-  std::vector<rtc::IPAddress> addresses_;  // Resolved addresses.
+  rtc::SocketAddress addr_;           // Address to resolve.
+  Vector<rtc::IPAddress> addresses_;  // Resolved addresses.
+
+  base::WeakPtrFactory<AsyncAddressResolverImpl> weak_factory_{this};
 };
 
 IpcPacketSocket::IpcPacketSocket()
     : type_(network::P2P_SOCKET_UDP),
       state_(kIsUninitialized),
-      send_bytes_available_(kMaximumInFlightBytes),
+      send_bytes_available_(kDefaultMaximumInFlightBytes),
+      max_in_flight_bytes_(kDefaultMaximumInFlightBytes),
       writable_signal_expected_(false),
       error_(0),
       max_discard_bytes_sequence_(0),
-      current_discard_bytes_sequence_(0),
-      packets_discarded_(0),
-      total_packets_(0) {
-  static_assert(kMaximumInFlightBytes > 0, "would send at zero rate");
+      current_discard_bytes_sequence_(0) {
+  static_assert(kDefaultMaximumInFlightBytes > 0, "would send at zero rate");
   std::fill_n(options_, static_cast<int>(network::P2P_SOCKET_OPT_MAX),
               kDefaultNonSetOptionValue);
 }
@@ -247,11 +264,6 @@ IpcPacketSocket::IpcPacketSocket()
 IpcPacketSocket::~IpcPacketSocket() {
   if (state_ == kIsOpening || state_ == kIsOpen || state_ == kIsError) {
     Close();
-  }
-
-  if (total_packets_ > 0) {
-    UMA_HISTOGRAM_PERCENTAGE("WebRTC.ApplicationPercentPacketsDiscarded",
-                             (packets_discarded_ * 100) / total_packets_);
   }
 }
 
@@ -264,7 +276,6 @@ void IpcPacketSocket::TraceSendThrottlingState() const {
 
 void IpcPacketSocket::IncrementDiscardCounters(size_t bytes_discarded) {
   current_discard_bytes_sequence_ += bytes_discarded;
-  packets_discarded_++;
 
   if (current_discard_bytes_sequence_ > max_discard_bytes_sequence_) {
     max_discard_bytes_sequence_ = current_discard_bytes_sequence_;
@@ -288,7 +299,7 @@ bool IpcPacketSocket::Init(network::P2PSocketType type,
   state_ = kIsOpening;
 
   net::IPEndPoint local_endpoint;
-  if (!jingle_glue::SocketAddressToIPEndPoint(local_address, &local_endpoint)) {
+  if (!webrtc::SocketAddressToIPEndPoint(local_address, &local_endpoint)) {
     return false;
   }
 
@@ -300,8 +311,8 @@ bool IpcPacketSocket::Init(network::P2PSocketType type,
       remote_endpoint =
           net::IPEndPoint(net::IPAddress(), remote_address.port());
     } else {
-      if (!jingle_glue::SocketAddressToIPEndPoint(remote_address,
-                                                  &remote_endpoint)) {
+      if (!webrtc::SocketAddressToIPEndPoint(remote_address,
+                                             &remote_endpoint)) {
         return false;
       }
     }
@@ -380,8 +391,6 @@ int IpcPacketSocket::SendTo(const void* data,
     return 0;
   }
 
-  total_packets_++;
-
   if (data_size > send_bytes_available_) {
     TRACE_EVENT_INSTANT1("p2p", "MaxPendingBytesWouldBlock",
                          TRACE_EVENT_SCOPE_THREAD, "id",
@@ -405,7 +414,7 @@ int IpcPacketSocket::SendTo(const void* data,
   if (address.IsUnresolvedIP()) {
     address_chrome = net::IPEndPoint(net::IPAddress(), address.port());
   } else {
-    if (!jingle_glue::SocketAddressToIPEndPoint(address, &address_chrome)) {
+    if (!webrtc::SocketAddressToIPEndPoint(address, &address_chrome)) {
       LOG(WARNING) << "Failed to convert remote address to IPEndPoint: address="
                    << address.ipaddr().ToSensitiveString()
                    << ", remote_address_="
@@ -416,12 +425,13 @@ int IpcPacketSocket::SendTo(const void* data,
     }
   }
 
+  DCHECK_GE(send_bytes_available_, data_size);
   send_bytes_available_ -= data_size;
 
-  Vector<int8_t> data_vector;
-  data_vector.Append(reinterpret_cast<const int8_t*>(data),
-                     base::checked_cast<wtf_size_t>(data_size));
-  uint64_t packet_id = client_->Send(address_chrome, data_vector, options);
+  uint64_t packet_id = client_->Send(
+      address_chrome,
+      base::make_span(reinterpret_cast<const uint8_t*>(data), data_size),
+      options);
 
   // Ensure packet_id is not 0. It can't be the case according to
   // P2PSocketClientImpl::Send().
@@ -505,6 +515,24 @@ int IpcPacketSocket::DoSetOption(network::P2PSocketOption option, int value) {
   DCHECK_EQ(state_, kIsOpen);
 
   client_->SetOption(option, value);
+  if (option == network::P2PSocketOption::P2P_SOCKET_OPT_SNDBUF && value > 0) {
+    LOG(INFO) << "Setting new p2p socket buffer limit to " << value;
+
+    // Allow socket option to increase in-flight limit above default, but not
+    // reduce it.
+    size_t new_limit =
+        std::max(static_cast<size_t>(value), kDefaultMaximumInFlightBytes);
+    size_t in_flight_bytes = max_in_flight_bytes_ - send_bytes_available_;
+    if (in_flight_bytes > new_limit) {
+      // New limit is lower than the current number of in flight bytes - just
+      // set availability to 0 but allow the current excess to still be sent.
+      send_bytes_available_ = 0;
+    } else {
+      send_bytes_available_ = new_limit - in_flight_bytes;
+    }
+    max_in_flight_bytes_ = new_limit;
+  }
+
   return 0;
 }
 
@@ -522,7 +550,7 @@ void IpcPacketSocket::OnOpen(const net::IPEndPoint& local_address,
                              const net::IPEndPoint& remote_address) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  if (!jingle_glue::IPEndPointToSocketAddress(local_address, &local_address_)) {
+  if (!webrtc::IPEndPointToSocketAddress(local_address, &local_address_)) {
     // Always expect correct IPv4 address to be allocated.
     NOTREACHED();
     OnError();
@@ -548,8 +576,8 @@ void IpcPacketSocket::OnOpen(const net::IPEndPoint& local_address,
       // |remote_address| could be unresolved if the connection is behind a
       // proxy.
       if (!remote_address.address().empty() &&
-          jingle_glue::IPEndPointToSocketAddress(remote_address,
-                                                 &jingle_socket_address)) {
+          webrtc::IPEndPointToSocketAddress(remote_address,
+                                            &jingle_socket_address)) {
         // Set only the IP address.
         remote_address_.SetResolvedIP(jingle_socket_address.ipaddr());
       }
@@ -574,9 +602,8 @@ void IpcPacketSocket::OnSendComplete(
   CHECK(send_metrics.packet_id == 0 ||
         record.packet_id == send_metrics.packet_id);
 
-  send_bytes_available_ += record.packet_size;
-
-  DCHECK_LE(send_bytes_available_, kMaximumInFlightBytes);
+  send_bytes_available_ = std::min(send_bytes_available_ + record.packet_size,
+                                   max_in_flight_bytes_);
 
   in_flight_packet_records_.pop_front();
   TraceSendThrottlingState();
@@ -584,7 +611,8 @@ void IpcPacketSocket::OnSendComplete(
   SignalSentPacket(this, rtc::SentPacket(send_metrics.rtc_packet_id,
                                          send_metrics.send_time_ms));
 
-  if (writable_signal_expected_ && send_bytes_available_ > 0) {
+  if (writable_signal_expected_ &&
+      send_bytes_available_ > (max_in_flight_bytes_ / 2)) {
     blink::WebRtcLogMessage(base::StringPrintf(
         "IpcPacketSocket: sending is unblocked. %d packets in flight.",
         static_cast<int>(in_flight_packet_records_.size())));
@@ -605,7 +633,7 @@ void IpcPacketSocket::OnError() {
 }
 
 void IpcPacketSocket::OnDataReceived(const net::IPEndPoint& address,
-                                     const Vector<int8_t>& data,
+                                     base::span<const uint8_t> data,
                                      const base::TimeTicks& timestamp) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
@@ -616,7 +644,7 @@ void IpcPacketSocket::OnDataReceived(const net::IPEndPoint& address,
     // |address| could be empty for TCP connections behind a proxy.
     address_lj = remote_address_;
   } else {
-    if (!jingle_glue::IPEndPointToSocketAddress(address, &address_lj)) {
+    if (!webrtc::IPEndPointToSocketAddress(address, &address_lj)) {
       // We should always be able to convert address here because we
       // don't expect IPv6 address on IPv4 connections.
       NOTREACHED();
@@ -624,8 +652,9 @@ void IpcPacketSocket::OnDataReceived(const net::IPEndPoint& address,
     }
   }
 
-  SignalReadPacket(this, reinterpret_cast<const char*>(&data[0]), data.size(),
-                   address_lj, timestamp.since_origin().InMicroseconds());
+  SignalReadPacket(this, reinterpret_cast<const char*>(data.data()),
+                   data.size(), address_lj,
+                   timestamp.since_origin().InMicroseconds());
 }
 
 AsyncAddressResolverImpl::AsyncAddressResolverImpl(
@@ -642,8 +671,21 @@ void AsyncAddressResolverImpl::Start(const rtc::SocketAddress& addr) {
   // GetResolvedAddress.
   addr_ = addr;
 
-  resolver_->Start(addr, WTF::Bind(&AsyncAddressResolverImpl::OnAddressResolved,
-                                   WTF::Unretained(this)));
+  resolver_->Start(addr, /*address_family=*/absl::nullopt,
+                   WTF::BindOnce(&AsyncAddressResolverImpl::OnAddressResolved,
+                                 weak_factory_.GetWeakPtr()));
+}
+
+void AsyncAddressResolverImpl::Start(const rtc::SocketAddress& addr,
+                                     int address_family) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  // Port and hostname must be copied to the resolved address returned from
+  // GetResolvedAddress.
+  addr_ = addr;
+
+  resolver_->Start(addr, absl::make_optional(address_family),
+                   WTF::BindOnce(&AsyncAddressResolverImpl::OnAddressResolved,
+                                 weak_factory_.GetWeakPtr()));
 }
 
 bool AsyncAddressResolverImpl::GetResolvedAddress(
@@ -651,13 +693,10 @@ bool AsyncAddressResolverImpl::GetResolvedAddress(
     rtc::SocketAddress* addr) const {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
-  if (addresses_.empty())
-    return false;
-
-  for (size_t i = 0; i < addresses_.size(); ++i) {
-    if (family == addresses_[i].family()) {
+  for (auto& address : addresses_) {
+    if (family == address.family()) {
       *addr = addr_;
-      addr->SetResolvedIP(addresses_[i]);
+      addr->SetResolvedIP(address);
       return true;
     }
   }
@@ -682,8 +721,8 @@ void AsyncAddressResolverImpl::OnAddressResolved(
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   for (wtf_size_t i = 0; i < addresses.size(); ++i) {
     rtc::SocketAddress socket_address;
-    if (!jingle_glue::IPEndPointToSocketAddress(
-            net::IPEndPoint(addresses[i], 0), &socket_address)) {
+    if (!webrtc::IPEndPointToSocketAddress(net::IPEndPoint(addresses[i], 0),
+                                           &socket_address)) {
       NOTREACHED();
     }
     addresses_.push_back(socket_address.ipaddr());

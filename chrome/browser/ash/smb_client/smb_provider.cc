@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@
 #include "chrome/browser/ash/file_system_provider/service.h"
 #include "chrome/browser/ash/smb_client/smb_file_system.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/chromeos/smb_shares/smb_share_dialog.h"
+#include "chrome/browser/ui/webui/ash/smb_shares/smb_share_dialog.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -22,16 +22,11 @@ namespace smb_client {
 
 SmbProvider::SmbProvider()
     : provider_id_(file_system_provider::ProviderId::CreateFromNativeId("smb")),
-      capabilities_(false /* configurable */,
-                    false /* watchable */,
-                    true /* multiple_mounts */,
-                    extensions::SOURCE_NETWORK),
-      name_(l10n_util::GetStringUTF8(IDS_SMB_SHARES_ADD_SERVICE_MENU_OPTION)) {
-  icon_set_.SetIcon(file_system_provider::IconSet::IconSize::SIZE_16x16,
-                    GURL("gtx://theme/IDR_SMB_ICON"));
-  icon_set_.SetIcon(file_system_provider::IconSet::IconSize::SIZE_32x32,
-                    GURL("gtx://theme/IDR_SMB_ICON@2x"));
-}
+      capabilities_{.configurable = false,
+                    .watchable = false,
+                    .multiple_mounts = true,
+                    .source = extensions::SOURCE_NETWORK},
+      name_(l10n_util::GetStringUTF8(IDS_SMB_SHARES_ADD_SERVICE_MENU_OPTION)) {}
 
 SmbProvider::~SmbProvider() = default;
 
@@ -56,10 +51,21 @@ const std::string& SmbProvider::GetName() const {
 }
 
 const file_system_provider::IconSet& SmbProvider::GetIconSet() const {
+  // Returns an empty IconSet.
   return icon_set_;
 }
 
-bool SmbProvider::RequestMount(Profile* profile) {
+file_system_provider::RequestManager* SmbProvider::GetRequestManager() {
+  NOTREACHED();
+  return nullptr;
+}
+
+bool SmbProvider::RequestMount(
+    Profile* profile,
+    ash::file_system_provider::RequestMountCallback callback) {
+  // Mount requests for SMB are handled by the SMB dialog. The callback
+  // isn't expected to be used.
+  std::move(callback).Run(base::File::Error::FILE_OK);
   smb_dialog::SmbShareDialog::Show();
   return true;
 }

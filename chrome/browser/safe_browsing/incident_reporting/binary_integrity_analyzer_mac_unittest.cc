@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -107,11 +107,11 @@ TEST_F(BinaryIntegrityAnalyzerMacTest, GetCriticalPathsAndRequirements) {
               paths_and_requirements_expected[i].requirement);
 
     base::ScopedCFTypeRef<SecRequirementRef> requirement;
-    EXPECT_EQ(errSecSuccess,
-              SecRequirementCreateWithString(
-                  base::mac::NSToCFCast(base::SysUTF8ToNSString(
-                      paths_and_requirements[i].requirement)),
-                  kSecCSDefaultFlags, requirement.InitializeInto()));
+    EXPECT_EQ(
+        errSecSuccess,
+        SecRequirementCreateWithString(
+            base::SysUTF8ToCFStringRef(paths_and_requirements[i].requirement),
+            kSecCSDefaultFlags, requirement.InitializeInto()));
   }
 }
 

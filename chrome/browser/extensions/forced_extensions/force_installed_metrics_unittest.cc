@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -123,7 +123,7 @@ constexpr char kPossibleNonMisconfigurationFailures[] =
     "Extensions.ForceInstalledSessionsWithNonMisconfigurationFailureOccured";
 constexpr char kDisableReason[] =
     "Extensions.ForceInstalledNotLoadedDisableReason";
-constexpr char kBlocklisted[] = "Extensions.ForceInstalledAndBlackListed";
+constexpr char kBlocklisted[] = "Extensions.ForceInstalledAndBlockListed";
 constexpr char kWebStoreExtensionManifestInvalid[] =
     "Extensions.WebStore_ForceInstalledFailureManifestInvalidErrorDetail2";
 constexpr char kOffStoreExtensionManifestInvalid[] =
@@ -182,7 +182,7 @@ class ForceInstalledMetricsTest : public ForceInstalledTestBase {
   }
 
   void SetupExtensionManagementPref() {
-    std::unique_ptr<base::DictionaryValue> extension_entry =
+    base::Value::Dict extension_entry =
         DictionaryBuilder()
             .Set("installation_mode", "allowed")
             .Set(ExternalProviderImpl::kExternalUpdateUrl, kExtensionUpdateUrl)
@@ -903,7 +903,7 @@ TEST_F(ForceInstalledMetricsTest, ReportManagedGuestSessionOnExtensionFailure) {
   fake_user_manager->UserLoggedIn(account_id, user->username_hash(),
                                   false /* browser_restart */,
                                   false /* is_child */);
-  chromeos::ProfileHelper::Get()->SetProfileToUserMappingForTesting(user);
+  ash::ProfileHelper::Get()->SetProfileToUserMappingForTesting(user);
   SetupForceList(ExtensionOrigin::kWebStore);
   install_stage_tracker()->ReportFailure(
       kExtensionId1, InstallStageTracker::FailureReason::INVALID_ID);
@@ -929,7 +929,7 @@ TEST_F(ForceInstalledMetricsTest, ReportGuestSessionOnExtensionFailure) {
   fake_user_manager->UserLoggedIn(account_id, user->username_hash(),
                                   false /* browser_restart */,
                                   false /* is_child */);
-  chromeos::ProfileHelper::Get()->SetProfileToUserMappingForTesting(user);
+  ash::ProfileHelper::Get()->SetProfileToUserMappingForTesting(user);
   SetupForceList(ExtensionOrigin::kWebStore);
   install_stage_tracker()->ReportFailure(
       kExtensionId1, InstallStageTracker::FailureReason::INVALID_ID);
@@ -958,7 +958,7 @@ TEST_F(ForceInstalledMetricsTest,
   fake_user_manager->UserLoggedIn(account_id, user->username_hash(),
                                   false /* browser_restart */,
                                   false /* is_child */);
-  chromeos::ProfileHelper::Get()->SetProfileToUserMappingForTesting(user);
+  ash::ProfileHelper::Get()->SetProfileToUserMappingForTesting(user);
 
   SetupForceList(ExtensionOrigin::kWebStore);
   CreateExtensionService(/*extensions_enabled=*/true);
@@ -1361,7 +1361,7 @@ TEST_F(ForceInstalledMetricsTest,
        NonMisconfigurationFailureNotPresentDisallowedByPolicyTypeError) {
   SetupForceList(ExtensionOrigin::kWebStore);
   // Set TYPE_EXTENSION and TYPE_THEME as the allowed extension types.
-  std::unique_ptr<base::Value> list =
+  base::Value::List list =
       ListBuilder().Append("extension").Append("theme").Build();
   prefs()->SetManagedPref(pref_names::kAllowedTypes, std::move(list));
 
@@ -1391,7 +1391,7 @@ TEST_F(ForceInstalledMetricsTest,
   SetupForceList(ExtensionOrigin::kWebStore);
 
   // Set TYPE_EXTENSION and TYPE_THEME as the allowed extension types.
-  std::unique_ptr<base::Value> list =
+  base::Value::List list =
       ListBuilder().Append("extension").Append("theme").Build();
   prefs()->SetManagedPref(pref_names::kAllowedTypes, std::move(list));
 

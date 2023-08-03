@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@
 
 #include <memory>
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "base/gtest_prod_util.h"
+#include "base/memory/raw_ref.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/types/strong_alias.h"
@@ -28,7 +29,7 @@ class Env;
 }
 #endif
 
-#if defined(USE_OZONE)
+#if BUILDFLAG(IS_OZONE)
 #include "ui/ozone/buildflags.h"  // nogncheck
 #if BUILDFLAG(OZONE_PLATFORM_X11)
 #define USE_OZONE_PLATFORM_X11
@@ -54,13 +55,13 @@ class GpuChannelEstablishFactory;
 namespace media {
 class AudioManager;
 class AudioSystem;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 class SystemMessageWindowWin;
-#elif (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_UDEV)
+#elif (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(USE_UDEV)
 class DeviceMonitorLinux;
 #endif
 class UserInputMonitor;
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 class DeviceMonitorMac;
 #endif
 }  // namespace media
@@ -102,7 +103,7 @@ namespace responsiveness {
 class Watcher;
 }  // namespace responsiveness
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 class ScreenOrientationDelegate;
 #endif
 
@@ -139,9 +140,13 @@ class CONTENT_EXPORT BrowserMainLoop {
 
   void PreCreateMainMessageLoop();
   // Creates the main message loop, bringing APIs like
-  // ThreadTaskRunnerHandle::Get() online.
+  // SingleThreadTaskRunner::GetCurrentDefault() online.
   void CreateMainMessageLoop();
   void PostCreateMainMessageLoop();
+
+  // Creates a "bare" message loop that is required to exit gracefully at the
+  // early stage if the toolkit failed to initialise.
+  void CreateMessageLoopForEarlyShutdown();
 
   // Create and start running the tasks we need to complete startup. Note that
   // this can be called more than once (currently only on Android) if we get a
@@ -178,7 +183,7 @@ class CONTENT_EXPORT BrowserMainLoop {
     return media_keys_listener_manager_.get();
   }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // Only expose this on ChromeOS since it's only needed there. On Android this
   // be null if this process started in reduced mode.
   net::NetworkChangeNotifier* network_change_notifier() const {
@@ -196,7 +201,7 @@ class CONTENT_EXPORT BrowserMainLoop {
 
   gpu::GpuChannelEstablishFactory* gpu_channel_establish_factory() const;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   void SynchronouslyFlushStartupTasks();
 
   // |enabled| Whether or not CreateStartupTasks() posts any tasks. This is
@@ -204,9 +209,9 @@ class CONTENT_EXPORT BrowserMainLoop {
   // whole browser loaded. In that scenario tasks posted by CreateStartupTasks()
   // may crash if run.
   static void EnableStartupTasks(bool enabled);
-#endif  // OS_ANDROID
+#endif  // BUILDFLAG(IS_ANDROID)
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // TODO(fsamuel): We should find an object to own HostFrameSinkManager on all
   // platforms including Android. See http://crbug.com/732507.
   viz::HostFrameSinkManager* host_frame_sink_manager() const {
@@ -218,7 +223,7 @@ class CONTENT_EXPORT BrowserMainLoop {
   void GetCompositingModeReporter(
       mojo::PendingReceiver<viz::mojom::CompositingModeReporter> receiver);
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   media::DeviceMonitorMac* device_monitor_mac() const {
     return device_monitor_mac_.get();
   }
@@ -228,6 +233,11 @@ class CONTENT_EXPORT BrowserMainLoop {
   void SetSmsProviderForTesting(std::unique_ptr<SmsProvider>);
 
   BrowserMainParts* parts() { return parts_.get(); }
+
+  // This should only be called after the IO thread has been started (and will
+  // crash otherwise). May block on the thread ID being initialized if the IO
+  // thread ThreadMain has not yet run.
+  base::PlatformThreadId GetIOThreadId();
 
  private:
   FRIEND_TEST_ALL_PREFIXES(BrowserMainLoopTest, CreateThreadsInSingleProcess);
@@ -286,7 +296,7 @@ class CONTENT_EXPORT BrowserMainLoop {
 
   // Members initialized on construction ---------------------------------------
   MainFunctionParams parameters_;
-  const base::CommandLine& parsed_command_line_;
+  const raw_ref<const base::CommandLine> parsed_command_line_;
   int result_code_;
   bool created_threads_;  // True if the non-UI threads were created.
   // //content must be initialized single-threaded until
@@ -322,7 +332,7 @@ class CONTENT_EXPORT BrowserMainLoop {
   std::unique_ptr<ScreenlockMonitor> screenlock_monitor_;
   // Per-process listener for online state changes.
   std::unique_ptr<BrowserOnlineStateObserver> online_state_observer_;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Android implementation of ScreenOrientationDelegate
   std::unique_ptr<ScreenOrientationDelegate> screen_orientation_delegate_;
 #endif
@@ -366,18 +376,18 @@ class CONTENT_EXPORT BrowserMainLoop {
   // Must be deleted on the IO thread.
   std::unique_ptr<SpeechRecognitionManagerImpl> speech_recognition_manager_;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   std::unique_ptr<media::SystemMessageWindowWin> system_message_window_;
-#elif (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_UDEV)
+#elif (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(USE_UDEV)
   std::unique_ptr<media::DeviceMonitorLinux> device_monitor_linux_;
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
   std::unique_ptr<media::DeviceMonitorMac> device_monitor_mac_;
 #endif
 
   std::unique_ptr<MediaStreamManager> media_stream_manager_;
   scoped_refptr<SaveFileManager> save_file_manager_;
   std::unique_ptr<content::TracingControllerImpl> tracing_controller_;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<viz::HostFrameSinkManager> host_frame_sink_manager_;
 
   // Reports on the compositing mode in the system for clients to submit

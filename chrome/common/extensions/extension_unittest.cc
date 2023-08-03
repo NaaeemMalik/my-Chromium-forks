@@ -1,10 +1,9 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <stddef.h>
 
-#include "base/cxx17_backports.h"
 #include "base/files/file_util.h"
 #include "base/format_macros.h"
 #include "base/path_service.h"
@@ -13,11 +12,11 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_paths.h"
-#include "chrome/common/extensions/command.h"
 #include "chrome/common/extensions/extension_test_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/crx_file/id_util.h"
+#include "extensions/common/command.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_resource.h"
@@ -131,34 +130,6 @@ TEST(ExtensionTest, EnsureWhitespacesInExtensionNameAreCollapsed) {
   EXPECT_EQ(unsanitized_name, extension->non_localized_name());
 }
 
-// TODO(crbug.com/794252): Disallow empty extension names from being locally
-// loaded.
-TEST(ExtensionTest, EmptyName) {
-  DictionaryBuilder manifest1;
-  manifest1.Set("name", "")
-      .Set("manifest_version", 2)
-      .Set("description", "some description");
-  scoped_refptr<const Extension> extension =
-      ExtensionBuilder()
-          .SetManifest(manifest1.Build())
-          .MergeManifest(DictionaryBuilder().Set("version", "0.1").Build())
-          .Build();
-  ASSERT_TRUE(extension.get());
-  EXPECT_EQ("", extension->name());
-
-  DictionaryBuilder manifest2;
-  manifest2.Set("name", " ")
-      .Set("manifest_version", 2)
-      .Set("description", "some description");
-  extension =
-      ExtensionBuilder()
-          .SetManifest(manifest2.Build())
-          .MergeManifest(DictionaryBuilder().Set("version", "0.1").Build())
-          .Build();
-  ASSERT_TRUE(extension.get());
-  EXPECT_EQ("", extension->name());
-}
-
 TEST(ExtensionTest, RTLNameInLTRLocale) {
   // Test the case when a directional override is the first character.
   auto run_rtl_test = [](const wchar_t* name, const wchar_t* expected) {
@@ -187,13 +158,13 @@ TEST(ExtensionTest, RTLNameInLTRLocale) {
   run_rtl_test(L"google\x202e.com", L"google\x202e.com\x202c");
 
   run_rtl_test(L"كبير Google التطبيق",
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
                L"\x200e\x202bكبير Google التطبيق\x202c\x200e");
 #else
                // On Windows for an LTR locale, no changes to the string are
                // made.
                L"كبير Google التطبيق");
-#endif  // !OS_WIN
+#endif  // !BUILDFLAG(IS_WIN)
 }
 
 TEST(ExtensionTest, GetResourceURLAndPath) {
@@ -274,9 +245,9 @@ TEST(ExtensionTest, GetResource) {
   scoped_refptr<Extension> extension = LoadManifestStrict("empty_manifest",
       "empty.json");
   EXPECT_TRUE(extension.get());
-  for (size_t i = 0; i < base::size(valid_path_test_cases); ++i)
+  for (size_t i = 0; i < std::size(valid_path_test_cases); ++i)
     EXPECT_TRUE(!extension->GetResource(valid_path_test_cases[i]).empty());
-  for (size_t i = 0; i < base::size(invalid_path_test_cases); ++i)
+  for (size_t i = 0; i < std::size(invalid_path_test_cases); ++i)
     EXPECT_TRUE(extension->GetResource(invalid_path_test_cases[i]).empty());
 }
 
@@ -363,7 +334,7 @@ TEST(ExtensionTest, WantsFileAccess) {
   GURL file_url("file:///etc/passwd");
 
   // Ignore the policy delegate for this test.
-  PermissionsData::SetPolicyDelegate(NULL);
+  PermissionsData::SetPolicyDelegate(nullptr);
 
   // <all_urls> permission
   extension = LoadManifest("permissions", "permissions_all_urls.json");

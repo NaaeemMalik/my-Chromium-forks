@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -302,34 +302,6 @@ TEST_F(MacNotificationServiceNSTest, CloseAllNotifications) {
   service_remote_->CloseAllNotifications();
   run_loop.Run();
   [mock_notification_center_ verify];
-}
-
-TEST_F(MacNotificationServiceNSTest, LogsMetricsForAlerts) {
-  base::HistogramTester histogram_tester;
-  id mainBundleMock =
-      [OCMockObject partialMockForObject:base::mac::MainBundle()];
-
-  // Mock the alert style to "alert" and verify we log the correct metrics.
-  [[[mainBundleMock stub]
-      andReturn:@{@"NSUserNotificationAlertStyle" : @"alert"}] infoDictionary];
-  DisplayNotificationSync();
-  histogram_tester.ExpectUniqueSample("Notifications.macOS.Delivered.Alert",
-                                      /*sample=*/true, /*expected_count=*/1);
-  [mainBundleMock stopMocking];
-}
-
-TEST_F(MacNotificationServiceNSTest, LogsMetricsForBanners) {
-  base::HistogramTester histogram_tester;
-  id mainBundleMock =
-      [OCMockObject partialMockForObject:base::mac::MainBundle()];
-
-  // Mock the alert style to "banner" and verify we log the correct metrics.
-  [[[mainBundleMock stub]
-      andReturn:@{@"NSUserNotificationAlertStyle" : @"banner"}] infoDictionary];
-  DisplayNotificationSync();
-  histogram_tester.ExpectUniqueSample("Notifications.macOS.Delivered.Banner",
-                                      /*sample=*/true, /*expected_count=*/1);
-  [mainBundleMock stopMocking];
 }
 
 struct NotificationActionParams {

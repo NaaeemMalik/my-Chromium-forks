@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,7 @@
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_transfer_token.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_file_system_create_writable_options.h"
-#include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/fileapi/file.h"
-#include "third_party/blink/renderer/core/fileapi/file_error.h"
 #include "third_party/blink/renderer/modules/file_system_access/file_system_access_error.h"
 #include "third_party/blink/renderer/modules/file_system_access/file_system_access_file_delegate.h"
 #include "third_party/blink/renderer/modules/file_system_access/file_system_sync_access_handle.h"
@@ -33,7 +31,7 @@ FileSystemFileHandle::FileSystemFileHandle(
     mojo::PendingRemote<mojom::blink::FileSystemAccessFileHandle> mojo_ptr)
     : FileSystemHandle(context, name), mojo_ptr_(context) {
   mojo_ptr_.Bind(std::move(mojo_ptr),
-                 context->GetTaskRunner(TaskType::kMiscPlatformAPI));
+                 context->GetTaskRunner(TaskType::kStorage));
   DCHECK(mojo_ptr_.is_bound());
 }
 
@@ -46,12 +44,13 @@ ScriptPromise FileSystemFileHandle::createWritable(
     return ScriptPromise();
   }
 
-  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(
+      script_state, exception_state.GetContext());
   ScriptPromise result = resolver->Promise();
 
   mojo_ptr_->CreateFileWriter(
       options->keepExistingData(), options->autoClose(),
-      WTF::Bind(
+      WTF::BindOnce(
           [](FileSystemFileHandle*, ScriptPromiseResolver* resolver,
              mojom::blink::FileSystemAccessErrorPtr result,
              mojo::PendingRemote<mojom::blink::FileSystemAccessFileWriter>
@@ -81,10 +80,11 @@ ScriptPromise FileSystemFileHandle::getFile(ScriptState* script_state,
     return ScriptPromise();
   }
 
-  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(
+      script_state, exception_state.GetContext());
   ScriptPromise result = resolver->Promise();
 
-  mojo_ptr_->AsBlob(WTF::Bind(
+  mojo_ptr_->AsBlob(WTF::BindOnce(
       [](FileSystemFileHandle*, ScriptPromiseResolver* resolver,
          const String& name, FileSystemAccessErrorPtr result,
          const base::File::Info& info,
@@ -112,10 +112,11 @@ ScriptPromise FileSystemFileHandle::createSyncAccessHandle(
     return ScriptPromise();
   }
 
-  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(
+      script_state, exception_state.GetContext());
   ScriptPromise result = resolver->Promise();
 
-  mojo_ptr_->OpenAccessHandle(WTF::Bind(
+  mojo_ptr_->OpenAccessHandle(WTF::BindOnce(
       [](FileSystemFileHandle*, ScriptPromiseResolver* resolver,
          FileSystemAccessErrorPtr result,
          mojom::blink::FileSystemAccessAccessHandleFilePtr file,
@@ -201,19 +202,6 @@ void FileSystemFileHandle::RequestPermissionImpl(
   mojo_ptr_->RequestPermission(writable, std::move(callback));
 }
 
-void FileSystemFileHandle::RenameImpl(
-    const String& new_entry_name,
-    base::OnceCallback<void(mojom::blink::FileSystemAccessErrorPtr)> callback) {
-  if (!mojo_ptr_.is_bound()) {
-    std::move(callback).Run(mojom::blink::FileSystemAccessError::New(
-        mojom::blink::FileSystemAccessStatus::kInvalidState,
-        base::File::Error::FILE_ERROR_FAILED, "Context Destroyed"));
-    return;
-  }
-
-  mojo_ptr_->Rename(new_entry_name, std::move(callback));
-}
-
 void FileSystemFileHandle::MoveImpl(
     mojo::PendingRemote<mojom::blink::FileSystemAccessTransferToken> dest,
     const String& new_entry_name,
@@ -225,7 +213,11 @@ void FileSystemFileHandle::MoveImpl(
     return;
   }
 
-  mojo_ptr_->Move(std::move(dest), new_entry_name, std::move(callback));
+  if (dest.is_valid()) {
+    mojo_ptr_->Move(std::move(dest), new_entry_name, std::move(callback));
+  } else {
+    mojo_ptr_->Rename(new_entry_name, std::move(callback));
+  }
 }
 
 void FileSystemFileHandle::RemoveImpl(
@@ -255,6 +247,17 @@ void FileSystemFileHandle::IsSameEntryImpl(
   }
 
   mojo_ptr_->IsSameEntry(std::move(other), std::move(callback));
+}
+
+void FileSystemFileHandle::GetUniqueIdImpl(
+    base::OnceCallback<void(const WTF::String&)> callback) {
+  if (!mojo_ptr_.is_bound()) {
+    // TODO(crbug.com/1413551): Consider throwing a kInvalidState exception here
+    // rather than returning an empty string.
+    std::move(callback).Run("");
+    return;
+  }
+  mojo_ptr_->GetUniqueId(std::move(callback));
 }
 
 }  // namespace blink

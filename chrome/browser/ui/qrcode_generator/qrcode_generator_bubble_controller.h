@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,7 +48,6 @@ class QRCodeGeneratorBubbleController
   // Returns nullptr if no bubble is currently shown.
   QRCodeGeneratorBubbleView* qrcode_generator_bubble_view() const;
 
-  // Handler for when the bubble is dismissed.
   base::OnceClosure GetOnBubbleClosedCallback();
   base::OnceClosure GetOnBackButtonPressedCallback();
 
@@ -57,9 +56,12 @@ class QRCodeGeneratorBubbleController
 
  private:
   friend class content::WebContentsUserData<QRCodeGeneratorBubbleController>;
+
+  // Handler for when the bubble is dismissed.
   void OnBubbleClosed();
   // Handler for when the back button is pressed.
   void OnBackButtonPressed();
+
   void UpdateIcon();
 
   // Will be nullptr if no bubble is currently shown.

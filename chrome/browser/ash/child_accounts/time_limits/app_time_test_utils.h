@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,14 +20,13 @@ namespace app_time {
 arc::mojom::ArcPackageInfoPtr CreateArcAppPackage(
     const std::string& package_name);
 
-arc::mojom::AppInfo CreateArcAppInfo(const std::string& package_name,
-                                     const std::string& name);
+arc::mojom::AppInfoPtr CreateArcAppInfo(const std::string& package_name,
+                                        const std::string& name);
 
 scoped_refptr<extensions::Extension> CreateExtension(
     const std::string& extension_id,
     const std::string& name,
-    const std::string& url,
-    bool is_bookmark_app = false);
+    const std::string& url);
 
 }  // namespace app_time
 }  // namespace ash

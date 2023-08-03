@@ -1,11 +1,13 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "extensions/test/test_extension_dir.h"
 
+#include <tuple>
+
 #include "base/files/file_util.h"
-#include "base/ignore_result.h"
+#include "base/numerics/checked_math.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "extensions/browser/extension_creator.h"
@@ -21,9 +23,13 @@ TestExtensionDir::TestExtensionDir() {
 
 TestExtensionDir::~TestExtensionDir() {
   base::ScopedAllowBlockingForTesting allow_blocking;
-  ignore_result(dir_.Delete());
-  ignore_result(crx_dir_.Delete());
+  std::ignore = dir_.Delete();
+  std::ignore = crx_dir_.Delete();
 }
+
+TestExtensionDir::TestExtensionDir(TestExtensionDir&&) noexcept = default;
+
+TestExtensionDir& TestExtensionDir::operator=(TestExtensionDir&&) = default;
 
 void TestExtensionDir::WriteManifest(base::StringPiece manifest) {
   WriteFile(FILE_PATH_LITERAL("manifest.json"), manifest);
@@ -32,9 +38,7 @@ void TestExtensionDir::WriteManifest(base::StringPiece manifest) {
 void TestExtensionDir::WriteFile(const base::FilePath::StringType& filename,
                                  base::StringPiece contents) {
   base::ScopedAllowBlockingForTesting allow_blocking;
-  EXPECT_EQ(base::checked_cast<int>(contents.size()),
-            base::WriteFile(dir_.GetPath().Append(filename), contents.data(),
-                            contents.size()));
+  EXPECT_TRUE(base::WriteFile(dir_.GetPath().Append(filename), contents));
 }
 
 void TestExtensionDir::CopyFileTo(

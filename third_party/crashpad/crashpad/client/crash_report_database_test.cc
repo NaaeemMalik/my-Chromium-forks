@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors. All rights reserved.
+// Copyright 2015 The Crashpad Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,10 @@
 #include "test/scoped_temp_dir.h"
 #include "util/file/file_io.h"
 #include "util/file/filesystem.h"
+
+#if BUILDFLAG(IS_IOS)
+#include "util/mac/xattr.h"
+#endif
 
 namespace crashpad {
 namespace test {
@@ -183,6 +187,41 @@ TEST_F(CrashReportDatabaseTest, Initialize) {
       path().DirName().Append(FILE_PATH_LITERAL("not_a_database"));
   db = CrashReportDatabase::InitializeWithoutCreating(non_database_path);
   EXPECT_FALSE(db);
+}
+
+TEST_F(CrashReportDatabaseTest, Settings) {
+  // Initialize three databases and ensure settings.dat isn't created yet.
+  ASSERT_TRUE(db());
+
+  base::FilePath settings_path =
+      path().Append(FILE_PATH_LITERAL("settings.dat"));
+  EXPECT_FALSE(FileExists(settings_path));
+
+  std::unique_ptr<CrashReportDatabase> db2 =
+      CrashReportDatabase::Initialize(path());
+  ASSERT_TRUE(db2);
+  EXPECT_FALSE(FileExists(settings_path));
+
+  std::unique_ptr<CrashReportDatabase> db3 =
+      CrashReportDatabase::Initialize(path());
+  ASSERT_TRUE(db3);
+  EXPECT_FALSE(FileExists(settings_path));
+
+  // Ensure settings.dat exists after getter.
+  Settings* settings = db3->GetSettings();
+  ASSERT_TRUE(settings);
+  EXPECT_TRUE(FileExists(settings_path));
+
+  time_t last_upload_attempt_time = 42;
+  ASSERT_TRUE(settings->SetLastUploadAttemptTime(last_upload_attempt_time));
+
+  // Ensure the first two databases read the same value.
+  ASSERT_TRUE(
+      db2->GetSettings()->GetLastUploadAttemptTime(&last_upload_attempt_time));
+  EXPECT_EQ(last_upload_attempt_time, 42);
+  ASSERT_TRUE(
+      db()->GetSettings()->GetLastUploadAttemptTime(&last_upload_attempt_time));
+  EXPECT_EQ(last_upload_attempt_time, 42);
 }
 
 TEST_F(CrashReportDatabaseTest, NewCrashReport) {
@@ -476,6 +515,46 @@ TEST_F(CrashReportDatabaseTest, DuelingUploads) {
             CrashReportDatabase::kNoError);
 }
 
+#if BUILDFLAG(IS_IOS)
+TEST_F(CrashReportDatabaseTest, InterruptedIOSUploads) {
+  CrashReportDatabase::Report report;
+  CreateCrashReport(&report);
+
+  std::unique_ptr<const CrashReportDatabase::UploadReport> upload_report;
+  EXPECT_EQ(db()->GetReportForUploading(report.uuid, &upload_report),
+            CrashReportDatabase::kNoError);
+
+  // Set upload_start_time to 10 minutes ago.
+  time_t ten_minutes_ago = time(nullptr) - 10 * 60;
+  ASSERT_TRUE(
+      WriteXattrTimeT(report.file_path,
+                      "org.chromium.crashpad.database.upload_start_time",
+                      ten_minutes_ago));
+
+  std::vector<CrashReportDatabase::Report> reports;
+  EXPECT_EQ(db()->GetPendingReports(&reports), CrashReportDatabase::kNoError);
+  ASSERT_EQ(reports.size(), 1u);
+  reports.clear();
+  EXPECT_EQ(db()->GetCompletedReports(&reports), CrashReportDatabase::kNoError);
+  EXPECT_TRUE(reports.empty());
+
+  // Getting a stale report will automatically skip it.
+  std::unique_ptr<const CrashReportDatabase::UploadReport> upload_report_2;
+  EXPECT_EQ(db()->GetReportForUploading(report.uuid, &upload_report_2),
+            CrashReportDatabase::kReportNotFound);
+  EXPECT_FALSE(upload_report_2);
+
+  // Confirm report was moved from pending to completed.
+  EXPECT_EQ(db()->GetPendingReports(&reports), CrashReportDatabase::kNoError);
+  EXPECT_TRUE(reports.empty());
+  EXPECT_EQ(db()->GetCompletedReports(&reports), CrashReportDatabase::kNoError);
+  ASSERT_EQ(reports.size(), 1u);
+
+  EXPECT_EQ(db()->RecordUploadComplete(std::move(upload_report), std::string()),
+            CrashReportDatabase::kReportNotFound);
+}
+#endif
+
 TEST_F(CrashReportDatabaseTest, UploadAlreadyUploaded) {
   CrashReportDatabase::Report report;
   CreateCrashReport(&report);
@@ -737,7 +816,7 @@ TEST_F(CrashReportDatabaseTest, OrphanedAttachments) {
 
   ASSERT_TRUE(LoggingRemoveFile(report.file_path));
 
-#if !defined(OS_APPLE) && !defined(OS_WIN)
+#if !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_WIN)
   // CrashReportDatabaseMac stores metadata in xattrs and does not have .meta
   // files.
   // CrashReportDatabaseWin stores metadata in a global metadata file and not
@@ -749,7 +828,7 @@ TEST_F(CrashReportDatabaseTest, OrphanedAttachments) {
   ASSERT_EQ(db()->LookUpCrashReport(uuid, &report),
             CrashReportDatabase::kReportNotFound);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   const std::wstring uuid_string = uuid.ToWString();
 #else
   const std::string uuid_string = uuid.ToString();
@@ -763,7 +842,7 @@ TEST_F(CrashReportDatabaseTest, OrphanedAttachments) {
   EXPECT_TRUE(FileExists(file_path1));
   EXPECT_TRUE(FileExists(file_path1));
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // On Windows, reports removed from metadata are counted, even if the file
   // is not on the disk.
   EXPECT_EQ(db()->CleanDatabase(0), 1);
@@ -778,7 +857,7 @@ TEST_F(CrashReportDatabaseTest, OrphanedAttachments) {
 
 // This test uses knowledge of the database format to break it, so it only
 // applies to the unfified database implementation.
-#if !defined(OS_APPLE) && !defined(OS_WIN)
+#if !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_WIN)
 TEST_F(CrashReportDatabaseTest, CleanBrokenDatabase) {
   // Remove report files if metadata goes missing.
   CrashReportDatabase::Report report;
@@ -843,7 +922,7 @@ TEST_F(CrashReportDatabaseTest, CleanBrokenDatabase) {
   EXPECT_FALSE(PathExists(report.file_path));
   EXPECT_FALSE(PathExists(metadata3));
 }
-#endif  // !OS_APPLE && !OS_WIN
+#endif  // !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_WIN)
 
 TEST_F(CrashReportDatabaseTest, TotalSize_MainReportOnly) {
   std::unique_ptr<CrashReportDatabase::NewReport> new_report;

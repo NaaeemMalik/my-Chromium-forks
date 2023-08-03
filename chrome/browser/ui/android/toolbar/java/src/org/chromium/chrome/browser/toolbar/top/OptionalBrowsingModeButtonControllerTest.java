@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,6 +23,7 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.toolbar.ButtonDataImpl;
 import org.chromium.chrome.browser.toolbar.ButtonDataProvider;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 
 import java.util.Arrays;
@@ -208,7 +209,8 @@ public class OptionalBrowsingModeButtonControllerTest {
     private static ButtonDataImpl createButtonData() {
         return new ButtonDataImpl(
                 /*canShow=*/true, /*drawable=*/null, /*onClickListener=*/null,
-                /*contentDescriptionResId=*/0, /*supportsTinting=*/false,
-                /*iphCommandBuilder=*/null, /*isEnabled=*/true);
+                /*contentDescription=*/"", /*supportsTinting=*/false,
+                /*iphCommandBuilder=*/null, /*isEnabled=*/true,
+                AdaptiveToolbarButtonVariant.UNKNOWN);
     }
 }

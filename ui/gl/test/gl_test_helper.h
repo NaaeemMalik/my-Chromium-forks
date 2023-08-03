@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,9 @@
 
 #include <stdint.h>
 
+#include "third_party/skia/include/core/SkColor.h"
+#include "ui/gfx/geometry/point.h"
+#include "ui/gfx/geometry/size.h"
 #include "ui/gl/gl_bindings.h"
 
 namespace gl {
@@ -36,6 +39,31 @@ class GLTestHelper {
                                    GLsizei height,
                                    int error,
                                    const uint8_t expected_color[4]);
+
+#if BUILDFLAG(IS_WIN)
+  // Allows simple lookup into vector of pixels that represents a rectangular
+  // region.
+  class WindowPixels {
+   public:
+    // The number of elements in |pixels| must be exactly the area of |size|.
+    WindowPixels(std::vector<SkColor> pixels, const gfx::Size& size);
+    ~WindowPixels();
+
+    // |location| must be inside the rectangle formed by the origin and |size_|.
+    SkColor GetPixel(gfx::Point location) const;
+
+   private:
+    std::vector<SkColor> pixels_;
+    gfx::Size size_;
+  };
+
+  // Read back the content of |window| inside a rectangle at the origin with
+  // size |size|.
+  static WindowPixels ReadBackWindow(HWND window, const gfx::Size& size);
+
+  // Read back the content of |window| of the pixel at point |point|.
+  static SkColor ReadBackWindowPixel(HWND window, const gfx::Point& point);
+#endif
 };
 
 }  // namespace gl

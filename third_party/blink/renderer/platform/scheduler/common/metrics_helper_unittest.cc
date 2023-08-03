@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,15 +61,6 @@ TEST(MetricsHelperTest, TaskDurationPerThreadType) {
   worker_metrics.RecordCommonTaskMetrics(
       FakeTask(), FakeTaskTiming(Seconds(10), Seconds(125), ThreadSeconds(0),
                                  ThreadSeconds(25)));
-
-  EXPECT_THAT(
-      histogram_tester.GetAllSamples(
-          "RendererScheduler.TaskDurationPerThreadType2"),
-      testing::UnorderedElementsAre(
-          base::Bucket(static_cast<int>(ThreadType::kMainThread), 40),
-          base::Bucket(static_cast<int>(ThreadType::kCompositorThread), 170),
-          base::Bucket(static_cast<int>(ThreadType::kUnspecifiedWorkerThread),
-                       115)));
 
   EXPECT_THAT(
       histogram_tester.GetAllSamples(

@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/values.h"
 #include "content/public/browser/web_ui_message_handler.h"
 
 class Profile;
@@ -26,11 +27,11 @@ class DumpDatabaseHandler : public content::WebUIMessageHandler {
   void RegisterMessages() override;
 
  private:
-  void HandleGetDatabaseDump(const base::ListValue* args);
-  void DidGetDatabaseDump(std::string callback_id, const base::ListValue& list);
+  void HandleGetDatabaseDump(const base::Value::List& args);
+  void DidGetDatabaseDump(std::string callback_id, base::Value::List list);
 
   raw_ptr<Profile> profile_;
-  
+
   base::WeakPtrFactory<DumpDatabaseHandler> weak_factory_{this};
 };
 

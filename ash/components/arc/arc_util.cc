@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,26 @@
 #include <cstdio>
 
 #include "ash/components/arc/arc_features.h"
+#include "ash/components/arc/arc_prefs.h"
+#include "ash/components/arc/session/arc_vm_data_migration_status.h"
 #include "ash/constants/app_types.h"
 #include "ash/constants/ash_switches.h"
-#include "base/bind.h"
+#include "ash/system/time/calendar_utils.h"
+#include "ash/system/time/date_helper.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/process/launch.h"
 #include "base/process/process_metrics.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
-#include "chromeos/dbus/debug_daemon/debug_daemon_client.h"
-#include "chromeos/dbus/upstart/upstart_client.h"
+#include "base/time/time.h"
+#include "chromeos/ash/components/dbus/debug_daemon/debug_daemon_client.h"
+#include "chromeos/ash/components/dbus/upstart/upstart_client.h"
+#include "chromeos/version/version_loader.h"
 #include "components/exo/shell_surface_util.h"
+#include "components/prefs/pref_service.h"
 #include "components/user_manager/user_manager.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/aura/client/aura_constants.h"
@@ -34,8 +41,7 @@ namespace {
 // This is for finch. See also crbug.com/633704 for details.
 // TODO(hidehiko): More comments of the intention how this works, when
 // we unify the commandline flags.
-const base::Feature kEnableArcFeature{"EnableARC",
-                                      base::FEATURE_DISABLED_BY_DEFAULT};
+BASE_FEATURE(kEnableArcFeature, "EnableARC", base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Possible values for --arc-availability flag.
 constexpr char kAvailabilityNone[] = "none";
@@ -43,18 +49,14 @@ constexpr char kAvailabilityInstalled[] = "installed";
 constexpr char kAvailabilityOfficiallySupported[] = "officially-supported";
 constexpr char kAlwaysStartWithNoPlayStore[] =
     "always-start-with-no-play-store";
+constexpr char kManualStart[] = "manual";
 
 constexpr const char kCrosSystemPath[] = "/usr/bin/crossystem";
 
 // ArcVmUreadaheadMode param value strings.
+constexpr char kReadahead[] = "readahead";
 constexpr char kGenerate[] = "generate";
 constexpr char kDisabled[] = "disabled";
-
-// Do not run ureadahead in vm for devices with less than 8GB due to memory
-// pressure issues since system will likely drop caches in this case.
-// The value should match platform2/arc/vm/scripts/init/arcvm-ureadahead.conf
-// in Chrome OS.
-constexpr int kReadaheadTotalMinMemoryInKb = 7500000;
 
 // Decodes a job name that may have "_2d" e.g. |kArcCreateDataJobName|
 // and returns a decoded string.
@@ -75,7 +77,7 @@ void OnConfigureUpstartJobs(std::deque<JobDesc> jobs,
 
   if (!result && is_start) {
     LOG(ERROR) << "Failed to start " << job_name;
-    // TODO(yusukes): Record UMA for this case.
+    // TODO(khmel): Record UMA for this case.
     std::move(callback).Run(false);
     return;
   }
@@ -86,14 +88,22 @@ void OnConfigureUpstartJobs(std::deque<JobDesc> jobs,
   ConfigureUpstartJobs(std::move(jobs), std::move(callback));
 }
 
+int64_t GetRequiredDiskImageSizeForArcVmDataMigrationInBytes(
+    uint64_t android_data_size_in_bytes) {
+  // Reserved disk space for virtio-blk /data disk image (128 MB). Defined in
+  // the guest's arc-mkfs-blk-data.
+  constexpr uint64_t kReservedDiskSpaceInBytes = 128ULL << 20;
+  return android_data_size_in_bytes * 11ULL / 10ULL + kReservedDiskSpaceInBytes;
+}
+
 }  // namespace
 
 bool IsArcAvailable() {
   const auto* command_line = base::CommandLine::ForCurrentProcess();
 
-  if (command_line->HasSwitch(chromeos::switches::kArcAvailability)) {
+  if (command_line->HasSwitch(ash::switches::kArcAvailability)) {
     const std::string value =
-        command_line->GetSwitchValueASCII(chromeos::switches::kArcAvailability);
+        command_line->GetSwitchValueASCII(ash::switches::kArcAvailability);
     DCHECK(value == kAvailabilityNone || value == kAvailabilityInstalled ||
            value == kAvailabilityOfficiallySupported)
         << "Unknown flag value: " << value;
@@ -105,20 +115,35 @@ bool IsArcAvailable() {
   // For transition, fallback to old flags.
   // TODO(hidehiko): Remove this and clean up whole this function, when
   // session_manager supports a new flag.
-  return command_line->HasSwitch(chromeos::switches::kEnableArc) ||
-         (command_line->HasSwitch(chromeos::switches::kArcAvailable) &&
+  return command_line->HasSwitch(ash::switches::kEnableArc) ||
+         (command_line->HasSwitch(ash::switches::kArcAvailable) &&
           base::FeatureList::IsEnabled(kEnableArcFeature));
 }
 
 bool IsArcVmEnabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kEnableArcVm);
+      ash::switches::kEnableArcVm);
+}
+
+int GetArcAndroidSdkVersionAsInt() {
+  const auto arc_version_str =
+      chromeos::version_loader::GetArcAndroidSdkVersion();
+  if (!arc_version_str) {
+    LOG(ERROR) << "ARC SDK version is unknown";
+    return kMaxArcVersion;
+  }
+  int arc_version;
+  if (!base::StringToInt(*arc_version_str, &arc_version)) {
+    LOG(WARNING) << "ARC SDK version is not a number: " << *arc_version_str;
+    return kMaxArcVersion;
+  }
+  return arc_version;
 }
 
 bool IsArcVmRtVcpuEnabled(uint32_t cpus) {
   // TODO(kansho): remove switch after tast test use Finch instead.
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          chromeos::switches::kEnableArcVmRtVcpu)) {
+          ash::switches::kEnableArcVmRtVcpu)) {
     return true;
   }
   if (cpus == 2 && base::FeatureList::IsEnabled(kRtVcpuDualCore))
@@ -130,79 +155,80 @@ bool IsArcVmRtVcpuEnabled(uint32_t cpus) {
 
 bool IsArcVmUseHugePages() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcVmUseHugePages);
+      ash::switches::kArcVmUseHugePages);
 }
 
 bool IsArcVmDevConfIgnored() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kIgnoreArcVmDevConf);
+      ash::switches::kIgnoreArcVmDevConf);
 }
 
 bool IsUreadaheadDisabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcDisableUreadahead);
+      ash::switches::kArcDisableUreadahead);
 }
 
-ArcVmUreadaheadMode GetArcVmUreadaheadMode(SystemMemoryInfoCallback callback) {
-  base::SystemMemoryInfoKB mem_info;
-  DCHECK(callback);
-  if (!callback.Run(&mem_info)) {
-    LOG(ERROR) << "Failed to get system memory info";
-    return ArcVmUreadaheadMode::DISABLED;
-  }
-  ArcVmUreadaheadMode mode = (mem_info.total > kReadaheadTotalMinMemoryInKb)
-                                 ? IsUreadaheadDisabled()
-                                       ? ArcVmUreadaheadMode::DISABLED
-                                       : ArcVmUreadaheadMode::READAHEAD
-                                 : ArcVmUreadaheadMode::DISABLED;
+bool IsHostUreadaheadGeneration() {
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+      ash::switches::kArcHostUreadaheadGeneration);
+}
+
+ArcVmUreadaheadMode GetArcVmUreadaheadMode() {
+  ArcVmUreadaheadMode mode = IsUreadaheadDisabled()
+                                 ? ArcVmUreadaheadMode::DISABLED
+                                 : ArcVmUreadaheadMode::READAHEAD;
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          chromeos::switches::kArcVmUreadaheadMode)) {
+          ash::switches::kArcVmUreadaheadMode)) {
     const std::string value =
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-            chromeos::switches::kArcVmUreadaheadMode);
-    if (value == kGenerate) {
+            ash::switches::kArcVmUreadaheadMode);
+    if (value == kReadahead) {
+      mode = ArcVmUreadaheadMode::READAHEAD;
+    } else if (value == kGenerate) {
       mode = ArcVmUreadaheadMode::GENERATE;
     } else if (value == kDisabled) {
       mode = ArcVmUreadaheadMode::DISABLED;
     } else {
       LOG(ERROR) << "Invalid parameter " << value << " for "
-                 << chromeos::switches::kArcVmUreadaheadMode;
+                 << ash::switches::kArcVmUreadaheadMode;
     }
   }
   return mode;
 }
 
 bool ShouldArcAlwaysStart() {
-  const auto* command_line = base::CommandLine::ForCurrentProcess();
-  if (!command_line->HasSwitch(chromeos::switches::kArcStartMode))
-    return false;
-  return command_line->GetSwitchValueASCII(chromeos::switches::kArcStartMode) ==
-         kAlwaysStartWithNoPlayStore;
+  return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+             ash::switches::kArcStartMode) == kAlwaysStartWithNoPlayStore;
 }
 
 bool ShouldArcAlwaysStartWithNoPlayStore() {
   return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-             chromeos::switches::kArcStartMode) == kAlwaysStartWithNoPlayStore;
+             ash::switches::kArcStartMode) == kAlwaysStartWithNoPlayStore;
+}
+
+bool ShouldArcStartManually() {
+  return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+             ash::switches::kArcStartMode) == kManualStart;
 }
 
 bool ShouldShowOptInForTesting() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcForceShowOptInUi);
+      ash::switches::kArcForceShowOptInUi);
 }
 
 bool IsArcKioskAvailable() {
   const auto* command_line = base::CommandLine::ForCurrentProcess();
 
-  if (command_line->HasSwitch(chromeos::switches::kArcAvailability)) {
+  if (command_line->HasSwitch(ash::switches::kArcAvailability)) {
     std::string value =
-        command_line->GetSwitchValueASCII(chromeos::switches::kArcAvailability);
+        command_line->GetSwitchValueASCII(ash::switches::kArcAvailability);
     if (value == kAvailabilityInstalled)
       return true;
     return IsArcAvailable();
   }
 
   // TODO(hidehiko): Remove this when session_manager supports the new flag.
-  if (command_line->HasSwitch(chromeos::switches::kArcAvailable))
+  if (command_line->HasSwitch(ash::switches::kArcAvailable))
     return true;
 
   // If not special kiosk device case, use general ARC check.
@@ -247,21 +273,21 @@ bool IsArcAllowedForUser(const user_manager::User* user) {
 
 bool IsArcOptInVerificationDisabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kDisableArcOptInVerification);
+      ash::switches::kDisableArcOptInVerification);
 }
 
 absl::optional<int> GetWindowTaskId(const aura::Window* window) {
   if (!window)
     return absl::nullopt;
-  const std::string* arc_app_id = exo::GetShellApplicationId(window);
-  if (!arc_app_id)
+  const std::string* window_app_id = exo::GetShellApplicationId(window);
+  if (!window_app_id)
     return absl::nullopt;
-  return GetTaskIdFromWindowAppId(*arc_app_id);
+  return GetTaskIdFromWindowAppId(*window_app_id);
 }
 
-absl::optional<int> GetTaskIdFromWindowAppId(const std::string& app_id) {
+absl::optional<int> GetTaskIdFromWindowAppId(const std::string& window_app_id) {
   int task_id;
-  if (std::sscanf(app_id.c_str(), "org.chromium.arc.%d", &task_id) != 1)
+  if (std::sscanf(window_app_id.c_str(), "org.chromium.arc.%d", &task_id) != 1)
     return absl::nullopt;
   return task_id;
 }
@@ -269,61 +295,59 @@ absl::optional<int> GetTaskIdFromWindowAppId(const std::string& app_id) {
 absl::optional<int> GetWindowSessionId(const aura::Window* window) {
   if (!window)
     return absl::nullopt;
-  const std::string* arc_app_id = exo::GetShellApplicationId(window);
-  if (!arc_app_id)
+  const std::string* window_app_id = exo::GetShellApplicationId(window);
+  if (!window_app_id)
     return absl::nullopt;
-  return GetSessionIdFromWindowAppId(*arc_app_id);
+  return GetSessionIdFromWindowAppId(*window_app_id);
 }
 
-absl::optional<int> GetSessionIdFromWindowAppId(const std::string& app_id) {
+absl::optional<int> GetSessionIdFromWindowAppId(
+    const std::string& window_app_id) {
   int session_id;
-  if (std::sscanf(app_id.c_str(), "org.chromium.arc.session.%d", &session_id) !=
-      1) {
+  if (std::sscanf(window_app_id.c_str(), "org.chromium.arc.session.%d",
+                  &session_id) != 1) {
     return absl::nullopt;
   }
   return session_id;
 }
 
 absl::optional<int> GetWindowTaskOrSessionId(const aura::Window* window) {
-  if (!window)
-    return absl::nullopt;
-  const std::string* arc_app_id = exo::GetShellApplicationId(window);
-  if (!arc_app_id)
-    return absl::nullopt;
-  auto task_id = GetTaskIdFromWindowAppId(*arc_app_id);
-  return task_id ? *task_id : GetSessionIdFromWindowAppId(*arc_app_id);
+  auto result = GetWindowTaskId(window);
+  if (result)
+    return result;
+  return GetWindowSessionId(window);
 }
 
 bool IsArcForceCacheAppIcon() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcGeneratePlayAutoInstall);
+      ash::switches::kArcGeneratePlayAutoInstall);
 }
 
 bool IsArcDataCleanupOnStartRequested() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcDataCleanupOnStart);
+      ash::switches::kArcDataCleanupOnStart);
 }
 
 bool IsArcAppSyncFlowDisabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcDisableAppSync);
+      ash::switches::kArcDisableAppSync);
 }
 
 bool IsArcLocaleSyncDisabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcDisableLocaleSync);
+      ash::switches::kArcDisableLocaleSync);
 }
 
 bool IsArcPlayAutoInstallDisabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      chromeos::switches::kArcDisablePlayAutoInstall);
+      ash::switches::kArcDisablePlayAutoInstall);
 }
 
 int32_t GetLcdDensityForDeviceScaleFactor(float device_scale_factor) {
   const auto* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(chromeos::switches::kArcScale)) {
+  if (command_line->HasSwitch(ash::switches::kArcScale)) {
     const std::string dpi_str =
-        command_line->GetSwitchValueASCII(chromeos::switches::kArcScale);
+        command_line->GetSwitchValueASCII(ash::switches::kArcScale);
     int dpi;
     if (base::StringToInt(dpi_str, &dpi))
       return dpi;
@@ -395,17 +419,146 @@ void ConfigureUpstartJobs(std::deque<JobDesc> jobs,
                                          std::move(jobs), std::move(callback));
   switch (operation) {
     case UpstartOperation::JOB_START:
-      chromeos::UpstartClient::Get()->StartJob(job_name, environment,
-                                               std::move(wrapped_callback));
+      ash::UpstartClient::Get()->StartJob(job_name, environment,
+                                          std::move(wrapped_callback));
       break;
     case UpstartOperation::JOB_STOP:
-      chromeos::UpstartClient::Get()->StopJob(job_name, environment,
-                                              std::move(wrapped_callback));
+      ash::UpstartClient::Get()->StopJob(job_name, environment,
+                                         std::move(wrapped_callback));
       break;
     case UpstartOperation::JOB_STOP_AND_START:
       NOTREACHED();
       break;
   }
+}
+
+ArcVmDataMigrationStatus GetArcVmDataMigrationStatus(PrefService* prefs) {
+  return static_cast<ArcVmDataMigrationStatus>(
+      prefs->GetInteger(prefs::kArcVmDataMigrationStatus));
+}
+
+void SetArcVmDataMigrationStatus(PrefService* prefs,
+                                 ArcVmDataMigrationStatus status) {
+  prefs->SetInteger(prefs::kArcVmDataMigrationStatus, static_cast<int>(status));
+}
+
+bool ShouldUseVirtioBlkData(PrefService* prefs) {
+  // If kEnableVirtioBlkForData is set, force using virtio-blk /data regardless
+  // of the migration status.
+  if (base::FeatureList::IsEnabled(kEnableVirtioBlkForData))
+    return true;
+
+  // Just use virtio-fs when ARCVM /data migration is not enabled.
+  if (!base::FeatureList::IsEnabled(kEnableArcVmDataMigration))
+    return false;
+
+  ArcVmDataMigrationStatus status = GetArcVmDataMigrationStatus(prefs);
+  if (status == ArcVmDataMigrationStatus::kFinished) {
+    VLOG(1) << "ARCVM /data migration has finished";
+    return true;
+  }
+  VLOG(1) << "ARCVM /data migration hasn't finished yet. Status=" << status;
+  return false;
+}
+
+int GetDaysUntilArcVmDataMigrationDeadline(PrefService* prefs) {
+  if (GetArcVmDataMigrationStatus(prefs) ==
+      ArcVmDataMigrationStatus::kStarted) {
+    // If ARCVM /data migration is in progress. Treat it in the same way as
+    // cases where the deadline is passed.
+    // TODO(b/258278176): Do not call this function when the migration is in
+    // progress, or return a different value (0) to provide a dedicated UI.
+    return 1;
+  }
+  const base::Time notification_first_shown_time =
+      prefs->GetTime(prefs::kArcVmDataMigrationNotificationFirstShownTime);
+  if (notification_first_shown_time == base::Time()) {
+    // The preference is uninitialized (the notification has not been shown).
+    LOG(ERROR) << "No deadline can be calculated because ARCVM /data migration "
+                  "notification has not been shown before";
+    return kArcVmDataMigrationNumberOfDismissibleDays;
+  }
+
+  auto* date_helper = ash::DateHelper::GetInstance();
+  DCHECK(date_helper);
+  // Calculate the deadline assuming that the first notification was shown in
+  // the current timezone.
+  // ash::calendar_utils::kDurationForAdjustingDST is added to take into account
+  // days longer than 24 hours due to daylight saving time.
+  // For example, if the notification is shown for the first time at
+  // 2023-01-01T16:00:00Z and kArcVmDataMigrationNumberOfDismissibleDays is 30,
+  // the deadline will be 2023-01-31T00:00:00Z.
+  // This function will return 30 until 2023-01-01T23:59:99Z and keep returning
+  // 1 from 2023-01-30T00:00:00Z onward.
+  const base::Time deadline = date_helper->GetLocalMidnight(
+      date_helper->GetLocalMidnight(notification_first_shown_time) +
+      kArcVmDataMigrationDismissibleTimeDelta +
+      ash::calendar_utils::kDurationForAdjustingDST);
+  const base::Time last_local_midnight =
+      date_helper->GetLocalMidnight(base::Time::Now());
+  const base::TimeDelta delta =
+      last_local_midnight < deadline
+          ? deadline - last_local_midnight +
+                ash::calendar_utils::kDurationForAdjustingDST
+          : base::Days(0);
+  const int delta_in_days = delta.InDays();
+  if (delta_in_days > kArcVmDataMigrationNumberOfDismissibleDays) {
+    return kArcVmDataMigrationNumberOfDismissibleDays;
+  }
+  return std::max(delta_in_days, 1);
+}
+
+bool ArcVmDataMigrationShouldBeDismissible(int days_until_deadline) {
+  return days_until_deadline > 1;
+}
+
+uint64_t GetDesiredDiskImageSizeForArcVmDataMigrationInBytes(
+    uint64_t android_data_size_in_bytes,
+    uint64_t free_disk_space_in_bytes) {
+  // Mask to make the disk image size a multiple of the block size (4096 bytes).
+  constexpr uint64_t kDiskImageSizeMaskInBytes = ~((4ULL << 10) - 1);
+
+  // Minimum disk image size for virtio-blk /data (4 GB).
+  constexpr uint64_t kMinimumDiskImageSizeInBytes = 4ULL << 30;
+
+  // The default disk image size set by Concierge.
+  const uint64_t default_disk_image_size_in_bytes =
+      free_disk_space_in_bytes * 9ULL / 10ULL;
+
+  const uint64_t required_disk_image_size_in_bytes =
+      GetRequiredDiskImageSizeForArcVmDataMigrationInBytes(
+          android_data_size_in_bytes);
+
+  return std::max(default_disk_image_size_in_bytes +
+                      required_disk_image_size_in_bytes,
+                  kMinimumDiskImageSizeInBytes) &
+         kDiskImageSizeMaskInBytes;
+}
+
+uint64_t GetRequiredFreeDiskSpaceForArcVmDataMigrationInBytes(
+    uint64_t android_data_size_in_bytes,
+    uint64_t free_disk_space_in_bytes) {
+  // Mask to make the required free disk space a multiple of 512 MB.
+  constexpr uint64_t kRequiredFreeDiskSpaceMaskInBytes = ~((512ULL << 20) - 1);
+
+  // Minimum required free disk space for ARCVM /data migration (1 GB).
+  constexpr uint64_t kMinimumRequiredFreeDiskSpaceInBytes = 1ULL << 30;
+
+  const uint64_t required_disk_image_size_in_bytes =
+      GetRequiredDiskImageSizeForArcVmDataMigrationInBytes(
+          android_data_size_in_bytes);
+
+  const uint64_t maximum_disk_space_overhead_in_bytes =
+      required_disk_image_size_in_bytes - android_data_size_in_bytes;
+
+  return (kMinimumRequiredFreeDiskSpaceInBytes +
+          maximum_disk_space_overhead_in_bytes) &
+         kRequiredFreeDiskSpaceMaskInBytes;
+}
+
+bool IsReadOnlyPermissionsEnabled() {
+  return base::FeatureList::IsEnabled(arc::kEnableReadOnlyPermissions) &&
+         GetArcAndroidSdkVersionAsInt() >= kArcVersionT;
 }
 
 }  // namespace arc

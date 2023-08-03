@@ -1,9 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "base/test/ios/wait_util.h"
-#import "ios/chrome/browser/pref_names.h"
+#import "ios/chrome/browser/prefs/pref_names.h"
+#import "ios/chrome/browser/signin/fake_system_identity.h"
 #import "ios/chrome/browser/ui/authentication/signin/signin_constants.h"
 #import "ios/chrome/browser/ui/authentication/signin_earl_grey.h"
 #import "ios/chrome/browser/ui/authentication/signin_earl_grey_app_interface.h"
@@ -15,6 +16,8 @@
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
+#import "net/base/mac/url_conversions.h"
+#import "net/test/embedded_test_server/embedded_test_server.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -40,9 +43,12 @@
 
 // Tests that ConsistencyPromoSigninCoordinator shows up, and then skips it.
 - (void)testDismissConsistencyPromoSignin {
-  FakeChromeIdentity* fakeIdentity = [SigninEarlGrey fakeIdentity1];
+  FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:fakeIdentity];
-  [SigninEarlGreyAppInterface triggerConsistencyPromoSigninDialog];
+  GREYAssertTrue(self.testServer->Start(), @"Test server failed to start.");
+  const GURL url = self.testServer->GetURL("/echo");
+  [SigninEarlGreyAppInterface
+      triggerConsistencyPromoSigninDialogWithURL:net::NSURLWithGURL(url)];
   [SigninEarlGreyUI verifyWebSigninIsVisible:YES];
   [[EarlGrey
       selectElementWithMatcher:chrome_test_util::WebSigninSkipButtonMatcher()]
@@ -59,10 +65,13 @@
                  @"The default dismissal max value should be more than 0");
   [ChromeEarlGrey setIntegerValue:kDefaultWebSignInDismissalCount - 1
                       forUserPref:prefs::kSigninWebSignDismissalCount];
-  FakeChromeIdentity* fakeIdentity = [SigninEarlGrey fakeIdentity1];
+  FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:fakeIdentity];
   // Show the web sign-in consistency dialog for the last time.
-  [SigninEarlGreyAppInterface triggerConsistencyPromoSigninDialog];
+  GREYAssertTrue(self.testServer->Start(), @"Test server failed to start.");
+  const GURL url = self.testServer->GetURL("/echo");
+  [SigninEarlGreyAppInterface
+      triggerConsistencyPromoSigninDialogWithURL:net::NSURLWithGURL(url)];
   [SigninEarlGreyUI verifyWebSigninIsVisible:YES];
   [[EarlGrey
       selectElementWithMatcher:chrome_test_util::WebSigninSkipButtonMatcher()]
@@ -73,7 +82,8 @@
       [ChromeEarlGrey userIntegerPref:prefs::kSigninWebSignDismissalCount],
       @"Dismissal count should be increased to the max value");
   // Asks for the web sign-in consistency that should not succeed.
-  [SigninEarlGreyAppInterface triggerConsistencyPromoSigninDialog];
+  [SigninEarlGreyAppInterface
+      triggerConsistencyPromoSigninDialogWithURL:net::NSURLWithGURL(url)];
   [SigninEarlGreyUI verifyWebSigninIsVisible:NO];
   GREYAssertEqual(
       kDefaultWebSignInDismissalCount,
@@ -84,12 +94,15 @@
 // Removes the only identity while the error dialog is opened. Once the identity
 // is removed, the web sign-in dialog is removed.
 - (void)testRemoveLastIdentityWithSigninErrorDialog {
-  FakeChromeIdentity* fakeIdentity = [SigninEarlGrey fakeIdentity1];
+  FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:fakeIdentity];
-  [SigninEarlGreyAppInterface triggerConsistencyPromoSigninDialog];
+  GREYAssertTrue(self.testServer->Start(), @"Test server failed to start.");
+  const GURL url = self.testServer->GetURL("/echo");
+  [SigninEarlGreyAppInterface
+      triggerConsistencyPromoSigninDialogWithURL:net::NSURLWithGURL(url)];
   [SigninEarlGreyUI verifyWebSigninIsVisible:YES];
   [[EarlGrey selectElementWithMatcher:chrome_test_util::
-                                          WebSigninContinueButtonMatcher()]
+                                          WebSigninPrimaryButtonMatcher()]
       performAction:grey_tap()];
   // Wait for the error dialog (sign-in fails since the sign-in is done with a
   // fake identity).
@@ -107,12 +120,15 @@
 
 // Display an error dialog and then dismiss the web sign-in dialog.
 - (void)testGetErrorDialogAndSkipWebSigninDialog {
-  FakeChromeIdentity* fakeIdentity = [SigninEarlGrey fakeIdentity1];
+  FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:fakeIdentity];
-  [SigninEarlGreyAppInterface triggerConsistencyPromoSigninDialog];
+  GREYAssertTrue(self.testServer->Start(), @"Test server failed to start.");
+  const GURL url = self.testServer->GetURL("/echo");
+  [SigninEarlGreyAppInterface
+      triggerConsistencyPromoSigninDialogWithURL:net::NSURLWithGURL(url)];
   [SigninEarlGreyUI verifyWebSigninIsVisible:YES];
   [[EarlGrey selectElementWithMatcher:chrome_test_util::
-                                          WebSigninContinueButtonMatcher()]
+                                          WebSigninPrimaryButtonMatcher()]
       performAction:grey_tap()];
   // Wait for the error dialog (sign-in fails since the sign-in is done with a
   // fake identity).

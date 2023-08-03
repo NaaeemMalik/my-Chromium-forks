@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,10 +31,8 @@ class GFX_EXPORT PlatformFontSkia : public PlatformFont {
   PlatformFontSkia(const PlatformFontSkia&) = delete;
   PlatformFontSkia& operator=(const PlatformFontSkia&) = delete;
 
-  // Initials the default PlatformFont. Returns true if this is successful, or
-  // false if fonts resources are not available. If this returns false, the
-  // calling service should shut down.
-  static bool InitDefaultFont();
+  // Initializes the default PlatformFont.
+  static void EnsuresDefaultFontIsInitialized();
 
   // Resets and reloads the cached system font used by the default constructor.
   // This function is useful when the system font has changed, for example, when
@@ -63,6 +61,10 @@ class GFX_EXPORT PlatformFontSkia : public PlatformFont {
   int GetFontSize() const override;
   const FontRenderParams& GetFontRenderParams() override;
   sk_sp<SkTypeface> GetNativeSkTypeface() const override;
+
+#if BUILDFLAG(IS_APPLE)
+  CTFontRef GetCTFont() const override;
+#endif
 
  private:
   // Create a new instance of this object with the specified properties. Called

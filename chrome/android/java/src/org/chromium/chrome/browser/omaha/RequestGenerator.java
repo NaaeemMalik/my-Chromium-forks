@@ -1,10 +1,9 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.omaha;
 
-import android.content.Context;
 import android.os.Build;
 import android.text.format.DateUtils;
 import android.util.Xml;
@@ -34,13 +33,10 @@ public abstract class RequestGenerator {
     private static final String SALT = "omahaSalt";
     private static final String URL_OMAHA_SERVER = "https://update.googleapis.com/service/update2";
 
-    private final Context mApplicationContext;
-
-    protected RequestGenerator(Context context) {
-        mApplicationContext = context.getApplicationContext();
+    protected RequestGenerator() {
         UniqueIdentificationGeneratorFactory.registerGenerator(
                 SettingsSecureBasedIdentificationGenerator.GENERATOR_ID,
-                new SettingsSecureBasedIdentificationGenerator(getContext()), false);
+                new SettingsSecureBasedIdentificationGenerator(), false);
     }
 
     /**
@@ -80,8 +76,7 @@ public abstract class RequestGenerator {
             serializer.attribute(null, "requestid", "{" + data.getRequestID() + "}");
             serializer.attribute(null, "sessionid", "{" + sessionID + "}");
             serializer.attribute(null, "installsource", data.getInstallSource());
-            serializer.attribute(null, "userid", "{" + getDeviceID() + "}");
-            serializer.attribute(null, "dedup", "uid");
+            serializer.attribute(null, "dedup", "cr");
 
             // Set up <os platform="android"... />
             serializer.startTag(null, "os");
@@ -129,13 +124,6 @@ public abstract class RequestGenerator {
         }
 
         return writer.toString();
-    }
-
-    /**
-     * Returns the application context.
-     */
-    protected Context getContext() {
-        return mApplicationContext;
     }
 
     @VisibleForTesting

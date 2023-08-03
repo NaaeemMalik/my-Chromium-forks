@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Test apps for running tests using xcodebuild."""
@@ -14,28 +14,40 @@ import test_runner
 import test_runner_errors
 import xcode_util
 
+# Including this test arg will have the gTest launcher generate
+# an info file containing all the compiled tests for this test run
+# This should be on by default
+GENERATE_COMPILED_GTESTS_FILE_TEST_ARG = (
+    '--write-compiled-tests-json-to-writable-path')
 
-OUTPUT_DISABLED_TESTS_TEST_ARG = '--write-compiled-tests-json-to-writable-path'
 
-
-def get_gtest_filter(tests, invert=False):
+def get_gtest_filter(included, excluded):
   """Returns the GTest filter to filter the given test cases.
 
+  If only included or excluded is provided, uses GTest filter inclusion or
+  exclusion syntax for the given list. If both are provided, uses included list
+  minus any tests in excluded list as tests to be included.
+
   Args:
-    tests: List of test cases to filter.
-    invert: Whether to invert the filter or not. Inverted, the filter will match
-      everything except the given test cases.
+    included: List of test cases to be included.
+    excluded: List of test cases to be excluded.
 
   Returns:
     A string which can be supplied to --gtest_filter.
   """
+  assert included or excluded, 'One of included or excluded list should exist.'
+  if included and excluded:
+    included = list(set(included) - set(excluded))
+    excluded = []
   # A colon-separated list of tests cases.
   # e.g. a:b:c matches a, b, c.
   # e.g. -a:b:c matches everything except a, b, c.
-  test_filter = ':'.join(test for test in tests)
-  if invert:
-    return '-%s' % test_filter
-  return test_filter
+  test_filter = ':'.join(test for test in sorted(included + excluded))
+
+  # This means all tests in |included| are in |excluded|.
+  if not test_filter:
+    return '-*'
+  return '-%s' % test_filter if excluded else test_filter
 
 
 def get_bundle_id(app_path):
@@ -122,6 +134,15 @@ class GTestsApp(object):
     self.host_app_path = kwargs.get('host_app_path')
     self.inserted_libs = kwargs.get('inserted_libs') or []
 
+  def _additional_inserted_libs(self):
+    """Returns additional libraries to add to inserted_libs."""
+    return []
+
+  def remove_gtest_sharding_env_vars(self):
+    """Removes sharding related env vars from self.env_vars."""
+    for env_var_key in ['GTEST_SHARD_INDEX', 'GTEST_TOTAL_SHARDS']:
+      self.env_vars.pop(env_var_key, None)
+
   def fill_xctest_run(self, out_dir):
     """Fills xctestrun file by egtests.
 
@@ -144,6 +165,14 @@ class GTestsApp(object):
     # Write data in temp xctest run file.
     plistlib.writePlist(self.fill_xctestrun_node(), xctestrun)
     return xctestrun
+
+  @staticmethod
+  def _replace_multiple_slashes(name):
+    """Replace slashes with dots (.) except at the end."""
+    count = name.count('/')
+    if count == 0:
+      return name
+    return name.replace('/', '.', count - 1)
 
   def fill_xctestrun_node(self):
     """Fills only required nodes for egtests in xctestrun file.
@@ -178,19 +207,17 @@ class GTestsApp(object):
         }
     }
 
-    if self.inserted_libs:
+    inserted_libs = self.inserted_libs.copy()
+    inserted_libs.extend(self._additional_inserted_libs())
+    if inserted_libs:
       module_data['TestingEnvironmentVariables'][
-          'DYLD_INSERT_LIBRARIES'] = ':'.join(self.inserted_libs)
+          'DYLD_INSERT_LIBRARIES'] = ':'.join(inserted_libs)
 
     xctestrun_data = {module: module_data}
     gtest_filter = []
 
-    if self.included_tests:
-      gtest_filter = get_gtest_filter(self.included_tests, invert=False)
-    elif self.excluded_tests:
-      gtest_filter = get_gtest_filter(self.excluded_tests, invert=True)
-
-    if gtest_filter:
+    if self.included_tests or self.excluded_tests:
+      gtest_filter = get_gtest_filter(self.included_tests, self.excluded_tests)
       # Removed previous gtest-filter if exists.
       self.test_args = [el for el in self.test_args
                         if not el.startswith('--gtest_filter=')]
@@ -201,16 +228,22 @@ class GTestsApp(object):
 
     if self.env_vars:
       xctestrun_data[module].update({'EnvironmentVariables': self.env_vars})
+
+    self.test_args.append(GENERATE_COMPILED_GTESTS_FILE_TEST_ARG)
     if self.test_args:
       xctestrun_data[module].update({'CommandLineArguments': self.test_args})
 
     if self.excluded_tests:
       xctestrun_data[module].update({
-          'SkipTestIdentifiers': self.excluded_tests
+          'SkipTestIdentifiers': [
+              self._replace_multiple_slashes(x) for x in self.excluded_tests
+          ]
       })
     if self.included_tests:
       xctestrun_data[module].update({
-          'OnlyTestIdentifiers': self.included_tests
+          'OnlyTestIdentifiers': [
+              self._replace_multiple_slashes(x) for x in self.included_tests
+          ]
       })
     return xctestrun_data
 
@@ -257,8 +290,6 @@ class GTestsApp(object):
     # TODO(crbug.com/1123681): Move all_tests to class var. Set all_tests,
     # disabled_tests values in initialization to avoid multiple calls to otool.
     all_tests = []
-    # Only store the tests when there is the test arg.
-    store_disabled_tests = OUTPUT_DISABLED_TESTS_TEST_ARG in self.test_args
     self.disabled_tests = []
     for test_class, test_method in shard_util.fetch_test_names(
         self.test_app_path,
@@ -277,7 +308,7 @@ class GTestsApp(object):
       if not included or test_name in included or test_class in included:
         if test_method.startswith('test'):
           all_tests.append(test_name)
-        elif store_disabled_tests:
+        else:
           self.disabled_tests.append(test_name)
     return all_tests
 
@@ -315,10 +346,6 @@ class EgtestsApp(GTestsApp):
     Raises:
       AppNotFoundError: If the given app does not exist
     """
-    inserted_libs = list(kwargs.get('inserted_libs') or [])
-    inserted_libs.append('__PLATFORMS__/iPhoneSimulator.platform/Developer/'
-                         'usr/lib/libXCTestBundleInject.dylib')
-    kwargs['inserted_libs'] = inserted_libs
     super(EgtestsApp, self).__init__(egtests_app, **kwargs)
 
   def _xctest_path(self):
@@ -342,6 +369,17 @@ class EgtestsApp(GTestsApp):
     if not plugin_xctest:
       raise test_runner.XCTestPlugInNotFoundError(plugin_xctest)
     return plugin_xctest.replace(self.test_app_path, '')
+
+  def _additional_inserted_libs(self):
+    """Returns additional libraries to add to inserted_libs."""
+    libs = [
+        '__PLATFORMS__/iPhoneSimulator.platform/Developer/'
+        'usr/lib/libXCTestBundleInject.dylib'
+    ]
+    for child in os.listdir(self.test_app_path):
+      if child.startswith('libclang_rt.asan'):
+        libs.append(os.path.join('@executable_path', child))
+    return libs
 
   def command(self, out_dir, destination, shards):
     """Returns the command that launches tests for EG Tests.
@@ -480,22 +518,22 @@ class DeviceXCTestUnitTestsApp(GTestsApp):
     }
 
     if self.env_vars:
-      self.xctestrun_data['TestTargetName'].update(
+      xctestrun_data['TestTargetName'].update(
           {'EnvironmentVariables': self.env_vars})
 
-    gtest_filter = []
-    if self.included_tests:
-      gtest_filter = get_gtest_filter(self.included_tests, invert=False)
-    elif self.excluded_tests:
-      gtest_filter = get_gtest_filter(self.excluded_tests, invert=True)
-    if gtest_filter:
+    if self.included_tests or self.excluded_tests:
+      gtest_filter = get_gtest_filter(self.included_tests, self.excluded_tests)
       # Removed previous gtest-filter if exists.
       self.test_args = [
           el for el in self.test_args if not el.startswith('--gtest_filter=')
       ]
       self.test_args.append('--gtest_filter=%s' % gtest_filter)
 
+    if self.repeat_count > 1:
+      self.test_args.append('--gtest_repeat=%s' % self.repeat_count)
+
     self.test_args.append('--gmock_verbose=error')
+    self.test_args.append(GENERATE_COMPILED_GTESTS_FILE_TEST_ARG)
 
     xctestrun_data['TestTargetName'].update(
         {'CommandLineArguments': self.test_args})
@@ -592,22 +630,22 @@ class SimulatorXCTestUnitTestsApp(GTestsApp):
     }
 
     if self.env_vars:
-      self.xctestrun_data['TestTargetName'].update(
+      xctestrun_data['TestTargetName'].update(
           {'EnvironmentVariables': self.env_vars})
 
-    gtest_filter = []
-    if self.included_tests:
-      gtest_filter = get_gtest_filter(self.included_tests, invert=False)
-    elif self.excluded_tests:
-      gtest_filter = get_gtest_filter(self.excluded_tests, invert=True)
-    if gtest_filter:
+    if self.included_tests or self.excluded_tests:
+      gtest_filter = get_gtest_filter(self.included_tests, self.excluded_tests)
       # Removed previous gtest-filter if exists.
       self.test_args = [
           el for el in self.test_args if not el.startswith('--gtest_filter=')
       ]
       self.test_args.append('--gtest_filter=%s' % gtest_filter)
 
+    if self.repeat_count > 1:
+      self.test_args.append('--gtest_repeat=%s' % self.repeat_count)
+
     self.test_args.append('--gmock_verbose=error')
+    self.test_args.append(GENERATE_COMPILED_GTESTS_FILE_TEST_ARG)
 
     xctestrun_data['TestTargetName'].update(
         {'CommandLineArguments': self.test_args})

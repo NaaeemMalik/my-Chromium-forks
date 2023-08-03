@@ -30,6 +30,7 @@
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
 #include "build/build_config.h"
 
+#include "base/memory/values_equivalent.h"
 #include "third_party/blink/public/platform/web_font_description.h"
 #include "third_party/blink/renderer/platform/language.h"
 #include "third_party/blink/renderer/platform/wtf/hash_functions.h"
@@ -38,7 +39,7 @@
 #include "third_party/blink/renderer/platform/wtf/text/string_hash.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_hasher.h"
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
 #include "third_party/blink/renderer/platform/fonts/font_cache.h"
 #endif
 
@@ -49,8 +50,11 @@ struct SameSizeAsFontDescription {
   FontFamily family_list;
   scoped_refptr<FontFeatureSettings> feature_settings_;
   scoped_refptr<FontVariationSettings> variation_settings_;
+  scoped_refptr<FontPalette> palette_;
+  scoped_refptr<FontVariantAlternates> font_variant_alternates_;
   AtomicString locale;
-  float sizes[6];
+  float sizes[5];
+  FontSizeAdjust size_adjust_;
   FontSelectionRequest selection_request_;
   FieldsAsUnsignedType bitfields;
 };
@@ -78,7 +82,6 @@ FontDescription::FontDescription()
     : specified_size_(0),
       computed_size_(0),
       adjusted_size_(0),
-      size_adjust_(kFontSizeAdjustNone),
       letter_spacing_(0),
       word_spacing_(0),
       font_selection_request_(NormalWeightValue(),
@@ -110,6 +113,7 @@ FontDescription::FontDescription()
   fields_.font_synthesis_weight_ = kAutoFontSynthesisWeight;
   fields_.font_synthesis_style_ = kAutoFontSynthesisStyle;
   fields_.font_synthesis_small_caps_ = kAutoFontSynthesisSmallCaps;
+  fields_.variant_position_ = kNormalVariantPosition;
 }
 
 FontDescription::FontDescription(const FontDescription&) = default;
@@ -132,7 +136,10 @@ bool FontDescription::operator==(const FontDescription& other) const {
            *feature_settings_ == *other.feature_settings_)) &&
          (variation_settings_ == other.variation_settings_ ||
           (variation_settings_ && other.variation_settings_ &&
-           *variation_settings_ == *other.variation_settings_));
+           *variation_settings_ == *other.variation_settings_)) &&
+         base::ValuesEquivalent(font_palette_, other.font_palette_) &&
+         base::ValuesEquivalent(font_variant_alternates_,
+                                other.font_variant_alternates_);
 }
 
 // Compute a 'lighter' weight per
@@ -232,6 +239,14 @@ float FontDescription::EffectiveFontSize() const {
          FontCacheKey::PrecisionMultiplier();
 }
 
+float FontDescription::AdjustedSpecifiedSize() const {
+  if (HasSizeAdjust() || fields_.has_size_adjust_descriptor_) {
+    return SpecifiedSize() * (AdjustedSize() / ComputedSize());
+  } else {
+    return SpecifiedSize();
+  }
+}
+
 FontDescription FontDescription::SizeAdjustedFontDescription(
     float size_adjust) const {
   // TODO(crbug.com/451346): The font-size-adjust property and size-adjust
@@ -250,7 +265,8 @@ FontDescription FontDescription::SizeAdjustedFontDescription(
 
 FontCacheKey FontDescription::CacheKey(
     const FontFaceCreationParams& creation_params,
-    bool is_unique_match) const {
+    bool is_unique_match,
+    bool is_generic_family) const {
   unsigned options =
       static_cast<unsigned>(fields_.font_optical_sizing_) << 7 |  // bit 8
       static_cast<unsigned>(fields_.synthetic_italic_) << 6 |     // bit 7
@@ -259,7 +275,7 @@ FontCacheKey FontDescription::CacheKey(
       static_cast<unsigned>(fields_.orientation_) << 1 |          // bit 2-3
       static_cast<unsigned>(fields_.subpixel_text_position_);     // bit 1
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   float device_scale_factor_for_key = FontCache::DeviceScaleFactor();
 #else
   float device_scale_factor_for_key = 1.0f;
@@ -267,13 +283,14 @@ FontCacheKey FontDescription::CacheKey(
   FontCacheKey cache_key(creation_params, EffectiveFontSize(),
                          options | font_selection_request_.GetHash() << 9,
                          device_scale_factor_for_key, variation_settings_,
-                         is_unique_match);
-#if defined(OS_ANDROID)
+                         font_palette_, font_variant_alternates_,
+                         is_unique_match, is_generic_family);
+#if BUILDFLAG(IS_ANDROID)
   if (const LayoutLocale* locale = Locale()) {
     if (FontCache::GetLocaleSpecificFamilyName(creation_params.Family()))
       cache_key.SetLocale(locale->LocaleForSkFontMgr());
   }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
   return cache_key;
 }
 
@@ -377,7 +394,7 @@ unsigned FontDescription::StyleHashWithoutFamilyList() const {
   WTF::AddFloatToHash(hash, NormalizeSign(specified_size_));
   WTF::AddFloatToHash(hash, NormalizeSign(computed_size_));
   WTF::AddFloatToHash(hash, NormalizeSign(adjusted_size_));
-  WTF::AddFloatToHash(hash, NormalizeSign(size_adjust_));
+  WTF::AddFloatToHash(hash, NormalizeSign(size_adjust_.Value()));
   WTF::AddFloatToHash(hash, NormalizeSign(letter_spacing_));
   WTF::AddFloatToHash(hash, NormalizeSign(word_spacing_));
   WTF::AddIntToHash(hash, fields_as_unsigned_.parts[0]);
@@ -391,11 +408,10 @@ unsigned FontDescription::GetHash() const {
   unsigned hash = StyleHashWithoutFamilyList();
   for (const FontFamily* family = &family_list_; family;
        family = family->Next()) {
-    if (family->FamilyName().IsEmpty())
+    if (family->FamilyName().empty())
       continue;
     WTF::AddIntToHash(hash, family->FamilyIsGeneric());
-    WTF::AddIntToHash(hash,
-                      WTF::AtomicStringHash::GetHash(family->FamilyName()));
+    WTF::AddIntToHash(hash, WTF::GetHash(family->FamilyName()));
   }
   return hash;
 }
@@ -514,6 +530,8 @@ String FontDescription::ToString(GenericFamilyType familyType) {
       return "None";
     case GenericFamilyType::kStandardFamily:
       return "Standard";
+    case GenericFamilyType::kWebkitBodyFamily:
+      return "WebkitBody";
     case GenericFamilyType::kSerifFamily:
       return "Serif";
     case GenericFamilyType::kSansSerifFamily:
@@ -676,6 +694,18 @@ String FontDescription::FamilyDescription::ToString() const {
       family.ToString().Ascii().c_str());
 }
 
+String FontDescription::ToString(FontVariantPosition variant_position) {
+  switch (variant_position) {
+    case FontVariantPosition::kNormalVariantPosition:
+      return "Normal";
+    case FontVariantPosition::kSubVariantPosition:
+      return "Sub";
+    case FontVariantPosition::kSuperVariantPosition:
+      return "Super";
+  }
+  return "Unknown";
+}
+
 static const char* ToBooleanString(bool value) {
   return value ? "true" : "false";
 }
@@ -695,7 +725,8 @@ String FontDescription::ToString() const {
       "synthetic_bold=%s, synthetic_italic=%s, subpixel_positioning=%s, "
       "subpixel_ascent_descent=%s, variant_numeric=[%s], "
       "variant_east_asian=[%s], font_optical_sizing=%s, "
-      "font_synthesis_weight=%s, font_synthesis_style=%s",
+      "font_synthesis_weight=%s, font_synthesis_style=%s, "
+      "font_synthesis_small_caps=%s, font_variant_position=%s",
       family_list_.ToString().Ascii().c_str(),
       (feature_settings_ ? feature_settings_->ToString().Ascii().c_str() : ""),
       (variation_settings_ ? variation_settings_->ToString().Ascii().c_str()
@@ -704,7 +735,7 @@ String FontDescription::ToString() const {
       // hyphenation and script. Consider adding a more detailed
       // string method.
       (locale_ ? locale_->LocaleString().Ascii().c_str() : ""), specified_size_,
-      computed_size_, adjusted_size_, size_adjust_, letter_spacing_,
+      computed_size_, adjusted_size_, size_adjust_.Value(), letter_spacing_,
       word_spacing_, font_selection_request_.ToString().Ascii().c_str(),
       blink::ToString(
           static_cast<TypesettingFeatures>(fields_.typesetting_features_))
@@ -726,7 +757,9 @@ String FontDescription::ToString() const {
       VariantEastAsian().ToString().Ascii().c_str(),
       blink::ToString(FontOpticalSizing()).Ascii().c_str(),
       FontDescription::ToString(GetFontSynthesisWeight()).Ascii().c_str(),
-      FontDescription::ToString(GetFontSynthesisStyle()).Ascii().c_str());
+      FontDescription::ToString(GetFontSynthesisStyle()).Ascii().c_str(),
+      FontDescription::ToString(GetFontSynthesisSmallCaps()).Ascii().c_str(),
+      FontDescription::ToString(VariantPosition()).Ascii().c_str());
 }
 
 }  // namespace blink

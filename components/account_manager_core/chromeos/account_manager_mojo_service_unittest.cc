@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,14 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
-#include "base/run_loop.h"
+#include "base/functional/bind.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
+#include "base/test/test_future.h"
 #include "chromeos/crosapi/mojom/account_manager.mojom-test-utils.h"
 #include "chromeos/crosapi/mojom/account_manager.mojom.h"
 #include "components/account_manager_core/account.h"
 #include "components/account_manager_core/account_manager_util.h"
-#include "components/account_manager_core/chromeos/access_token_fetcher.h"
 #include "components/account_manager_core/chromeos/account_manager.h"
 #include "components/account_manager_core/chromeos/account_manager_ui.h"
 #include "components/account_manager_core/chromeos/fake_account_manager_ui.h"
@@ -88,6 +86,17 @@ class TestAccountManagerObserver
     return last_removed_account_.value();
   }
 
+  int GetNumAuthErrors() const { return num_auth_errors_; }
+
+  std::pair<account_manager::AccountKey, GoogleServiceAuthError>
+  GetLastAuthErrorInfo() {
+    return std::make_pair(last_err_account_.value(), last_error_.value());
+  }
+
+  int GetNumSigninDialogClosedNotifications() const {
+    return num_signin_dialog_closed_notifications_;
+  }
+
  private:
   // mojom::AccountManagerObserverInterceptorForTesting override:
   AccountManagerObserver* GetForwardingInterface() override { return this; }
@@ -104,10 +113,27 @@ class TestAccountManagerObserver
     last_removed_account_ = account_manager::FromMojoAccount(account);
   }
 
+  // mojom::AccountManagerObserverInterceptorForTesting override:
+  void OnAuthErrorChanged(mojom::AccountKeyPtr account,
+                          mojom::GoogleServiceAuthErrorPtr error) override {
+    ++num_auth_errors_;
+    last_err_account_ = account_manager::FromMojoAccountKey(account);
+    last_error_ = account_manager::FromMojoGoogleServiceAuthError(error);
+  }
+
+  // mojom::AccountManagerObserverInterceptorForTesting override:
+  void OnSigninDialogClosed() override {
+    ++num_signin_dialog_closed_notifications_;
+  }
+
   int num_token_upserted_calls_ = 0;
   int num_account_removed_calls_ = 0;
+  int num_auth_errors_ = 0;
+  int num_signin_dialog_closed_notifications_ = 0;
   absl::optional<account_manager::Account> last_upserted_account_;
   absl::optional<account_manager::Account> last_removed_account_;
+  absl::optional<account_manager::AccountKey> last_err_account_;
+  absl::optional<GoogleServiceAuthError> last_error_;
   mojo::Receiver<mojom::AccountManagerObserver> receiver_;
 };
 
@@ -170,14 +196,14 @@ class AccountManagerMojoServiceTest : public ::testing::Test {
     account_manager_mojo_service_->FlushMojoForTesting();
   }
 
-  // Returns |true| if initialization was successful.
+  // Returns `true` if initialization was successful.
   bool InitializeAccountManager() {
-    base::RunLoop run_loop;
+    base::test::TestFuture<void> future;
     account_manager_.InitializeInEphemeralMode(
-        test_url_loader_factory_.GetSafeWeakWrapper(), run_loop.QuitClosure());
+        test_url_loader_factory_.GetSafeWeakWrapper(), future.GetCallback());
     account_manager_.SetPrefService(&pref_service_);
     account_manager_.RegisterPrefs(pref_service_.registry());
-    run_loop.Run();
+    EXPECT_TRUE(future.Wait());
     return account_manager_.IsInitialized();
   }
 
@@ -189,15 +215,17 @@ class AccountManagerMojoServiceTest : public ::testing::Test {
   mojom::AccountAdditionResultPtr ShowAddAccountDialog(
       base::OnceClosure quit_closure) {
     auto add_account_result = mojom::AccountAdditionResult::New();
-    account_manager_mojo_service_->ShowAddAccountDialog(base::BindOnce(
-        [](base::OnceClosure quit_closure,
-           mojom::AccountAdditionResultPtr* add_account_result,
-           mojom::AccountAdditionResultPtr result) {
-          (*add_account_result)->status = result->status;
-          (*add_account_result)->account = std::move(result->account);
-          std::move(quit_closure).Run();
-        },
-        std::move(quit_closure), &add_account_result));
+    account_manager_mojo_service_->ShowAddAccountDialog(
+        crosapi::mojom::AccountAdditionOptions::New(),
+        base::BindOnce(
+            [](base::OnceClosure quit_closure,
+               mojom::AccountAdditionResultPtr* add_account_result,
+               mojom::AccountAdditionResultPtr result) {
+              (*add_account_result)->status = result->status;
+              (*add_account_result)->account = std::move(result->account);
+              std::move(quit_closure).Run();
+            },
+            std::move(quit_closure), &add_account_result));
     return add_account_result;
   }
 
@@ -231,24 +259,33 @@ class AccountManagerMojoServiceTest : public ::testing::Test {
         &pending_remote);
     mojo::Remote<mojom::AccessTokenFetcher> remote(std::move(pending_remote));
 
-    base::RunLoop run_loop;
-    mojom::AccessTokenResultPtr result;
-    remote->Start(
-        scopes,
-        base::BindLambdaForTesting(
-            [&run_loop, &result](mojom::AccessTokenResultPtr returned_result) {
-              result = std::move(returned_result);
-              run_loop.Quit();
-            }));
-    run_loop.Run();
-
-    return result;
+    base::test::TestFuture<mojom::AccessTokenResultPtr> future;
+    remote->Start(scopes, future.GetCallback());
+    return future.Take();
   }
 
   void AddFakeAccessTokenResponse() {
     GURL url(GaiaUrls::GetInstance()->oauth2_token_url());
     test_url_loader_factory_.AddResponse(url.spec(), kAccessTokenResponse,
                                          net::HTTP_OK);
+  }
+
+  void ReportAuthError(const account_manager::AccountKey& account_key,
+                       const GoogleServiceAuthError& error) {
+    account_manager_mojo_service_->ReportAuthError(
+        account_manager::ToMojoAccountKey(account_key),
+        account_manager::ToMojoGoogleServiceAuthError(error));
+  }
+
+  void ReportAuthError(crosapi::mojom::AccountKeyPtr account_key_ptr,
+                       const GoogleServiceAuthError& error) {
+    account_manager_mojo_service_->ReportAuthError(
+        std::move(account_key_ptr),
+        account_manager::ToMojoGoogleServiceAuthError(error));
+  }
+
+  void NotifySigninDialogClosed() {
+    account_manager_mojo_service_->NotifySigninDialogClosed();
   }
 
   int GetNumObservers() const {
@@ -369,7 +406,7 @@ TEST_F(AccountManagerMojoServiceTest,
   GetFakeAccountManagerUI()->SetIsDialogShown(true);
   mojom::AccountAdditionResultPtr account_addition_result;
   account_manager_async_waiter()->ShowAddAccountDialog(
-      &account_addition_result);
+      crosapi::mojom::AccountAdditionOptions::New(), &account_addition_result);
 
   // Check status.
   EXPECT_EQ(mojom::AccountAdditionResult::Status::kAlreadyInProgress,
@@ -383,12 +420,12 @@ TEST_F(AccountManagerMojoServiceTest,
   EXPECT_EQ(0, GetFakeAccountManagerUI()->show_account_addition_dialog_calls());
   GetFakeAccountManagerUI()->SetIsDialogShown(false);
 
-  base::RunLoop run_loop;
+  base::test::TestFuture<void> future;
   mojom::AccountAdditionResultPtr account_addition_result =
-      ShowAddAccountDialog(run_loop.QuitClosure());
+      ShowAddAccountDialog(future.GetCallback());
   // Simulate closing the dialog.
   GetFakeAccountManagerUI()->CloseDialog();
-  run_loop.Run();
+  EXPECT_TRUE(future.Wait());
 
   // Check status.
   EXPECT_EQ(mojom::AccountAdditionResult::Status::kCancelledByUser,
@@ -402,15 +439,15 @@ TEST_F(AccountManagerMojoServiceTest,
   EXPECT_EQ(0, GetFakeAccountManagerUI()->show_account_addition_dialog_calls());
   GetFakeAccountManagerUI()->SetIsDialogShown(false);
 
-  base::RunLoop run_loop;
+  base::test::TestFuture<void> future;
   mojom::AccountAdditionResultPtr account_addition_result =
-      ShowAddAccountDialog(run_loop.QuitClosure());
+      ShowAddAccountDialog(future.GetCallback());
   // Simulate account addition.
   CallAccountAdditionFinished(
       account_manager::AccountAdditionResult::FromAccount(kFakeAccount));
   // Simulate closing the dialog.
   GetFakeAccountManagerUI()->CloseDialog();
-  run_loop.Run();
+  EXPECT_TRUE(future.Wait());
 
   // Check status.
   EXPECT_EQ(mojom::AccountAdditionResult::Status::kSuccess,
@@ -430,14 +467,14 @@ TEST_F(AccountManagerMojoServiceTest,
   EXPECT_EQ(0, GetFakeAccountManagerUI()->show_account_addition_dialog_calls());
   GetFakeAccountManagerUI()->SetIsDialogShown(false);
 
-  base::RunLoop run_loop;
+  base::test::TestFuture<void> future;
   mojom::AccountAdditionResultPtr account_addition_result =
-      ShowAddAccountDialog(run_loop.QuitClosure());
+      ShowAddAccountDialog(future.GetCallback());
 
-  base::RunLoop run_loop_2;
+  base::test::TestFuture<void> future_2;
   mojom::AccountAdditionResultPtr account_addition_result_2 =
-      ShowAddAccountDialog(run_loop_2.QuitClosure());
-  run_loop_2.Run();
+      ShowAddAccountDialog(future_2.GetCallback());
+  EXPECT_TRUE(future_2.Wait());
   // The second call gets 'kAlreadyInProgress' reply.
   EXPECT_EQ(mojom::AccountAdditionResult::Status::kAlreadyInProgress,
             account_addition_result_2->status);
@@ -447,7 +484,7 @@ TEST_F(AccountManagerMojoServiceTest,
       account_manager::AccountAdditionResult::FromAccount(kFakeAccount));
   // Simulate closing the dialog.
   GetFakeAccountManagerUI()->CloseDialog();
-  run_loop.Run();
+  EXPECT_TRUE(future.Wait());
 
   EXPECT_EQ(mojom::AccountAdditionResult::Status::kSuccess,
             account_addition_result->status);
@@ -466,15 +503,15 @@ TEST_F(AccountManagerMojoServiceTest,
   EXPECT_EQ(0, GetFakeAccountManagerUI()->show_account_addition_dialog_calls());
   GetFakeAccountManagerUI()->SetIsDialogShown(false);
 
-  base::RunLoop run_loop;
+  base::test::TestFuture<void> future;
   mojom::AccountAdditionResultPtr account_addition_result =
-      ShowAddAccountDialog(run_loop.QuitClosure());
+      ShowAddAccountDialog(future.GetCallback());
   // Simulate account addition.
   CallAccountAdditionFinished(
       account_manager::AccountAdditionResult::FromAccount(kFakeAccount));
   // Simulate closing the dialog.
   GetFakeAccountManagerUI()->CloseDialog();
-  run_loop.Run();
+  EXPECT_TRUE(future.Wait());
   EXPECT_EQ(mojom::AccountAdditionResult::Status::kSuccess,
             account_addition_result->status);
   // Check account.
@@ -484,15 +521,15 @@ TEST_F(AccountManagerMojoServiceTest,
   EXPECT_EQ(kFakeAccount.key, account.value().key);
   EXPECT_EQ(kFakeAccount.raw_email, account.value().raw_email);
 
-  base::RunLoop run_loop_2;
+  base::test::TestFuture<void> future_2;
   mojom::AccountAdditionResultPtr account_addition_result_2 =
-      ShowAddAccountDialog(run_loop_2.QuitClosure());
+      ShowAddAccountDialog(future_2.GetCallback());
   // Simulate account addition.
   CallAccountAdditionFinished(
       account_manager::AccountAdditionResult::FromAccount(kFakeAccount));
   // Simulate closing the dialog.
   GetFakeAccountManagerUI()->CloseDialog();
-  run_loop_2.Run();
+  EXPECT_TRUE(future_2.Wait());
   EXPECT_EQ(mojom::AccountAdditionResult::Status::kSuccess,
             account_addition_result_2->status);
   // Check account.
@@ -512,9 +549,9 @@ TEST_F(AccountManagerMojoServiceTest,
       0,
       GetFakeAccountManagerUI()->show_account_reauthentication_dialog_calls());
   GetFakeAccountManagerUI()->SetIsDialogShown(true);
-  base::RunLoop run_loop;
-  // Simulate account reauthentication.
-  ShowReauthAccountDialog(kFakeEmail, run_loop.QuitClosure());
+  base::test::TestFuture<void> future;
+  // Simulate account re-authentication.
+  ShowReauthAccountDialog(kFakeEmail, future.GetCallback());
   // Simulate closing the dialog.
   GetFakeAccountManagerUI()->CloseDialog();
 
@@ -529,9 +566,9 @@ TEST_F(AccountManagerMojoServiceTest, ShowReauthAccountDialogOpensTheDialog) {
       0,
       GetFakeAccountManagerUI()->show_account_reauthentication_dialog_calls());
   GetFakeAccountManagerUI()->SetIsDialogShown(false);
-  base::RunLoop run_loop;
+  base::test::TestFuture<void> future;
   // Simulate account reauthentication.
-  ShowReauthAccountDialog(kFakeEmail, run_loop.QuitClosure());
+  ShowReauthAccountDialog(kFakeEmail, future.GetCallback());
   // Simulate closing the dialog.
   GetFakeAccountManagerUI()->CloseDialog();
 
@@ -636,6 +673,116 @@ TEST_F(AccountManagerMojoServiceTest, FetchAccessToken) {
   // Check that requests are not leaking.
   RunAllPendingTasks();
   EXPECT_EQ(0, GetNumPendingAccessTokenRequests());
+}
+
+TEST_F(AccountManagerMojoServiceTest,
+       ObserversAreNotifiedOnAccountErrorUpdates) {
+  // Set up observer.
+  const account_manager::AccountKey kTestAccountKey{
+      kFakeGaiaId, account_manager::AccountType::kGaia};
+  ASSERT_TRUE(InitializeAccountManager());
+  TestAccountManagerObserver observer;
+  observer.Observe(account_manager_async_waiter());
+  ASSERT_EQ(1, GetNumObservers());
+  account_manager()->UpsertAccount(kTestAccountKey, kFakeEmail, kFakeToken);
+  FlushMojoForTesting();
+
+  // Report an error.
+  EXPECT_EQ(0, observer.GetNumAuthErrors());
+  const GoogleServiceAuthError error =
+      GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
+          GoogleServiceAuthError::InvalidGaiaCredentialsReason::
+              CREDENTIALS_REJECTED_BY_SERVER);
+  ReportAuthError(kTestAccountKey, error);
+  FlushMojoForTesting();
+
+  // Test.
+  ASSERT_EQ(1, observer.GetNumAuthErrors());
+  std::pair<account_manager::AccountKey, GoogleServiceAuthError> error_info =
+      observer.GetLastAuthErrorInfo();
+  EXPECT_EQ(kTestAccountKey, error_info.first);
+  EXPECT_EQ(error, error_info.second);
+}
+
+TEST_F(AccountManagerMojoServiceTest,
+       ObserversAreNotNotifiedOnTransientAccountErrorUpdates) {
+  // Set up observer.
+  const account_manager::AccountKey kTestAccountKey{
+      kFakeGaiaId, account_manager::AccountType::kGaia};
+  ASSERT_TRUE(InitializeAccountManager());
+  TestAccountManagerObserver observer;
+  observer.Observe(account_manager_async_waiter());
+  ASSERT_EQ(1, GetNumObservers());
+  account_manager()->UpsertAccount(kTestAccountKey, kFakeEmail, kFakeToken);
+  FlushMojoForTesting();
+
+  // Report an error.
+  EXPECT_EQ(0, observer.GetNumAuthErrors());
+  const GoogleServiceAuthError error =
+      GoogleServiceAuthError::FromServiceUnavailable("Service Unavailable");
+  ASSERT_TRUE(error.IsTransientError());
+  ReportAuthError(kTestAccountKey, error);
+  FlushMojoForTesting();
+
+  // Transient errors should not be reported.
+  EXPECT_EQ(0, observer.GetNumAuthErrors());
+}
+
+// Regression test for http://b/266465922
+TEST_F(AccountManagerMojoServiceTest,
+       ReportAuthErrorGracefullyHandlesInvalidAccountIds) {
+  // Set up observer.
+  ASSERT_TRUE(InitializeAccountManager());
+  TestAccountManagerObserver observer;
+  observer.Observe(account_manager_async_waiter());
+  ASSERT_EQ(1, GetNumObservers());
+
+  EXPECT_EQ(0, observer.GetNumAuthErrors());
+  const GoogleServiceAuthError error =
+      GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
+          GoogleServiceAuthError::InvalidGaiaCredentialsReason::
+              CREDENTIALS_REJECTED_BY_SERVER);
+  // Report an error for an invalid (empty) account.
+  ReportAuthError(crosapi::mojom::AccountKey::New(), error);
+  FlushMojoForTesting();
+
+  // No error should be reported and we should not crash.
+  EXPECT_EQ(0, observer.GetNumAuthErrors());
+}
+
+TEST_F(AccountManagerMojoServiceTest,
+       ObserversAreNotifiedAboutAccountAdditionDialogClosure) {
+  TestAccountManagerObserver observer;
+  observer.Observe(account_manager_async_waiter());
+  ASSERT_EQ(1, GetNumObservers());
+
+  EXPECT_EQ(0, observer.GetNumSigninDialogClosedNotifications());
+  GetFakeAccountManagerUI()->SetIsDialogShown(false);
+  base::test::TestFuture<void> future;
+  mojom::AccountAdditionResultPtr account_addition_result =
+      ShowAddAccountDialog(future.GetCallback());
+  // Simulate closing the dialog.
+  GetFakeAccountManagerUI()->CloseDialog();
+  EXPECT_TRUE(future.Wait());
+  FlushMojoForTesting();
+  EXPECT_EQ(1, observer.GetNumSigninDialogClosedNotifications());
+}
+
+TEST_F(AccountManagerMojoServiceTest,
+       ObserversAreNotifiedAboutReautDialogClosure) {
+  TestAccountManagerObserver observer;
+  observer.Observe(account_manager_async_waiter());
+  ASSERT_EQ(1, GetNumObservers());
+
+  EXPECT_EQ(0, observer.GetNumSigninDialogClosedNotifications());
+  GetFakeAccountManagerUI()->SetIsDialogShown(false);
+  base::test::TestFuture<void> future;
+  ShowReauthAccountDialog(kFakeEmail, future.GetCallback());
+  // Simulate closing the dialog.
+  GetFakeAccountManagerUI()->CloseDialog();
+  EXPECT_TRUE(future.Wait());
+  FlushMojoForTesting();
+  EXPECT_EQ(1, observer.GetNumSigninDialogClosedNotifications());
 }
 
 }  // namespace crosapi

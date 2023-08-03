@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,6 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_piece.h"
@@ -20,10 +19,10 @@
 #include "build/chromeos_buildflags.h"
 #include "components/printing/common/print.mojom-test-utils.h"
 #include "components/printing/common/print.mojom.h"
+#include "components/printing/common/print_params.h"
 #include "components/printing/test/mock_printer.h"
 #include "components/printing/test/print_test_content_renderer_client.h"
 #include "content/public/renderer/render_frame.h"
-#include "content/public/renderer/render_view.h"
 #include "content/public/test/mock_render_thread.h"
 #include "content/public/test/render_view_test.h"
 #include "ipc/ipc_listener.h"
@@ -31,6 +30,7 @@
 #include "printing/mojom/print.mojom.h"
 #include "printing/page_range.h"
 #include "printing/print_job_constants.h"
+#include "printing/printing_utils.h"
 #include "printing/units.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
@@ -40,7 +40,13 @@
 #include "third_party/blink/public/web/web_range.h"
 #include "third_party/blink/public/web/web_view.h"
 
-#if defined(OS_WIN) || defined(OS_APPLE)
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+#include "components/printing/browser/print_manager_utils.h"
+#include "printing/print_settings.h"
+#include "printing/print_settings_conversion.h"
+#endif
+
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE)
 #include "base/files/file_util.h"
 #include "printing/image.h"
 
@@ -119,27 +125,28 @@ const char kLongPageHTML[] =
 const char kPrintPreviewHTML[] =
     "<body><p id=\"pdf-viewer\">Hello World!</p></body>";
 
-void CreatePrintSettingsDictionary(base::DictionaryValue* dict) {
-  dict->SetBoolean(kSettingLandscape, false);
-  dict->SetBoolean(kSettingCollate, false);
-  dict->SetInteger(kSettingColor, static_cast<int>(mojom::ColorModel::kGray));
-  dict->SetInteger(kSettingPrinterType,
-                   static_cast<int>(mojom::PrinterType::kPdf));
-  dict->SetInteger(kSettingDuplexMode,
-                   static_cast<int>(mojom::DuplexMode::kSimplex));
-  dict->SetInteger(kSettingCopies, 1);
-  dict->SetString(kSettingDeviceName, "dummy");
-  dict->SetInteger(kPreviewUIID, 4);
-  dict->SetInteger(kPreviewRequestID, 12345);
-  dict->SetBoolean(kIsFirstRequest, true);
-  dict->SetInteger(kSettingMarginsType,
-                   static_cast<int>(mojom::MarginType::kDefaultMargins));
-  dict->SetBoolean(kSettingPreviewModifiable, true);
-  dict->SetBoolean(kSettingPreviewIsFromArc, false);
-  dict->SetBoolean(kSettingHeaderFooterEnabled, false);
-  dict->SetBoolean(kSettingShouldPrintBackgrounds, false);
-  dict->SetBoolean(kSettingShouldPrintSelectionOnly, false);
-}
+const char kHTMLWithManyLinesOfText[] =
+    "<html><head><style>"
+    "p { font-size: 24px; }"
+    "</style></head><body>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "<p>The quick brown fox jumped over the lazy dog.</p>"
+    "</body></html>";
 #endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
 
@@ -152,10 +159,15 @@ class FakePrintPreviewUI : public mojom::PrintPreviewUI {
   mojo::PendingAssociatedRemote<mojom::PrintPreviewUI> BindReceiver() {
     return receiver_.BindNewEndpointAndPassDedicatedRemote();
   }
+  void ResetPreviewStatus() {
+    // Make sure there is no active request.
+    DCHECK(!quit_closure_);
+    preview_status_ = PreviewStatus::kNone;
+  }
   // Waits until the preview request is failed, canceled, invalid, or done.
   void WaitUntilPreviewUpdate() {
     // If |preview_status_| is updated, it doesn't need to wait.
-    if (preview_status_ != PreviewStatus::kPreviewStatusNone)
+    if (preview_status_ != PreviewStatus::kNone)
       return;
     base::RunLoop run_loop;
     quit_closure_ = run_loop.QuitClosure();
@@ -166,17 +178,16 @@ class FakePrintPreviewUI : public mojom::PrintPreviewUI {
     print_preview_cancel_page_number_ = page;
   }
   bool PreviewFailed() const {
-    return preview_status_ == PreviewStatus::kPreviewStatusFailed;
+    return preview_status_ == PreviewStatus::kFailed;
   }
   bool PreviewCancelled() const {
-    return preview_status_ == PreviewStatus::kPreviewStatusCancelled;
+    return preview_status_ == PreviewStatus::kCancelled;
   }
   bool InvalidPrinterSetting() const {
-    return preview_status_ == PreviewStatus::kPreviewStatusInvalidSetting;
+    return preview_status_ == PreviewStatus::kInvalidSetting;
   }
   bool IsMetafileReadyForPrinting() const {
-    return preview_status_ ==
-           PreviewStatus::kPreviewStatusMetafileReadyForPrinting;
+    return preview_status_ == PreviewStatus::kMetafileReadyForPrinting;
   }
   uint32_t page_count() const { return page_count_; }
   mojom::PageSizeMargins* page_layout() const {
@@ -205,30 +216,34 @@ class FakePrintPreviewUI : public mojom::PrintPreviewUI {
   void DidPreviewPage(mojom::DidPreviewPageParamsPtr params,
                       int32_t request_id) override {
     uint32_t page_number = params->page_number;
-    DCHECK_NE(page_number, printing::kInvalidPageIndex);
+    DCHECK_NE(page_number, kInvalidPageIndex);
     print_preview_pages_remaining_--;
     print_preview_pages_.emplace_back(
         params->page_number, params->content->metafile_data_region.GetSize());
   }
   void MetafileReadyForPrinting(mojom::DidPreviewDocumentParamsPtr params,
                                 int32_t request_id) override {
-    preview_status_ = PreviewStatus::kPreviewStatusMetafileReadyForPrinting;
+    DCHECK_EQ(preview_status_, PreviewStatus::kNone);
+    preview_status_ = PreviewStatus::kMetafileReadyForPrinting;
     did_preview_document_params_ = std::move(params);
     RunQuitClosure();
   }
   void PrintPreviewFailed(int32_t document_cookie,
                           int32_t request_id) override {
-    preview_status_ = PreviewStatus::kPreviewStatusFailed;
+    DCHECK_EQ(preview_status_, PreviewStatus::kNone);
+    preview_status_ = PreviewStatus::kFailed;
     RunQuitClosure();
   }
   void PrintPreviewCancelled(int32_t document_cookie,
                              int32_t request_id) override {
-    preview_status_ = PreviewStatus::kPreviewStatusCancelled;
+    DCHECK_EQ(preview_status_, PreviewStatus::kNone);
+    preview_status_ = PreviewStatus::kCancelled;
     RunQuitClosure();
   }
   void PrinterSettingsInvalid(int32_t document_cookie,
                               int32_t request_id) override {
-    preview_status_ = PreviewStatus::kPreviewStatusInvalidSetting;
+    DCHECK_EQ(preview_status_, PreviewStatus::kNone);
+    preview_status_ = PreviewStatus::kInvalidSetting;
     RunQuitClosure();
   }
   void DidGetDefaultPageLayout(mojom::PageSizeMarginsPtr page_layout_in_points,
@@ -255,20 +270,20 @@ class FakePrintPreviewUI : public mojom::PrintPreviewUI {
     std::move(quit_closure_).Run();
   }
 
-  enum PreviewStatus {
-    kPreviewStatusNone = 0,
-    kPreviewStatusFailed,
-    kPreviewStatusCancelled,
-    kPreviewStatusInvalidSetting,
-    kPreviewStatusMetafileReadyForPrinting,
+  enum class PreviewStatus {
+    kNone = 0,
+    kFailed,
+    kCancelled,
+    kInvalidSetting,
+    kMetafileReadyForPrinting,
   };
 
-  PreviewStatus preview_status_ = PreviewStatus::kPreviewStatusNone;
+  PreviewStatus preview_status_ = PreviewStatus::kNone;
   uint32_t page_count_ = 0;
   bool has_custom_page_size_style_ = false;
   // Simulates cancelling print preview if |print_preview_pages_remaining_|
   // equals this.
-  uint32_t print_preview_cancel_page_number_ = printing::kInvalidPageIndex;
+  uint32_t print_preview_cancel_page_number_ = kInvalidPageIndex;
   mojom::PageSizeMarginsPtr page_layout_;
   mojom::DidPreviewDocumentParamsPtr did_preview_document_params_;
   // Number of pages to generate for print preview.
@@ -305,6 +320,9 @@ class TestPrintManagerHost
     std::move(callback).Run(true);
     is_printed_ = true;
   }
+  void IsPrintingEnabled(IsPrintingEnabledCallback callback) override {
+    std::move(callback).Run(is_printing_enabled_);
+  }
   void GetDefaultPrintSettings(
       GetDefaultPrintSettingsCallback callback) override {
     printing::mojom::PrintParamsPtr params =
@@ -314,100 +332,61 @@ class TestPrintManagerHost
   void DidShowPrintDialog() override {}
   void ScriptedPrint(printing::mojom::ScriptedPrintParamsPtr params,
                      ScriptedPrintCallback callback) override {
-    auto settings = printing::mojom::PrintPagesParams::New();
-    settings->params = printing::mojom::PrintParams::New();
-    if (print_dialog_user_response_) {
-      printer_->ScriptedPrint(params->cookie, params->expected_pages_count,
-                              params->has_selection, settings.get());
-    }
-    std::move(callback).Run(std::move(settings));
-  }
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-  void UpdatePrintSettings(int32_t cookie,
-                           base::Value job_settings,
-                           UpdatePrintSettingsCallback callback) override {
-    auto params = printing::mojom::PrintPagesParams::New();
-    params->params = printing::mojom::PrintParams::New();
-    bool canceled = false;
-
-    // Check and make sure the required settings are all there.
-    // We don't actually care about the values.
-    absl::optional<int> margins_type =
-        job_settings.FindIntKey(printing::kSettingMarginsType);
-    if (!margins_type.has_value() ||
-        !job_settings.FindBoolKey(printing::kSettingLandscape) ||
-        !job_settings.FindBoolKey(printing::kSettingCollate) ||
-        !job_settings.FindIntKey(printing::kSettingColor) ||
-        !job_settings.FindIntKey(printing::kSettingPrinterType) ||
-        !job_settings.FindBoolKey(printing::kIsFirstRequest) ||
-        !job_settings.FindStringKey(printing::kSettingDeviceName) ||
-        !job_settings.FindIntKey(printing::kSettingDuplexMode) ||
-        !job_settings.FindIntKey(printing::kSettingCopies) ||
-        !job_settings.FindIntKey(printing::kPreviewUIID) ||
-        !job_settings.FindIntKey(printing::kPreviewRequestID)) {
-      std::move(callback).Run(std::move(params), canceled);
+    if (!print_dialog_user_response_) {
+      std::move(callback).Run(nullptr);
       return;
     }
 
-    // Just return the default settings.
-    const base::Value* page_range =
-        job_settings.FindListKey(printing::kSettingPageRange);
-    printing::PageRanges new_ranges;
-    if (page_range) {
-      for (const base::Value& dict : page_range->GetList()) {
-        if (!dict.is_dict())
-          continue;
-
-        absl::optional<int> range_from =
-            dict.FindIntKey(printing::kSettingPageRangeFrom);
-        absl::optional<int> range_to =
-            dict.FindIntKey(printing::kSettingPageRangeTo);
-        if (!range_from || !range_to)
-          continue;
-
-        // Page numbers are 1-based in the dictionary.
-        // Page numbers are 0-based for the printing context.
-        printing::PageRange range;
-        range.from = range_from.value() - 1;
-        range.to = range_to.value() - 1;
-        new_ranges.push_back(range);
-      }
+    auto settings = printing::mojom::PrintPagesParams::New();
+    settings->params = printing::mojom::PrintParams::New();
+    printer_->ScriptedPrint(params->cookie, params->expected_pages_count,
+                            params->has_selection, settings.get());
+    if (!PrintMsgPrintParamsIsValid(*settings->params)) {
+      std::move(callback).Run(nullptr);
+      return;
     }
 
-    // Get media size
-    const base::Value* media_size_value =
-        job_settings.FindDictKey(printing::kSettingMediaSize);
-    gfx::Size page_size;
-    if (media_size_value) {
-      absl::optional<int> width_microns =
-          media_size_value->FindIntKey(printing::kSettingMediaSizeWidthMicrons);
-      absl::optional<int> height_microns = media_size_value->FindIntKey(
-          printing::kSettingMediaSizeHeightMicrons);
-
-      if (width_microns && height_microns) {
-        float device_microns_per_unit =
-            static_cast<float>(printing::kMicronsPerInch) /
-            printing::kDefaultPdfDpi;
-        page_size = gfx::Size(width_microns.value() / device_microns_per_unit,
-                              height_microns.value() / device_microns_per_unit);
-      }
+    std::move(callback).Run(std::move(settings));
+  }
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+  void UpdatePrintSettings(base::Value::Dict job_settings,
+                           UpdatePrintSettingsCallback callback) override {
+    // Check and make sure the required settings are all there.
+    absl::optional<int> margins_type =
+        job_settings.FindInt(kSettingMarginsType);
+    if (!margins_type.has_value() ||
+        !job_settings.FindBool(kSettingLandscape) ||
+        !job_settings.FindBool(kSettingCollate) ||
+        !job_settings.FindInt(kSettingColor) ||
+        !job_settings.FindInt(kSettingPrinterType) ||
+        !job_settings.FindBool(kIsFirstRequest) ||
+        !job_settings.FindString(kSettingDeviceName) ||
+        !job_settings.FindInt(kSettingDuplexMode) ||
+        !job_settings.FindInt(kSettingCopies) ||
+        !job_settings.FindInt(kPreviewUIID) ||
+        !job_settings.FindInt(kPreviewRequestID)) {
+      std::move(callback).Run(nullptr);
+      return;
     }
 
-    // Get scaling
-    absl::optional<int> setting_scale_factor =
-        job_settings.FindIntKey(printing::kSettingScaleFactor);
-    int scale_factor = setting_scale_factor.value_or(100);
+    std::unique_ptr<PrintSettings> print_settings =
+        PrintSettingsFromJobSettings(job_settings);
+    if (!print_settings) {
+      std::move(callback).Run(nullptr);
+      return;
+    }
 
-    std::vector<uint32_t> pages(printing::PageRange::GetPages(new_ranges));
-    printer_->UpdateSettings(cookie, params.get(), pages, margins_type.value(),
-                             page_size, scale_factor);
-    absl::optional<bool> selection_only =
-        job_settings.FindBoolKey(printing::kSettingShouldPrintSelectionOnly);
-    absl::optional<bool> should_print_backgrounds =
-        job_settings.FindBoolKey(printing::kSettingShouldPrintBackgrounds);
-    params->params->selection_only = selection_only.value();
-    params->params->should_print_backgrounds = should_print_backgrounds.value();
-    std::move(callback).Run(std::move(params), canceled);
+    mojom::PrintPagesParamsPtr settings = mojom::PrintPagesParams::New();
+    settings->pages = GetPageRangesFromJobSettings(job_settings);
+    settings->params = mojom::PrintParams::New();
+    RenderParamsFromPrintSettings(*print_settings, settings->params.get());
+    settings->params->document_cookie = PrintSettings::NewCookie();
+    if (!PrintMsgPrintParamsIsValid(*settings->params)) {
+      std::move(callback).Run(nullptr);
+      return;
+    }
+
+    std::move(callback).Run(std::move(settings));
   }
   void SetupScriptedPrintPreview(
       SetupScriptedPrintPreviewCallback callback) override {
@@ -426,6 +405,13 @@ class TestPrintManagerHost
     std::move(callback).Run(preview_ui_->ShouldCancelRequest());
   }
 #endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
+#if BUILDFLAG(ENABLE_TAGGED_PDF)
+  void SetAccessibilityTree(
+      int32_t cookie,
+      const ui::AXTreeUpdate& accessibility_tree) override {
+    ++accessibility_tree_set_count_;
+  }
+#endif
 
   bool IsSetupScriptedPrintPreview() {
     return is_setup_scripted_print_preview_;
@@ -445,6 +431,8 @@ class TestPrintManagerHost
     run_loop.Run();
   }
 
+  void SetPrintingEnabled(bool enabled) { is_printing_enabled_ = enabled; }
+
   // Call with |response| set to true if the user wants to print.
   // False if the user decides to cancel.
   void SetPrintDialogUserResponse(bool response) {
@@ -453,6 +441,12 @@ class TestPrintManagerHost
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   void set_preview_ui(FakePrintPreviewUI* preview_ui) {
     preview_ui_ = preview_ui;
+  }
+#endif
+
+#if BUILDFLAG(ENABLE_TAGGED_PDF)
+  int accessibility_tree_set_count() const {
+    return accessibility_tree_set_count_;
   }
 #endif
 
@@ -481,8 +475,12 @@ class TestPrintManagerHost
   raw_ptr<FakePrintPreviewUI> preview_ui_;
 #endif
   base::OnceClosure quit_closure_;
+  bool is_printing_enabled_ = true;
   // True to simulate user clicking print. False to cancel.
   bool print_dialog_user_response_ = true;
+#if BUILDFLAG(ENABLE_TAGGED_PDF)
+  int accessibility_tree_set_count_ = 0;
+#endif
   mojo::AssociatedReceiver<mojom::PrintManagerHost> receiver_{this};
 };
 
@@ -500,7 +498,7 @@ class PrintRenderFrameHelperTestBase : public content::RenderViewTest {
  protected:
   // content::RenderViewTest:
   content::ContentRendererClient* CreateContentRendererClient() override {
-    return new PrintTestContentRendererClient();
+    return new PrintTestContentRendererClient(/*generate_tagged_pdfs=*/false);
   }
 
   void SetUp() override {
@@ -543,22 +541,6 @@ class PrintRenderFrameHelperTestBase : public content::RenderViewTest {
     base::RunLoop().RunUntilIdle();
   }
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-  void BindToFakePrintPreviewUI() {
-    PrintRenderFrameHelper* frame_helper = GetPrintRenderFrameHelper();
-    frame_helper->SetPrintPreviewUI(preview_ui_->BindReceiver());
-  }
-
-  void WaitForPreviewMessages() { preview_ui()->WaitUntilPreviewUpdate(); }
-
-  // The renderer should be done calculating the number of rendered pages
-  // according to the specified settings defined in the mock render thread.
-  // Verify the page count is correct.
-  void VerifyPreviewPageCount(uint32_t expected_count) {
-    EXPECT_EQ(expected_count, preview_ui()->page_count());
-  }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
-
   // Verifies whether the pages printed or not.
   void VerifyPagesPrinted(bool expect_printed,
                           content::RenderFrame* render_frame = nullptr) {
@@ -585,25 +567,6 @@ class PrintRenderFrameHelperTestBase : public content::RenderViewTest {
     helper->PrintRequestedPages();
     base::RunLoop().RunUntilIdle();
   }
-
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-  void VerifyPreviewRequest(bool expect_request) {
-    EXPECT_EQ(expect_request, print_manager()->IsSetupScriptedPrintPreview());
-  }
-
-  void OnPrintPreview(const base::DictionaryValue& dict) {
-    PrintRenderFrameHelper* print_render_frame_helper =
-        GetPrintRenderFrameHelper();
-    print_render_frame_helper->InitiatePrintPreview(
-        mojo::NullAssociatedRemote(), false);
-    print_render_frame_helper->PrintPreview(dict.Clone());
-    WaitForPreviewMessages();
-  }
-
-  void OnClosePrintPreviewDialog() {
-    GetPrintRenderFrameHelper()->OnPrintPreviewDialogClosed();
-  }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
   PrintRenderFrameHelper* GetPrintRenderFrameHelper() {
     return PrintRenderFrameHelper::Get(
@@ -684,11 +647,11 @@ class PrintRenderFrameHelperTestBase : public content::RenderViewTest {
 
 // RenderViewTest-based tests crash on Android
 // http://crbug.com/187500
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define MAYBE_PrintRenderFrameHelperTest DISABLED_PrintRenderFrameHelperTest
 #else
 #define MAYBE_PrintRenderFrameHelperTest PrintRenderFrameHelperTest
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 class MAYBE_PrintRenderFrameHelperTest : public PrintRenderFrameHelperTestBase {
  public:
@@ -831,7 +794,42 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, BasicBeforePrintAfterPrintSubFrame) {
   VerifyPagesPrinted(true, sub_render_frame);
 }
 
-#if defined(OS_APPLE)
+// https://crbug.com/1372396
+//
+// There used to be a Blink bug when entering print preview with a monolithic
+// absolutely positioned box that extended into a page where the parent had no
+// representation. It could only be reproduced when entering print preview,
+// because print preview apparently enters print mode, runs a rendering
+// lifecycle update, leaves print mode *without* running a rendering lifecycle
+// update, then enter print mode a second time. When running a rendering
+// lifecycle update this time, we'd fail a DCHECK, because when leaving print
+// mode the first time, we'd mark for paint invalidation. Not handling it at
+// that point (no lifecycle update) is fine in principle, but it used to cause
+// some bad ancestry node marking when we got to the lifecycle update when
+// entering print mode for the second time.
+TEST_F(MAYBE_PrintRenderFrameHelperTest, MonolithicAbsposOverflowingParent) {
+  LoadHTML(R"HTML(
+    <style>
+      #trouble {
+        contain: size;
+        position: absolute;
+        top: 5000px;
+        width: 100px;
+        height: 100px;
+        background: lime;
+      }
+    </style>
+    <div style="position:relative; height:10000px;">
+      <div>
+        <div id="trouble"></div>
+      </div>
+    </div>
+  )HTML");
+
+  OnPrintPages();
+}
+
+#if BUILDFLAG(IS_APPLE)
 // TODO(estade): I don't think this test is worth porting to Linux. We will have
 // to rip out and replace most of the IPC code if we ever plan to improve
 // printing, and the comment below by sverrir suggests that it doesn't do much
@@ -851,13 +849,12 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, PrintWithIframe) {
 
   // Find the frame and set it as the focused one.  This should mean that that
   // the printout should only contain the contents of that frame.
-  auto* web_view = view_->GetWebView();
   WebFrame* sub1_frame =
-      web_view->MainFrame()->ToWebLocalFrame()->FindFrameByName(
+      web_view_->MainFrame()->ToWebLocalFrame()->FindFrameByName(
           WebString::FromUTF8("sub1"));
   ASSERT_TRUE(sub1_frame);
-  web_view->SetFocusedFrame(sub1_frame);
-  ASSERT_NE(web_view->FocusedFrame(), web_view->MainFrame());
+  web_view_->SetFocusedFrame(sub1_frame);
+  ASSERT_NE(web_view_->FocusedFrame(), web_view_->MainFrame());
 
   // Initiate printing.
   OnPrintPages();
@@ -874,7 +871,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, PrintWithIframe) {
   EXPECT_NE(0, image1.size().width());
   EXPECT_NE(0, image1.size().height());
 }
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
 // Tests if we can print a page and verify its results.
 // This test prints HTML pages into a pseudo printer and check their outputs,
@@ -890,7 +887,7 @@ struct TestPageData {
   const wchar_t* file;
 };
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 const TestPageData kTestPages[] = {
     {
         "<html>"
@@ -910,19 +907,19 @@ const TestPageData kTestPages[] = {
         600, 780, nullptr, nullptr,
     },
 };
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 }  // namespace
 
 // TODO(estade): need to port MockPrinter to get this on Linux. This involves
 // hooking up Cairo to read a pdf stream, or accessing the cairo surface in the
 // metafile directly.
 // Same for printing via PDF on Windows.
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 TEST_F(MAYBE_PrintRenderFrameHelperTest, PrintLayoutTest) {
   bool baseline = false;
 
   EXPECT_TRUE(printer());
-  for (size_t i = 0; i < base::size(kTestPages); ++i) {
+  for (size_t i = 0; i < std::size(kTestPages); ++i) {
     // Load an HTML page and print it.
     LoadHTML(kTestPages[i].page);
     OnPrintPages();
@@ -969,38 +966,64 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, PrintLayoutTest) {
     }
   }
 }
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
 // These print preview tests do not work on Chrome OS yet.
 #if !BUILDFLAG(IS_CHROMEOS_ASH)
 
-// RenderViewTest-based tests crash on Android
-// http://crbug.com/187500
-#if defined(OS_ANDROID)
-#define MAYBE_PrintRenderFrameHelperPreviewTest \
-  DISABLED_PrintRenderFrameHelperPreviewTest
-#else
-#define MAYBE_PrintRenderFrameHelperPreviewTest \
-  PrintRenderFrameHelperPreviewTest
-#endif  // defined(OS_ANDROID)
-
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-class MAYBE_PrintRenderFrameHelperPreviewTest
+class PrintRenderFrameHelperPreviewTest
     : public PrintRenderFrameHelperTestBase {
  public:
-  MAYBE_PrintRenderFrameHelperPreviewTest() = default;
-  MAYBE_PrintRenderFrameHelperPreviewTest(
-      const MAYBE_PrintRenderFrameHelperPreviewTest&) = delete;
-  MAYBE_PrintRenderFrameHelperPreviewTest& operator=(
-      const MAYBE_PrintRenderFrameHelperPreviewTest&) = delete;
-  ~MAYBE_PrintRenderFrameHelperPreviewTest() override = default;
+  PrintRenderFrameHelperPreviewTest() = default;
+  PrintRenderFrameHelperPreviewTest(const PrintRenderFrameHelperPreviewTest&) =
+      delete;
+  PrintRenderFrameHelperPreviewTest& operator=(
+      const PrintRenderFrameHelperPreviewTest&) = delete;
+  ~PrintRenderFrameHelperPreviewTest() override = default;
 
   void SetUp() override {
     PrintRenderFrameHelperTestBase::SetUp();
     BindToFakePrintPreviewUI();
+    CreatePrintSettingsDictionary();
   }
 
  protected:
+  void BindToFakePrintPreviewUI() {
+    PrintRenderFrameHelper* frame_helper = GetPrintRenderFrameHelper();
+    frame_helper->SetPrintPreviewUI(preview_ui()->BindReceiver());
+  }
+
+  void OnPrintPreview() {
+    PrintRenderFrameHelper* print_render_frame_helper =
+        GetPrintRenderFrameHelper();
+    print_render_frame_helper->InitiatePrintPreview(
+        mojo::NullAssociatedRemote(), false);
+    print_render_frame_helper->PrintPreview(print_settings_.Clone());
+    preview_ui()->WaitUntilPreviewUpdate();
+  }
+
+  void OnPrintPreviewRerender() {
+    preview_ui()->ResetPreviewStatus();
+    GetPrintRenderFrameHelper()->PrintPreview(print_settings_.Clone());
+    preview_ui()->WaitUntilPreviewUpdate();
+  }
+
+  void OnClosePrintPreviewDialog() {
+    GetPrintRenderFrameHelper()->OnPrintPreviewDialogClosed();
+  }
+
+  void VerifyPreviewRequest(bool expect_request) {
+    EXPECT_EQ(expect_request, print_manager()->IsSetupScriptedPrintPreview());
+  }
+
+  // The renderer should be done calculating the number of rendered pages
+  // according to the specified settings defined in the mock render thread.
+  // Verify the page count is correct.
+  void VerifyPreviewPageCount(uint32_t expected_count) {
+    EXPECT_EQ(expected_count, preview_ui()->page_count());
+  }
+
   void VerifyPrintPreviewCancelled(bool expect_cancel) {
     EXPECT_EQ(expect_cancel, preview_ui()->PreviewCancelled());
   }
@@ -1012,11 +1035,14 @@ class MAYBE_PrintRenderFrameHelperPreviewTest
   void VerifyPrintPreviewGenerated(bool expect_generated) {
     ASSERT_EQ(expect_generated, preview_ui()->IsMetafileReadyForPrinting());
     if (preview_ui()->IsMetafileReadyForPrinting()) {
-      EXPECT_NE(nullptr, preview_ui()->did_preview_document_params());
+      ASSERT_TRUE(preview_ui()->did_preview_document_params());
       const auto& param = *preview_ui()->did_preview_document_params();
       EXPECT_NE(0, param.document_cookie);
       EXPECT_NE(0U, param.expected_pages_count);
-      EXPECT_NE(0U, param.content->metafile_data_region.GetSize());
+
+      auto mapped = param.content->metafile_data_region.Map();
+      ASSERT_TRUE(mapped.IsValid());
+      EXPECT_TRUE(LooksLikePdf(mapped.GetMemoryAsSpan<const char>()));
     }
   }
 
@@ -1060,24 +1086,66 @@ class MAYBE_PrintRenderFrameHelperPreviewTest
     EXPECT_EQ(expected_page_has_print_css,
               preview_ui()->has_custom_page_size_style());
   }
+
+  base::Value::Dict& print_settings() { return print_settings_; }
+
+ private:
+  void CreatePrintSettingsDictionary() {
+    print_settings_ = base::Value::Dict();
+    print_settings_.Set(kSettingLandscape, false);
+    print_settings_.Set(kSettingCollate, false);
+    print_settings_.Set(kSettingColor,
+                        static_cast<int>(mojom::ColorModel::kGray));
+    print_settings_.Set(kSettingPrinterType,
+                        static_cast<int>(mojom::PrinterType::kPdf));
+    print_settings_.Set(kSettingDuplexMode,
+                        static_cast<int>(mojom::DuplexMode::kSimplex));
+    print_settings_.Set(kSettingCopies, 1);
+    print_settings_.Set(kSettingDeviceName, "dummy");
+    print_settings_.Set(kSettingDpiHorizontal, 72);
+    print_settings_.Set(kSettingDpiVertical, 72);
+    print_settings_.Set(kPreviewUIID, 4);
+    print_settings_.Set(kSettingRasterizePdf, false);
+    print_settings_.Set(kPreviewRequestID, 12345);
+    print_settings_.Set(kSettingScaleFactor, 100);
+    print_settings_.Set(kIsFirstRequest, true);
+    print_settings_.Set(kSettingMarginsType,
+                        static_cast<int>(mojom::MarginType::kDefaultMargins));
+    print_settings_.Set(kSettingPagesPerSheet, 1);
+    print_settings_.Set(kSettingPreviewModifiable, true);
+    print_settings_.Set(kSettingPreviewIsFromArc, false);
+    print_settings_.Set(kSettingHeaderFooterEnabled, false);
+    print_settings_.Set(kSettingShouldPrintBackgrounds, false);
+    print_settings_.Set(kSettingShouldPrintSelectionOnly, false);
+
+    // Using a media size with realistic dimensions for a Letter paper.
+    base::Value::Dict media_size;
+    media_size.Set(kSettingMediaSizeWidthMicrons, 215900);
+    media_size.Set(kSettingMediaSizeHeightMicrons, 279400);
+    media_size.Set(kSettingsImageableAreaLeftMicrons, 12700);
+    media_size.Set(kSettingsImageableAreaBottomMicrons, 0);
+    media_size.Set(kSettingsImageableAreaRightMicrons, 209550);
+    media_size.Set(kSettingsImageableAreaTopMicrons, 254000);
+    print_settings_.Set(kSettingMediaSize, std::move(media_size));
+  }
+
+  base::Value::Dict print_settings_;
 };
 
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, BlockScriptInitiatedPrinting) {
+TEST_F(PrintRenderFrameHelperPreviewTest, BlockScriptInitiatedPrinting) {
   LoadHTML(kHelloWorldHTML);
-  PrintRenderFrameHelper* print_render_frame_helper =
-      GetPrintRenderFrameHelper();
-  print_render_frame_helper->SetPrintingEnabled(false);
+  print_manager()->SetPrintingEnabled(false);
   PrintWithJavaScript();
   VerifyPreviewRequest(false);
 
-  print_render_frame_helper->SetPrintingEnabled(true);
+  print_manager()->SetPrintingEnabled(true);
   PrintWithJavaScript();
   VerifyPreviewRequest(true);
 
   OnClosePrintPreviewDialog();
 }
 
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintWithJavaScript) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintWithJavaScript) {
   LoadHTML(kPrintOnUserAction);
   gfx::Size new_size(200, 100);
   Resize(new_size, false);
@@ -1092,18 +1160,15 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintWithJavaScript) {
 
 // Tests that print preview work and sending and receiving messages through
 // that channel all works.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, OnPrintPreview) {
+TEST_F(PrintRenderFrameHelperPreviewTest, OnPrintPreview) {
   LoadHTML(kHelloWorldHTML);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDidPreviewPage(true, 0);
   VerifyPreviewPageCount(1);
-  VerifyDefaultPageLayout(540, 720, 36, 36, 36, 36, false);
+  VerifyDefaultPageLayout(548, 692, 72, 28, 36, 28, false);
   VerifyPrintPreviewCancelled(false);
   VerifyPrintPreviewFailed(false);
   VerifyPrintPreviewGenerated(true);
@@ -1112,8 +1177,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, OnPrintPreview) {
   OnClosePrintPreviewDialog();
 }
 
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
-       PrintPreviewHTMLWithPageMarginsCss) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewHTMLWithPageMarginsCss) {
   // A simple web page with print margins css.
   static const char kHTMLWithPageMarginsCss[] =
       "<html><head><style>"
@@ -1127,12 +1191,9 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
       "</body></html>";
   LoadHTML(kHTMLWithPageMarginsCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingPrinterType,
-                  static_cast<int>(mojom::PrinterType::kLocal));
-  OnPrintPreview(dict);
+  print_settings().Set(kSettingPrinterType,
+                       static_cast<int>(mojom::PrinterType::kLocal));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDefaultPageLayout(519, 432, 216, 144, 21, 72, false);
@@ -1148,18 +1209,15 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
 
 // Test to verify that print preview ignores print media css when non-default
 // margin is selected.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
+TEST_F(PrintRenderFrameHelperPreviewTest,
        NonDefaultMarginsSelectedIgnorePrintCss) {
   LoadHTML(kHTMLWithPageSizeCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingPrinterType,
-                  static_cast<int>(mojom::PrinterType::kLocal));
-  dict.SetInteger(kSettingMarginsType,
-                  static_cast<int>(mojom::MarginType::kNoMargins));
-  OnPrintPreview(dict);
+  print_settings().Set(kSettingPrinterType,
+                       static_cast<int>(mojom::PrinterType::kLocal));
+  print_settings().Set(kSettingMarginsType,
+                       static_cast<int>(mojom::MarginType::kNoMargins));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDefaultPageLayout(612, 792, 0, 0, 0, 0, true);
@@ -1175,21 +1233,18 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
 
 // Test to verify that print preview honor print media size css when
 // PRINT_TO_PDF is selected and doesn't fit to printer default paper size.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
-       PrintToPDFSelectedHonorPrintCss) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintToPDFSelectedHonorPrintCss) {
   LoadHTML(kHTMLWithPageSizeCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingMarginsType,
-                  static_cast<int>(mojom::MarginType::kPrintableAreaMargins));
-  OnPrintPreview(dict);
+  print_settings().Set(
+      kSettingMarginsType,
+      static_cast<int>(mojom::MarginType::kPrintableAreaMargins));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   // Since PRINT_TO_PDF is selected, pdf page size is equal to print media page
   // size.
-  VerifyDefaultPageLayout(252, 252, 18, 18, 18, 18, true);
+  VerifyDefaultPageLayout(234, 216, 72, 0, 36, 18, true);
   VerifyDidPreviewPage(true, 0);
   VerifyPreviewPageCount(1);
   VerifyPrintPreviewCancelled(false);
@@ -1200,8 +1255,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
   OnClosePrintPreviewDialog();
 }
 
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
-       PreviewLayoutTriggeredByResize) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PreviewLayoutTriggeredByResize) {
   // A simple web page with print margins css.
   static const char kHTMLWithPageCss[] =
       "<!DOCTYPE html>"
@@ -1306,12 +1360,9 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
       "</div>";
   LoadHTML(kHTMLWithPageCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingPrinterType,
-                  static_cast<int>(mojom::PrinterType::kLocal));
-  OnPrintPreview(dict);
+  print_settings().Set(kSettingPrinterType,
+                       static_cast<int>(mojom::PrinterType::kLocal));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDidPreviewPage(true, 0);
@@ -1327,7 +1378,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
 
 // Test to verify that print preview honor print margin css when PRINT_TO_PDF
 // is selected and doesn't fit to printer default paper size.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
+TEST_F(PrintRenderFrameHelperPreviewTest,
        PrintToPDFSelectedHonorPageMarginsCss) {
   // A simple web page with print margins css.
   static const char kHTMLWithPageCss[] =
@@ -1343,10 +1394,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
       "</body></html>";
   LoadHTML(kHTMLWithPageCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   // Since PRINT_TO_PDF is selected, pdf page size is equal to print media page
@@ -1364,18 +1412,15 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
 
 // Test to verify that print preview workflow center the html page contents to
 // fit the page size.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewCenterToFitPage) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewCenterToFitPage) {
   LoadHTML(kHTMLWithPageSizeCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingPrinterType,
-                  static_cast<int>(mojom::PrinterType::kLocal));
-  OnPrintPreview(dict);
+  print_settings().Set(kSettingPrinterType,
+                       static_cast<int>(mojom::PrinterType::kLocal));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
-  VerifyDefaultPageLayout(216, 216, 288, 288, 198, 198, true);
+  VerifyDefaultPageLayout(224, 188, 324, 280, 198, 190, true);
   VerifyDidPreviewPage(true, 0);
   VerifyPreviewPageCount(1);
   VerifyPrintPreviewCancelled(false);
@@ -1388,7 +1433,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewCenterToFitPage) {
 
 // Test to verify that print preview workflow scale the html page contents to
 // fit the page size.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewShrinkToFitPage) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewShrinkToFitPage) {
   // A simple web page with print margins css.
   static const char kHTMLWithPageCss[] =
       "<html><head><style>"
@@ -1402,15 +1447,12 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewShrinkToFitPage) {
       "</body></html>";
   LoadHTML(kHTMLWithPageCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingPrinterType,
-                  static_cast<int>(mojom::PrinterType::kLocal));
-  OnPrintPreview(dict);
+  print_settings().Set(kSettingPrinterType,
+                       static_cast<int>(mojom::PrinterType::kLocal));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
-  VerifyDefaultPageLayout(571, 652, 69, 71, 20, 21, true);
+  VerifyDefaultPageLayout(576, 637, 89, 66, 20, 16, true);
   VerifyDidPreviewPage(true, 0);
   VerifyPreviewPageCount(1);
   VerifyPrintPreviewCancelled(false);
@@ -1423,18 +1465,14 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewShrinkToFitPage) {
 
 // Test to verify that print preview workflow honor the orientation settings
 // specified in css.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
-       PrintPreviewHonorsOrientationCss) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewHonorsOrientationCss) {
   LoadHTML(kHTMLWithLandscapePageCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingPrinterType,
-                  static_cast<int>(mojom::PrinterType::kLocal));
-  dict.SetInteger(kSettingMarginsType,
-                  static_cast<int>(mojom::MarginType::kNoMargins));
-  OnPrintPreview(dict);
+  print_settings().Set(kSettingPrinterType,
+                       static_cast<int>(mojom::PrinterType::kLocal));
+  print_settings().Set(kSettingMarginsType,
+                       static_cast<int>(mojom::MarginType::kNoMargins));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDefaultPageLayout(792, 612, 0, 0, 0, 0, true);
@@ -1450,16 +1488,20 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
 
 // Test to verify that print preview workflow honors the orientation settings
 // specified in css when PRINT_TO_PDF is selected.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
+TEST_F(PrintRenderFrameHelperPreviewTest,
        PrintToPDFSelectedHonorOrientationCss) {
   LoadHTML(kHTMLWithLandscapePageCss);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetInteger(kSettingMarginsType,
-                  static_cast<int>(mojom::MarginType::kCustomMargins));
-  OnPrintPreview(dict);
+  base::Value::Dict custom_margins;
+  custom_margins.Set(kSettingMarginTop, 21);
+  custom_margins.Set(kSettingMarginBottom, 23);
+  custom_margins.Set(kSettingMarginLeft, 21);
+  custom_margins.Set(kSettingMarginRight, 23);
+
+  print_settings().Set(kSettingMarginsType,
+                       static_cast<int>(mojom::MarginType::kCustomMargins));
+  print_settings().Set(kSettingMarginsCustom, std::move(custom_margins));
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDefaultPageLayout(748, 568, 21, 23, 21, 23, true);
@@ -1473,14 +1515,10 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
   OnClosePrintPreviewDialog();
 }
 
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForMultiplePages) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewForMultiplePages) {
   LoadHTML(kMultipageHTML);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDidPreviewPage(true, 0);
@@ -1495,24 +1533,20 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForMultiplePages) {
   OnClosePrintPreviewDialog();
 }
 
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedPages) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedPages) {
   LoadHTML(kMultipageHTML);
-
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
 
   // Set a page range and update the dictionary to generate only the complete
   // metafile with the selected pages. Page numbers used in the dictionary
   // are 1-based.
-  base::Value page_range(base::Value::Type::DICTIONARY);
-  page_range.SetKey(kSettingPageRangeFrom, base::Value(2));
-  page_range.SetKey(kSettingPageRangeTo, base::Value(3));
-  base::Value page_range_array(base::Value::Type::LIST);
+  base::Value::Dict page_range;
+  page_range.Set(kSettingPageRangeFrom, base::Value(2));
+  page_range.Set(kSettingPageRangeTo, base::Value(3));
+  base::Value::List page_range_array;
   page_range_array.Append(std::move(page_range));
-  dict.SetKey(kSettingPageRange, std::move(page_range_array));
+  print_settings().Set(kSettingPageRange, std::move(page_range_array));
 
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   // The expected page count below is 3 because the total number of pages in the
   // document, without the page range, is 3. Since only 2 pages have been
@@ -1532,19 +1566,38 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedPages) {
   OnClosePrintPreviewDialog();
 }
 
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewInvalidPageRange) {
+  LoadHTML(kHelloWorldHTML);
+
+  // Request a page beyond the end of document and assure we get the entire
+  // document back.
+  base::Value::Dict page_range;
+  page_range.Set(kSettingPageRangeFrom, 2);
+  page_range.Set(kSettingPageRangeTo, 2);
+  base::Value::List page_range_array;
+  page_range_array.Append(std::move(page_range));
+  print_settings().Set(kSettingPageRange, std::move(page_range_array));
+
+  OnPrintPreview();
+
+  VerifyDidPreviewPage(true, 0);
+  VerifyPreviewPageCount(1);
+  VerifyPrintPreviewCancelled(false);
+  VerifyPrintPreviewFailed(false);
+  VerifyPrintPreviewGenerated(true);
+  OnClosePrintPreviewDialog();
+}
+
 // Test to verify that preview generated only for one page.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedText) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedText) {
   LoadHTML(kMultipageHTML);
   GetMainFrame()->SelectRange(blink::WebRange(1, 3),
                               blink::WebLocalFrame::kHideSelectionHandle,
                               blink::mojom::SelectionMenuBehavior::kHide);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetBoolean(kSettingShouldPrintSelectionOnly, true);
+  print_settings().Set(kSettingShouldPrintSelectionOnly, true);
 
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDidPreviewPage(true, 0);
@@ -1558,18 +1611,15 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedText) {
 }
 
 // Test to verify that preview generated only for two pages.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedText2) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedText2) {
   LoadHTML(kMultipageHTML);
   GetMainFrame()->SelectRange(blink::WebRange(1, 8),
                               blink::WebLocalFrame::kHideSelectionHandle,
                               blink::mojom::SelectionMenuBehavior::kHide);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  dict.SetBoolean(kSettingShouldPrintSelectionOnly, true);
+  print_settings().Set(kSettingShouldPrintSelectionOnly, true);
 
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDidPreviewPage(true, 0);
@@ -1582,16 +1632,94 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewForSelectedText2) {
   OnClosePrintPreviewDialog();
 }
 
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewForManyLinesOfText) {
+  LoadHTML(kHTMLWithManyLinesOfText);
+
+  OnPrintPreview();
+
+  EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
+  VerifyDidPreviewPage(true, 0);
+  VerifyPreviewPageCount(1);
+  VerifyPrintPreviewCancelled(false);
+  VerifyPrintPreviewFailed(false);
+  VerifyPrintPreviewGenerated(true);
+  VerifyPagesPrinted(false);
+
+  OnClosePrintPreviewDialog();
+}
+
+TEST_F(PrintRenderFrameHelperPreviewTest,
+       PrintPreviewForManyLinesOfTextWithScaling) {
+  LoadHTML(kHTMLWithManyLinesOfText);
+
+  print_settings().Set(kSettingScaleFactor, 200);
+
+  OnPrintPreview();
+
+  constexpr int kExpectedPageCount = 3;
+  EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
+  for (int i = 0; i < kExpectedPageCount; ++i)
+    VerifyDidPreviewPage(true, i);
+  VerifyPreviewPageCount(kExpectedPageCount);
+  VerifyPrintPreviewCancelled(false);
+  VerifyPrintPreviewFailed(false);
+  VerifyPrintPreviewGenerated(true);
+  VerifyPagesPrinted(false);
+
+  OnClosePrintPreviewDialog();
+}
+
+TEST_F(PrintRenderFrameHelperPreviewTest,
+       PrintPreviewForManyLinesOfTextWithTextSelection) {
+  LoadHTML(kHTMLWithManyLinesOfText);
+  GetMainFrame()->ExecuteCommand("SelectAll");
+
+  print_settings().Set(kSettingShouldPrintSelectionOnly, true);
+
+  OnPrintPreview();
+
+  EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
+  VerifyDidPreviewPage(true, 0);
+  VerifyPreviewPageCount(1);
+  VerifyPrintPreviewCancelled(false);
+  VerifyPrintPreviewFailed(false);
+  VerifyPrintPreviewGenerated(true);
+  VerifyPagesPrinted(false);
+
+  OnClosePrintPreviewDialog();
+}
+
+TEST_F(PrintRenderFrameHelperPreviewTest,
+       PrintPreviewForManyLinesOfTextWithTextSelectionAndScaling) {
+  LoadHTML(kHTMLWithManyLinesOfText);
+  GetMainFrame()->ExecuteCommand("SelectAll");
+
+  print_settings().Set(kSettingShouldPrintSelectionOnly, true);
+  print_settings().Set(kSettingScaleFactor, 200);
+
+  OnPrintPreview();
+
+  constexpr int kExpectedPageCount = 3;
+  EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
+  for (int i = 0; i < kExpectedPageCount; ++i)
+    VerifyDidPreviewPage(true, i);
+  VerifyPreviewPageCount(kExpectedPageCount);
+  VerifyPrintPreviewCancelled(false);
+  VerifyPrintPreviewFailed(false);
+  VerifyPrintPreviewGenerated(true);
+  VerifyPagesPrinted(false);
+
+  OnClosePrintPreviewDialog();
+}
+
 // Tests that cancelling print preview works.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewCancel) {
+TEST_F(PrintRenderFrameHelperPreviewTest, PrintPreviewCancel) {
   LoadHTML(kLongPageHTML);
 
   const uint32_t kCancelPage = 3;
   preview_ui()->set_print_preview_cancel_page_number(kCancelPage);
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  OnPrintPreview(dict);
+
+  OnPrintPreview();
 
   EXPECT_EQ(kCancelPage, preview_ui()->print_preview_pages_remaining());
   VerifyPrintPreviewCancelled(true);
@@ -1604,17 +1732,15 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, PrintPreviewCancel) {
 
 // Tests that when default printer has invalid printer settings, print preview
 // receives error message.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
+TEST_F(PrintRenderFrameHelperPreviewTest,
        OnPrintPreviewUsingInvalidPrinterSettings) {
   LoadHTML(kPrintPreviewHTML);
 
   // Set mock printer to provide invalid settings.
-  printer()->UseInvalidSettings();
+  // A missing color entry is invalid.
+  print_settings().Remove(kSettingColor);
 
-  // Fill in some dummy values.
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   // We should have received invalid printer settings from |printer_|.
   VerifyPrintPreviewInvalidPrinterSettings(true);
@@ -1627,17 +1753,14 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
   OnClosePrintPreviewDialog();
 }
 
-// Tests that when the selected printer has invalid page settings, print preview
+// Tests that when the selected printer has an invalid media size, print preview
 // receives error message.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
-       OnPrintPreviewUsingInvalidPageSize) {
+TEST_F(PrintRenderFrameHelperPreviewTest, OnPrintPreviewUsingInvalidMediaSize) {
   LoadHTML(kPrintPreviewHTML);
 
-  printer()->UseInvalidPageSize();
+  print_settings().Set(kSettingMediaSize, base::Value::Dict());
 
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   VerifyPrintPreviewInvalidPrinterSettings(true);
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
@@ -1649,40 +1772,16 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
   OnClosePrintPreviewDialog();
 }
 
-// Tests that when the selected printer has invalid content settings, print
-// preview receives error message.
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
-       OnPrintPreviewUsingInvalidContentSize) {
-  LoadHTML(kPrintPreviewHTML);
-
-  printer()->UseInvalidContentSize();
-
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  OnPrintPreview(dict);
-
-  VerifyPrintPreviewInvalidPrinterSettings(true);
-  EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
-
-  // It should receive the invalid printer settings message only.
-  VerifyPrintPreviewFailed(false);
-  VerifyPrintPreviewGenerated(false);
-
-  OnClosePrintPreviewDialog();
-}
-
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, BasicBeforePrintAfterPrint) {
+TEST_F(PrintRenderFrameHelperPreviewTest, BasicBeforePrintAfterPrint) {
   LoadHTML(kBeforeAfterPrintHtml);
   ExpectNoBeforeNoAfterPrintEvent();
 
-  base::DictionaryValue dict;
-  CreatePrintSettingsDictionary(&dict);
-  OnPrintPreview(dict);
+  OnPrintPreview();
 
   EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
   VerifyDidPreviewPage(true, 0);
   VerifyPreviewPageCount(1);
-  VerifyDefaultPageLayout(540, 720, 36, 36, 36, 36, false);
+  VerifyDefaultPageLayout(548, 692, 72, 28, 36, 28, false);
   VerifyPrintPreviewCancelled(false);
   VerifyPrintPreviewFailed(false);
   VerifyPrintPreviewGenerated(true);
@@ -1694,8 +1793,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest, BasicBeforePrintAfterPrint) {
 }
 
 // Regression test for https://crbug.com/912966
-TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
-       WindowPrintBeforePrintAfterPrint) {
+TEST_F(PrintRenderFrameHelperPreviewTest, WindowPrintBeforePrintAfterPrint) {
   LoadHTML(kBeforeAfterPrintHtml);
   gfx::Size new_size(200, 100);
   Resize(new_size, false);
@@ -1710,6 +1808,70 @@ TEST_F(MAYBE_PrintRenderFrameHelperPreviewTest,
   OnClosePrintPreviewDialog();
   ExpectOneBeforeOneAfterPrintEvent();
 }
+
+class PrintRenderFrameHelperTaggedPreviewTest
+    : public PrintRenderFrameHelperPreviewTest,
+      public testing::WithParamInterface<bool> {
+ public:
+  PrintRenderFrameHelperTaggedPreviewTest() = default;
+  PrintRenderFrameHelperTaggedPreviewTest(
+      const PrintRenderFrameHelperTaggedPreviewTest&) = delete;
+  PrintRenderFrameHelperTaggedPreviewTest& operator=(
+      const PrintRenderFrameHelperTaggedPreviewTest&) = delete;
+  ~PrintRenderFrameHelperTaggedPreviewTest() override = default;
+
+  // content::RenderViewTest:
+  content::ContentRendererClient* CreateContentRendererClient() override {
+    return new PrintTestContentRendererClient(GenerateTaggedPDFs());
+  }
+
+  bool GenerateTaggedPDFs() const { return GetParam(); }
+  bool ExpectsSetAccessibilityTreeCalls() const { return GenerateTaggedPDFs(); }
+};
+
+TEST_P(PrintRenderFrameHelperTaggedPreviewTest,
+       PrintPreviewRerenderGeneratesTaggedPDF) {
+  LoadHTML(kHelloWorldHTML);
+
+  OnPrintPreview();
+
+  EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
+  VerifyDidPreviewPage(true, 0);
+  VerifyPreviewPageCount(1);
+  VerifyDefaultPageLayout(548, 692, 72, 28, 36, 28, false);
+  VerifyPrintPreviewCancelled(false);
+  VerifyPrintPreviewFailed(false);
+  VerifyPrintPreviewGenerated(true);
+  VerifyPagesPrinted(false);
+#if BUILDFLAG(ENABLE_TAGGED_PDF)
+  int expected_accessibility_tree_set_count =
+      ExpectsSetAccessibilityTreeCalls() ? 1 : 0;
+  EXPECT_EQ(expected_accessibility_tree_set_count,
+            print_manager()->accessibility_tree_set_count());
+#endif
+
+  print_settings().Set(kSettingScaleFactor, 200);
+  OnPrintPreviewRerender();
+
+  EXPECT_EQ(0u, preview_ui()->print_preview_pages_remaining());
+  VerifyDidPreviewPage(true, 0);
+  VerifyPreviewPageCount(1);
+  VerifyDefaultPageLayout(548, 692, 72, 28, 36, 28, false);
+  VerifyPrintPreviewCancelled(false);
+  VerifyPrintPreviewFailed(false);
+  VerifyPrintPreviewGenerated(true);
+  VerifyPagesPrinted(false);
+#if BUILDFLAG(ENABLE_TAGGED_PDF)
+  expected_accessibility_tree_set_count =
+      ExpectsSetAccessibilityTreeCalls() ? 2 : 0;
+  EXPECT_EQ(expected_accessibility_tree_set_count,
+            print_manager()->accessibility_tree_set_count());
+#endif
+}
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         PrintRenderFrameHelperTaggedPreviewTest,
+                         testing::Bool());
 
 #endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 

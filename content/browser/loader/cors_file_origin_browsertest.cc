@@ -1,13 +1,13 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <string>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/path_service.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
@@ -247,7 +247,7 @@ IN_PROC_BROWSER_TEST_F(CorsFileOriginBrowserTest, AccessToAnotherFileUrl) {
 // TODO(lukasza, nasko): https://crbug.com/981018: Enable this test on Macs
 // after understanding what makes it flakily fail on the mac-rel trybot.
 // Also flaky on Lacros: https://crbug.com/1247748.
-#if defined(OS_MAC) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS_LACROS)
 #define MAYBE_UniversalAccessFromFileUrls DISABLED_UniversalAccessFromFileUrls
 #else
 #define MAYBE_UniversalAccessFromFileUrls UniversalAccessFromFileUrls

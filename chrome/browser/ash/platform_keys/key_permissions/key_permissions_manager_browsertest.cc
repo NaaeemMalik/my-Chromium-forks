@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,27 +6,29 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "base/test/test_future.h"
 #include "base/values.h"
 #include "chrome/browser/ash/login/test/device_state_mixin.h"
 #include "chrome/browser/ash/login/test/login_manager_mixin.h"
 #include "chrome/browser/ash/login/test/user_policy_mixin.h"
 #include "chrome/browser/ash/platform_keys/key_permissions/key_permissions.pb.h"
-#include "chrome/browser/ash/platform_keys/key_permissions/key_permissions_pref_util.h"
+#include "chrome/browser/ash/platform_keys/key_permissions/key_permissions_util.h"
 #include "chrome/browser/ash/platform_keys/platform_keys_service.h"
 #include "chrome/browser/ash/platform_keys/platform_keys_service_factory.h"
 #include "chrome/browser/ash/platform_keys/platform_keys_service_test_util.h"
 #include "chrome/browser/ash/scoped_test_system_nss_key_slot_mixin.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/platform_keys/platform_keys.h"
+#include "chrome/browser/chromeos/platform_keys/platform_keys.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
-#include "chromeos/login/auth/user_context.h"
+#include "chromeos/ash/components/login/auth/public/user_context.h"
 #include "components/prefs/pref_test_utils.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
 #include "content/public/test/browser_test.h"
@@ -34,8 +36,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-namespace ash {
-namespace platform_keys {
+namespace ash::platform_keys {
 
 namespace {
 
@@ -96,23 +97,26 @@ class KeyPermissionsManagerBrowserTestBase
 
   virtual KeyPermissionsManager* GetKeyPermissionsManager() = 0;
 
-  std::string GenerateKey() {
-    test_util::GenerateKeyExecutionWaiter generate_key_waiter;
+  std::vector<uint8_t> GenerateKey() {
+    base::test::TestFuture<std::vector<uint8_t>,
+                           chromeos::platform_keys::Status>
+        generate_key_waiter;
     GetPlatformKeysService()->GenerateRSAKey(GetToken(),
                                              /*modulus_length_bits=*/2048,
                                              /*sw_backed=*/false,
                                              generate_key_waiter.GetCallback());
-    generate_key_waiter.Wait();
-    return generate_key_waiter.public_key_spki_der();
+    EXPECT_TRUE(generate_key_waiter.Wait());
+    return std::get<std::vector<uint8_t>>(generate_key_waiter.Take());
   }
 
   // Returns all keys on the token.
-  std::vector<std::string> GetAllKeys() {
-    test_util::GetAllKeysExecutionWaiter get_all_keys_waiter;
+  std::vector<std::vector<uint8_t>> GetAllKeys() {
+    base::test::TestFuture<std::vector<std::vector<uint8_t>>, Status>
+        get_all_keys_waiter;
     GetPlatformKeysService()->GetAllKeys(GetToken(),
                                          get_all_keys_waiter.GetCallback());
-    get_all_keys_waiter.Wait();
-    return get_all_keys_waiter.public_keys();
+    EXPECT_TRUE(get_all_keys_waiter.Wait());
+    return std::get<0>(get_all_keys_waiter.Take());
   }
 
   // Sets |usage| of |public_key| to |allowed| by altering kKeyPermissions key
@@ -120,7 +124,7 @@ class KeyPermissionsManagerBrowserTestBase
   // PKCS11 module is used to fake chaps.
   void SetKeyUsageAllowanceInChaps(KeyUsage usage,
                                    bool allowed,
-                                   const std::string& public_key) {
+                                   const std::vector<uint8_t>& public_key) {
     chaps::KeyPermissions key_permissions;
     key_permissions.mutable_key_usages()->set_arc(false);
     key_permissions.mutable_key_usages()->set_corporate(false);
@@ -134,16 +138,16 @@ class KeyPermissionsManagerBrowserTestBase
         break;
     }
 
-    const std::string serialized_key_permissions =
-        key_permissions.SerializeAsString();
+    std::string public_key_str(public_key.begin(), public_key.end());
 
-    test_util::SetAttributeForKeyExecutionWaiter set_attr_waiter;
+    base::test::TestFuture<Status> set_attr_waiter;
     GetPlatformKeysService()->SetAttributeForKey(
-        GetToken(), public_key, KeyAttributeType::kKeyPermissions,
-        serialized_key_permissions, set_attr_waiter.GetCallback());
-    set_attr_waiter.Wait();
+        GetToken(), public_key_str, KeyAttributeType::kKeyPermissions,
+        internal::KeyPermissionsProtoToBytes(key_permissions),
+        set_attr_waiter.GetCallback());
+    ASSERT_TRUE(set_attr_waiter.Wait());
 
-    ASSERT_EQ(set_attr_waiter.status(), Status::kSuccess);
+    ASSERT_EQ(set_attr_waiter.Get<Status>(), Status::kSuccess);
   }
 
   // Checks if |public_key| is allowed for |usage| by checking kKeyPermissions
@@ -151,22 +155,24 @@ class KeyPermissionsManagerBrowserTestBase
   // Note: Since this is a browsertest, Softoken NSS PKCS11 module is used to
   // fake chaps.
   bool IsKeyAllowedForUsageInChaps(KeyUsage usage,
-                                   const std::string& public_key) {
-    test_util::GetAttributeForKeyExecutionWaiter get_attr_waiter;
-    GetPlatformKeysService()->GetAttributeForKey(
-        GetToken(), public_key, KeyAttributeType::kKeyPermissions,
-        get_attr_waiter.GetCallback());
-    get_attr_waiter.Wait();
+                                   const std::vector<uint8_t>& public_key) {
+    std::string public_key_str(public_key.begin(), public_key.end());
 
-    if (!get_attr_waiter.attribute_value().has_value()) {
+    base::test::TestFuture<absl::optional<std::vector<uint8_t>>, Status>
+        get_attr_waiter;
+    GetPlatformKeysService()->GetAttributeForKey(
+        GetToken(), public_key_str, KeyAttributeType::kKeyPermissions,
+        get_attr_waiter.GetCallback());
+    EXPECT_TRUE(get_attr_waiter.Wait());
+
+    absl::optional<std::vector<uint8_t>> attr = get_attr_waiter.Get<0>();
+    if (!attr.has_value()) {
       return false;
     }
 
-    std::string serialized_key_permissions =
-        get_attr_waiter.attribute_value().value();
-
     chaps::KeyPermissions key_permissions;
-    EXPECT_TRUE(key_permissions.ParseFromString(serialized_key_permissions));
+    EXPECT_TRUE(
+        internal::KeyPermissionsProtoFromBytes(attr.value(), key_permissions));
 
     switch (usage) {
       case KeyUsage::kArc:
@@ -219,13 +225,13 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
   // migration.
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der = GenerateKey();
 
   AllowKeyForUsageExecutionWaiter allow_key_for_usage_waiter;
   GetKeyPermissionsManager()->AllowKeyForUsage(
       allow_key_for_usage_waiter.GetCallback(), KeyUsage::kArc,
       public_key_spki_der);
-  allow_key_for_usage_waiter.Wait();
+  ASSERT_TRUE(allow_key_for_usage_waiter.Wait());
 
   // Explicitly modifying arc permission is not allowed so the operation fails.
   EXPECT_EQ(allow_key_for_usage_waiter.status(), Status::kErrorInternal);
@@ -238,14 +244,14 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
   // migration.
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der_1 = GenerateKey();
-  std::string public_key_spki_der_2 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_1 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_2 = GenerateKey();
 
   AllowKeyForUsageExecutionWaiter allow_key_for_usage_waiter;
   GetKeyPermissionsManager()->AllowKeyForUsage(
       allow_key_for_usage_waiter.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der_1);
-  allow_key_for_usage_waiter.Wait();
+  ASSERT_TRUE(allow_key_for_usage_waiter.Wait());
 
   EXPECT_EQ(allow_key_for_usage_waiter.status(), Status::kSuccess);
   EXPECT_TRUE(
@@ -263,22 +269,22 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
                        IsKeyAllowedForUsage_Arc) {
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der_1 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_1 = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kArc, /*allowed=*/true,
                               public_key_spki_der_1);
 
-  std::string public_key_spki_der_2 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_2 = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kArc, /*allowed=*/false,
                               public_key_spki_der_2);
 
-  std::string public_key_spki_der_3 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_3 = GenerateKey();
 
   // Check that public_key_spki_der_1 is allowed for ARC usage.
   IsKeyAllowedForUsageExecutionWaiter is_key_allowed_for_usage_waiter_1;
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_1.GetCallback(), KeyUsage::kArc,
       public_key_spki_der_1);
-  is_key_allowed_for_usage_waiter_1.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_1.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().value());
@@ -288,7 +294,7 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_2.GetCallback(), KeyUsage::kArc,
       public_key_spki_der_2);
-  is_key_allowed_for_usage_waiter_2.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_2.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().has_value());
   EXPECT_FALSE(is_key_allowed_for_usage_waiter_2.allowed().value());
@@ -298,7 +304,7 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_3.GetCallback(), KeyUsage::kArc,
       public_key_spki_der_3);
-  is_key_allowed_for_usage_waiter_3.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_3.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_3.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_3.allowed().has_value());
   EXPECT_FALSE(is_key_allowed_for_usage_waiter_3.allowed().value());
@@ -309,15 +315,15 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
                        IsKeyAllowedForUsage_Corporate) {
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der_1 = GenerateKey();
-  std::string public_key_spki_der_2 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_1 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_2 = GenerateKey();
 
   // Check that public_key_spki_der_1 is allowed for corporate usage.
   IsKeyAllowedForUsageExecutionWaiter is_key_allowed_for_usage_waiter_1;
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_1.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der_1);
-  is_key_allowed_for_usage_waiter_1.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_1.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().value());
@@ -327,7 +333,7 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_2.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der_2);
-  is_key_allowed_for_usage_waiter_2.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_2.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().value());
@@ -337,7 +343,7 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
                        IsKeyAllowedForUsage_ArcAndCorporate) {
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kArc, /*allowed=*/true,
                               public_key_spki_der);
   SetKeyUsageAllowanceInChaps(KeyUsage::kCorporate, /*allowed=*/true,
@@ -348,7 +354,7 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_1.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der);
-  is_key_allowed_for_usage_waiter_1.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_1.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().value());
@@ -358,7 +364,7 @@ IN_PROC_BROWSER_TEST_F(SystemTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_2.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der);
-  is_key_allowed_for_usage_waiter_2.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_2.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().value());
@@ -427,13 +433,13 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   // migration.
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der = GenerateKey();
 
   AllowKeyForUsageExecutionWaiter allow_key_for_usage_waiter;
   GetKeyPermissionsManager()->AllowKeyForUsage(
       allow_key_for_usage_waiter.GetCallback(), KeyUsage::kArc,
       public_key_spki_der);
-  allow_key_for_usage_waiter.Wait();
+  ASSERT_TRUE(allow_key_for_usage_waiter.Wait());
 
   EXPECT_EQ(allow_key_for_usage_waiter.status(), Status::kErrorInternal);
 }
@@ -446,14 +452,14 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   // migration.
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der_1 = GenerateKey();
-  std::string public_key_spki_der_2 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_1 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_2 = GenerateKey();
 
   AllowKeyForUsageExecutionWaiter allow_key_for_usage_waiter;
   GetKeyPermissionsManager()->AllowKeyForUsage(
       allow_key_for_usage_waiter.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der_1);
-  allow_key_for_usage_waiter.Wait();
+  ASSERT_TRUE(allow_key_for_usage_waiter.Wait());
 
   EXPECT_EQ(allow_key_for_usage_waiter.status(), Status::kSuccess);
   EXPECT_TRUE(
@@ -475,22 +481,22 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   // migration.
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der_1 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_1 = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kArc, /*allowed=*/true,
                               public_key_spki_der_1);
 
-  std::string public_key_spki_der_2 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_2 = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kArc, /*allowed=*/false,
                               public_key_spki_der_2);
 
-  std::string public_key_spki_der_3 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_3 = GenerateKey();
 
   // Check that public_key_spki_der_1 is allowed for ARC usage.
   IsKeyAllowedForUsageExecutionWaiter is_key_allowed_for_usage_waiter_1;
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_1.GetCallback(), KeyUsage::kArc,
       public_key_spki_der_1);
-  is_key_allowed_for_usage_waiter_1.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_1.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().value());
@@ -500,7 +506,7 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_2.GetCallback(), KeyUsage::kArc,
       public_key_spki_der_2);
-  is_key_allowed_for_usage_waiter_2.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_2.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().has_value());
   EXPECT_FALSE(is_key_allowed_for_usage_waiter_2.allowed().value());
@@ -510,7 +516,7 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_3.GetCallback(), KeyUsage::kArc,
       public_key_spki_der_3);
-  is_key_allowed_for_usage_waiter_3.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_3.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_3.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_3.allowed().has_value());
   EXPECT_FALSE(is_key_allowed_for_usage_waiter_3.allowed().value());
@@ -524,22 +530,22 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   // migration.
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der_1 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_1 = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kCorporate, /*allowed=*/true,
                               public_key_spki_der_1);
 
-  std::string public_key_spki_der_2 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_2 = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kCorporate, /*allowed=*/false,
                               public_key_spki_der_2);
 
-  std::string public_key_spki_der_3 = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der_3 = GenerateKey();
 
   // Check that public_key_spki_der_1 is allowed for ARC usage.
   IsKeyAllowedForUsageExecutionWaiter is_key_allowed_for_usage_waiter_1;
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_1.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der_1);
-  is_key_allowed_for_usage_waiter_1.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_1.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().value());
@@ -549,7 +555,7 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_2.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der_2);
-  is_key_allowed_for_usage_waiter_2.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_2.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().has_value());
   EXPECT_FALSE(is_key_allowed_for_usage_waiter_2.allowed().value());
@@ -559,7 +565,7 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_3.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der_3);
-  is_key_allowed_for_usage_waiter_3.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_3.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_3.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_3.allowed().has_value());
   EXPECT_FALSE(is_key_allowed_for_usage_waiter_3.allowed().value());
@@ -573,7 +579,7 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   // migration.
   WaitForOneTimeMigrationToFinish();
 
-  std::string public_key_spki_der = GenerateKey();
+  std::vector<uint8_t> public_key_spki_der = GenerateKey();
   SetKeyUsageAllowanceInChaps(KeyUsage::kArc, /*allowed=*/true,
                               public_key_spki_der);
   SetKeyUsageAllowanceInChaps(KeyUsage::kCorporate, /*allowed=*/true,
@@ -584,7 +590,7 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_1.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der);
-  is_key_allowed_for_usage_waiter_1.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_1.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_1.allowed().value());
@@ -594,7 +600,7 @@ IN_PROC_BROWSER_TEST_F(UserTokenKeyPermissionsManagerBrowserTest,
   GetKeyPermissionsManager()->IsKeyAllowedForUsage(
       is_key_allowed_for_usage_waiter_2.GetCallback(), KeyUsage::kCorporate,
       public_key_spki_der);
-  is_key_allowed_for_usage_waiter_2.Wait();
+  ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.Wait());
   EXPECT_EQ(is_key_allowed_for_usage_waiter_2.status(), Status::kSuccess);
   ASSERT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().has_value());
   EXPECT_TRUE(is_key_allowed_for_usage_waiter_2.allowed().value());
@@ -627,10 +633,10 @@ class UserTokenOneTimeMigrationKeyPermissionsManagerBrowserTest
   // |public_key_list| and returns non-corporate keys otherwise.
   // This function uses the profile's pref service to check if a key is
   // corporate.
-  std::vector<std::string> FilterKeysByCorporateInPref(
-      const std::vector<std::string>& public_key_list,
+  std::vector<std::vector<uint8_t>> FilterKeysByCorporateInPref(
+      const std::vector<std::vector<uint8_t>>& public_key_list,
       bool get_corporate_keys) {
-    std::vector<std::string> filtered_list;
+    std::vector<std::vector<uint8_t>> filtered_list;
     for (auto& public_key : public_key_list) {
       if (internal::IsUserKeyMarkedCorporateInPref(
               public_key, ProfileManager::GetActiveUserProfile()->GetPrefs()) ==
@@ -642,7 +648,7 @@ class UserTokenOneTimeMigrationKeyPermissionsManagerBrowserTest
   }
 
   void MarkKeyCorporateForActiveUserInPrefs(
-      const std::string& public_key_spki_der) {
+      const std::vector<uint8_t>& public_key_spki_der) {
     Profile* profile = ProfileManager::GetActiveUserProfile();
     internal::MarkUserKeyCorporateInPref(public_key_spki_der,
                                          profile->GetPrefs());
@@ -658,13 +664,13 @@ IN_PROC_BROWSER_TEST_F(
 
   // Generate 2 corporate keys.
   for (int i = 0; i < 2; i++) {
-    std::string public_key_spki_der = GenerateKey();
+    std::vector<uint8_t> public_key_spki_der = GenerateKey();
     MarkKeyCorporateForActiveUserInPrefs(public_key_spki_der);
   }
 
   // Generate 2 non-corporate keys.
   for (int i = 0; i < 2; i++) {
-    std::string public_key_spki_der = GenerateKey();
+    std::vector<uint8_t> public_key_spki_der = GenerateKey();
   }
 }
 
@@ -677,16 +683,16 @@ IN_PROC_BROWSER_TEST_F(
   Login();
   WaitForOneTimeMigrationToFinish();
 
-  std::vector<std::string> public_key_list = GetAllKeys();
+  std::vector<std::vector<uint8_t>> public_key_list = GetAllKeys();
   // The 4 keys generated in PRE_OneTimeMigration should persist even after
   // restarting UI.
   EXPECT_EQ(public_key_list.size(), 4U);
 
-  std::vector<std::string> corporate_public_key_list =
+  std::vector<std::vector<uint8_t>> corporate_public_key_list =
       FilterKeysByCorporateInPref(public_key_list, /*get_corporate_keys=*/true);
   EXPECT_EQ(corporate_public_key_list.size(), 2U);
 
-  std::vector<std::string> non_corporate_public_key_list =
+  std::vector<std::vector<uint8_t>> non_corporate_public_key_list =
       FilterKeysByCorporateInPref(public_key_list,
                                   /*get_corporate_keys=*/false);
   EXPECT_EQ(non_corporate_public_key_list.size(), 2U);
@@ -747,7 +753,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     SystemTokenOneTimeMigrationKeyPermissionsManagerBrowserTest,
     OneTimeMigration) {
-  std::vector<std::string> public_key_list = GetAllKeys();
+  std::vector<std::vector<uint8_t>> public_key_list = GetAllKeys();
   // The 2 keys generated in PRE_OneTimeMigration should persist even after
   // restarting the UI.
   EXPECT_EQ(public_key_list.size(), 2U);
@@ -763,5 +769,4 @@ IN_PROC_BROWSER_TEST_F(
   }
 }
 
-}  // namespace platform_keys
-}  // namespace ash
+}  // namespace ash::platform_keys

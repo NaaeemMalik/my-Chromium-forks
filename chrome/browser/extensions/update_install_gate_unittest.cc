@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,8 +6,8 @@
 
 #include <memory>
 
-#include "base/bind.h"
 #include "base/command_line.h"
+#include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
@@ -18,6 +18,7 @@
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "content/public/test/browser_task_environment.h"
+#include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/test_renderer_host.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/event_router_factory.h"
@@ -124,11 +125,13 @@ class UpdateInstallGateTest : public testing::Test {
     // Takes ownership of fake_user_manager_.
     scoped_user_manager_enabler_ =
         std::make_unique<user_manager::ScopedUserManager>(
-            base::WrapUnique(fake_user_manager_));
+            base::WrapUnique(fake_user_manager_.get()));
     fake_user_manager_->AddUser(account_id);
     fake_user_manager_->LoginUser(account_id);
 #endif
     profile_ = profile_manager_->CreateTestingProfile(kUserProfile);
+    render_process_host_ =
+        std::make_unique<content::MockRenderProcessHost>(profile_);
     base::RunLoop().RunUntilIdle();
 
     system_ = static_cast<TestExtensionSystem*>(ExtensionSystem::Get(profile_));
@@ -150,7 +153,10 @@ class UpdateInstallGateTest : public testing::Test {
         CreateExtension(kNonPersistentExtensionId, "2.0", false);
   }
 
-  void TearDown() override { profile_manager_->DeleteAllTestingProfiles(); }
+  void TearDown() override {
+    render_process_host_.reset();
+    profile_manager_->DeleteAllTestingProfiles();
+  }
 
   void AddExistingExtensions() {
     scoped_refptr<const Extension> app = CreateApp(kAppId, "1.0");
@@ -175,8 +181,9 @@ class UpdateInstallGateTest : public testing::Test {
   void MakeExtensionListenForOnUpdateAvailable(
       const std::string& extension_id) {
     const char kOnUpdateAvailableEvent[] = "runtime.onUpdateAvailable";
-    event_router_->AddEventListener(kOnUpdateAvailableEvent, NULL,
-                                    extension_id);
+
+    event_router_->AddEventListener(kOnUpdateAvailableEvent,
+                                    render_process_host(), extension_id);
   }
 
   void Check(const Extension* extension,
@@ -203,6 +210,10 @@ class UpdateInstallGateTest : public testing::Test {
     return new_none_persistent_.get();
   }
 
+  content::RenderProcessHost* render_process_host() const {
+    return render_process_host_.get();
+  }
+
  private:
   // Needed by extension system.
   content::BrowserTaskEnvironment task_environment_;
@@ -213,6 +224,7 @@ class UpdateInstallGateTest : public testing::Test {
 
   raw_ptr<TestingProfile> profile_ = nullptr;
   std::unique_ptr<TestingProfileManager> profile_manager_;
+  std::unique_ptr<content::RenderProcessHost> render_process_host_;
 
   raw_ptr<TestExtensionSystem> system_ = nullptr;
   raw_ptr<ExtensionService> service_ = nullptr;
@@ -221,7 +233,8 @@ class UpdateInstallGateTest : public testing::Test {
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   // Needed for creating ExtensionService.
-  ash::FakeChromeUserManager* fake_user_manager_ = nullptr;
+  raw_ptr<ash::FakeChromeUserManager, ExperimentalAsh> fake_user_manager_ =
+      nullptr;
   std::unique_ptr<user_manager::ScopedUserManager> scoped_user_manager_enabler_;
 #endif
 

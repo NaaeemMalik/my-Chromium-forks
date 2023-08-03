@@ -37,8 +37,7 @@ STACK = '[stack]'
 _DEFAULT_JOBS=8
 _CHUNK_SIZE = 1000
 
-_BASE_APK = 'base.apk'
-_FALLBACK_SO = 'libchrome.so'
+_FALLBACK_SO = 'libmonochrome.so'
 
 # pylint: disable=line-too-long
 
@@ -54,6 +53,9 @@ _DALVIK_NATIVE_THREAD_LINE = re.compile("(\".*\" sysTid=[0-9]+ nice=[0-9]+.*)")
 _JAVA_STDERR_LINE = re.compile("([0-9]+)\s+[0-9]+\s+.\s+System.err:\s*(.+)")
 _MISC_HEADER = re.compile(
     '(?:Tombstone written to:|Abort message:|Revision:|Build fingerprint:).*')
+# A header used by tooling to mark a line that should be considered useful.
+# e.g. build/android/pylib/symbols/expensive_line_transformer.py
+_GENERIC_USEFUL_LOG_HEADER = re.compile('Generic useful log header: .*')
 
 # Matches LOG(FATAL) lines, like the following example:
 #   [FATAL:source_file.cc(33)] Check failed: !instances_.empty()
@@ -143,6 +145,7 @@ def PrintJavaLines(java_lines):
       print(' ')
     print(l)
 
+
 def PrintOutput(trace_lines, value_lines, java_lines, more_info):
   if trace_lines:
     PrintTraceLines(trace_lines)
@@ -157,18 +160,20 @@ def PrintOutput(trace_lines, value_lines, java_lines, more_info):
   if java_lines:
     PrintJavaLines(java_lines)
 
+
 def PrintDivider():
   print()
   print('-----------------------------------------------------\n')
 
 
-def StreamingConvertTrace(_, load_vaddrs, more_info, fallback_monochrome,
-                          arch_defined, llvm_symbolizer, apks_directory):
+def StreamingConvertTrace(_, load_vaddrs, more_info, fallback_so_file,
+                          arch_defined, llvm_symbolizer, apks_directory,
+                          pass_through, flush):
   """Symbolize stacks on the fly as they are read from an input stream."""
 
-  if fallback_monochrome:
+  if fallback_so_file:
     global _FALLBACK_SO
-    _FALLBACK_SO = 'libmonochrome.so'
+    _FALLBACK_SO = fallback_so_file
   useful_lines = []
   so_dirs = []
   in_stack = False
@@ -188,12 +193,18 @@ def StreamingConvertTrace(_, load_vaddrs, more_info, fallback_monochrome,
   for line in iter(sys.stdin.readline, b''):
     if not line: # EOF
       break
+    if pass_through:
+      sys.stdout.write(line)
+      if flush:
+        sys.stdout.flush()
     maybe_line, maybe_so_dir = preprocessor([line])
     useful_lines.extend(maybe_line)
     so_dirs.extend(maybe_so_dir)
     if in_stack:
       if not maybe_line:
         ConvertStreamingChunk()
+        if flush:
+          sys.stdout.flush()
         so_dirs = []
         useful_lines = []
         in_stack = False
@@ -205,13 +216,13 @@ def StreamingConvertTrace(_, load_vaddrs, more_info, fallback_monochrome,
     ConvertStreamingChunk()
 
 
-def ConvertTrace(lines, load_vaddrs, more_info, fallback_monochrome,
-                 arch_defined, llvm_symbolizer, apks_directory):
+def ConvertTrace(lines, load_vaddrs, more_info, fallback_so_file, arch_defined,
+                 llvm_symbolizer, apks_directory):
   """Convert strings containing native crash to a stack."""
 
-  if fallback_monochrome:
+  if fallback_so_file:
     global _FALLBACK_SO
-    _FALLBACK_SO = 'libmonochrome.so'
+    _FALLBACK_SO = fallback_so_file
   start = time.time()
 
   chunks = [lines[i: i+_CHUNK_SIZE] for i in range(0, len(lines), _CHUNK_SIZE)]
@@ -336,7 +347,8 @@ class PreProcessLog:
           or _DEBUG_TRACE_LINE.search(line)
           or _ABI_LINE.search(line)
           or _JAVA_STDERR_LINE.search(line)
-          or _MISC_HEADER.search(line)):
+          or _MISC_HEADER.search(line)
+          or _GENERIC_USEFUL_LOG_HEADER.search(line)):
         useful_log.append(line)
         continue
 
@@ -358,7 +370,7 @@ class PreProcessLog:
             # APK name with _FALLBACK_SO, unless an APKs directory was
             # explicitly specified (in which case, the correct .so should always
             # be identified, and using a fallback could be misleading).
-            line = line.replace('/' + _BASE_APK, '/' + _FALLBACK_SO)
+            line = line.replace('.apk', '.apk/' + _FALLBACK_SO)
             logging.debug("Can't detect shared library in APK, fallback to" +
                           " library " + _FALLBACK_SO)
         # For trace lines specifically, the address may need to be adjusted
@@ -463,10 +475,9 @@ def ResolveCrashSymbol(lines, more_info, llvm_symbolizer):
         logging.debug('Identified lib: %s' % area)
         # If a calls b which further calls c and c is inlined to b, we want to
         # display "a -> b -> c" in the stack trace instead of just "a -> c"
-        # To use llvm symbolizer, the hexadecimal address has to start with 0x.
-        info = llvm_symbolizer.GetSymbolInformation(
-            os.path.join(symbol.SYMBOLS_DIR, symbol.TranslateLibPath(area)),
-            '0x' + code_addr)
+        library = os.path.join(symbol.SYMBOLS_DIR,
+                               symbol.TranslateLibPath(area))
+        info = llvm_symbolizer.GetSymbolInformation(library, int(code_addr,16))
         logging.debug('symbol information: %s' % info)
         nest_count = len(info) - 1
         for source_symbol, source_location in info:
@@ -481,15 +492,16 @@ def ResolveCrashSymbol(lines, more_info, llvm_symbolizer):
             trace_lines.append((code_addr,
                                 source_symbol,
                                 source_location))
+
     match = _VALUE_LINE.match(line)
     if match:
       (_, addr, value, area, _, symbol_name) = match.groups()
       if area == UNKNOWN or area == HEAP or area == STACK or not area:
         value_lines.append((addr, value, '', area))
       else:
-        info = llvm_symbolizer.GetSymbolInformation(
-            os.path.join(symbol.SYMBOLS_DIR, symbol.TranslateLibPath(area)),
-            '0x' + value)
+        library = os.path.join(symbol.SYMBOLS_DIR,
+                               symbol.TranslateLibPath(area))
+        info = llvm_symbolizer.GetSymbolInformation(library, int(value,16))
         source_symbol, source_location = info.pop()
 
         value_lines.append((addr,

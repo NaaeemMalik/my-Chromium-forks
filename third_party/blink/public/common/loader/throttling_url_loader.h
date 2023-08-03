@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,11 @@
 
 #include <memory>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_piece.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -111,6 +110,10 @@ class BLINK_COMMON_EXPORT ThrottlingURLLoader
 
   void CancelWithError(int error_code, base::StringPiece custom_reason);
 
+  void CancelWithExtendedError(int error_code,
+                               int extended_reason_code,
+                               base::StringPiece custom_reason);
+
   // Sets the forwarding client to receive all subsequent notifications.
   void set_forwarding_client(network::mojom::URLLoaderClient* client) {
     forwarding_client_ = client;
@@ -160,17 +163,16 @@ class BLINK_COMMON_EXPORT ThrottlingURLLoader
   // network::mojom::URLLoaderClient implementation:
   void OnReceiveEarlyHints(network::mojom::EarlyHintsPtr early_hints) override;
   void OnReceiveResponse(
-      network::mojom::URLResponseHeadPtr response_head) override;
+      network::mojom::URLResponseHeadPtr response_head,
+      mojo::ScopedDataPipeConsumerHandle body,
+      absl::optional<mojo_base::BigBuffer> cached_metadata) override;
   void OnReceiveRedirect(
       const net::RedirectInfo& redirect_info,
       network::mojom::URLResponseHeadPtr response_head) override;
   void OnUploadProgress(int64_t current_position,
                         int64_t total_size,
                         OnUploadProgressCallback ack_callback) override;
-  void OnReceiveCachedMetadata(mojo_base::BigBuffer data) override;
   void OnTransferSizeUpdated(int32_t transfer_size_diff) override;
-  void OnStartLoadingResponseBody(
-      mojo::ScopedDataPipeConsumerHandle body) override;
   void OnComplete(const network::URLLoaderCompletionStatus& status) override;
 
   void OnClientConnectionError();
@@ -182,7 +184,8 @@ class BLINK_COMMON_EXPORT ThrottlingURLLoader
       const net::HttpRequestHeaders& modified_cors_exempt_request_headers);
   void UpdateRequestHeaders(network::ResourceRequest& resource_request);
   void UpdateDeferredResponseHead(
-      network::mojom::URLResponseHeadPtr new_response_head);
+      network::mojom::URLResponseHeadPtr new_response_head,
+      mojo::ScopedDataPipeConsumerHandle body);
   void PauseReadingBodyFromNet(URLLoaderThrottle* throttle);
   void ResumeReadingBodyFromNet(URLLoaderThrottle* throttle);
   void InterceptResponse(
@@ -191,7 +194,8 @@ class BLINK_COMMON_EXPORT ThrottlingURLLoader
           new_client_receiver,
       mojo::PendingRemote<network::mojom::URLLoader>* original_loader,
       mojo::PendingReceiver<network::mojom::URLLoaderClient>*
-          original_client_receiver);
+          original_client_receiver,
+      mojo::ScopedDataPipeConsumerHandle* body);
 
   // Disconnects the client connection and releases the URLLoader.
   void DisconnectClient(base::StringPiece custom_description);
@@ -217,8 +221,8 @@ class BLINK_COMMON_EXPORT ThrottlingURLLoader
     ThrottleEntry& operator=(ThrottleEntry&& other);
     ~ThrottleEntry();
 
-    std::unique_ptr<ForwardingThrottleDelegate> delegate;
     std::unique_ptr<URLLoaderThrottle> throttle;
+    std::unique_ptr<ForwardingThrottleDelegate> delegate;
   };
 
   std::vector<ThrottleEntry> throttles_;
@@ -230,7 +234,8 @@ class BLINK_COMMON_EXPORT ThrottlingURLLoader
   // NOTE: This may point to a native implementation (instead of a Mojo proxy
   // object). And it is possible that the implementation of |forwarding_client_|
   // destroys this object synchronously when this object is calling into it.
-  raw_ptr<network::mojom::URLLoaderClient> forwarding_client_;
+  raw_ptr<network::mojom::URLLoaderClient, DanglingUntriaged>
+      forwarding_client_;
   mojo::Remote<network::mojom::URLLoader> url_loader_;
 
   mojo::Receiver<network::mojom::URLLoaderClient> client_receiver_{this};
@@ -266,6 +271,8 @@ class BLINK_COMMON_EXPORT ThrottlingURLLoader
   };
   // Set if response is deferred.
   std::unique_ptr<ResponseInfo> response_info_;
+  mojo::ScopedDataPipeConsumerHandle body_;
+  absl::optional<mojo_base::BigBuffer> cached_metadata_;
 
   struct RedirectInfo {
     RedirectInfo(const net::RedirectInfo& in_redirect_info,

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,8 +11,10 @@
 
 #include "content/browser/loader/navigation_loader_interceptor.h"
 #include "content/common/content_export.h"
+#include "services/network/public/mojom/cookie_access_observer.mojom.h"
 #include "services/network/public/mojom/devtools_observer.mojom-forward.h"
-#include "third_party/blink/public/common/loader/previews_state.h"
+#include "services/network/public/mojom/trust_token_access_observer.mojom-forward.h"
+#include "services/network/public/mojom/url_loader_network_service_observer.mojom.h"
 
 namespace net {
 class HttpRequestHeaders;
@@ -70,6 +72,8 @@ class CONTENT_EXPORT NavigationURLLoader {
       NavigationURLLoaderDelegate* delegate,
       LoaderType loader_type,
       mojo::PendingRemote<network::mojom::CookieAccessObserver> cookie_observer,
+      mojo::PendingRemote<network::mojom::TrustTokenAccessObserver>
+          trust_token_observer,
       mojo::PendingRemote<network::mojom::URLLoaderNetworkServiceObserver>
           url_loader_network_observer,
       mojo::PendingRemote<network::mojom::DevToolsObserver> devtools_observer,
@@ -94,14 +98,11 @@ class CONTENT_EXPORT NavigationURLLoader {
   virtual void Start() = 0;
 
   // Called in response to OnRequestRedirected to continue processing the
-  // request. `new_previews_state` will be updated for newly created URLLoaders,
-  // but the existing default URLLoader will not see `new_previews_state` unless
-  // the URLLoader happens to be reset.
+  // request.
   virtual void FollowRedirect(
       const std::vector<std::string>& removed_headers,
       const net::HttpRequestHeaders& modified_headers,
-      const net::HttpRequestHeaders& modified_cors_exempt_headers,
-      blink::PreviewsState new_previews_state) = 0;
+      const net::HttpRequestHeaders& modified_cors_exempt_headers) = 0;
 
   // Sets an overall request timeout for this navigation, which will cause the
   // navigation to fail if it expires before the navigation commits. This is

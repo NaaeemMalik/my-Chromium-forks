@@ -1,9 +1,10 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/login/test/js_checker.h"
 
+#include "base/functional/callback_helpers.h"
 #include "base/json/string_escape.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/login/test/test_predicate_waiter.h"
@@ -89,14 +90,15 @@ JSChecker::JSChecker(content::RenderFrameHost* frame_host) {
 
 void JSChecker::Evaluate(const std::string& expression) {
   CHECK(web_contents_);
-  ASSERT_TRUE(content::ExecuteScript(web_contents_, expression));
+  ASSERT_TRUE(content::ExecuteScript(web_contents_.get(), expression));
 }
 
 void JSChecker::ExecuteAsync(const std::string& expression) {
   CHECK(web_contents_);
   std::string new_script = expression + ";";
-  web_contents_->GetMainFrame()->ExecuteJavaScriptWithUserGestureForTests(
-      base::UTF8ToUTF16(new_script));
+  web_contents_->GetPrimaryMainFrame()
+      ->ExecuteJavaScriptWithUserGestureForTests(base::UTF8ToUTF16(new_script),
+                                                 base::NullCallback());
 }
 
 bool JSChecker::GetBool(const std::string& expression) {
@@ -331,20 +333,18 @@ std::unique_ptr<TestConditionWaiter> JSChecker::CreateHasClassWaiter(
 void JSChecker::GetBoolImpl(const std::string& expression, bool* result) {
   CHECK(web_contents_);
   ASSERT_TRUE(content::ExecuteScriptAndExtractBool(
-      web_contents_, WrapSend("!!(" + expression + ")"), result));
+      web_contents_.get(), WrapSend("!!(" + expression + ")"), result));
 }
 
 void JSChecker::GetIntImpl(const std::string& expression, int* result) {
   CHECK(web_contents_);
-  ASSERT_TRUE(content::ExecuteScriptAndExtractInt(
-      web_contents_, WrapSend(expression), result));
+  *result = content::EvalJs(web_contents_.get(), expression).ExtractInt();
 }
 
 void JSChecker::GetStringImpl(const std::string& expression,
                               std::string* result) {
   CHECK(web_contents_);
-  ASSERT_TRUE(content::ExecuteScriptAndExtractString(
-      web_contents_, WrapSend(expression), result));
+  *result = content::EvalJs(web_contents_.get(), expression).ExtractString();
 }
 
 void JSChecker::ExpectVisiblePath(
@@ -467,6 +467,12 @@ void JSChecker::TapOnPath(
   Evaluate(GetOobeElementPath(element_ids) + ".click()");
 }
 
+void JSChecker::TapOnPathAsync(
+    std::initializer_list<base::StringPiece> element_ids) {
+  ExpectVisiblePath(element_ids);
+  ExecuteAsync(GetOobeElementPath(element_ids) + ".click()");
+}
+
 void JSChecker::TapOn(const std::string& element_id) {
   TapOnPath({element_id});
 }
@@ -531,6 +537,12 @@ void JSChecker::SelectElementInPath(
   Evaluate(js);
 }
 
+bool JSChecker::IsVisible(
+    std::initializer_list<base::StringPiece> element_ids) {
+  bool is_hidden = GetBool(test::GetOobeElementPath(element_ids) + ".hidden");
+  return !is_hidden;
+}
+
 JSChecker OobeJS() {
   return JSChecker(LoginDisplayHost::default_host()->GetOobeWebContents());
 }
@@ -566,14 +578,6 @@ std::string GetAttributeExpression(
   result.append(".");
   result.append(attribute);
   return result;
-}
-
-std::unique_ptr<TestConditionWaiter> CreateOobeScreenWaiter(
-    const std::string& oobe_screen_id) {
-  std::string js = "Oobe.getInstance().currentScreen.id=='$ScreenId'";
-  base::ReplaceSubstringsAfterOffset(&js, 0, "$ScreenId", oobe_screen_id);
-  std::string description = "OOBE Screen is " + oobe_screen_id;
-  return OobeJS().CreateWaiterWithDescription(js, description);
 }
 
 }  // namespace test

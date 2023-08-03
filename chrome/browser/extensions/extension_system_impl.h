@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,19 +65,9 @@ class ExtensionSystemImpl : public ExtensionSystem {
   StateStore* rules_store() override;                              // shared
   StateStore* dynamic_user_scripts_store() override;               // shared
   scoped_refptr<value_store::ValueStoreFactory> store_factory()
-      override;                                                    // shared
-  InfoMap* info_map() override;                                    // shared
+      override;                            // shared
   QuotaService* quota_service() override;  // shared
-  AppSorting* app_sorting() override;  // shared
-
-  void RegisterExtensionWithRequestContexts(
-      const Extension* extension,
-      base::OnceClosure callback) override;
-
-  void UnregisterExtensionWithRequestContexts(
-      const std::string& extension_id,
-      const UnloadedExtensionReason reason) override;
-
+  AppSorting* app_sorting() override;      // shared
   const base::OneShotEvent& ready() const override;
   bool is_ready() const override;
   ContentVerifier* content_verifier() override;  // shared
@@ -122,7 +112,6 @@ class ExtensionSystemImpl : public ExtensionSystem {
     ManagementPolicy* management_policy();
     ServiceWorkerManager* service_worker_manager();
     UserScriptManager* user_script_manager();
-    InfoMap* info_map();
     QuotaService* quota_service();
     AppSorting* app_sorting();
     const base::OneShotEvent& ready() const { return ready_; }
@@ -146,8 +135,6 @@ class ExtensionSystemImpl : public ExtensionSystem {
     // ExtensionService depends on StateStore and Blocklist.
     std::unique_ptr<ExtensionService> extension_service_;
     std::unique_ptr<ManagementPolicy> management_policy_;
-    // extension_info_map_ needs to outlive process_manager_.
-    scoped_refptr<InfoMap> extension_info_map_;
     std::unique_ptr<QuotaService> quota_service_;
     std::unique_ptr<AppSorting> app_sorting_;
     std::unique_ptr<InstallGate> update_install_gate_;

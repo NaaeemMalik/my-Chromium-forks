@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/test_utils.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/permissions/android/nfc/mock_nfc_system_level_setting.h"
 #include "components/permissions/contexts/nfc_permission_context_android.h"
 #endif
@@ -28,7 +28,7 @@ namespace permissions {
 namespace {
 class TestNfcPermissionContextDelegate : public NfcPermissionContext::Delegate {
  public:
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   bool IsInteractable(content::WebContents* web_contents) override {
     return true;
   }
@@ -46,8 +46,7 @@ class NfcPermissionContextTests : public content::RenderViewHostTestHarness {
 
   PermissionRequestID RequestID(int request_id);
 
-  void RequestNfcPermission(content::WebContents* web_contents,
-                            const PermissionRequestID& id,
+  void RequestNfcPermission(const PermissionRequestID& id,
                             const GURL& requesting_frame,
                             bool user_gesture);
 
@@ -84,18 +83,16 @@ class NfcPermissionContextTests : public content::RenderViewHostTestHarness {
 
 PermissionRequestID NfcPermissionContextTests::RequestID(int request_id) {
   return PermissionRequestID(
-      web_contents()->GetMainFrame()->GetProcess()->GetID(),
-      web_contents()->GetMainFrame()->GetRoutingID(),
+      web_contents()->GetPrimaryMainFrame()->GetGlobalId(),
       permissions::PermissionRequestID::RequestLocalId(request_id));
 }
 
 void NfcPermissionContextTests::RequestNfcPermission(
-    content::WebContents* web_contents,
     const PermissionRequestID& id,
     const GURL& requesting_frame,
     bool user_gesture) {
   nfc_permission_context_->RequestPermission(
-      web_contents, id, requesting_frame, user_gesture,
+      id, requesting_frame, user_gesture,
       base::BindOnce(&NfcPermissionContextTests::PermissionResponse,
                      base::Unretained(this), id));
   content::RunAllTasksUntilIdle();
@@ -104,7 +101,7 @@ void NfcPermissionContextTests::RequestNfcPermission(
 void NfcPermissionContextTests::PermissionResponse(
     const PermissionRequestID& id,
     ContentSetting content_setting) {
-  responses_[id.render_process_id()] =
+  responses_[id.global_render_frame_host_id().child_id] =
       std::make_pair(id.request_local_id_for_testing(),
                      content_setting == CONTENT_SETTING_ALLOW);
 }
@@ -138,7 +135,7 @@ void NfcPermissionContextTests::SetUp() {
 
   auto delegate = std::make_unique<TestNfcPermissionContextDelegate>();
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   auto context = std::make_unique<NfcPermissionContextAndroid>(
       browser_context(), std::move(delegate));
   context->set_nfc_system_level_setting_for_testing(
@@ -183,7 +180,7 @@ void NfcPermissionContextTests::SetupRequestManager(
 
 void NfcPermissionContextTests::RequestManagerDocumentLoadCompleted() {
   PermissionRequestManager::FromWebContents(web_contents())
-      ->DocumentOnLoadCompletedInMainFrame(web_contents()->GetMainFrame());
+      ->DocumentOnLoadCompletedInPrimaryMainFrame();
 }
 
 ContentSetting NfcPermissionContextTests::GetNfcContentSetting(GURL frame_0,
@@ -231,10 +228,9 @@ TEST_F(NfcPermissionContextTests, SinglePermissionPrompt) {
   RequestManagerDocumentLoadCompleted();
 
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame,
-                       true /* user_gesture */);
+  RequestNfcPermission(RequestID(0), requesting_frame, true /* user_gesture */);
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   ASSERT_TRUE(HasActivePrompt());
 #else
   ASSERT_FALSE(HasActivePrompt());
@@ -247,11 +243,11 @@ TEST_F(NfcPermissionContextTests, SinglePermissionPromptFailsOnInsecureOrigin) {
   RequestManagerDocumentLoadCompleted();
 
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_FALSE(HasActivePrompt());
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 // Tests concerning Android NFC setting
 TEST_F(NfcPermissionContextTests,
        SystemNfcSettingDisabledWhenNfcPermissionGetsGranted) {
@@ -260,7 +256,7 @@ TEST_F(NfcPermissionContextTests,
   RequestManagerDocumentLoadCompleted();
   MockNfcSystemLevelSetting::SetNfcSystemLevelSettingEnabled(false);
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_TRUE(HasActivePrompt());
   ASSERT_FALSE(MockNfcSystemLevelSetting::HasShownNfcSettingPrompt());
   AcceptPrompt();
@@ -275,7 +271,7 @@ TEST_F(NfcPermissionContextTests,
   RequestManagerDocumentLoadCompleted();
   MockNfcSystemLevelSetting::SetNfcSystemLevelSettingEnabled(false);
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_TRUE(HasActivePrompt());
   ASSERT_FALSE(MockNfcSystemLevelSetting::HasShownNfcSettingPrompt());
   DenyPrompt();
@@ -292,7 +288,7 @@ TEST_F(NfcPermissionContextTests,
   RequestManagerDocumentLoadCompleted();
   MockNfcSystemLevelSetting::SetNfcSystemLevelSettingEnabled(false);
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_FALSE(HasActivePrompt());
   ASSERT_TRUE(MockNfcSystemLevelSetting::HasShownNfcSettingPrompt());
 }
@@ -305,7 +301,7 @@ TEST_F(NfcPermissionContextTests,
   NavigateAndCommit(requesting_frame);
   RequestManagerDocumentLoadCompleted();
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_FALSE(HasActivePrompt());
   ASSERT_FALSE(MockNfcSystemLevelSetting::HasShownNfcSettingPrompt());
 }
@@ -318,7 +314,7 @@ TEST_F(NfcPermissionContextTests,
   MockNfcSystemLevelSetting::SetNfcSystemLevelSettingEnabled(false);
   MockNfcSystemLevelSetting::SetNfcAccessIsPossible(false);
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_TRUE(HasActivePrompt());
   ASSERT_FALSE(MockNfcSystemLevelSetting::HasShownNfcSettingPrompt());
   AcceptPrompt();
@@ -335,7 +331,7 @@ TEST_F(NfcPermissionContextTests,
   MockNfcSystemLevelSetting::SetNfcSystemLevelSettingEnabled(false);
   MockNfcSystemLevelSetting::SetNfcAccessIsPossible(false);
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_TRUE(HasActivePrompt());
   ASSERT_FALSE(MockNfcSystemLevelSetting::HasShownNfcSettingPrompt());
   DenyPrompt();
@@ -354,7 +350,7 @@ TEST_F(NfcPermissionContextTests,
   MockNfcSystemLevelSetting::SetNfcSystemLevelSettingEnabled(false);
   MockNfcSystemLevelSetting::SetNfcAccessIsPossible(false);
   EXPECT_FALSE(HasActivePrompt());
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
   ASSERT_FALSE(HasActivePrompt());
   ASSERT_FALSE(MockNfcSystemLevelSetting::HasShownNfcSettingPrompt());
   CheckPermissionMessageSent(0 /* request _id */, true /* allowed */);
@@ -370,7 +366,7 @@ TEST_F(NfcPermissionContextTests, CancelNfcPermissionRequest) {
 
   ASSERT_FALSE(HasActivePrompt());
 
-  RequestNfcPermission(web_contents(), RequestID(0), requesting_frame, true);
+  RequestNfcPermission(RequestID(0), requesting_frame, true);
 
   ASSERT_TRUE(HasActivePrompt());
 

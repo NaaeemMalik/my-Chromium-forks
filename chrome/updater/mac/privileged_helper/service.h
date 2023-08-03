@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,13 @@
 
 #include <string>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "chrome/updater/mac/privileged_helper/service_protocol.h"
 
 namespace base {
+class FilePath;
 class SequencedTaskRunner;
 }
 
@@ -27,8 +28,8 @@ class PrivilegedHelperService
  public:
   PrivilegedHelperService();
 
-  void PerformSystemUpdaterTasks(const std::string& browser_path,
-                                 base::OnceCallback<void(int)> result);
+  void SetupSystemUpdater(const std::string& browser_path,
+                          base::OnceCallback<void(int)> result);
 
  protected:
   friend class base::RefCountedThreadSafe<PrivilegedHelperService>;
@@ -37,6 +38,10 @@ class PrivilegedHelperService
 
   scoped_refptr<base::SequencedTaskRunner> main_task_runner_;
 };
+
+// Returns true if and only if the app bundle located at `updater_app_bundle`
+// is validly code signed with an updater identifier and appropriate team ID.
+bool VerifyUpdaterSignature(const base::FilePath& updater_app_bundle);
 
 }  // namespace updater
 

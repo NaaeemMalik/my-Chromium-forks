@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 
-namespace ash {
 namespace quick_answers {
 
 const char kRuleSetPath[] = "unitConversionResult.conversions";
@@ -41,4 +40,3 @@ std::string GetUnitDisplayText(const std::string& name) {
 }
 
 }  // namespace quick_answers
-}  // namespace ash

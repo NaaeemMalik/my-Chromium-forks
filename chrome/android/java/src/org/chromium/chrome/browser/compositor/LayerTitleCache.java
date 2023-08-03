@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,6 +19,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabFavicon;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tasks.tab_management.TabManagementFieldTrial;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper.DefaultFaviconHelper;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper.FaviconImageCallback;
@@ -33,7 +34,7 @@ import org.chromium.url.GURL;
  * that represent the cached title textures.
  */
 @JNINamespace("android")
-public class LayerTitleCache implements TitleCache {
+public class LayerTitleCache {
     private static int sNextResourceId = 1;
 
     private final Context mContext;
@@ -97,12 +98,11 @@ public class LayerTitleCache implements TitleCache {
         if (mTabModelSelector == null) return;
 
         Tab tab = mTabModelSelector.getTabById(tabId);
-        if (tab == null) return;
+        if (tab == null || tab.isDestroyed()) return;
 
         getUpdatedTitle(tab, "");
     }
 
-    @Override
     public String getUpdatedTitle(Tab tab, String defaultTitle) {
         // If content view core is null, tab does not have direct access to the favicon, and we
         // will initially show default favicon. But favicons are stored in the history database, so
@@ -135,7 +135,22 @@ public class LayerTitleCache implements TitleCache {
             title.register();
         }
 
-        title.set(titleBitmapFactory.getTitleBitmap(mContext, titleString),
+        // Boolean determines if a tab is selected.
+        boolean isSelectedTab = false;
+
+        if (TabManagementFieldTrial.isTabStripDetachedEnabled()) {
+            if (mTabModelSelector == null) {
+                return titleString;
+            }
+
+            // Get currently selected tab id.
+            int selectedTabId = mTabModelSelector.getCurrentTabId();
+
+            // Determine if the current tab is the selected tab.
+            isSelectedTab = tabId == selectedTabId;
+        }
+
+        title.set(titleBitmapFactory.getTitleBitmap(mContext, titleString, isSelectedTab),
                 titleBitmapFactory.getFaviconBitmap(originalFavicon), fetchFaviconFromHistory);
 
         if (mNativeLayerTitleCache != 0) {
@@ -199,7 +214,6 @@ public class LayerTitleCache implements TitleCache {
         }
     }
 
-    @Override
     public void remove(int tabId) {
         Title title = mTitles.get(tabId);
         if (title == null) return;
@@ -210,7 +224,6 @@ public class LayerTitleCache implements TitleCache {
                 mNativeLayerTitleCache, LayerTitleCache.this, tabId, -1, -1, false, false);
     }
 
-    @Override
     public void clearExcept(int exceptId) {
         Title title = mTitles.get(exceptId);
         for (int i = 0; i < mTitles.size(); i++) {

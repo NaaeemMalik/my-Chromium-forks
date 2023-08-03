@@ -1,14 +1,13 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#include "services/device/wake_lock/wake_lock.h"
 
 #include <map>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
+#include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -16,9 +15,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/device/device_service_test_base.h"
 #include "services/device/public/mojom/wake_lock.mojom.h"
-#include "services/device/public/mojom/wake_lock_context.mojom.h"
 #include "services/device/public/mojom/wake_lock_provider.mojom.h"
-#include "services/device/wake_lock/wake_lock_provider.h"
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 #include "chromeos/lacros/lacros_test_helper.h"
@@ -203,7 +200,7 @@ TEST_F(WakeLockTest, MultipleRequests) {
 // multiple clients. Has no effect on Android either.
 TEST_F(WakeLockTest, ChangeType) {
   EXPECT_FALSE(HasWakeLock());
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // Call ChangeType() on a wake lock that is in inactive status.
   EXPECT_TRUE(ChangeType(device::mojom::WakeLockType::kPreventAppSuspension));
   EXPECT_TRUE(ChangeType(device::mojom::WakeLockType::kPreventDisplaySleep));
@@ -269,7 +266,7 @@ TEST_F(WakeLockTest, ChangeType) {
   EXPECT_EQ(0, GetActiveWakeLocks(mojom::WakeLockType::kPreventDisplaySleep));
   EXPECT_EQ(0, GetActiveWakeLocks(
                    mojom::WakeLockType::kPreventDisplaySleepAllowDimming));
-#else  // OS_ANDROID:
+#else  // BUILDFLAG(IS_ANDROID):
   EXPECT_FALSE(ChangeType(device::mojom::WakeLockType::kPreventAppSuspension));
   EXPECT_FALSE(ChangeType(device::mojom::WakeLockType::kPreventDisplaySleep));
   EXPECT_FALSE(ChangeType(

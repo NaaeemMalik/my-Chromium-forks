@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,10 +39,10 @@ const char kSwitchDisableDeltaUpdates[] = "disable-delta-updates";
 // value is in seconds.
 const char kInitialDelay[] = "initial-delay";
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Disables background downloads.
 const char kSwitchDisableBackgroundDownloads[] = "disable-background-downloads";
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 // If there is an element of |vec| of the form |test|=.*, returns the right-
 // hand side of that assignment. Otherwise, returns an empty string.
@@ -76,7 +76,7 @@ ComponentUpdaterCommandLineConfigPolicy::
       cmdline->GetSwitchValueASCII(switches::kComponentUpdater), ",",
       base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   background_downloads_enabled_ =
       !base::Contains(switch_values, kSwitchDisableBackgroundDownloads);
 #else
@@ -99,7 +99,7 @@ ComponentUpdaterCommandLineConfigPolicy::
       GetSwitchArgument(switch_values, kInitialDelay);
   double initial_delay_seconds = 0;
   if (base::StringToDouble(initial_delay, &initial_delay_seconds))
-    initial_delay_ = initial_delay_seconds;
+    initial_delay_ = base::Seconds(initial_delay_seconds);
 }
 
 bool ComponentUpdaterCommandLineConfigPolicy::BackgroundDownloadsEnabled()
@@ -127,7 +127,7 @@ GURL ComponentUpdaterCommandLineConfigPolicy::UrlSourceOverride() const {
   return url_source_override_;
 }
 
-double ComponentUpdaterCommandLineConfigPolicy::InitialDelay() const {
+base::TimeDelta ComponentUpdaterCommandLineConfigPolicy::InitialDelay() const {
   return initial_delay_;
 }
 

@@ -1,15 +1,17 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.m.js';
+import 'gtx://resources/cr_elements/chromeos/cros_color_overrides.css.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import './file_path.mojom-lite.js';
+import './strings.m.js';
 
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
-import {loadTimeData} from 'gtx://resources/js/load_time_data.m.js';
+import {I18nBehavior} from 'gtx://resources/ash/common/i18n_behavior.js';
+import {loadTimeData} from 'gtx://resources/ash/common/load_time_data.m.js';
+import {assert} from 'gtx://resources/ash/common/assert.js';
 import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {AppState, ScanCompleteAction} from './scanning_app_types.js';
@@ -169,5 +171,5 @@ Polymer({
             /* @type {string} */ (pluralString) => {
               this.editButtonLabel_ = pluralString;
             });
-  }
+  },
 });

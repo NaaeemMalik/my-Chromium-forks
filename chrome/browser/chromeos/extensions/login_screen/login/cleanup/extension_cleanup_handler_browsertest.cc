@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,8 @@
 #include <string>
 
 #include "ash/constants/ash_switches.h"
-#include "chrome/browser/ash/login/test/local_policy_test_server_mixin.h"
+#include "base/path_service.h"
+#include "chrome/browser/ash/login/test/embedded_policy_test_server_mixin.h"
 #include "chrome/browser/ash/login/test/session_manager_state_waiter.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/policy/core/device_local_account.h"
@@ -20,6 +21,8 @@
 #include "chrome/browser/extensions/pending_extension_manager.h"
 #include "chrome/browser/extensions/policy_test_utils.h"
 #include "chrome/browser/policy/extension_force_install_mixin.h"
+#include "chrome/common/chrome_paths.h"
+#include "components/app_constants/constants.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/test/policy_builder.h"
 #include "content/public/test/browser_test.h"
@@ -33,8 +36,8 @@
 namespace {
 
 const char* const kExemptExtensions[] = {
-    extension_misc::kChromeAppId,
-    extension_misc::kLacrosAppId,
+    app_constants::kChromeAppId,
+    app_constants::kLacrosAppId,
 };
 
 const char kAccountId[] = "public-session@test";
@@ -57,13 +60,14 @@ class ExtensionCleanupHandlerTest : public policy::DevicePolicyCrosBrowserTest {
 
  protected:
   ExtensionCleanupHandlerTest() = default;
-  ~ExtensionCleanupHandlerTest() override {}
+  ~ExtensionCleanupHandlerTest() override = default;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     DevicePolicyCrosBrowserTest::SetUpCommandLine(command_line);
-    command_line->AppendSwitch(chromeos::switches::kLoginManager);
-    command_line->AppendSwitch(chromeos::switches::kForceLoginManagerInTests);
-    command_line->AppendSwitchASCII(chromeos::switches::kLoginProfile, "user");
+    command_line->AppendSwitch(ash::switches::kLoginManager);
+    command_line->AppendSwitch(ash::switches::kForceLoginManagerInTests);
+    command_line->AppendSwitchASCII(ash::switches::kLoginProfile, "user");
+    command_line->AppendSwitch(ash::switches::kOobeSkipPostLogin);
   }
 
   void SetUpOnMainThread() override {
@@ -84,7 +88,7 @@ class ExtensionCleanupHandlerTest : public policy::DevicePolicyCrosBrowserTest {
     device_local_accounts->set_auto_login_id(kAccountId);
     device_local_accounts->set_auto_login_delay(0);
     RefreshDevicePolicy();
-    ASSERT_TRUE(local_policy_mixin_.UpdateDevicePolicy(proto));
+    policy_test_server_mixin_.UpdateDevicePolicy(proto);
   }
 
   void AddExemptExtensionToUserPolicyBuilder(
@@ -123,20 +127,19 @@ class ExtensionCleanupHandlerTest : public policy::DevicePolicyCrosBrowserTest {
   Profile* GetActiveUserProfile() {
     const user_manager::User* active_user =
         user_manager::UserManager::Get()->GetActiveUser();
-    return chromeos::ProfileHelper::Get()->GetProfileByUser(active_user);
+    return ash::ProfileHelper::Get()->GetProfileByUser(active_user);
   }
 
   void InstallUserExtension(const std::string& extension_id) {
     extensions::ExtensionService* extension_service =
         extensions::ExtensionSystem::Get(GetActiveUserProfile())
             ->extension_service();
-    std::unique_ptr<base::DictionaryValue> manifest(
-        extensions::DictionaryBuilder()
-            .Set("name", "Foo")
-            .Set("description", "Bar")
-            .Set("manifest_version", 2)
-            .Set("version", "1.0")
-            .Build());
+    base::Value::Dict manifest(extensions::DictionaryBuilder()
+                                   .Set("name", "Foo")
+                                   .Set("description", "Bar")
+                                   .Set("manifest_version", 2)
+                                   .Set("version", "1.0")
+                                   .Build());
 
     auto observer = GetTestExtensionRegistryObserver(extension_id);
     scoped_refptr<const extensions::Extension> extension =
@@ -159,13 +162,12 @@ class ExtensionCleanupHandlerTest : public policy::DevicePolicyCrosBrowserTest {
   int GetNumberOfInstalledExtensions() {
     return extensions::ExtensionRegistry::Get(GetActiveUserProfile())
         ->GenerateInstalledExtensionsSet()
-        ->size();
+        .size();
   }
 
   void WaitForSessionStart() {
     if (IsSessionStarted())
       return;
-    ash::WizardController::SkipPostLoginScreensForTesting();
     ash::test::WaitForPrimaryUserSessionStart();
   }
 
@@ -194,7 +196,7 @@ class ExtensionCleanupHandlerTest : public policy::DevicePolicyCrosBrowserTest {
     }
   }
 
-  ash::LocalPolicyTestServerMixin local_policy_mixin_{&mixin_host_};
+  ash::EmbeddedPolicyTestServerMixin policy_test_server_mixin_{&mixin_host_};
   ExtensionForceInstallMixin extension_force_install_mixin_{&mixin_host_};
 };
 
@@ -222,8 +224,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionCleanupHandlerTest,
   // Force install an app and extension. The extension is exempt from the
   // cleanup procedure. This also waits for the app and extension to be
   // installed.
-  extension_force_install_mixin_.InitWithLocalPolicyMixin(
-      profile, &local_policy_mixin_, &user_policy_builder, kAccountId,
+  extension_force_install_mixin_.InitWithEmbeddedPolicyMixin(
+      profile, &policy_test_server_mixin_, &user_policy_builder, kAccountId,
       policy::dm_protocol::kChromePublicAccountPolicyType);
   ForceInstallExtensionCrx(kAppCrxPath);
   ForceInstallExtensionCrx(kExemptExtensionCrxPath);
@@ -234,11 +236,11 @@ IN_PROC_BROWSER_TEST_F(ExtensionCleanupHandlerTest,
   EXPECT_EQ(GetNumberOfInstalledExtensions(), num_default_extensions + 3);
 
   // Create observers for all extensions and apps that will be cleaned up.
-  std::unique_ptr<extensions::ExtensionSet> all_installed_extensions =
+  const extensions::ExtensionSet all_installed_extensions =
       extension_registry->GenerateInstalledExtensionsSet();
   std::unordered_set<std::unique_ptr<extensions::TestExtensionRegistryObserver>>
       extension_observers;
-  for (auto& extension : *all_installed_extensions) {
+  for (const auto& extension : all_installed_extensions) {
     // Don't observe exempt and user installed extensions.
     if (base::Contains(kExemptExtensions, extension->id()))
       continue;

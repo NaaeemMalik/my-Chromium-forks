@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,10 @@
 #define NET_HTTP_MOCK_ALLOW_HTTP_AUTH_PREFERENCES_H_
 
 #include "net/http/http_auth_preferences.h"
+
+namespace url {
+class SchemeHostPort;
+}
 
 namespace net {
 
@@ -21,9 +25,10 @@ class MockAllowHttpAuthPreferences : public HttpAuthPreferences {
 
   ~MockAllowHttpAuthPreferences() override;
 
-  bool CanUseDefaultCredentials(const GURL& auth_origin) const override;
+  bool CanUseDefaultCredentials(
+      const url::SchemeHostPort& auth_scheme_host_port) const override;
   HttpAuth::DelegationType GetDelegationType(
-      const GURL& auth_origin) const override;
+      const url::SchemeHostPort& auth_scheme_host_port) const override;
 };
 
 }  // namespace net

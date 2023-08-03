@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (c) 2012 The Chromium Authors. All rights reserved.
+# Copyright 2012 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -91,12 +91,8 @@ if __name__ == "__main__":
   print('GOOGLE_API_KEY=%s' % GetAPIKey())
   print('GOOGLE_CLIENT_ID_MAIN=%s' % GetClientID('MAIN'))
   print('GOOGLE_CLIENT_SECRET_MAIN=%s' % GetClientSecret('MAIN'))
-  print('GOOGLE_CLIENT_ID_CLOUD_PRINT=%s' % GetClientID('CLOUD_PRINT'))
-  print('GOOGLE_CLIENT_SECRET_CLOUD_PRINT=%s' % GetClientSecret('CLOUD_PRINT'))
   print('GOOGLE_CLIENT_ID_REMOTING=%s' % GetClientID('REMOTING'))
   print('GOOGLE_CLIENT_SECRET_REMOTING=%s' % GetClientSecret('REMOTING'))
   print('GOOGLE_CLIENT_ID_REMOTING_HOST=%s' % GetClientID('REMOTING_HOST'))
   print('GOOGLE_CLIENT_SECRET_REMOTING_HOST=%s' % GetClientSecret(
       'REMOTING_HOST'))
-  print('GOOGLE_CLIENT_ID_REMOTING_IDENTITY_API=%s' %GetClientID(
-      'REMOTING_IDENTITY_API'))

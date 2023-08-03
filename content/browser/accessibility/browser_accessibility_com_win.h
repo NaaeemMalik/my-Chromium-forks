@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,18 +27,12 @@
 #include "ui/accessibility/platform/ax_platform_node_delegate.h"
 #include "ui/accessibility/platform/ax_platform_node_win.h"
 
-// These nonstandard GUIDs are taken directly from the Mozilla sources
-// (accessible/src/msaa/nsAccessNodeWrap.cpp); some documentation is here:
-// http://developer.mozilla.org/en/Accessibility/AT-APIs/ImplementationFeatures/MSAA
+// This nonstandard GUID is taken directly from the Mozilla sources
+// (https://searchfox.org/mozilla-central/source/accessible/windows/msaa/ServiceProvider.cpp#110).
 const GUID GUID_ISimpleDOM = {0x0c539790,
                               0x12e4,
                               0x11cf,
                               {0xb6, 0x61, 0x00, 0xaa, 0x00, 0x4c, 0xd6, 0xd8}};
-const GUID GUID_IAccessibleContentDocument = {
-    0xa5d8e1f3,
-    0x3571,
-    0x4d8f,
-    {0x95, 0x21, 0x07, 0xed, 0x28, 0xfb, 0x07, 0x2e}};
 
 namespace content {
 class BrowserAccessibilityWin;

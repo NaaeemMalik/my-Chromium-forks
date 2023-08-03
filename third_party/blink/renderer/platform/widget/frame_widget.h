@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_WIDGET_FRAME_WIDGET_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_WIDGET_FRAME_WIDGET_H_
 
-#include "cc/input/layer_selection_bound.h"
+#include "base/time/time.h"
 #include "mojo/public/mojom/base/text_direction.mojom-blink.h"
 #include "services/viz/public/mojom/compositing/frame_sink_id.mojom-blink.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -21,6 +21,7 @@
 
 namespace cc {
 class AnimationHost;
+class AnimationTimeline;
 enum class EventListenerClass;
 enum class EventListenerProperties;
 class Layer;
@@ -41,6 +42,7 @@ class Cursor;
 
 namespace blink {
 
+class LocalFrame;
 // In interface exposed within Blink from local root frames that provides
 // local-root specific things related to compositing and input. This
 // class extends the FrameWidgetInputHandler implementation. All API calls
@@ -54,6 +56,9 @@ class PLATFORM_EXPORT FrameWidget {
   // Returns the compositors's AnimationHost for the widget.
   virtual cc::AnimationHost* AnimationHost() const = 0;
 
+  // Returns the compositors's AnimationTimeline for the widget.
+  virtual cc::AnimationTimeline* ScrollAnimationTimeline() const = 0;
+
   // Set the browser's behavior when overscroll happens, e.g. whether to glow
   // or navigate.
   virtual void SetOverscrollBehavior(
@@ -65,10 +70,6 @@ class PLATFORM_EXPORT FrameWidget {
 
   // Sets the root layer. The |layer| can be null when detaching the root layer.
   virtual void SetRootLayer(scoped_refptr<cc::Layer> layer) = 0;
-
-  // Used to update the active selection bounds. Pass a default-constructed
-  // LayerSelection to clear it.
-  virtual void RegisterSelection(cc::LayerSelection selection) = 0;
 
   // Image decode functionality.
   virtual void RequestDecode(const cc::PaintImage&,
@@ -91,8 +92,9 @@ class PLATFORM_EXPORT FrameWidget {
   virtual int GetLayerTreeId() = 0;
 
   // Return the LayerTreeSettings from the compositor. These are constant from
-  // the time the compositor is created.
-  virtual const cc::LayerTreeSettings& GetLayerTreeSettings() = 0;
+  // the time the compositor is created. This may return null if the widget
+  // does not composite.
+  virtual const cc::LayerTreeSettings* GetLayerTreeSettings() = 0;
 
   // Sets the state of the browser controls. (Used for URL bar animations.)
   virtual void UpdateBrowserControlsState(cc::BrowserControlsState constraints,
@@ -192,8 +194,8 @@ class PLATFORM_EXPORT FrameWidget {
   virtual void FinishComposingText(bool keep_selection) = 0;
 
   virtual bool IsProvisional() = 0;
-  virtual uint64_t GetScrollableContainerIdAt(
-      const gfx::PointF& point_in_dips) = 0;
+  virtual cc::ElementId GetScrollableContainerIdAt(
+      const gfx::PointF& point) = 0;
 
   virtual bool ShouldHandleImeEvents() { return false; }
 
@@ -285,6 +287,17 @@ class PLATFORM_EXPORT FrameWidget {
   // CompositorFrames.  See https://crbug.com/1232173 for more details.
   virtual void SetMayThrottleIfUndrawnFrames(
       bool may_throttle_if_undrawn_frames) = 0;
+
+  // Returns, in physical pixels, the amount that the widget has been resized
+  // by the virtual keyboard. The virtual keyboard always insets a widget from
+  // the bottom so only the height can be affected. Only the outermost main
+  // frame's widget returns a non-zero value.
+  virtual int GetVirtualKeyboardResizeHeight() const = 0;
+
+  virtual void OnTaskCompletedForFrame(base::TimeTicks start_time,
+                                       base::TimeTicks end_time,
+                                       base::TimeTicks desired_execution_time,
+                                       LocalFrame*) = 0;
 };
 
 }  // namespace blink

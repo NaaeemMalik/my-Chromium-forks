@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,6 +10,7 @@
 #include "chrome/browser/extensions/chrome_app_icon_delegate.h"
 #include "chrome/browser/extensions/extension_util.h"
 #include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_util.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect.h"
@@ -17,7 +18,7 @@
 #include "ui/gfx/image/image_skia_operations.h"
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/chromeos/extensions/gfx_utils.h"
+#include "chrome/browser/ash/extensions/gfx_utils.h"
 #endif
 
 namespace extensions {
@@ -157,12 +158,10 @@ void ChromeAppIcon::UpdateIcon() {
   }
 #endif
 
-  const Extension* extension =
-      ExtensionRegistry::Get(browser_context_)->GetInstalledExtension(app_id_);
-  bool from_bookmark = extension && extension->from_bookmark();
-
+  // TODO(crbug.com/1065748): Remove arg `from_bookmark` from ApplyEffects()
+  // function signature.
   ApplyEffects(resource_size_in_dip_, resize_function_, app_launchable,
-               from_bookmark, badge_type, &image_skia_);
+               /*from_bookmark=*/false, badge_type, &image_skia_);
 
   delegate_->OnIconUpdated(this);
 }

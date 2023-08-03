@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,14 @@
 
 #include "chrome/browser/signin/dice_web_signin_interceptor.h"
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 
 namespace content {
 class WebContents;
 }
 
 class Browser;
+struct CoreAccountId;
 
 class DiceWebSigninInterceptorDelegate
     : public DiceWebSigninInterceptor::Delegate {
@@ -22,12 +23,18 @@ class DiceWebSigninInterceptorDelegate
   ~DiceWebSigninInterceptorDelegate() override;
 
   // DiceWebSigninInterceptor::Delegate
+  bool IsSigninInterceptionSupported(
+      const content::WebContents& web_contents) override;
   std::unique_ptr<ScopedDiceWebSigninInterceptionBubbleHandle>
   ShowSigninInterceptionBubble(
       content::WebContents* web_contents,
       const BubbleParameters& bubble_parameters,
       base::OnceCallback<void(SigninInterceptionResult)> callback) override;
-  void ShowProfileCustomizationBubble(Browser* browser) override;
+  void ShowFirstRunExperienceInNewProfile(
+      Browser* browser,
+      const CoreAccountId& account_id,
+      DiceWebSigninInterceptor::SigninInterceptionType interception_type)
+      override;
 
  private:
   // Implemented in dice_web_signin_interception_bubble_view.cc
@@ -38,6 +45,7 @@ class DiceWebSigninInterceptorDelegate
       base::OnceCallback<void(SigninInterceptionResult)> callback);
 
   // Implemented in profile_customization_bubble_view.cc
+  static bool IsSigninInterceptionSupportedInternal(const Browser& Browser);
   void ShowProfileCustomizationBubbleInternal(Browser* browser);
 };
 

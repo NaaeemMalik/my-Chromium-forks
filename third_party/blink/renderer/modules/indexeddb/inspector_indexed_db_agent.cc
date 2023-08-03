@@ -40,6 +40,7 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_idb_transaction_options.h"
 #include "third_party/blink/renderer/core/dom/dom_string_list.h"
 #include "third_party/blink/renderer/core/dom/events/native_event_listener.h"
+#include "third_party/blink/renderer/core/execution_context/agent.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
@@ -64,10 +65,12 @@
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
+#include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 using blink::protocol::Array;
+using blink::protocol::Maybe;
 using blink::protocol::IndexedDB::DatabaseWithObjectStores;
 using blink::protocol::IndexedDB::DataEntry;
 using blink::protocol::IndexedDB::Key;
@@ -75,8 +78,6 @@ using blink::protocol::IndexedDB::KeyPath;
 using blink::protocol::IndexedDB::KeyRange;
 using blink::protocol::IndexedDB::ObjectStore;
 using blink::protocol::IndexedDB::ObjectStoreIndex;
-using blink::protocol::Maybe;
-using blink::protocol::Response;
 
 typedef blink::protocol::IndexedDB::Backend::RequestDatabaseNamesCallback
     RequestDatabaseNamesCallback;
@@ -99,61 +100,38 @@ namespace {
 const char kIndexedDBObjectGroup[] = "indexeddb";
 const char kNoDocumentError[] = "No document for given frame found";
 
-Response AssertIDBFactory(LocalDOMWindow* dom_window, IDBFactory*& result) {
-  if (!dom_window)
-    return Response::ServerError("No IndexedDB factory for given frame found");
+protocol::Response AssertIDBFactory(LocalDOMWindow* dom_window,
+                                    IDBFactory*& result) {
+  if (!dom_window) {
+    return protocol::Response::ServerError(
+        "No IndexedDB factory for given frame found");
+  }
   IDBFactory* idb_factory = GlobalIndexedDB::indexedDB(*dom_window);
 
-  if (!idb_factory)
-    return Response::ServerError("No IndexedDB factory for given frame found");
+  if (!idb_factory) {
+    return protocol::Response::ServerError(
+        "No IndexedDB factory for given frame found");
+  }
   result = idb_factory;
-  return Response::Success();
+  return protocol::Response::Success();
 }
 
-class GetDatabaseNamesCallback final : public mojom::blink::IDBCallbacks {
- public:
-  explicit GetDatabaseNamesCallback(
-      std::unique_ptr<RequestDatabaseNamesCallback> request_callback)
-      : request_callback_(std::move(request_callback)) {}
-  ~GetDatabaseNamesCallback() override = default;
-
-  void Error(mojom::blink::IDBException code, const String& message) override {
-    request_callback_->sendFailure(
-        Response::ServerError("Could not obtain database names."));
+void OnGotDatabaseNames(
+    std::unique_ptr<RequestDatabaseNamesCallback> request_callback,
+    Vector<mojom::blink::IDBNameAndVersionPtr> names_and_versions,
+    mojom::blink::IDBErrorPtr error) {
+  if (error) {
+    request_callback->sendFailure(
+        protocol::Response::ServerError("Could not obtain database names."));
+    return;
   }
 
-  void SuccessNamesAndVersionsList(
-      Vector<mojom::blink::IDBNameAndVersionPtr> names_and_versions) override {
-    auto database_names = std::make_unique<protocol::Array<String>>();
-    for (const auto& name_and_version : names_and_versions)
-      database_names->emplace_back(name_and_version->name);
-    request_callback_->sendSuccess(std::move(database_names));
+  auto database_names = std::make_unique<protocol::Array<String>>();
+  for (const auto& name_and_version : names_and_versions) {
+    database_names->emplace_back(name_and_version->name);
   }
-
-  void SuccessDatabase(
-      mojo::PendingAssociatedRemote<mojom::blink::IDBDatabase> pending_backend,
-      const IDBDatabaseMetadata& metadata) override {
-    NOTREACHED();
-  }
-
-  void SuccessInteger(int64_t value) override { NOTREACHED(); }
-
-  void Success() override { NOTREACHED(); }
-
-  void Blocked(int64_t old_version) override { NOTREACHED(); }
-
-  void UpgradeNeeded(
-      mojo::PendingAssociatedRemote<mojom::blink::IDBDatabase> pending_database,
-      int64_t old_version,
-      mojom::blink::IDBDataLoss data_loss,
-      const String& data_loss_message,
-      const IDBDatabaseMetadata& metadata) override {
-    NOTREACHED();
-  }
-
- private:
-  std::unique_ptr<RequestDatabaseNamesCallback> request_callback_;
-};
+  request_callback->sendSuccess(std::move(database_names));
+}
 
 class DeleteCallback final : public NativeEventListener {
  public:
@@ -166,7 +144,7 @@ class DeleteCallback final : public NativeEventListener {
   void Invoke(ExecutionContext*, Event* event) override {
     if (event->type() != event_type_names::kSuccess) {
       request_callback_->sendFailure(
-          Response::ServerError("Failed to delete database."));
+          protocol::Response::ServerError("Failed to delete database."));
       return;
     }
     request_callback_->sendSuccess();
@@ -191,11 +169,12 @@ class ExecutableWithDatabase
   virtual RequestCallback* GetRequestCallback() = 0;
   void Start(LocalFrame* frame, const String& database_name) {
     if (!frame) {
-      SendFailure(Response::ServerError(kNoDocumentError));
+      SendFailure(protocol::Response::ServerError(kNoDocumentError));
       return;
     }
     IDBFactory* idb_factory = nullptr;
-    Response response = AssertIDBFactory(frame->DomWindow(), idb_factory);
+    protocol::Response response =
+        AssertIDBFactory(frame->DomWindow(), idb_factory);
     if (!response.IsSuccess()) {
       SendFailure(response);
       return;
@@ -203,7 +182,7 @@ class ExecutableWithDatabase
 
     ScriptState* script_state = ToScriptStateForMainWorld(frame);
     if (!script_state) {
-      SendFailure(Response::InternalError());
+      SendFailure(protocol::Response::InternalError());
       return;
     }
 
@@ -225,7 +204,7 @@ class ExecutableWithDatabase
     IDBOpenDBRequest* idb_open_db_request =
         idb_factory->open(script_state, database_name, exception_state);
     if (exception_state.HadException()) {
-      SendFailure(Response::ServerError("Could not open database."));
+      SendFailure(protocol::Response::ServerError("Could not open database."));
       return;
     }
     idb_open_db_request->addEventListener(event_type_names::kUpgradeneeded,
@@ -234,7 +213,7 @@ class ExecutableWithDatabase
                                           open_callback, false);
   }
 
-  void SendFailure(Response response) {
+  void SendFailure(protocol::Response response) {
     GetRequestCallback()->sendFailure(response);
   }
 };
@@ -259,7 +238,7 @@ class OpenDatabaseCallback final : public NativeEventListener {
   void Invoke(ExecutionContext* context, Event* event) override {
     if (event->type() != event_type_names::kSuccess) {
       executable_with_database_->GetRequestCallback()->sendFailure(
-          Response::ServerError("Unexpected event type."));
+          protocol::Response::ServerError("Unexpected event type."));
       return;
     }
 
@@ -268,13 +247,13 @@ class OpenDatabaseCallback final : public NativeEventListener {
     IDBAny* request_result = idb_open_db_request->ResultAsAny();
     if (request_result->GetType() != IDBAny::kIDBDatabaseType) {
       executable_with_database_->GetRequestCallback()->sendFailure(
-          Response::ServerError("Unexpected result type."));
+          protocol::Response::ServerError("Unexpected result type."));
       return;
     }
 
     IDBDatabase* idb_database = request_result->IdbDatabase();
     executable_with_database_->Execute(idb_database, script_state_);
-    V8PerIsolateData::From(script_state_->GetIsolate())->RunEndOfScopeTasks();
+    context->GetAgent()->event_loop()->RunEndOfMicrotaskCheckpointTasks();
     idb_database->close();
   }
 
@@ -306,7 +285,7 @@ class UpgradeDatabaseCallback final : public NativeEventListener {
   void Invoke(ExecutionContext* context, Event* event) override {
     if (event->type() != event_type_names::kUpgradeneeded) {
       executable_with_database_->GetRequestCallback()->sendFailure(
-          Response::ServerError("Unexpected event type."));
+          protocol::Response::ServerError("Unexpected event type."));
       return;
     }
 
@@ -318,7 +297,7 @@ class UpgradeDatabaseCallback final : public NativeEventListener {
     NonThrowableExceptionState exception_state;
     idb_open_db_request->transaction()->abort(exception_state);
     executable_with_database_->GetRequestCallback()->sendFailure(
-        Response::ServerError("Aborted upgrade."));
+        protocol::Response::ServerError("Aborted upgrade."));
   }
 
  private:
@@ -548,7 +527,7 @@ class OpenCursorCallback final : public NativeEventListener {
   void Invoke(ExecutionContext*, Event* event) override {
     if (event->type() != event_type_names::kSuccess) {
       request_callback_->sendFailure(
-          Response::ServerError("Unexpected event type."));
+          protocol::Response::ServerError("Unexpected event type."));
       return;
     }
 
@@ -560,7 +539,7 @@ class OpenCursorCallback final : public NativeEventListener {
     }
     if (request_result->GetType() != IDBAny::kIDBCursorWithValueType) {
       request_callback_->sendFailure(
-          Response::ServerError("Unexpected result type."));
+          protocol::Response::ServerError("Unexpected result type."));
       return;
     }
 
@@ -571,7 +550,7 @@ class OpenCursorCallback final : public NativeEventListener {
       idb_cursor->advance(skip_count_, exception_state);
       if (exception_state.HadException()) {
         request_callback_->sendFailure(
-            Response::ServerError("Could not advance cursor."));
+            protocol::Response::ServerError("Could not advance cursor."));
       }
       skip_count_ = 0;
       return;
@@ -589,7 +568,7 @@ class OpenCursorCallback final : public NativeEventListener {
                          exception_state);
     if (exception_state.HadException()) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not continue cursor."));
+          protocol::Response::ServerError("Could not continue cursor."));
       return;
     }
 
@@ -654,23 +633,23 @@ class DataLoader final : public ExecutableWithDatabase<RequestDataCallback> {
         TransactionForDatabase(script_state, idb_database, object_store_name_);
     if (!idb_transaction) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get transaction"));
+          protocol::Response::ServerError("Could not get transaction"));
       return;
     }
     IDBObjectStore* idb_object_store =
         ObjectStoreForTransaction(idb_transaction, object_store_name_);
     if (!idb_object_store) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get object store"));
+          protocol::Response::ServerError("Could not get object store"));
       return;
     }
 
     IDBRequest* idb_request;
-    if (!index_name_.IsEmpty()) {
+    if (!index_name_.empty()) {
       IDBIndex* idb_index = IndexForObjectStore(idb_object_store, index_name_);
       if (!idb_index) {
         request_callback_->sendFailure(
-            Response::ServerError("Could not get index"));
+            protocol::Response::ServerError("Could not get index"));
         return;
       }
 
@@ -738,29 +717,57 @@ void InspectorIndexedDBAgent::DidCommitLoadForLocalFrame(LocalFrame* frame) {
   }
 }
 
-Response InspectorIndexedDBAgent::enable() {
+protocol::Response InspectorIndexedDBAgent::enable() {
   enabled_.Set(true);
-  return Response::Success();
+  return protocol::Response::Success();
 }
 
-Response InspectorIndexedDBAgent::disable() {
+protocol::Response InspectorIndexedDBAgent::disable() {
   enabled_.Clear();
   v8_session_->releaseObjectGroup(
       ToV8InspectorStringView(kIndexedDBObjectGroup));
-  return Response::Success();
+  return protocol::Response::Success();
 }
 
+namespace {
+
+absl::variant<LocalFrame*, protocol::Response> ResolveFrame(
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
+    InspectedFrames* inspected_frames) {
+  if (security_origin.isJust() == storage_key.isJust()) {
+    return protocol::Response::InvalidParams(
+        "At least and at most one of security_origin, "
+        "storage_key must be specified.");
+  }
+  if (storage_key.isJust()) {
+    return inspected_frames->FrameWithStorageKey(storage_key.fromJust());
+  }
+  return inspected_frames->FrameWithSecurityOrigin(security_origin.fromJust());
+}
+
+}  // namespace
+
 void InspectorIndexedDBAgent::requestDatabaseNames(
-    const String& security_origin,
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
     std::unique_ptr<RequestDatabaseNamesCallback> request_callback) {
-  LocalFrame* frame =
-      inspected_frames_->FrameWithSecurityOrigin(security_origin);
+  absl::variant<LocalFrame*, protocol::Response> frame_or_response =
+      ResolveFrame(std::move(security_origin), std::move(storage_key),
+                   inspected_frames_);
+  if (absl::holds_alternative<protocol::Response>(frame_or_response)) {
+    request_callback->sendFailure(
+        absl::get<protocol::Response>(frame_or_response));
+  }
+  LocalFrame* frame = absl::get<LocalFrame*>(frame_or_response);
   if (!frame) {
-    request_callback->sendFailure(Response::ServerError(kNoDocumentError));
+    request_callback->sendFailure(
+        protocol::Response::ServerError(kNoDocumentError));
     return;
   }
   IDBFactory* idb_factory = nullptr;
-  Response response = AssertIDBFactory(frame->DomWindow(), idb_factory);
+  protocol::Response response =
+      AssertIDBFactory(frame->DomWindow(), idb_factory);
   if (!response.IsSuccess()) {
     request_callback->sendFailure(response);
     return;
@@ -768,27 +775,35 @@ void InspectorIndexedDBAgent::requestDatabaseNames(
 
   ScriptState* script_state = ToScriptStateForMainWorld(frame);
   if (!script_state) {
-    request_callback->sendFailure(Response::InternalError());
+    request_callback->sendFailure(protocol::Response::InternalError());
     return;
   }
-  idb_factory->GetDatabaseInfo(
+  idb_factory->GetDatabaseInfoForDevTools(
       script_state,
-      std::make_unique<GetDatabaseNamesCallback>(std::move(request_callback)));
+      WTF::BindOnce(&OnGotDatabaseNames, std::move(request_callback)));
 }
 
 void InspectorIndexedDBAgent::requestDatabase(
-    const String& security_origin,
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
     const String& database_name,
     std::unique_ptr<RequestDatabaseCallback> request_callback) {
+  absl::variant<LocalFrame*, protocol::Response> frame_or_response =
+      ResolveFrame(std::move(security_origin), std::move(storage_key),
+                   inspected_frames_);
+  if (absl::holds_alternative<protocol::Response>(frame_or_response)) {
+    request_callback->sendFailure(
+        absl::get<protocol::Response>(frame_or_response));
+  }
   scoped_refptr<DatabaseLoader> database_loader =
       DatabaseLoader::Create(std::move(request_callback));
-  database_loader->Start(
-      inspected_frames_->FrameWithSecurityOrigin(security_origin),
-      database_name);
+  database_loader->Start(absl::get<LocalFrame*>(frame_or_response),
+                         database_name);
 }
 
 void InspectorIndexedDBAgent::requestData(
-    const String& security_origin,
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
     const String& database_name,
     const String& object_store_name,
     const String& index_name,
@@ -801,17 +816,21 @@ void InspectorIndexedDBAgent::requestData(
                          : nullptr;
   if (key_range.isJust() && !idb_key_range) {
     request_callback->sendFailure(
-        Response::ServerError("Can not parse key range."));
+        protocol::Response::ServerError("Can not parse key range."));
     return;
   }
-
+  absl::variant<LocalFrame*, protocol::Response> frame_or_response =
+      ResolveFrame(std::move(security_origin), std::move(storage_key),
+                   inspected_frames_);
+  if (absl::holds_alternative<protocol::Response>(frame_or_response)) {
+    request_callback->sendFailure(
+        absl::get<protocol::Response>(frame_or_response));
+  }
   scoped_refptr<DataLoader> data_loader = DataLoader::Create(
       v8_session_, std::move(request_callback), object_store_name, index_name,
       idb_key_range, skip_count, page_size);
 
-  data_loader->Start(
-      inspected_frames_->FrameWithSecurityOrigin(security_origin),
-      database_name);
+  data_loader->Start(absl::get<LocalFrame*>(frame_or_response), database_name);
 }
 
 class GetMetadata;
@@ -856,7 +875,8 @@ class GetMetadata final : public ExecutableWithDatabase<GetMetadataCallback> {
 
   void NotifySubtaskDone(const String& error) {
     if (!error.IsNull()) {
-      request_callback_->sendFailure(Response::ServerError(error.Utf8()));
+      request_callback_->sendFailure(
+          protocol::Response::ServerError(error.Utf8()));
       return;
     }
     if (--subtask_pending_ == 0) {
@@ -880,14 +900,14 @@ class GetMetadata final : public ExecutableWithDatabase<GetMetadataCallback> {
                                indexed_db_names::kReadonly);
     if (!idb_transaction) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get transaction"));
+          protocol::Response::ServerError("Could not get transaction"));
       return;
     }
     IDBObjectStore* idb_object_store =
         ObjectStoreForTransaction(idb_transaction, object_store_name_);
     if (!idb_object_store) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get object store"));
+          protocol::Response::ServerError("Could not get object store"));
       return;
     }
 
@@ -900,7 +920,7 @@ class GetMetadata final : public ExecutableWithDatabase<GetMetadataCallback> {
     DCHECK(!exception_state.HadException());
     if (exception_state.HadException()) {
       ExceptionCode ec = exception_state.Code();
-      request_callback_->sendFailure(Response::ServerError(
+      request_callback_->sendFailure(protocol::Response::ServerError(
           String::Format("Could not count entries in object store '%s': %d",
                          object_store_name_.Latin1().c_str(), ec)
               .Utf8()));
@@ -943,15 +963,22 @@ void GetMetadataListener::NotifySubtaskDone(scoped_refptr<GetMetadata> owner,
 }
 
 void InspectorIndexedDBAgent::getMetadata(
-    const String& security_origin,
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
     const String& database_name,
     const String& object_store_name,
     std::unique_ptr<GetMetadataCallback> request_callback) {
+  absl::variant<LocalFrame*, protocol::Response> frame_or_response =
+      ResolveFrame(std::move(security_origin), std::move(storage_key),
+                   inspected_frames_);
+  if (absl::holds_alternative<protocol::Response>(frame_or_response)) {
+    request_callback->sendFailure(
+        absl::get<protocol::Response>(frame_or_response));
+    return;
+  }
   scoped_refptr<GetMetadata> get_metadata =
       GetMetadata::Create(object_store_name, std::move(request_callback));
-  get_metadata->Start(
-      inspected_frames_->FrameWithSecurityOrigin(security_origin),
-      database_name);
+  get_metadata->Start(absl::get<LocalFrame*>(frame_or_response), database_name);
 }
 
 class DeleteObjectStoreEntriesListener final : public NativeEventListener {
@@ -963,8 +990,8 @@ class DeleteObjectStoreEntriesListener final : public NativeEventListener {
 
   void Invoke(ExecutionContext*, Event* event) override {
     if (event->type() != event_type_names::kSuccess) {
-      request_callback_->sendFailure(
-          Response::ServerError("Failed to delete specified entries"));
+      request_callback_->sendFailure(protocol::Response::ServerError(
+          "Failed to delete specified entries"));
       return;
     }
 
@@ -1000,14 +1027,14 @@ class DeleteObjectStoreEntries final
                                indexed_db_names::kReadwrite);
     if (!idb_transaction) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get transaction"));
+          protocol::Response::ServerError("Could not get transaction"));
       return;
     }
     IDBObjectStore* idb_object_store =
         ObjectStoreForTransaction(idb_transaction, object_store_name_);
     if (!idb_object_store) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get object store"));
+          protocol::Response::ServerError("Could not get object store"));
       return;
     }
 
@@ -1031,7 +1058,8 @@ class DeleteObjectStoreEntries final
 };
 
 void InspectorIndexedDBAgent::deleteObjectStoreEntries(
-    const String& security_origin,
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
     const String& database_name,
     const String& object_store_name,
     std::unique_ptr<protocol::IndexedDB::KeyRange> key_range,
@@ -1039,15 +1067,22 @@ void InspectorIndexedDBAgent::deleteObjectStoreEntries(
   IDBKeyRange* idb_key_range = IdbKeyRangeFromKeyRange(key_range.get());
   if (!idb_key_range) {
     request_callback->sendFailure(
-        Response::ServerError("Can not parse key range"));
+        protocol::Response::ServerError("Can not parse key range"));
+    return;
+  }
+  absl::variant<LocalFrame*, protocol::Response> frame_or_response =
+      ResolveFrame(std::move(security_origin), std::move(storage_key),
+                   inspected_frames_);
+  if (absl::holds_alternative<protocol::Response>(frame_or_response)) {
+    request_callback->sendFailure(
+        absl::get<protocol::Response>(frame_or_response));
     return;
   }
   scoped_refptr<DeleteObjectStoreEntries> delete_object_store_entries =
       DeleteObjectStoreEntries::Create(object_store_name, idb_key_range,
                                        std::move(request_callback));
-  delete_object_store_entries->Start(
-      inspected_frames_->FrameWithSecurityOrigin(security_origin),
-      database_name);
+  delete_object_store_entries->Start(absl::get<LocalFrame*>(frame_or_response),
+                                     database_name);
 }
 
 class ClearObjectStoreListener final : public NativeEventListener {
@@ -1060,7 +1095,7 @@ class ClearObjectStoreListener final : public NativeEventListener {
   void Invoke(ExecutionContext*, Event* event) override {
     if (event->type() != event_type_names::kComplete) {
       request_callback_->sendFailure(
-          Response::ServerError("Unexpected event type."));
+          protocol::Response::ServerError("Unexpected event type."));
       return;
     }
 
@@ -1092,14 +1127,14 @@ class ClearObjectStore final
                                indexed_db_names::kReadwrite);
     if (!idb_transaction) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get transaction"));
+          protocol::Response::ServerError("Could not get transaction"));
       return;
     }
     IDBObjectStore* idb_object_store =
         ObjectStoreForTransaction(idb_transaction, object_store_name_);
     if (!idb_object_store) {
       request_callback_->sendFailure(
-          Response::ServerError("Could not get object store"));
+          protocol::Response::ServerError("Could not get object store"));
       return;
     }
 
@@ -1108,7 +1143,7 @@ class ClearObjectStore final
     DCHECK(!exception_state.HadException());
     if (exception_state.HadException()) {
       ExceptionCode ec = exception_state.Code();
-      request_callback_->sendFailure(Response::ServerError(
+      request_callback_->sendFailure(protocol::Response::ServerError(
           String::Format("Could not clear object store '%s': %d",
                          object_store_name_.Latin1().c_str(), ec)
               .Utf8()));
@@ -1131,29 +1166,47 @@ class ClearObjectStore final
 };
 
 void InspectorIndexedDBAgent::clearObjectStore(
-    const String& security_origin,
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
     const String& database_name,
     const String& object_store_name,
     std::unique_ptr<ClearObjectStoreCallback> request_callback) {
+  absl::variant<LocalFrame*, protocol::Response> frame_or_response =
+      ResolveFrame(std::move(security_origin), std::move(storage_key),
+                   inspected_frames_);
+  if (absl::holds_alternative<protocol::Response>(frame_or_response)) {
+    request_callback->sendFailure(
+        absl::get<protocol::Response>(frame_or_response));
+    return;
+  }
   scoped_refptr<ClearObjectStore> clear_object_store =
       ClearObjectStore::Create(object_store_name, std::move(request_callback));
-  clear_object_store->Start(
-      inspected_frames_->FrameWithSecurityOrigin(security_origin),
-      database_name);
+  clear_object_store->Start(absl::get<LocalFrame*>(frame_or_response),
+                            database_name);
 }
 
 void InspectorIndexedDBAgent::deleteDatabase(
-    const String& security_origin,
+    protocol::Maybe<String> security_origin,
+    protocol::Maybe<String> storage_key,
     const String& database_name,
     std::unique_ptr<DeleteDatabaseCallback> request_callback) {
-  LocalFrame* frame =
-      inspected_frames_->FrameWithSecurityOrigin(security_origin);
+  absl::variant<LocalFrame*, protocol::Response> frame_or_response =
+      ResolveFrame(std::move(security_origin), std::move(storage_key),
+                   inspected_frames_);
+  if (absl::holds_alternative<protocol::Response>(frame_or_response)) {
+    request_callback->sendFailure(
+        absl::get<protocol::Response>(frame_or_response));
+    return;
+  }
+  LocalFrame* frame = absl::get<LocalFrame*>(frame_or_response);
   if (!frame) {
-    request_callback->sendFailure(Response::ServerError(kNoDocumentError));
+    request_callback->sendFailure(
+        protocol::Response::ServerError(kNoDocumentError));
     return;
   }
   IDBFactory* idb_factory = nullptr;
-  Response response = AssertIDBFactory(frame->DomWindow(), idb_factory);
+  protocol::Response response =
+      AssertIDBFactory(frame->DomWindow(), idb_factory);
   if (!response.IsSuccess()) {
     request_callback->sendFailure(response);
     return;
@@ -1161,7 +1214,7 @@ void InspectorIndexedDBAgent::deleteDatabase(
 
   ScriptState* script_state = ToScriptStateForMainWorld(frame);
   if (!script_state) {
-    request_callback->sendFailure(Response::InternalError());
+    request_callback->sendFailure(protocol::Response::InternalError());
     return;
   }
   ScriptState::Scope scope(script_state);
@@ -1170,7 +1223,7 @@ void InspectorIndexedDBAgent::deleteDatabase(
       script_state, database_name, exception_state);
   if (exception_state.HadException()) {
     request_callback->sendFailure(
-        Response::ServerError("Could not delete database."));
+        protocol::Response::ServerError("Could not delete database."));
     return;
   }
   idb_request->addEventListener(

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,10 +16,10 @@
 #include "chrome/test/base/scoped_testing_local_state.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
-#include "chromeos/dbus/system_proxy/system_proxy_client.h"
-#include "chromeos/dbus/system_proxy/system_proxy_service.pb.h"
-#include "chromeos/network/network_handler.h"
-#include "chromeos/network/network_handler_test_helper.h"
+#include "chromeos/ash/components/dbus/system_proxy/system_proxy_client.h"
+#include "chromeos/ash/components/dbus/system_proxy/system_proxy_service.pb.h"
+#include "chromeos/ash/components/network/network_handler.h"
+#include "chromeos/ash/components/network/network_handler_test_helper.h"
 #include "components/prefs/pref_service.h"
 #include "components/proxy_config/proxy_config_pref_names.h"
 #include "components/proxy_config/proxy_prefs.h"
@@ -42,11 +42,10 @@
 #include "url/gurl.h"
 #include "url/scheme_host_port.h"
 
-using testing::_;
-using testing::Invoke;
-using testing::WithArg;
+namespace ash {
 
 namespace {
+
 constexpr char kBrowserUsername[] = "browser_username";
 constexpr char16_t kBrowserUsername16[] = u"browser_username";
 constexpr char kBrowserPassword[] = "browser_password";
@@ -86,11 +85,11 @@ network::NetworkService* GetNetworkService() {
 
 void SetManagedProxy(Profile* profile) {
   // Configure a proxy via user policy.
-  base::Value proxy_config(base::Value::Type::DICTIONARY);
-  proxy_config.SetKey("mode",
-                      base::Value(ProxyPrefs::kFixedServersProxyModeName));
-  proxy_config.SetKey("server", base::Value(kProxyAuthUrl));
-  profile->GetPrefs()->Set(proxy_config::prefs::kProxy, proxy_config);
+  base::Value::Dict proxy_config;
+  proxy_config.Set("mode", ProxyPrefs::kFixedServersProxyModeName);
+  proxy_config.Set("server", kProxyAuthUrl);
+  profile->GetPrefs()->SetDict(proxy_config::prefs::kProxy,
+                               std::move(proxy_config));
   base::RunLoop().RunUntilIdle();
 }
 
@@ -103,7 +102,6 @@ net::AuthChallengeInfo GetAuthInfo() {
 
 }  // namespace
 
-namespace chromeos {
 // TODO(acostinas, https://crbug.com/1102351) Replace RunUntilIdle() in tests
 // with RunLoop::Run() with explicit RunLoop::QuitClosure().
 class SystemProxyManagerTest : public testing::Test {
@@ -250,7 +248,7 @@ TEST_F(SystemProxyManagerTest, UserCredentialsRequestedFromNetworkService) {
       ->http_auth_cache()
       ->Add(url::SchemeHostPort(GURL(kProxyAuthEmptyPath)),
             net::HttpAuth::AUTH_PROXY, kRealm,
-            net::HttpAuth::AUTH_SCHEME_DIGEST, net::NetworkIsolationKey(),
+            net::HttpAuth::AUTH_SCHEME_DIGEST, net::NetworkAnonymizationKey(),
             kProxyAuthChallenge,
             net::AuthCredentials(kBrowserUsername16, kBrowserPassword16),
             std::string() /* path */);
@@ -357,14 +355,13 @@ TEST_F(SystemProxyManagerTest, CanUsePolicyCredentialsUserType) {
   SetManagedProxy(profile_.get());
 
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
 
   EXPECT_TRUE(system_proxy_manager_->CanUsePolicyCredentials(
       GetAuthInfo(), /*first_auth_attempt=*/true));
 
   LoginState::Get()->SetLoggedInState(LoginState::LOGGED_IN_ACTIVE,
-                                      LoginState::LOGGED_IN_USER_KIOSK_APP);
+                                      LoginState::LOGGED_IN_USER_KIOSK);
 
   EXPECT_TRUE(system_proxy_manager_->CanUsePolicyCredentials(
       GetAuthInfo(), /*first_auth_attempt=*/true));
@@ -386,8 +383,7 @@ TEST_F(SystemProxyManagerTest, CanUsePolicyCredentialsOriginServer) {
   net::AuthChallengeInfo auth_info = GetAuthInfo();
   auth_info.is_proxy = false;
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
 
   EXPECT_FALSE(system_proxy_manager_->CanUsePolicyCredentials(
       auth_info, /*first_auth_attempt=*/true));
@@ -401,8 +397,7 @@ TEST_F(SystemProxyManagerTest, CanUsePolicyCredentialsNoManagedProxy) {
             /*system_services_password=*/kPolicyPassword);
 
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
 
   EXPECT_FALSE(system_proxy_manager_->CanUsePolicyCredentials(
       GetAuthInfo(), /*first_auth_attempt=*/true));
@@ -417,8 +412,7 @@ TEST_F(SystemProxyManagerTest, NoPolicyCredentials) {
   SetManagedProxy(profile_.get());
 
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
 
   EXPECT_FALSE(system_proxy_manager_->CanUsePolicyCredentials(
       GetAuthInfo(), /*first_auth_attempt=*/true));
@@ -433,8 +427,7 @@ TEST_F(SystemProxyManagerTest, CanUsePolicyCredentialsMgsMaxTries) {
   SetManagedProxy(profile_.get());
 
   LoginState::Get()->SetLoggedInState(
-      LoginState::LOGGED_IN_ACTIVE,
-      LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT_MANAGED);
+      LoginState::LOGGED_IN_ACTIVE, LoginState::LOGGED_IN_USER_PUBLIC_ACCOUNT);
   EXPECT_TRUE(system_proxy_manager_->CanUsePolicyCredentials(
       GetAuthInfo(), /*first_auth_attempt=*/true));
   EXPECT_FALSE(system_proxy_manager_->CanUsePolicyCredentials(
@@ -452,7 +445,7 @@ TEST_F(SystemProxyManagerTest, SystemServicesProxyPacStringDefault) {
   task_environment_.RunUntilIdle();
 
   EXPECT_EQ(system_proxy_manager_->SystemServicesProxyPacString(
-                SystemProxyOverride::kDefault),
+                chromeos::SystemProxyOverride::kDefault),
             "PROXY http://example.com:3128");
 }
 
@@ -466,13 +459,14 @@ TEST_F(SystemProxyManagerTest, SystemServicesProxyPacStringOptOut) {
   client_test_interface()->SendWorkerActiveSignal(details);
   task_environment_.RunUntilIdle();
 
-  EXPECT_TRUE(system_proxy_manager_
-                  ->SystemServicesProxyPacString(SystemProxyOverride::kOptOut)
-                  .empty());
+  EXPECT_TRUE(
+      system_proxy_manager_
+          ->SystemServicesProxyPacString(chromeos::SystemProxyOverride::kOptOut)
+          .empty());
 }
 
 // Tests the behaviour of SystemProxyManager when enabled via the feature flag
-// `ash::features::kSystemProxyForSystemServices`.
+// `features::kSystemProxyForSystemServices`.
 class FeatureEnabledSystemProxyTest : public SystemProxyManagerTest {
  public:
   FeatureEnabledSystemProxyTest() : SystemProxyManagerTest() {}
@@ -481,7 +475,7 @@ class FeatureEnabledSystemProxyTest : public SystemProxyManagerTest {
   // testing::Test
   void SetUp() override {
     scoped_feature_list_.InitAndEnableFeature(
-        ash::features::kSystemProxyForSystemServices);
+        features::kSystemProxyForSystemServices);
     SystemProxyManagerTest::SetUp();
   }
 
@@ -499,7 +493,8 @@ TEST_F(FeatureEnabledSystemProxyTest, SystemServicesDefault) {
   task_environment_.RunUntilIdle();
 
   EXPECT_TRUE(system_proxy_manager_
-                  ->SystemServicesProxyPacString(SystemProxyOverride::kDefault)
+                  ->SystemServicesProxyPacString(
+                      chromeos::SystemProxyOverride::kDefault)
                   .empty());
 }
 
@@ -511,7 +506,7 @@ TEST_F(FeatureEnabledSystemProxyTest, SystemServicesOptIn) {
   task_environment_.RunUntilIdle();
 
   EXPECT_EQ(system_proxy_manager_->SystemServicesProxyPacString(
-                SystemProxyOverride::kOptIn),
+                chromeos::SystemProxyOverride::kOptIn),
             "PROXY local-proxy.com:3128");
 }
 
@@ -547,4 +542,4 @@ TEST_F(FeatureEnabledSystemProxyTest, ArcPolicyEnabled) {
                 ::prefs::kSystemProxyUserTrafficHostAndPort));
 }
 
-}  // namespace chromeos
+}  // namespace ash

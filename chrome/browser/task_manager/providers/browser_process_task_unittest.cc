@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@
 #include "chrome/browser/task_manager/providers/browser_process_task_provider.h"
 #include "chrome/browser/task_manager/task_manager_observer.h"
 #include "chrome/grit/generated_resources.h"
+#include "services/network/public/mojom/network_context.mojom-forward.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -57,7 +58,7 @@ TEST_F(BrowserProcessTaskProviderTest, GetTaskOfUrlRequest) {
 
   Task* result = provider.GetTaskOfUrlRequest(2, 0);
   EXPECT_EQ(nullptr, result);
-  result = provider.GetTaskOfUrlRequest(-1, 0);
+  result = provider.GetTaskOfUrlRequest(network::mojom::kBrowserProcessId, 0);
   EXPECT_EQ(provided_task_, result);
 }
 

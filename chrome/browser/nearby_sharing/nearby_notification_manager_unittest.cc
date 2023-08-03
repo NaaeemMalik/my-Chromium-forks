@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,13 @@
 #include "ash/public/cpp/holding_space/holding_space_model.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/memory/raw_ptr.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
+#include "base/test/gtest_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread_restrictions.h"
@@ -26,6 +28,7 @@
 #include "chrome/browser/download/download_core_service_factory.h"
 #include "chrome/browser/download/download_core_service_impl.h"
 #include "chrome/browser/download/download_prefs.h"
+#include "chrome/browser/nearby_sharing/common/nearby_share_enums.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_features.h"
 #include "chrome/browser/nearby_sharing/common/nearby_share_prefs.h"
 #include "chrome/browser/nearby_sharing/constants.h"
@@ -66,8 +69,12 @@ using testing::Return;
 
 namespace {
 
+const uint64_t kWifiCredentialsId = 111;
 const char kTextBody[] = "text body";
 const char kTextUrl[] = "https://google.com";
+const char kWifiSsid[] = "test_ssid";
+const WifiCredentialsAttachment::SecurityType kSecurityType =
+    sharing::mojom::WifiCredentialsMetadata::SecurityType::kWpaPsk;
 
 MATCHER_P(MatchesTarget, target, "") {
   return arg.id == target.id;
@@ -94,6 +101,11 @@ TextAttachment CreateUrlAttachment() {
 FileAttachment CreateFileAttachment(FileAttachment::Type type) {
   return FileAttachment(/*id=*/0, /*size=*/10, /*file_name=*/"file.jpg",
                         /*mime_type=*/"example", type);
+}
+
+WifiCredentialsAttachment CreateWifiCredentialsAttachment(
+    WifiCredentialsAttachment::SecurityType securityType) {
+  return WifiCredentialsAttachment(kWifiCredentialsId, securityType, kWifiSsid);
 }
 
 std::unique_ptr<KeyedService> CreateMockNearbySharingService(
@@ -138,14 +150,29 @@ std::unique_ptr<TestingProfileManager> CreateTestingProfileManager() {
   return profile_manager;
 }
 
-class NearbyNotificationManagerTest : public testing::Test {
+class NearbyNotificationManagerTestBase : public testing::Test {
  public:
-  NearbyNotificationManagerTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kNearbySharing);
+  explicit NearbyNotificationManagerTestBase(
+      std::tuple<bool, bool> feature_list) {
+    std::vector<base::test::FeatureRef> enabled_features;
+    std::vector<base::test::FeatureRef> disabled_features;
+    is_self_share_enabled_ = std::get<0>(feature_list);
+    is_self_share_auto_accept_enabled_ = std::get<1>(feature_list);
+    if (is_self_share_enabled_) {
+      enabled_features.push_back(features::kNearbySharingSelfShareUI);
+    } else {
+      disabled_features.push_back(features::kNearbySharingSelfShareUI);
+    }
+    if (is_self_share_auto_accept_enabled_) {
+      enabled_features.push_back(features::kNearbySharingSelfShareAutoAccept);
+    } else {
+      disabled_features.push_back(features::kNearbySharingSelfShareAutoAccept);
+    }
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
     RegisterNearbySharingPrefs(pref_service_.registry());
   }
 
-  ~NearbyNotificationManagerTest() override = default;
+  ~NearbyNotificationManagerTestBase() override = default;
 
   void SetUp() override {
     NearbySharingServiceFactory::
@@ -202,7 +229,8 @@ class NearbyNotificationManagerTest : public testing::Test {
   ShareTarget CreateIncomingShareTarget(int text_attachments,
                                         int url_attachements,
                                         int image_attachments,
-                                        int other_file_attachments) {
+                                        int other_file_attachments,
+                                        bool wifi_credentials_attachments) {
     ShareTarget share_target;
     share_target.is_incoming = true;
     for (int i = 0; i < text_attachments; i++) {
@@ -223,9 +251,7 @@ class NearbyNotificationManagerTest : public testing::Test {
       std::vector<unsigned char> png_data;
       EXPECT_TRUE(gfx::PNGCodec::EncodeBGRASkBitmap(
           image, /*discard_transparency=*/true, &png_data));
-      char* data = reinterpret_cast<char*>(&png_data[0]);
-      int size = static_cast<int>(png_data.size());
-      base::WriteFile(file_path, data, size);
+      base::WriteFile(file_path, png_data);
 
       FileAttachment attachment(file_path);
       share_target.file_attachments.push_back(std::move(attachment));
@@ -234,6 +260,12 @@ class NearbyNotificationManagerTest : public testing::Test {
     for (int i = 0; i < other_file_attachments; i++) {
       share_target.file_attachments.push_back(
           CreateFileAttachment(FileAttachment::Type::kVideo));
+    }
+
+    if (wifi_credentials_attachments) {
+      share_target.wifi_credentials_attachments.push_back(
+          CreateWifiCredentialsAttachment(
+              WifiCredentialsAttachment::SecurityType::kWpaPsk));
     }
     return share_target;
   }
@@ -247,16 +279,30 @@ class NearbyNotificationManagerTest : public testing::Test {
   TestingPrefServiceSimple pref_service_;
   TestingProfile profile_;
   std::unique_ptr<NotificationDisplayServiceTester> notification_tester_;
-  MockNearbySharingService* nearby_service_;
+  raw_ptr<MockNearbySharingService, ExperimentalAsh> nearby_service_;
   std::unique_ptr<base::ScopedDisallowBlocking> disallow_blocking_;
   std::unique_ptr<NearbyNotificationManager> manager_;
   data_decoder::test::InProcessDataDecoder in_process_data_decoder_;
-  MockSettingsOpener* settings_opener_;
+  raw_ptr<MockSettingsOpener, ExperimentalAsh> settings_opener_;
+  bool is_self_share_enabled_ = false;
+  bool is_self_share_auto_accept_enabled_ = false;
+};
+
+// We parameterize these tests to run them with Self Share and Nearby Share
+// Visibility Reminder enabled and disabled.
+class NearbyNotificationManagerTest
+    : public NearbyNotificationManagerTestBase,
+      public testing::WithParamInterface<std::tuple<bool, bool>> {
+ public:
+  NearbyNotificationManagerTest()
+      : NearbyNotificationManagerTestBase(/*feature_list=*/GetParam()) {}
 };
 
 struct AttachmentsTestParamInternal {
   std::vector<TextAttachment::Type> text_attachments;
   std::vector<FileAttachment::Type> file_attachments;
+  std::vector<WifiCredentialsAttachment::SecurityType>
+      wifi_credentials_attachments;
   int expected_capitalized_resource_id;
   int expected_not_capitalized_resource_id;
 };
@@ -265,6 +311,7 @@ AttachmentsTestParamInternal kAttachmentsTestParams[] = {
     // No attachments.
     {{},
      {},
+     {},
      IDS_NEARBY_CAPITALIZED_UNKNOWN_ATTACHMENTS,
      IDS_NEARBY_NOT_CAPITALIZED_UNKNOWN_ATTACHMENTS},
 
@@ -272,6 +319,7 @@ AttachmentsTestParamInternal kAttachmentsTestParams[] = {
     {
         {TextAttachment::Type::kText},
         {FileAttachment::Type::kUnknown},
+        {},
         IDS_NEARBY_CAPITALIZED_UNKNOWN_ATTACHMENTS,
         IDS_NEARBY_NOT_CAPITALIZED_UNKNOWN_ATTACHMENTS,
     },
@@ -279,25 +327,31 @@ AttachmentsTestParamInternal kAttachmentsTestParams[] = {
     // Text attachments.
     {{TextAttachment::Type::kUrl},
      {},
+     {},
      IDS_NEARBY_TEXT_ATTACHMENTS_CAPITALIZED_LINKS,
      IDS_NEARBY_TEXT_ATTACHMENTS_NOT_CAPITALIZED_LINKS},
     {{TextAttachment::Type::kText},
+     {},
      {},
      IDS_NEARBY_TEXT_ATTACHMENTS_CAPITALIZED_UNKNOWN,
      IDS_NEARBY_TEXT_ATTACHMENTS_NOT_CAPITALIZED_UNKNOWN},
     {{TextAttachment::Type::kAddress},
      {},
+     {},
      IDS_NEARBY_TEXT_ATTACHMENTS_CAPITALIZED_ADDRESSES,
      IDS_NEARBY_TEXT_ATTACHMENTS_NOT_CAPITALIZED_ADDRESSES},
     {{TextAttachment::Type::kPhoneNumber},
+     {},
      {},
      IDS_NEARBY_TEXT_ATTACHMENTS_CAPITALIZED_PHONE_NUMBERS,
      IDS_NEARBY_TEXT_ATTACHMENTS_NOT_CAPITALIZED_PHONE_NUMBERS},
     {{TextAttachment::Type::kAddress, TextAttachment::Type::kAddress},
      {},
+     {},
      IDS_NEARBY_TEXT_ATTACHMENTS_CAPITALIZED_ADDRESSES,
      IDS_NEARBY_TEXT_ATTACHMENTS_NOT_CAPITALIZED_ADDRESSES},
     {{TextAttachment::Type::kAddress, TextAttachment::Type::kUrl},
+     {},
      {},
      IDS_NEARBY_TEXT_ATTACHMENTS_CAPITALIZED_UNKNOWN,
      IDS_NEARBY_TEXT_ATTACHMENTS_NOT_CAPITALIZED_UNKNOWN},
@@ -305,47 +359,83 @@ AttachmentsTestParamInternal kAttachmentsTestParams[] = {
     // File attachments.
     {{},
      {FileAttachment::Type::kApp},
+     {},
      IDS_NEARBY_FILE_ATTACHMENTS_CAPITALIZED_APPS,
      IDS_NEARBY_FILE_ATTACHMENTS_NOT_CAPITALIZED_APPS},
     {{},
      {FileAttachment::Type::kImage},
+     {},
      IDS_NEARBY_FILE_ATTACHMENTS_CAPITALIZED_IMAGES,
      IDS_NEARBY_FILE_ATTACHMENTS_NOT_CAPITALIZED_IMAGES},
     {{},
      {FileAttachment::Type::kUnknown},
+     {},
      IDS_NEARBY_FILE_ATTACHMENTS_CAPITALIZED_UNKNOWN,
      IDS_NEARBY_FILE_ATTACHMENTS_NOT_CAPITALIZED_UNKNOWN},
     {{},
      {FileAttachment::Type::kVideo},
+     {},
      IDS_NEARBY_FILE_ATTACHMENTS_CAPITALIZED_VIDEOS,
      IDS_NEARBY_FILE_ATTACHMENTS_NOT_CAPITALIZED_VIDEOS},
     {{},
      {FileAttachment::Type::kApp, FileAttachment::Type::kApp},
+     {},
      IDS_NEARBY_FILE_ATTACHMENTS_CAPITALIZED_APPS,
      IDS_NEARBY_FILE_ATTACHMENTS_NOT_CAPITALIZED_APPS},
     {{},
      {FileAttachment::Type::kApp, FileAttachment::Type::kImage},
+     {},
      IDS_NEARBY_FILE_ATTACHMENTS_CAPITALIZED_UNKNOWN,
      IDS_NEARBY_FILE_ATTACHMENTS_NOT_CAPITALIZED_UNKNOWN},
+
+    // Wi-Fi Credentials attachments.
+    {{},
+     {},
+     {WifiCredentialsAttachment::SecurityType::kWpaPsk},
+     IDS_NEARBY_CAPITALIZED_UNKNOWN_ATTACHMENTS,
+     IDS_NEARBY_NOT_CAPITALIZED_UNKNOWN_ATTACHMENTS},
 };
 
-using AttachmentsTestParam = std::tuple<AttachmentsTestParamInternal, bool>;
+// Boolean parameter is |is_incoming| and the tuple parameter is a feature list
+// containing |is_self_share_enabled| and |is_self_share_auto_accept_enabled|.
+using AttachmentsTestParam =
+    std::tuple<AttachmentsTestParamInternal, bool, std::tuple<bool, bool>>;
 
 class NearbyNotificationManagerAttachmentsTest
-    : public NearbyNotificationManagerTest,
-      public testing::WithParamInterface<AttachmentsTestParam> {};
+    : public NearbyNotificationManagerTestBase,
+      public testing::WithParamInterface<AttachmentsTestParam> {
+ public:
+  NearbyNotificationManagerAttachmentsTest()
+      : NearbyNotificationManagerTestBase(
+            /*feature_list=*/std::get<2>(GetParam())) {}
+};
 
-using ConnectionRequestTestParam = bool;
+// Boolean parameter is |with_token| and the tuple parameter is featuree list
+// contains |is_self_share_enabled| and |is_self_share_auto_accept_enabled|.
+using ConnectionRequestTestParam = std::tuple<bool, std::tuple<bool, bool>>;
 
 class NearbyNotificationManagerConnectionRequestTest
-    : public NearbyNotificationManagerTest,
-      public testing::WithParamInterface<ConnectionRequestTestParam> {};
+    : public NearbyNotificationManagerTestBase,
+      public testing::WithParamInterface<ConnectionRequestTestParam> {
+ public:
+  NearbyNotificationManagerConnectionRequestTest()
+      : NearbyNotificationManagerTestBase(
+            /*feature_list=*/std::get<1>(GetParam())) {}
+};
 
 std::u16string FormatNotificationTitle(
     int resource_id,
     const AttachmentsTestParamInternal& param,
     const std::string& device_name,
+    const std::string& network_name,
     bool use_capitalized_resource) {
+  if (!param.wifi_credentials_attachments.empty()) {
+    return base::ReplaceStringPlaceholders(
+        l10n_util::GetStringUTF16(resource_id),
+        {base::ASCIIToUTF16(network_name), base::ASCIIToUTF16(device_name)},
+        /*offsets=*/nullptr);
+  }
+
   size_t total = param.text_attachments.size() + param.file_attachments.size();
   int attachments_resource_id =
       use_capitalized_resource ? param.expected_capitalized_resource_id
@@ -359,7 +449,7 @@ std::u16string FormatNotificationTitle(
 
 }  // namespace
 
-TEST_F(NearbyNotificationManagerTest, RegistersAsBackgroundSurfaces) {
+TEST_P(NearbyNotificationManagerTest, RegistersAsBackgroundSurfaces) {
   manager_.reset();
   TransferUpdateCallback* receive_transfer_callback = nullptr;
   TransferUpdateCallback* send_transfer_callback = nullptr;
@@ -387,13 +477,13 @@ TEST_F(NearbyNotificationManagerTest, RegistersAsBackgroundSurfaces) {
   EXPECT_EQ(manager(), send_discovery_callback);
 }
 
-TEST_F(NearbyNotificationManagerTest, UnregistersSurfaces) {
+TEST_P(NearbyNotificationManagerTest, UnregistersSurfaces) {
   EXPECT_CALL(*nearby_service_, UnregisterReceiveSurface(manager()));
   EXPECT_CALL(*nearby_service_, UnregisterSendSurface(manager(), manager()));
   manager_.reset();
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowProgress_ShowsNotification) {
+TEST_P(NearbyNotificationManagerTest, ShowProgress_ShowsNotification) {
   ShareTarget share_target;
   TransferMetadata transfer_metadata = TransferMetadataBuilder().build();
 
@@ -423,7 +513,7 @@ TEST_F(NearbyNotificationManagerTest, ShowProgress_ShowsNotification) {
   EXPECT_EQ(l10n_util::GetStringUTF16(IDS_APP_CANCEL), cancel_button.title);
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowProgress_ShowsProgress) {
+TEST_P(NearbyNotificationManagerTest, ShowProgress_ShowsProgress) {
   double progress = 75.0;
 
   ShareTarget share_target;
@@ -440,7 +530,7 @@ TEST_F(NearbyNotificationManagerTest, ShowProgress_ShowsProgress) {
   EXPECT_EQ(progress, notification.progress());
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowProgress_UpdatesProgress) {
+TEST_P(NearbyNotificationManagerTest, ShowProgress_UpdatesProgress) {
   ShareTarget share_target;
   TransferMetadataBuilder transfer_metadata_builder;
   transfer_metadata_builder.set_progress(75.0);
@@ -459,9 +549,9 @@ TEST_F(NearbyNotificationManagerTest, ShowProgress_UpdatesProgress) {
   EXPECT_EQ(progress, notification.progress());
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowProgress_DeviceNameEncoding) {
+TEST_P(NearbyNotificationManagerTest, ShowProgress_DeviceNameEncoding) {
   ShareTarget share_target;
-  share_target.device_name = u8"\xf0\x9f\x8c\xb5";  // Cactus emoji.
+  share_target.device_name = "🌵";
   TransferMetadata transfer_metadata =
       TransferMetadataBuilder().set_progress(75.0).build();
 
@@ -476,6 +566,9 @@ TEST_P(NearbyNotificationManagerAttachmentsTest, ShowProgress) {
   const AttachmentsTestParamInternal& param = std::get<0>(GetParam());
   bool is_incoming = std::get<1>(GetParam());
 
+  if (!param.wifi_credentials_attachments.empty())
+    return;
+
   std::string device_name = "device";
   ShareTarget share_target;
   share_target.device_name = device_name;
@@ -487,13 +580,30 @@ TEST_P(NearbyNotificationManagerAttachmentsTest, ShowProgress) {
   for (FileAttachment::Type type : param.file_attachments)
     share_target.file_attachments.push_back(CreateFileAttachment(type));
 
+  if (is_incoming) {
+    for (WifiCredentialsAttachment::SecurityType securityType :
+         param.wifi_credentials_attachments) {
+      share_target.wifi_credentials_attachments.push_back(
+          CreateWifiCredentialsAttachment(securityType));
+    }
+  }
+
   TransferMetadata transfer_metadata = TransferMetadataBuilder().build();
   manager()->ShowProgress(share_target, transfer_metadata);
 
-  std::u16string expected = FormatNotificationTitle(
-      is_incoming ? IDS_NEARBY_NOTIFICATION_RECEIVE_PROGRESS_TITLE
-                  : IDS_NEARBY_NOTIFICATION_SEND_PROGRESS_TITLE,
-      param, device_name, /*use_capitalized_resource=*/false);
+  std::u16string expected;
+  if (!param.wifi_credentials_attachments.empty() && is_incoming) {
+    expected = FormatNotificationTitle(
+        IDS_NEARBY_NOTIFICATION_RECEIVE_PROGRESS_TITLE_WIFI_CREDENTIALS, param,
+        device_name, share_target.wifi_credentials_attachments[0].ssid(),
+        /*use_capitalized_resource=*/false);
+  } else {
+    expected = FormatNotificationTitle(
+        is_incoming ? IDS_NEARBY_NOTIFICATION_RECEIVE_PROGRESS_TITLE
+                    : IDS_NEARBY_NOTIFICATION_SEND_PROGRESS_TITLE,
+        param, device_name, /*network_name=*/kWifiSsid,
+        /*use_capitalized_resource=*/false);
+  }
 
   std::vector<message_center::Notification> notifications =
       GetDisplayedNotifications();
@@ -512,18 +622,39 @@ TEST_P(NearbyNotificationManagerAttachmentsTest, ShowSuccess) {
   share_target.device_name = device_name;
   share_target.is_incoming = is_incoming;
 
+  // We currently do not support sending Wi-Fi credentials
+  if (!is_incoming && !param.wifi_credentials_attachments.empty())
+    return;
+
   for (TextAttachment::Type type : param.text_attachments)
     share_target.text_attachments.push_back(CreateTextAttachment(type));
 
   for (FileAttachment::Type type : param.file_attachments)
     share_target.file_attachments.push_back(CreateFileAttachment(type));
 
+  if (is_incoming) {
+    for (WifiCredentialsAttachment::SecurityType securityType :
+         param.wifi_credentials_attachments) {
+      share_target.wifi_credentials_attachments.push_back(
+          CreateWifiCredentialsAttachment(securityType));
+    }
+  }
+
   manager()->ShowSuccess(share_target);
 
-  std::u16string expected = FormatNotificationTitle(
-      is_incoming ? IDS_NEARBY_NOTIFICATION_RECEIVE_SUCCESS_TITLE
-                  : IDS_NEARBY_NOTIFICATION_SEND_SUCCESS_TITLE,
-      param, device_name, /*use_capitalized_resource=*/true);
+  std::u16string expected;
+  if (!param.wifi_credentials_attachments.empty() && is_incoming) {
+    expected = FormatNotificationTitle(
+        IDS_NEARBY_NOTIFICATION_RECEIVE_SUCCESS_TITLE_WIFI_CREDENTIALS, param,
+        device_name, share_target.wifi_credentials_attachments[0].ssid(),
+        /*use_capitalized_resource=*/true);
+  } else {
+    expected = FormatNotificationTitle(
+        is_incoming ? IDS_NEARBY_NOTIFICATION_RECEIVE_SUCCESS_TITLE
+                    : IDS_NEARBY_NOTIFICATION_SEND_SUCCESS_TITLE,
+        param, device_name, /*network_name=*/kWifiSsid,
+        /*use_capitalized_resource=*/true);
+  }
 
   std::vector<message_center::Notification> notifications =
       GetDisplayedNotifications();
@@ -542,11 +673,23 @@ TEST_P(NearbyNotificationManagerAttachmentsTest, ShowFailure) {
   share_target.device_name = device_name;
   share_target.is_incoming = is_incoming;
 
+  // We currently do not support sending Wi-Fi credentials
+  if (!is_incoming && !param.wifi_credentials_attachments.empty())
+    return;
+
   for (TextAttachment::Type type : param.text_attachments)
     share_target.text_attachments.push_back(CreateTextAttachment(type));
 
   for (FileAttachment::Type type : param.file_attachments)
     share_target.file_attachments.push_back(CreateFileAttachment(type));
+
+  if (is_incoming) {
+    for (WifiCredentialsAttachment::SecurityType securityType :
+         param.wifi_credentials_attachments) {
+      share_target.wifi_credentials_attachments.push_back(
+          CreateWifiCredentialsAttachment(securityType));
+    }
+  }
 
   for (absl::optional<std::pair<TransferMetadata::Status, int>> error :
        std::vector<absl::optional<std::pair<TransferMetadata::Status, int>>>{
@@ -571,10 +714,20 @@ TEST_P(NearbyNotificationManagerAttachmentsTest, ShowFailure) {
       manager()->OnNearbyProcessStopped();
     }
 
-    std::u16string expected_title = FormatNotificationTitle(
-        is_incoming ? IDS_NEARBY_NOTIFICATION_RECEIVE_FAILURE_TITLE
-                    : IDS_NEARBY_NOTIFICATION_SEND_FAILURE_TITLE,
-        param, device_name, /*use_capitalized_resource=*/false);
+    std::u16string expected_title;
+    if (!param.wifi_credentials_attachments.empty() && is_incoming) {
+      expected_title = FormatNotificationTitle(
+          IDS_NEARBY_NOTIFICATION_RECEIVE_FAILURE_TITLE_WIFI_CREDENTIALS, param,
+          device_name, share_target.wifi_credentials_attachments[0].ssid(),
+          /*use_capitalized_resource=*/false);
+    } else {
+      expected_title = FormatNotificationTitle(
+          is_incoming ? IDS_NEARBY_NOTIFICATION_RECEIVE_FAILURE_TITLE
+                      : IDS_NEARBY_NOTIFICATION_SEND_FAILURE_TITLE,
+          param, device_name, /*network_name=*/kWifiSsid,
+          /*use_capitalized_resource=*/false);
+    }
+
     std::u16string expected_message =
         error && error->second ? l10n_util::GetStringUTF16(error->second)
                                : std::u16string();
@@ -597,11 +750,12 @@ INSTANTIATE_TEST_SUITE_P(
     NearbyNotificationManagerAttachmentsTest,
     NearbyNotificationManagerAttachmentsTest,
     testing::Combine(testing::ValuesIn(kAttachmentsTestParams),
-                     testing::Bool()));
+                     testing::Bool(),
+                     testing::Combine(testing::Bool(), testing::Bool())));
 
 TEST_P(NearbyNotificationManagerConnectionRequestTest,
        ShowConnectionRequest_ShowsNotification) {
-  bool with_token = GetParam();
+  bool with_token = std::get<0>(GetParam());
 
   std::string device_name = "device";
   std::string token = "3141";
@@ -672,12 +826,14 @@ TEST_P(NearbyNotificationManagerConnectionRequestTest,
 
 INSTANTIATE_TEST_SUITE_P(NearbyNotificationManagerConnectionRequestTest,
                          NearbyNotificationManagerConnectionRequestTest,
-                         testing::Bool());
+                         testing::Combine(testing::Bool(),
+                                          testing::Combine(testing::Bool(),
+                                                           testing::Bool())));
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        ShowConnectionRequest_DeviceNameEncoding) {
   ShareTarget share_target;
-  share_target.device_name = u8"\xf0\x9f\x8c\xb5";  // Cactus emoji.
+  share_target.device_name = "🌵";
 
   manager()->ShowConnectionRequest(share_target,
                                    TransferMetadataBuilder().build());
@@ -687,7 +843,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_TRUE(message.find(share_target.device_name) != std::string::npos);
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        ShowNearbyDeviceTryingToShare_ShowsNotification) {
   manager()->ShowNearbyDeviceTryingToShare();
 
@@ -725,7 +881,7 @@ TEST_F(NearbyNotificationManagerTest,
     EXPECT_EQ(expected_button_titles[i], buttons[i].title);
 }
 
-TEST_F(
+TEST_P(
     NearbyNotificationManagerTest,
     ShowNearbyDeviceTryingToShare_AlreadyOnboarded_ShowsGoVisibleNotification) {
   pref_service_.SetBoolean(prefs::kNearbySharingOnboardingCompletePrefName,
@@ -766,7 +922,7 @@ TEST_F(
     EXPECT_EQ(expected_button_titles[i], buttons[i].title);
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        FastInitiationDeviceFound_ShowsNearbyDeviceTryingToShare) {
   manager()->OnFastInitiationDevicesDetected();
 
@@ -784,7 +940,7 @@ TEST_F(NearbyNotificationManagerTest,
       notification.message());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        FastInitiationDeviceLost_ClosesNearbyDeviceTryingToShare) {
   manager()->OnFastInitiationDevicesDetected();
   EXPECT_EQ(1u, GetDisplayedNotifications().size());
@@ -793,7 +949,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        FastInitiationScanningStopped_ClosesNearbyDeviceTryingToShare) {
   manager()->OnFastInitiationDevicesDetected();
   EXPECT_EQ(1u, GetDisplayedNotifications().size());
@@ -802,7 +958,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowSuccess_ShowsNotification) {
+TEST_P(NearbyNotificationManagerTest, ShowSuccess_ShowsNotification) {
   manager()->ShowSuccess(ShareTarget());
 
   std::vector<message_center::Notification> notifications =
@@ -823,9 +979,9 @@ TEST_F(NearbyNotificationManagerTest, ShowSuccess_ShowsNotification) {
   EXPECT_EQ(0u, notification.buttons().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowSuccess_DeviceNameEncoding) {
+TEST_P(NearbyNotificationManagerTest, ShowSuccess_DeviceNameEncoding) {
   ShareTarget share_target;
-  share_target.device_name = u8"\xf0\x9f\x8c\xb5";  // Cactus emoji.
+  share_target.device_name = "🌵";
 
   manager()->ShowSuccess(share_target);
   std::vector<message_center::Notification> notifications =
@@ -834,7 +990,7 @@ TEST_F(NearbyNotificationManagerTest, ShowSuccess_DeviceNameEncoding) {
   EXPECT_TRUE(title.find(share_target.device_name) != std::string::npos);
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowCancelled_ShowsNotification) {
+TEST_P(NearbyNotificationManagerTest, ShowCancelled_ShowsNotification) {
   ShareTarget share_target;
   manager()->ShowCancelled(share_target);
   std::vector<message_center::Notification> notifications =
@@ -842,9 +998,9 @@ TEST_F(NearbyNotificationManagerTest, ShowCancelled_ShowsNotification) {
   ASSERT_EQ(1u, notifications.size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowCancelled_DeviceNameEncoding) {
+TEST_P(NearbyNotificationManagerTest, ShowCancelled_DeviceNameEncoding) {
   ShareTarget share_target;
-  share_target.device_name = u8"\xf0\x9f\x8c\xb5";  // Cactus emoji.
+  share_target.device_name = "🌵";
 
   manager()->ShowCancelled(share_target);
   std::vector<message_center::Notification> notifications =
@@ -854,7 +1010,7 @@ TEST_F(NearbyNotificationManagerTest, ShowCancelled_DeviceNameEncoding) {
   EXPECT_TRUE(title.find(share_target.device_name) != std::string::npos);
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowFailure_ShowsNotification) {
+TEST_P(NearbyNotificationManagerTest, ShowFailure_ShowsNotification) {
   manager()->ShowFailure(ShareTarget(), TransferMetadataBuilder().build());
 
   std::vector<message_center::Notification> notifications =
@@ -875,9 +1031,9 @@ TEST_F(NearbyNotificationManagerTest, ShowFailure_ShowsNotification) {
   EXPECT_EQ(0u, notification.buttons().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ShowFailure_DeviceNameEncoding) {
+TEST_P(NearbyNotificationManagerTest, ShowFailure_DeviceNameEncoding) {
   ShareTarget share_target;
-  share_target.device_name = u8"\xf0\x9f\x8c\xb5";  // Cactus emoji.
+  share_target.device_name = "🌵";
 
   manager()->ShowFailure(share_target, TransferMetadataBuilder().build());
   std::vector<message_center::Notification> notifications =
@@ -886,7 +1042,7 @@ TEST_F(NearbyNotificationManagerTest, ShowFailure_DeviceNameEncoding) {
   EXPECT_TRUE(title.find(share_target.device_name) != std::string::npos);
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        CloseTransfer_ClosesProgressNotification) {
   manager()->ShowProgress(ShareTarget(), TransferMetadataBuilder().build());
   ASSERT_EQ(1u, GetDisplayedNotifications().size());
@@ -895,7 +1051,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        CloseTransfer_ClosesConnectionNotification) {
   manager()->ShowConnectionRequest(ShareTarget(),
                                    TransferMetadataBuilder().build());
@@ -905,7 +1061,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        CloseProgressNotification_NoopWithoutNotification) {
   ASSERT_EQ(0u, GetDisplayedNotifications().size());
 
@@ -913,7 +1069,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        CloseProgressNotification_KeepsNearbyDeviceTryingToShareNotification) {
   manager()->ShowNearbyDeviceTryingToShare();
 
@@ -921,7 +1077,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(1u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ProgressNotification_Cancel) {
+TEST_P(NearbyNotificationManagerTest, ProgressNotification_Cancel) {
   ShareTarget share_target;
   share_target.is_incoming = true;
   TransferMetadata transfer_metadata =
@@ -951,7 +1107,7 @@ TEST_F(NearbyNotificationManagerTest, ProgressNotification_Cancel) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ProgressNotification_Close) {
+TEST_P(NearbyNotificationManagerTest, ProgressNotification_Close) {
   ShareTarget share_target;
   share_target.is_incoming = true;
   TransferMetadata transfer_metadata =
@@ -976,7 +1132,7 @@ TEST_F(NearbyNotificationManagerTest, ProgressNotification_Close) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ProgressNotification_Cancelled) {
+TEST_P(NearbyNotificationManagerTest, ProgressNotification_Cancelled) {
   ShareTarget share_target;
   share_target.is_incoming = true;
   TransferMetadata transfer_metadata =
@@ -1000,7 +1156,7 @@ TEST_F(NearbyNotificationManagerTest, ProgressNotification_Cancelled) {
   EXPECT_EQ(1u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ConnectionRequest_Accept) {
+TEST_P(NearbyNotificationManagerTest, ConnectionRequest_Accept) {
   ShareTarget share_target;
   share_target.is_incoming = true;
   TransferMetadata transfer_metadata =
@@ -1030,7 +1186,7 @@ TEST_F(NearbyNotificationManagerTest, ConnectionRequest_Accept) {
   EXPECT_EQ(1u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ConnectionRequest_Reject_Local) {
+TEST_P(NearbyNotificationManagerTest, ConnectionRequest_Reject_Local) {
   ShareTarget share_target;
   share_target.is_incoming = true;
   TransferMetadata transfer_metadata =
@@ -1060,7 +1216,7 @@ TEST_F(NearbyNotificationManagerTest, ConnectionRequest_Reject_Local) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ProgressNotification_Reject_Remote) {
+TEST_P(NearbyNotificationManagerTest, ProgressNotification_Reject_Remote) {
   ShareTarget share_target;
   share_target.is_incoming = true;
   TransferMetadata transfer_metadata =
@@ -1090,7 +1246,7 @@ TEST_F(NearbyNotificationManagerTest, ProgressNotification_Reject_Remote) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, ConnectionRequest_Close) {
+TEST_P(NearbyNotificationManagerTest, ConnectionRequest_Close) {
   ShareTarget share_target;
   share_target.is_incoming = true;
   TransferMetadata transfer_metadata =
@@ -1115,7 +1271,7 @@ TEST_F(NearbyNotificationManagerTest, ConnectionRequest_Close) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, NearbyDeviceTryingToShare_Click) {
+TEST_P(NearbyNotificationManagerTest, NearbyDeviceTryingToShare_Click) {
   manager()->ShowNearbyDeviceTryingToShare();
   std::vector<message_center::Notification> notifications =
       GetDisplayedNotifications();
@@ -1130,7 +1286,7 @@ TEST_F(NearbyNotificationManagerTest, NearbyDeviceTryingToShare_Click) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        NearbyDeviceTryingToShare_OnClose_DismissTimeout) {
   // First notification should be shown by default.
   manager()->ShowNearbyDeviceTryingToShare();
@@ -1154,7 +1310,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(1u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        NearbyDeviceTryingToShare_OnDismissClicked_DismissTimeout) {
   // First notification should be shown by default.
   manager()->ShowNearbyDeviceTryingToShare();
@@ -1179,7 +1335,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(1u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        SuccessNotificationClicked_SingleImageReceived_OpenDownloads) {
   base::RunLoop run_loop;
   manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
@@ -1192,7 +1348,7 @@ TEST_F(NearbyNotificationManagerTest,
 
   ShareTarget share_target = CreateIncomingShareTarget(
       /*text_attachments=*/0, /*url_attachments=*/0, /*image_attachments=*/1,
-      /*other_file_attachments=*/0);
+      /*other_file_attachments=*/0, /*wifi_credentials_attachments=*/false);
   manager()->ShowSuccess(share_target);
 
   // Image decoding happens asynchronously so wait for the notification to show.
@@ -1226,7 +1382,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        SuccessNotificationClicked_SingleImageReceived_CopyToClipboard) {
   base::RunLoop run_loop;
   manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
@@ -1239,7 +1395,7 @@ TEST_F(NearbyNotificationManagerTest,
 
   ShareTarget share_target = CreateIncomingShareTarget(
       /*text_attachments=*/0, /*url_attachments=*/0, /*image_attachments=*/1,
-      /*other_file_attachments=*/0);
+      /*other_file_attachments=*/0, /*wifi_credentials_attachments=*/false);
   manager()->ShowSuccess(share_target);
 
   // Image decoding happens asynchronously so wait for the notification to show.
@@ -1277,7 +1433,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        SuccessNotificationClicked_MultipleImagesReceived) {
   base::RunLoop run_loop;
   manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
@@ -1290,7 +1446,7 @@ TEST_F(NearbyNotificationManagerTest,
 
   ShareTarget share_target = CreateIncomingShareTarget(
       /*text_attachments=*/0, /*url_attachments=*/0, /*image_attachments=*/2,
-      /*other_file_attachments=*/0);
+      /*other_file_attachments=*/0, /*wifi_credentials_attachments=*/false);
   manager()->ShowSuccess(share_target);
 
   std::vector<message_center::Notification> notifications =
@@ -1315,7 +1471,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, SuccessNotificationClicked_TextReceived) {
+TEST_P(NearbyNotificationManagerTest, SuccessNotificationClicked_TextReceived) {
   base::RunLoop run_loop;
   manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
       [&](NearbyNotificationManager::SuccessNotificationAction action) {
@@ -1327,7 +1483,7 @@ TEST_F(NearbyNotificationManagerTest, SuccessNotificationClicked_TextReceived) {
 
   ShareTarget share_target = CreateIncomingShareTarget(
       /*text_attachments=*/1, /*url_attachments=*/0, /*image_attachments=*/0,
-      /*other_file_attachments=*/0);
+      /*other_file_attachments=*/0, /*wifi_credentials_attachments=*/false);
   manager()->ShowSuccess(share_target);
 
   std::vector<message_center::Notification> notifications =
@@ -1351,7 +1507,7 @@ TEST_F(NearbyNotificationManagerTest, SuccessNotificationClicked_TextReceived) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest, SuccessNotificationClicked_UrlReceived) {
+TEST_P(NearbyNotificationManagerTest, SuccessNotificationClicked_UrlReceived) {
   base::RunLoop run_loop;
   manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
       [&](NearbyNotificationManager::SuccessNotificationAction action) {
@@ -1363,7 +1519,7 @@ TEST_F(NearbyNotificationManagerTest, SuccessNotificationClicked_UrlReceived) {
 
   ShareTarget share_target = CreateIncomingShareTarget(
       /*text_attachments=*/0, /*url_attachments=*/1, /*image_attachments=*/0,
-      /*other_file_attachments=*/0);
+      /*other_file_attachments=*/0, /*wifi_credentials_attachments=*/false);
   manager()->ShowSuccess(share_target);
 
   std::vector<message_center::Notification> notifications =
@@ -1386,7 +1542,7 @@ TEST_F(NearbyNotificationManagerTest, SuccessNotificationClicked_UrlReceived) {
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        SuccessNotificationClicked_SingleFileReceived) {
   base::RunLoop run_loop;
   manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
@@ -1399,7 +1555,7 @@ TEST_F(NearbyNotificationManagerTest,
 
   ShareTarget share_target = CreateIncomingShareTarget(
       /*text_attachments=*/0, /*url_attachments=*/0, /*image_attachments=*/0,
-      /*other_file_attachments=*/1);
+      /*other_file_attachments=*/1, /*wifi_credentials_attachments=*/false);
   manager()->ShowSuccess(share_target);
 
   std::vector<message_center::Notification> notifications =
@@ -1422,7 +1578,7 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(0u, GetDisplayedNotifications().size());
 }
 
-TEST_F(NearbyNotificationManagerTest,
+TEST_P(NearbyNotificationManagerTest,
        SuccessNotificationClicked_MultipleFilesReceived) {
   base::RunLoop run_loop;
   manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
@@ -1435,7 +1591,7 @@ TEST_F(NearbyNotificationManagerTest,
 
   ShareTarget share_target = CreateIncomingShareTarget(
       /*text_attachments=*/0, /*url_attachments=*/0, /*image_attachments=*/1,
-      /*other_file_attachments=*/2);
+      /*other_file_attachments=*/2, /*wifi_credentials_attachments=*/false);
   manager()->ShowSuccess(share_target);
 
   std::vector<message_center::Notification> notifications =
@@ -1446,6 +1602,42 @@ TEST_F(NearbyNotificationManagerTest,
   EXPECT_EQ(
       l10n_util::GetStringUTF16(IDS_NEARBY_NOTIFICATION_ACTION_OPEN_FOLDER),
       notification.buttons()[0].title);
+
+  notification_tester_->SimulateClick(NotificationHandler::Type::NEARBY_SHARE,
+                                      notification.id(),
+                                      /*action_index=*/0,
+                                      /*reply=*/absl::nullopt);
+
+  run_loop.Run();
+
+  // Notification should be closed.
+  EXPECT_EQ(0u, GetDisplayedNotifications().size());
+}
+
+TEST_P(NearbyNotificationManagerTest,
+       SuccessNotificationClicked_WifiCredentialsReceived) {
+  base::RunLoop run_loop;
+  manager()->SetOnSuccessClickedForTesting(base::BindLambdaForTesting(
+      [&](NearbyNotificationManager::SuccessNotificationAction action) {
+        EXPECT_EQ(NearbyNotificationManager::SuccessNotificationAction::
+                      kOpenWifiNetworksList,
+                  action);
+        run_loop.Quit();
+      }));
+
+  ShareTarget share_target = CreateIncomingShareTarget(
+      /*text_attachments=*/0, /*url_attachments=*/0, /*image_attachments=*/0,
+      /*other_file_attachments=*/0, /*wifi_credentials_attachments=*/true);
+  manager()->ShowSuccess(share_target);
+
+  std::vector<message_center::Notification> notifications =
+      GetDisplayedNotifications();
+  ASSERT_EQ(1u, notifications.size());
+  const message_center::Notification& notification = notifications[0];
+  ASSERT_EQ(1u, notification.buttons().size());
+  EXPECT_EQ(l10n_util::GetStringUTF16(
+                IDS_NEARBY_NOTIFICATION_ACTION_OPEN_NETWORK_LIST),
+            notification.buttons()[0].title);
 
   notification_tester_->SimulateClick(NotificationHandler::Type::NEARBY_SHARE,
                                       notification.id(),
@@ -1467,10 +1659,13 @@ class NearbyFilesHoldingSpaceTest : public testing::Test {
 
     holding_space_controller_ = std::make_unique<ash::HoldingSpaceController>();
     profile_manager_ = CreateTestingProfileManager();
-    const AccountId account_id(AccountId::FromUserEmail(""));
+    constexpr char kEmail[] = "test@test";
+    const AccountId account_id(AccountId::FromUserEmail(kEmail));
     user_manager_->AddUser(account_id);
     user_manager_->LoginUser(account_id);
-    profile_ = profile_manager_->CreateTestingProfile("");
+    profile_ = profile_manager_->CreateTestingProfile(kEmail);
+    static_cast<ash::SessionObserver*>(holding_space_controller_.get())
+        ->OnActiveUserSessionChanged(account_id);
   }
 
   ~NearbyFilesHoldingSpaceTest() override = default;
@@ -1495,7 +1690,7 @@ class NearbyFilesHoldingSpaceTest : public testing::Test {
   content::BrowserTaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   std::unique_ptr<TestingProfileManager> profile_manager_;
-  TestingProfile* profile_;
+  raw_ptr<TestingProfile, ExperimentalAsh> profile_;
   std::unique_ptr<NearbyNotificationManager> manager_;
   std::unique_ptr<TestSessionController> session_controller_;
   std::unique_ptr<ash::HoldingSpaceController> holding_space_controller_;
@@ -1526,7 +1721,7 @@ TEST_F(NearbyFilesHoldingSpaceTest, ShowSuccess_Files) {
   ASSERT_EQ(share_target.file_attachments.size(),
             holding_space_model->items().size());
 
-  for (int i = 0; i < share_target.file_attachments.size(); ++i) {
+  for (size_t i = 0; i < share_target.file_attachments.size(); ++i) {
     ash::HoldingSpaceItem* holding_space_item =
         holding_space_model->items()[i].get();
     EXPECT_EQ(ash::HoldingSpaceItem::Type::kNearbyShare,
@@ -1553,3 +1748,188 @@ TEST_F(NearbyFilesHoldingSpaceTest, ShowSuccess_Text) {
 
   EXPECT_TRUE(holding_space_model->items().empty());
 }
+
+TEST_F(NearbyFilesHoldingSpaceTest, ShowSuccess_WifiCredentials) {
+  ShareTarget share_target;
+  share_target.is_incoming = true;
+
+  WifiCredentialsAttachment attachment(kWifiCredentialsId, kSecurityType,
+                                       kWifiSsid);
+  share_target.wifi_credentials_attachments.push_back(std::move(attachment));
+
+  manager()->ShowSuccess(share_target);
+
+  ash::HoldingSpaceModel* holding_space_model = GetHoldingSpaceModel();
+  ASSERT_TRUE(holding_space_model);
+
+  EXPECT_TRUE(holding_space_model->items().empty());
+}
+
+TEST_P(NearbyNotificationManagerTest, ShowMultipleNotifications) {
+  if (!is_self_share_enabled_)
+    return;
+
+  // Show two of each type of completion notification and ensure all are
+  // displayed. We also show a progress notification to ensure it doesn't
+  // interfere with the others.
+  ShareTarget share_target_a;
+  manager()->ShowSuccess(share_target_a);
+  manager()->ShowSuccess(ShareTarget());
+  manager()->ShowFailure(ShareTarget(), TransferMetadataBuilder().build());
+  manager()->ShowFailure(ShareTarget(), TransferMetadataBuilder().build());
+  manager()->ShowCancelled(ShareTarget());
+  manager()->ShowCancelled(ShareTarget());
+  manager()->ShowProgress(ShareTarget(), TransferMetadataBuilder().build());
+
+  std::vector<message_center::Notification> notifications =
+      GetDisplayedNotifications();
+  ASSERT_EQ(7u, notifications.size());
+
+  // Make sure we can close an individual one.
+  manager()->CloseSuccessNotification("chrome://nearby_share/result/" +
+                                      share_target_a.id.ToString());
+  notifications = GetDisplayedNotifications();
+  ASSERT_EQ(6u, notifications.size());
+}
+
+TEST_P(NearbyNotificationManagerTest, ShowVisibilityReminder_Contacts_Mode) {
+  pref_service_.SetInteger(prefs::kNearbySharingBackgroundVisibilityName,
+                           static_cast<int>(Visibility::kAllContacts));
+
+    manager()->ShowVisibilityReminder();
+    std::vector<message_center::Notification> notifications =
+        GetDisplayedNotifications();
+    ASSERT_EQ(1u, notifications.size());
+    const message_center::Notification& notification = notifications[0];
+    EXPECT_EQ(message_center::NOTIFICATION_TYPE_SIMPLE, notification.type());
+    EXPECT_EQ(l10n_util::GetStringUTF16(
+                  IDS_NEARBY_NOTIFICATION_VISIBILITY_REMINDER_TITLE),
+              notification.title());
+    EXPECT_EQ(l10n_util::GetStringUTF16(
+                  IDS_NEARBY_NOTIFICATION_VISIBILITY_REMINDER_MESSAGE),
+              notification.message());
+    EXPECT_TRUE(notification.icon().IsEmpty());
+    EXPECT_EQ(GURL(), notification.origin_url());
+    EXPECT_FALSE(notification.never_timeout());
+    EXPECT_FALSE(notification.renotify());
+    EXPECT_EQ(&kNearbyShareIcon, &notification.vector_small_image());
+    EXPECT_EQ(l10n_util::GetStringUTF16(IDS_NEARBY_NOTIFICATION_SOURCE),
+              notification.display_source());
+    EXPECT_EQ(2u, notification.buttons().size());
+
+    std::vector<std::u16string> expected_button_titles;
+    expected_button_titles.push_back(l10n_util::GetStringUTF16(
+        IDS_NEARBY_NOTIFICATION_GO_TO_SETTINGS_ACTION));
+    expected_button_titles.push_back(
+        l10n_util::GetStringUTF16(IDS_NEARBY_NOTIFICATION_DISMISS_ACTION));
+
+    const std::vector<message_center::ButtonInfo>& buttons =
+        notification.buttons();
+    ASSERT_EQ(expected_button_titles.size(), buttons.size());
+
+    for (size_t i = 0; i < expected_button_titles.size(); ++i)
+      EXPECT_EQ(expected_button_titles[i], buttons[i].title);
+}
+
+TEST_P(NearbyNotificationManagerTest, ShowVisibilityReminder_Hidden_Mode) {
+  pref_service_.SetInteger(prefs::kNearbySharingBackgroundVisibilityName,
+                           static_cast<int>(Visibility::kNoOne));
+  manager()->ShowVisibilityReminder();
+  std::vector<message_center::Notification> notifications =
+      GetDisplayedNotifications();
+  ASSERT_EQ(0u, notifications.size());
+}
+
+TEST_P(NearbyNotificationManagerTest,
+       ShowVisibilityReminder_Notification_Clicked) {
+  pref_service_.SetInteger(prefs::kNearbySharingBackgroundVisibilityName,
+                           static_cast<int>(Visibility::kSelectedContacts));
+
+    manager()->ShowVisibilityReminder();
+    std::vector<message_center::Notification> notifications =
+        GetDisplayedNotifications();
+    ASSERT_EQ(1u, notifications.size());
+    EXPECT_CALL(*settings_opener_, ShowSettingsPage(_, _));
+    notification_tester_->SimulateClick(NotificationHandler::Type::NEARBY_SHARE,
+                                        notifications[0].id(),
+                                        /*action_index=*/absl::optional<int>(),
+                                        /*reply=*/absl::nullopt);
+
+    // Notification should be closed.
+    EXPECT_EQ(0u, GetDisplayedNotifications().size());
+}
+
+TEST_P(NearbyNotificationManagerTest, ShowVisibilityReminder_Settings_Clicked) {
+  pref_service_.SetInteger(prefs::kNearbySharingBackgroundVisibilityName,
+                           static_cast<int>(Visibility::kAllContacts));
+
+    manager()->ShowVisibilityReminder();
+    std::vector<message_center::Notification> notifications =
+        GetDisplayedNotifications();
+    ASSERT_EQ(1u, notifications.size());
+    EXPECT_CALL(*settings_opener_, ShowSettingsPage(_, _));
+    notification_tester_->SimulateClick(NotificationHandler::Type::NEARBY_SHARE,
+                                        notifications[0].id(),
+                                        /*action_index=*/0,
+                                        /*reply=*/absl::nullopt);
+
+    // Notification should be closed.
+    EXPECT_EQ(0u, GetDisplayedNotifications().size());
+}
+
+TEST_P(NearbyNotificationManagerTest, ShowVisibilityReminder_Dismiss_Clicked) {
+  pref_service_.SetInteger(prefs::kNearbySharingBackgroundVisibilityName,
+                           static_cast<int>(Visibility::kAllContacts));
+
+    manager()->ShowVisibilityReminder();
+    std::vector<message_center::Notification> notifications =
+        GetDisplayedNotifications();
+    ASSERT_EQ(1u, notifications.size());
+    notification_tester_->SimulateClick(NotificationHandler::Type::NEARBY_SHARE,
+                                        notifications[0].id(),
+                                        /*action_index=*/1,
+                                        /*reply=*/absl::nullopt);
+
+    // Notification should be closed.
+    EXPECT_EQ(0u, GetDisplayedNotifications().size());
+}
+
+TEST_P(NearbyNotificationManagerTest,
+       ShowVisibilityReminder_Notification_Closed) {
+  pref_service_.SetInteger(prefs::kNearbySharingBackgroundVisibilityName,
+                           static_cast<int>(Visibility::kAllContacts));
+
+    manager()->ShowVisibilityReminder();
+    std::vector<message_center::Notification> notifications =
+        GetDisplayedNotifications();
+    ASSERT_EQ(1u, notifications.size());
+    notification_tester_->RemoveNotification(
+        NotificationHandler::Type::NEARBY_SHARE, notifications[0].id(), true);
+
+    // Notification should be closed.
+    EXPECT_EQ(0u, GetDisplayedNotifications().size());
+}
+
+TEST_P(NearbyNotificationManagerTest, ConnectionRequest_SelfShare) {
+  ShareTarget share_target;
+  share_target.is_incoming = true;
+  share_target.for_self_share = true;
+  TransferMetadata transfer_metadata =
+      TransferMetadataBuilder()
+          .set_status(TransferMetadata::Status::kAwaitingLocalConfirmation)
+          .build();
+
+  // Simulate incoming connection request waiting for local confirmation.
+  manager()->OnTransferUpdate(share_target, transfer_metadata);
+  std::vector<message_center::Notification> notifications =
+      GetDisplayedNotifications();
+  if (is_self_share_auto_accept_enabled_) {
+    ASSERT_EQ(0u, notifications.size());
+  } else {
+    ASSERT_EQ(1u, notifications.size());
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(NearbyNotificationManagerTest,
+                         NearbyNotificationManagerTest,
+                         testing::Combine(testing::Bool(), testing::Bool()));

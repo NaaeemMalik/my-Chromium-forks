@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 
+#include "base/auto_reset.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
@@ -36,13 +37,12 @@
 #include "services/tracing/public/mojom/background_tracing_agent.mojom.h"
 #include "third_party/blink/public/mojom/associated_interfaces/associated_interfaces.mojom.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "content/public/common/font_cache_win.mojom.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #endif
 
 namespace IPC {
-class MessageFilter;
 class SyncChannel;
 class SyncMessageFilter;
 }  // namespace IPC
@@ -89,7 +89,7 @@ class ChildThreadImpl : public IPC::Listener, virtual public ChildThread {
   bool Send(IPC::Message* msg) override;
 
   // ChildThread implementation:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   void PreCacheFont(const LOGFONT& log_font) override;
   void ReleaseCachedFonts() override;
 #endif
@@ -161,6 +161,12 @@ class ChildThreadImpl : public IPC::Listener, virtual public ChildThread {
 
   bool IsInBrowserProcess() const;
 
+#if BUILDFLAG(IS_ANDROID)
+  // Received memory pressure signal sent by the browser process.
+  virtual void OnMemoryPressureFromBrowserReceived(
+      base::MemoryPressureListener::MemoryPressureLevel level);
+#endif
+
  private:
   // TODO(crbug.com/1111231): This class is a friend so that it can call our
   // private mojo implementation methods, acting as a pass-through. This is only
@@ -190,13 +196,15 @@ class ChildThreadImpl : public IPC::Listener, virtual public ChildThread {
 
   void EnsureConnected();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   const mojo::Remote<mojom::FontCacheWin>& GetFontCacheWin();
 #endif
 
+  const base::AutoReset<ChildThreadImpl*> resetter_;
+
   base::Thread mojo_ipc_thread_{"Mojo IPC"};
   std::unique_ptr<mojo::core::ScopedIPCSupport> mojo_ipc_support_;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   mutable mojo::Remote<mojom::FontCacheWin> font_cache_win_;
 #endif
 
@@ -252,7 +260,6 @@ struct ChildThreadImpl::Options {
   bool with_legacy_ipc_channel = true;
   bool connect_to_browser = false;
   scoped_refptr<base::SingleThreadTaskRunner> browser_process_io_runner;
-  std::vector<IPC::MessageFilter*> startup_filters;
   raw_ptr<mojo::OutgoingInvitation> mojo_invitation = nullptr;
   scoped_refptr<base::SingleThreadTaskRunner> ipc_task_runner;
 
@@ -280,7 +287,6 @@ class ChildThreadImpl::Options::Builder {
   Builder& InBrowserProcess(const InProcessChildThreadParams& params);
   Builder& ConnectToBrowser(bool connect_to_browser);
   Builder& WithLegacyIPCChannel(bool with_legacy_ipc_channel);
-  Builder& AddStartupFilter(IPC::MessageFilter* filter);
   Builder& IPCTaskRunner(
       scoped_refptr<base::SingleThreadTaskRunner> ipc_task_runner);
   Builder& ServiceBinder(ServiceBinder binder);

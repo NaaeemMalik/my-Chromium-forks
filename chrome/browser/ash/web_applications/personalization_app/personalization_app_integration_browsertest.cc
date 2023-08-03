@@ -1,8 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/test/shell_test_api.h"
 #include "ash/public/cpp/wallpaper/wallpaper_controller.h"
 #include "ash/public/cpp/wallpaper/wallpaper_controller_observer.h"
@@ -10,37 +9,38 @@
 #include "ash/public/cpp/window_backdrop.h"
 #include "ash/shell.h"
 #include "ash/webui/personalization_app/personalization_app_url_constants.h"
-#include "base/callback.h"
-#include "base/files/file_path.h"
-#include "base/path_service.h"
+#include "ash/webui/system_apps/public/system_web_app_type.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
-#include "base/test/test_switches.h"
-#include "cc/test/pixel_comparator.h"
 #include "cc/test/pixel_test_utils.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
-#include "chrome/browser/ash/web_applications/system_web_app_integration_test.h"
+#include "chrome/browser/ash/system_web_apps/test_support/system_web_app_integration_test.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/web_applications/system_web_apps/system_web_app_types.h"
-#include "chrome/common/chrome_paths.h"
 #include "chromeos/ui/base/window_properties.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/aura/window.h"
-#include "ui/compositor/layer.h"
+#include "ui/aura/window_observer.h"
+#include "ui/base/class_property.h"
 #include "ui/display/test/display_manager_test_api.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/gfx/test/sk_color_eq.h"
 #include "ui/message_center/message_center.h"
 #include "ui/snapshot/snapshot_aura.h"
 #include "ui/views/widget/widget.h"
+
+namespace ash::personalization_app {
 
 namespace {
 
@@ -118,6 +118,68 @@ void AssertExpectedDebugImage(const SkBitmap& bitmap) {
       << error_bounding_rect.ToString();
 }
 
+template <typename T>
+class WindowPropertyWaiter : public aura::WindowObserver {
+ public:
+  WindowPropertyWaiter(aura::Window* window, const ui::ClassProperty<T>* key)
+      : window_(window), key_(key) {}
+  ~WindowPropertyWaiter() override = default;
+
+  void Wait() {
+    base::RunLoop loop;
+    quit_closure_ = loop.QuitClosure();
+
+    make_transparent_observation_.Observe(window_.get());
+
+    loop.Run();
+  }
+
+  void OnWindowPropertyChanged(aura::Window* window,
+                               const void* key,
+                               intptr_t old) override {
+    if (key != key_) {
+      return;
+    }
+
+    if (quit_closure_) {
+      std::move(quit_closure_).Run();
+      make_transparent_observation_.Reset();
+    }
+  }
+
+ private:
+  base::ScopedObservation<aura::Window, aura::WindowObserver>
+      make_transparent_observation_{this};
+  base::OnceClosure quit_closure_;
+  raw_ptr<aura::Window, ExperimentalAsh> window_;
+  const raw_ptr<const ui::ClassProperty<T>> key_;
+};
+
+void CallMakeTransparentAndWaitForOpacityChange(
+    content::WebContents* web_contents) {
+  web_contents->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
+      u"personalizationTestApi.makeTransparent()", base::DoNothing());
+
+  auto* window = web_contents->GetTopLevelNativeWindow();
+  auto* const opacityKey = chromeos::kWindowManagerManagesOpacityKey;
+
+  if (window->GetProperty(opacityKey)) {
+    // Wait for opacity key to change to false.
+    WindowPropertyWaiter<bool> window_property_waiter(window, opacityKey);
+    window_property_waiter.Wait();
+  }
+
+  // Wait for a round trip through renderer and compositor for transparency to
+  // take effect.
+  base::RunLoop loop;
+  web_contents->GetPrimaryMainFrame()->InsertVisualStateCallback(
+      base::BindLambdaForTesting([&loop](bool visual_state_updated) {
+        ASSERT_TRUE(visual_state_updated);
+        loop.Quit();
+      }));
+  loop.Run();
+}
+
 class WallpaperChangeWaiter : public ash::WallpaperControllerObserver {
  public:
   WallpaperChangeWaiter() = default;
@@ -137,10 +199,10 @@ class WallpaperChangeWaiter : public ash::WallpaperControllerObserver {
 
     wallpaper_controller_observation_.Observe(ash::WallpaperController::Get());
 
-    ash::WallpaperController::Get()->SetCustomWallpaper(
+    ash::WallpaperController::Get()->SetDecodedCustomWallpaper(
         user_manager::UserManager::Get()->GetActiveUser()->GetAccountId(),
-        /*file_name=*/"fakename", ash::WALLPAPER_LAYOUT_CENTER_CROPPED, image,
-        /*preview_mode=*/true);
+        /*file_name=*/"fakename", ash::WALLPAPER_LAYOUT_CENTER_CROPPED,
+        /*preview_mode=*/true, base::DoNothing(), /*file_path=*/"", image);
 
     loop.Run();
   }
@@ -165,10 +227,7 @@ class WallpaperChangeWaiter : public ash::WallpaperControllerObserver {
 
 class PersonalizationAppIntegrationTest : public SystemWebAppIntegrationTest {
  public:
-  PersonalizationAppIntegrationTest() {
-    scoped_feature_list_.InitAndEnableFeature(
-        chromeos::features::kWallpaperWebUI);
-  }
+  PersonalizationAppIntegrationTest() = default;
 
   // SystemWebAppIntegrationTest:
   void SetUp() override {
@@ -180,9 +239,10 @@ class PersonalizationAppIntegrationTest : public SystemWebAppIntegrationTest {
   // the app.
   content::WebContents* LaunchAppAtWallpaperSubpage(Browser** browser) {
     apps::AppLaunchParams launch_params =
-        LaunchParamsForApp(web_app::SystemAppType::PERSONALIZATION);
+        LaunchParamsForApp(ash::SystemWebAppType::PERSONALIZATION);
     launch_params.override_url =
-        GURL(ash::kChromeUIPersonalizationAppWallpaperSubpageURL);
+        GURL(std::string(kChromeUIPersonalizationAppURL) +
+             kWallpaperSubpageRelativeUrl);
     return LaunchApp(std::move(launch_params), browser);
   }
 
@@ -194,8 +254,9 @@ class PersonalizationAppIntegrationTest : public SystemWebAppIntegrationTest {
     EXPECT_FALSE(widget->IsFullscreen());
 
     FullscreenNotificationObserver waiter(browser);
-    web_contents->GetMainFrame()->ExecuteJavaScriptWithUserGestureForTests(
-        u"personalizationTestApi.enterFullscreen();");
+    web_contents->GetPrimaryMainFrame()
+        ->ExecuteJavaScriptWithUserGestureForTests(
+            u"personalizationTestApi.enterFullscreen();", base::NullCallback());
     waiter.Wait();
 
     // After the full screen change is observed, there is a significant delay
@@ -204,7 +265,7 @@ class PersonalizationAppIntegrationTest : public SystemWebAppIntegrationTest {
     // allows shelf to hide, app list to hide, and wallpaper to change.
     for (int i = 0; i < 3; i++) {
       base::RunLoop loop;
-      web_contents->GetMainFrame()->InsertVisualStateCallback(
+      web_contents->GetPrimaryMainFrame()->InsertVisualStateCallback(
           base::BindLambdaForTesting([&loop](bool visual_state_updated) {
             ASSERT_TRUE(visual_state_updated);
             loop.Quit();
@@ -214,17 +275,15 @@ class PersonalizationAppIntegrationTest : public SystemWebAppIntegrationTest {
 
     EXPECT_TRUE(widget->IsFullscreen());
   }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 // Test that the Personalization App installs correctly.
 IN_PROC_BROWSER_TEST_P(PersonalizationAppIntegrationTest,
                        PersonalizationAppInstalls) {
-  const GURL url(ash::kChromeUIPersonalizationAppURL);
+  const GURL url(kChromeUIPersonalizationAppURL);
+  std::string appTitle = "Wallpaper & style";
   EXPECT_NO_FATAL_FAILURE(ExpectSystemWebAppValid(
-      web_app::SystemAppType::PERSONALIZATION, url, "Wallpaper"));
+      ash::SystemWebAppType::PERSONALIZATION, url, appTitle));
 }
 
 // Test that the widget is modified to be transparent.
@@ -233,6 +292,8 @@ IN_PROC_BROWSER_TEST_P(PersonalizationAppIntegrationTest,
   WaitForTestSystemAppInstall();
   Browser* browser;
   content::WebContents* web_contents = LaunchAppAtWallpaperSubpage(&browser);
+
+  CallMakeTransparentAndWaitForOpacityChange(web_contents);
 
   EXPECT_TRUE(web_contents->GetTopLevelNativeWindow()->GetTransparent());
   EXPECT_FALSE(web_contents->GetTopLevelNativeWindow()->GetProperty(
@@ -246,6 +307,8 @@ IN_PROC_BROWSER_TEST_P(PersonalizationAppIntegrationTest,
   content::WebContents* web_contents = LaunchAppAtWallpaperSubpage(&browser);
   aura::Window* window = web_contents->GetTopLevelNativeWindow();
 
+  CallMakeTransparentAndWaitForOpacityChange(web_contents);
+
   ash::WindowBackdrop* window_backdrop = ash::WindowBackdrop::Get(window);
   EXPECT_EQ(ash::WindowBackdrop::BackdropMode::kDisabled,
             window_backdrop->mode());
@@ -257,16 +320,23 @@ IN_PROC_BROWSER_TEST_P(PersonalizationAppIntegrationTest,
   WaitForTestSystemAppInstall();
   Browser* browser;
   content::WebContents* web_contents = LaunchAppAtWallpaperSubpage(&browser);
+  DCHECK(web_contents);
+
+  CallMakeTransparentAndWaitForOpacityChange(web_contents);
 
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
-  EXPECT_EQ(SK_ColorTRANSPARENT,
-            browser_view->contents_web_view()->GetBackground()->get_color());
+  EXPECT_FALSE(browser_view->contents_web_view()->GetBackground())
+      << "No background set for personalization app contents web view";
 
-  // Personalization app by default has an opaque content background color.
+  EXPECT_NE(
+      SK_ColorTRANSPARENT,
+      web_contents->GetRenderWidgetHostView()->GetBackgroundColor().value())
+      << "personalization app starts with opaque background color";
+
   // Trigger full screen mode, which sets a transparent background color.
   SetAppFullscreenAndWait(browser, web_contents);
 
-  EXPECT_EQ(
+  EXPECT_SKCOLOR_EQ(
       SK_ColorTRANSPARENT,
       web_contents->GetRenderWidgetHostView()->GetBackgroundColor().value());
 }
@@ -294,6 +364,8 @@ IN_PROC_BROWSER_TEST_P(PersonalizationAppIntegrationTest,
   Browser* browser;
   content::WebContents* web_contents = LaunchAppAtWallpaperSubpage(&browser);
 
+  CallMakeTransparentAndWaitForOpacityChange(web_contents);
+
   WallpaperChangeWaiter wallpaper_changer;
   wallpaper_changer.SetWallpaperAndWait();
 
@@ -310,5 +382,7 @@ IN_PROC_BROWSER_TEST_P(PersonalizationAppIntegrationTest,
   loop.Run();
 }
 
-INSTANTIATE_SYSTEM_WEB_APP_MANAGER_TEST_SUITE_GUEST_SESSION_P(
+INSTANTIATE_SYSTEM_WEB_APP_MANAGER_TEST_SUITE_REGULAR_PROFILE_P(
     PersonalizationAppIntegrationTest);
+
+}  // namespace ash::personalization_app

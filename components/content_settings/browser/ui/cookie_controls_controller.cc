@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
 
 #include <memory>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
+#include "base/observer_list.h"
 #include "components/browsing_data/content/local_shared_objects_container.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
 #include "components/content_settings/browser/ui/cookie_controls_view.h"
@@ -111,15 +112,16 @@ void CookieControlsController::OnCookieBlockingEnabledForSite(
 }
 
 bool CookieControlsController::FirstPartyCookiesBlocked() {
+  // No overrides are given since existing ones only pertain to 3P checks.
   const GURL& url = GetWebContents()->GetLastCommittedURL();
   return !cookie_settings_->IsFullCookieAccessAllowed(
-      url, net::SiteForCookies::FromUrl(url), url::Origin::Create(url));
+      url, net::SiteForCookies::FromUrl(url), url::Origin::Create(url),
+      net::CookieSettingOverrides());
 }
 
 int CookieControlsController::GetAllowedCookieCount() {
-  auto* pscs =
-      content_settings::PageSpecificContentSettings::GetForCurrentDocument(
-          tab_observer_->web_contents()->GetMainFrame());
+  auto* pscs = content_settings::PageSpecificContentSettings::GetForPage(
+      tab_observer_->web_contents()->GetPrimaryPage());
   if (pscs) {
     return pscs->allowed_local_shared_objects().GetObjectCount();
   } else {
@@ -127,9 +129,8 @@ int CookieControlsController::GetAllowedCookieCount() {
   }
 }
 int CookieControlsController::GetBlockedCookieCount() {
-  auto* pscs =
-      content_settings::PageSpecificContentSettings::GetForCurrentDocument(
-          tab_observer_->web_contents()->GetMainFrame());
+  auto* pscs = content_settings::PageSpecificContentSettings::GetForPage(
+      tab_observer_->web_contents()->GetPrimaryPage());
   if (pscs) {
     return pscs->blocked_local_shared_objects().GetObjectCount();
   } else {

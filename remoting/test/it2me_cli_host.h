@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -62,10 +62,11 @@ class It2MeCliHost final : public extensions::NativeMessageHost::Client {
   void OnHelloResponse();
   void OnDisconnectResponse();
 
-  void OnStateError(const std::string& error_state, const base::Value& message);
-  void OnStateRemoteConnected(const base::Value& message);
+  void OnStateError(const std::string& error_state,
+                    const base::Value::Dict& message);
+  void OnStateRemoteConnected(const base::Value::Dict& message);
   void OnStateRemoteDisconnected();
-  void OnStateReceivedAccessCode(const base::Value& message);
+  void OnStateReceivedAccessCode(const base::Value::Dict& message);
 
   std::unique_ptr<test::TestTokenStorage> storage_;
   std::unique_ptr<test::TestOAuthTokenGetter> token_getter_;

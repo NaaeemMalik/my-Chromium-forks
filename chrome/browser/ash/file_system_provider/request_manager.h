@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/file.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
@@ -26,6 +26,7 @@ namespace file_system_provider {
 
 // Request type, passed to RequestManager::CreateRequest. For logging purposes.
 enum RequestType {
+  REQUEST_MOUNT,
   REQUEST_UNMOUNT,
   GET_METADATA,
   GET_ACTIONS,
@@ -66,15 +67,19 @@ class RequestManager {
     // Execute(). It may be called more than once, until |has_more| is set to
     // false.
     virtual void OnSuccess(int request_id,
-                           std::unique_ptr<RequestValue> result,
+                           const RequestValue& result,
                            bool has_more) = 0;
 
     // Error callback invoked by the providing extension in response to
     // Execute(). It can be called at most once. It can be also called if the
     // request is aborted due to a timeout.
     virtual void OnError(int request_id,
-                         std::unique_ptr<RequestValue> result,
+                         const RequestValue& result,
                          base::File::Error error) = 0;
+
+    // Called when the request is aborted due to timeout, before |OnError| is
+    // called.
+    virtual void OnAbort(int request_id) = 0;
   };
 
   // Observes activities in the request manager.
@@ -105,10 +110,7 @@ class RequestManager {
     virtual void OnRequestTimeouted(int request_id) = 0;
   };
 
-  // Creates a request manager for |profile| and |provider_id|. Note, that
-  // there may be multiple instances of request managers per provider.
   RequestManager(Profile* profile,
-                 const std::string& provider_id,
                  NotificationManagerInterface* notification_manager);
 
   RequestManager(const RequestManager&) = delete;
@@ -127,14 +129,14 @@ class RequestManager {
   // returns base::File::FILE_OK. Otherwise returns an error code. |response|
   // must not be NULL.
   base::File::Error FulfillRequest(int request_id,
-                                   std::unique_ptr<RequestValue> response,
+                                   const RequestValue& response,
                                    bool has_more);
 
   // Handles error response for the |request_id|. If handling the error
   // succeeds, theen returns base::File::FILE_OK. Otherwise returns an error
   // code. Always disposes the request. |response| must not be NULL.
   base::File::Error RejectRequest(int request_id,
-                                  std::unique_ptr<RequestValue> response,
+                                  const RequestValue& response,
                                   base::File::Error error);
 
   // Sets a custom timeout for tests. The new timeout value will be applied to
@@ -148,7 +150,10 @@ class RequestManager {
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
 
- private:
+  // Destroys the request with the passed |request_id|.
+  void DestroyRequest(int request_id);
+
+ protected:
   struct Request {
     Request();
 
@@ -164,11 +169,12 @@ class RequestManager {
     std::unique_ptr<HandlerInterface> handler;
   };
 
-  // Destroys the request with the passed |request_id|.
-  void DestroyRequest(int request_id);
+  RequestManager(Profile* profile,
+                 NotificationManagerInterface* notification_manager,
+                 base::TimeDelta timeout);
 
   // Called when a request with |request_id| timeouts.
-  void OnRequestTimeout(int request_id);
+  virtual void OnRequestTimeout(int request_id);
 
   // Called when an user either aborts the unresponsive request or lets it
   // continue.
@@ -179,14 +185,9 @@ class RequestManager {
   // Resets the timeout timer for the specified request.
   void ResetTimer(int request_id);
 
-  // Checks whether there is an ongoing interaction between the provider
-  // and user.
-  bool IsInteractingWithUser() const;
-
-  Profile* profile_;  // Not owned.
-  std::string provider_id_;
+  raw_ptr<Profile> profile_;  // Not owned.
   std::map<int, std::unique_ptr<Request>> requests_;
-  NotificationManagerInterface* notification_manager_;  // Not owned.
+  raw_ptr<NotificationManagerInterface> notification_manager_;  // Not owned.
   int next_id_;
   base::TimeDelta timeout_;
   base::ObserverList<Observer>::Unchecked observers_;

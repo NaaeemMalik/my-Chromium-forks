@@ -1,16 +1,21 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/history_clusters/core/on_device_clustering_util.h"
 
+#include <iterator>
+
 #include "base/containers/contains.h"
+#include "base/time/time.h"
+#include "components/history_clusters/core/config.h"
+#include "components/history_clusters/core/history_clusters_util.h"
 #include "components/history_clusters/core/on_device_clustering_features.h"
 
 namespace history_clusters {
 
 void MergeDuplicateVisitIntoCanonicalVisit(
-    const history::ClusterVisit& duplicate_visit,
+    history::ClusterVisit&& duplicate_visit,
     history::ClusterVisit& canonical_visit) {
   // Upgrade the canonical visit's annotations (i.e. is-bookmarked) with
   // those of the duplicate visits.
@@ -43,6 +48,11 @@ void MergeDuplicateVisitIntoCanonicalVisit(
     }
   }
 
+  // Merge over the model annotations (categories and entities) too.
+  canonical_visit.annotated_visit.content_annotations.model_annotations
+      .MergeFrom(duplicate_visit.annotated_visit.content_annotations
+                     .model_annotations);
+
   // Roll up the visit duration from the duplicate visit into the canonical
   // visit.
   canonical_visit.annotated_visit.visit_row.visit_duration +=
@@ -63,25 +73,45 @@ void MergeDuplicateVisitIntoCanonicalVisit(
             : duplicate_foreground_duration;
   }
 
-  // Add the duplicate visit into the canonical visit's duplicate IDs.
-  canonical_visit.duplicate_visit_ids.push_back(
-      duplicate_visit.annotated_visit.visit_row.visit_id);
-}
+  // Update the canonical_visit with the more recent timestamp.
+  canonical_visit.annotated_visit.visit_row.visit_time =
+      std::max(canonical_visit.annotated_visit.visit_row.visit_time,
+               duplicate_visit.annotated_visit.visit_row.visit_time);
 
-base::flat_set<history::VisitID> CalculateAllDuplicateVisitsForCluster(
-    const history::Cluster& cluster) {
-  base::flat_set<history::VisitID> duplicate_visit_ids;
-  for (const auto& visit : cluster.visits) {
-    duplicate_visit_ids.insert(visit.duplicate_visit_ids.begin(),
-                               visit.duplicate_visit_ids.end());
+  canonical_visit.duplicate_visits.push_back(
+      {duplicate_visit.annotated_visit.visit_row.visit_id,
+       duplicate_visit.annotated_visit.url_row.url(),
+       duplicate_visit.annotated_visit.visit_row.visit_time});
+
+  // If duplicate visit is 0, make sure that it is maintained.
+  if (duplicate_visit.score == 0.0) {
+    canonical_visit.score = 0.0;
   }
-  return duplicate_visit_ids;
 }
 
 bool IsNoisyVisit(const history::ClusterVisit& visit) {
   return visit.engagement_score >
-             features::NoisyClusterVisitEngagementThreshold() &&
-         !visit.is_search_visit;
+             GetConfig().noisy_cluster_visits_engagement_threshold &&
+         visit.annotated_visit.content_annotations.search_terms.empty();
+}
+
+void AppendClusterVisits(history::Cluster& cluster1,
+                         history::Cluster& cluster2) {
+  cluster1.visits.insert(cluster1.visits.end(),
+                         std::make_move_iterator(cluster2.visits.begin()),
+                         std::make_move_iterator(cluster2.visits.end()));
+  cluster2.visits.clear();
+}
+
+void RemoveEmptyClusters(std::vector<history::Cluster>* clusters) {
+  auto it = clusters->begin();
+  while (it != clusters->end()) {
+    if (it->visits.empty()) {
+      it = clusters->erase(it);
+    } else {
+      it++;
+    }
+  }
 }
 
 }  // namespace history_clusters

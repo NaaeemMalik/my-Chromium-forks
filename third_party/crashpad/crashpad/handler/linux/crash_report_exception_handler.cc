@@ -1,4 +1,4 @@
-// Copyright 2018 The Crashpad Authors. All rights reserved.
+// Copyright 2018 The Crashpad Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@
 #include "util/stream/log_output_stream.h"
 #include "util/stream/zlib_output_stream.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include <android/log.h>
 #endif
 
@@ -52,7 +52,7 @@ class Logger final : public LogOutputStream::Delegate {
 
   ~Logger() override = default;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   int Log(const char* buf) override {
     return __android_log_buf_write(
         LOG_ID_CRASH, ANDROID_LOG_FATAL, "crashpad", buf);

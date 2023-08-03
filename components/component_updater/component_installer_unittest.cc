@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,19 +8,23 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/task/post_task.h"
+#include "base/sequence_checker.h"
+#include "base/strings/strcat.h"
+#include "base/strings/stringprintf.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/test/bind.h"
 #include "base/test/scoped_path_override.h"
 #include "base/test/task_environment.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/values.h"
 #include "base/version.h"
 #include "components/component_updater/component_installer.h"
 #include "components/component_updater/component_updater_paths.h"
@@ -37,6 +41,7 @@
 #include "components/update_client/update_client_errors.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 using ComponentUnpacker = update_client::ComponentUnpacker;
 using Configurator = update_client::Configurator;
@@ -74,12 +79,14 @@ class MockUpdateClient : public UpdateClient {
  public:
   MockUpdateClient() = default;
 
-  void Install(const std::string& id,
-               CrxDataCallback crx_data_callback,
-               CrxStateChangeCallback crx_state_change_callback,
-               Callback callback) override {
+  base::RepeatingClosure Install(
+      const std::string& id,
+      CrxDataCallback crx_data_callback,
+      CrxStateChangeCallback crx_state_change_callback,
+      Callback callback) override {
     DoInstall(id, std::move(crx_data_callback));
     std::move(callback).Run(update_client::Error::NONE);
+    return base::DoNothing();
   }
 
   void Update(const std::vector<std::string>& ids,
@@ -98,12 +105,6 @@ class MockUpdateClient : public UpdateClient {
     std::move(callback).Run(update_client::Error::NONE);
   }
 
-  void SendRegistrationPing(const CrxComponent& crx_component,
-                            Callback callback) override {
-    DoSendRegistrationPing(crx_component);
-    std::move(callback).Run(update_client::Error::NONE);
-  }
-
   MOCK_METHOD1(AddObserver, void(Observer* observer));
   MOCK_METHOD1(RemoveObserver, void(Observer* observer));
   MOCK_METHOD2(DoInstall,
@@ -112,13 +113,18 @@ class MockUpdateClient : public UpdateClient {
   MOCK_METHOD2(DoUpdate,
                void(const std::vector<std::string>& ids,
                     const CrxDataCallback& crx_data_callback));
+  MOCK_METHOD5(CheckForUpdate,
+               void(const std::string& ids,
+                    CrxDataCallback crx_data_callback,
+                    CrxStateChangeCallback crx_state_change_callback,
+                    bool is_foreground,
+                    Callback callback));
   MOCK_CONST_METHOD2(GetCrxUpdateState,
                      bool(const std::string& id, CrxUpdateItem* update_item));
   MOCK_CONST_METHOD1(IsUpdating, bool(const std::string& id));
   MOCK_METHOD0(Stop, void());
   MOCK_METHOD2(DoSendUninstallPing,
                void(const CrxComponent& crx_component, int reason));
-  MOCK_METHOD1(DoSendRegistrationPing, void(const CrxComponent& crx_component));
 
  private:
   ~MockUpdateClient() override = default;
@@ -126,10 +132,16 @@ class MockUpdateClient : public UpdateClient {
 
 class MockInstallerPolicy : public ComponentInstallerPolicy {
  public:
-  MockInstallerPolicy() = default;
+  using ComponentReadyCallback =
+      base::OnceCallback<void(const base::Version& version,
+                              const base::FilePath& install_dir,
+                              base::Value::Dict manifest)>;
+  explicit MockInstallerPolicy(
+      ComponentReadyCallback component_ready_cb = ComponentReadyCallback())
+      : component_ready_cb_(std::move(component_ready_cb)) {}
   ~MockInstallerPolicy() override = default;
 
-  bool VerifyInstallation(const base::Value& manifest,
+  bool VerifyInstallation(const base::Value::Dict& manifest,
                           const base::FilePath& dir) const override {
     return true;
   }
@@ -141,7 +153,7 @@ class MockInstallerPolicy : public ComponentInstallerPolicy {
   bool RequiresNetworkEncryption() const override { return true; }
 
   update_client::CrxInstaller::Result OnCustomInstall(
-      const base::Value& manifest,
+      const base::Value::Dict& manifest,
       const base::FilePath& install_dir) override {
     return update_client::CrxInstaller::Result(0);
   }
@@ -150,7 +162,12 @@ class MockInstallerPolicy : public ComponentInstallerPolicy {
 
   void ComponentReady(const base::Version& version,
                       const base::FilePath& install_dir,
-                      base::Value manifest) override {}
+                      base::Value::Dict manifest) override {
+    if (component_ready_cb_) {
+      std::move(component_ready_cb_)
+          .Run(version, install_dir, std::move(manifest));
+    }
+  }
 
   base::FilePath GetRelativeInstallDir() const override {
     return base::FilePath(relative_install_dir);
@@ -171,6 +188,8 @@ class MockInstallerPolicy : public ComponentInstallerPolicy {
   static void GetPkHash(std::vector<uint8_t>* hash) {
     hash->assign(std::begin(kSha256Hash), std::end(kSha256Hash));
   }
+
+  ComponentReadyCallback component_ready_cb_;
 };
 
 class MockUpdateScheduler : public UpdateScheduler {
@@ -210,12 +229,13 @@ class ComponentInstallerTest : public testing::Test {
                 const UpdateScheduler::UserTask& user_task,
                 const UpdateScheduler::OnStopTaskCallback& on_stop);
 
-  const scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_ =
-      base::ThreadTaskRunnerHandle::Get();
+  const scoped_refptr<base::SequencedTaskRunner> main_thread_task_runner_ =
+      base::SequencedTaskRunner::GetCurrentDefault();
   base::RunLoop runloop_;
 
   std::unique_ptr<TestingPrefServiceSimple> pref_ =
       std::make_unique<TestingPrefServiceSimple>();
+
   scoped_refptr<TestConfigurator> config_ =
       base::MakeRefCounted<TestConfigurator>(pref_.get());
   raw_ptr<MockUpdateScheduler> scheduler_ = nullptr;
@@ -234,6 +254,7 @@ ComponentInstallerTest::ComponentInstallerTest() {
   component_updater_ = std::make_unique<CrxUpdateService>(
       config_, std::move(scheduler), update_client_, "");
   RegisterComponentUpdateServicePrefs(pref_->registry());
+  update_client::RegisterPrefs(pref_->registry());
 }
 
 ComponentInstallerTest::~ComponentInstallerTest() {
@@ -275,6 +296,30 @@ void ComponentInstallerTest::Schedule(
 }
 
 }  // namespace
+
+absl::optional<base::FilePath> CreateComponentDirectory(
+    const base::FilePath& base_dir,
+    const std::string& name,
+    const std::string& version,
+    const std::string& min_env_version) {
+  base::FilePath component_dir =
+      base_dir.AppendASCII(name).AppendASCII(version);
+
+  if (!base::CreateDirectory(component_dir))
+    return absl::nullopt;
+
+  if (!base::WriteFile(component_dir.AppendASCII("manifest.json"),
+                       base::StringPrintf(R"({
+        "name": "%s",
+        "version": "%s",
+        "min_env_version": "%s"
+    })",
+                                          name.c_str(), version.c_str(),
+                                          min_env_version.c_str())))
+    return absl::nullopt;
+
+  return absl::make_optional(component_dir);
+}
 
 // Tests that the component metadata is propagated from the component installer
 // and its component policy, through the instance of the CrxComponent, to the
@@ -337,6 +382,96 @@ TEST_F(ComponentInstallerTest, RegisterComponent) {
   EXPECT_TRUE(component.requires_network_encryption);
 }
 
+// Tests that `ComponentInstallerPolicy::ComponentReady` and the completion
+// callback of `ComponentInstaller::Register` are called in sequence.
+TEST_F(ComponentInstallerTest, InstallerRegister_CheckSequence) {
+  class RegisterHandler {
+   public:
+    virtual ~RegisterHandler() = default;
+
+    virtual void ComponentReady() = 0;
+    virtual void RegisterComplete() = 0;
+  };
+
+  // Allows defining call expectations on its functions when the functions
+  // are invoked by callbacks posted from `ComponentInstaller::Register`.
+  class MockRegisterHandler : public RegisterHandler {
+   public:
+    MockRegisterHandler() {
+      ON_CALL(*this, ComponentReady)
+          .WillByDefault(Invoke(this, &MockRegisterHandler::CheckSequence));
+      ON_CALL(*this, RegisterComplete)
+          .WillByDefault(Invoke(this, &MockRegisterHandler::CheckSequence));
+    }
+
+    MOCK_METHOD(void, ComponentReady, (), (override));
+    MOCK_METHOD(void, RegisterComplete, (), (override));
+
+   private:
+    void CheckSequence() { DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_); }
+    SEQUENCE_CHECKER(sequence_checker_);
+  };
+
+  base::ScopedPathOverride scoped_path_override(DIR_COMPONENT_USER);
+
+  // Install a CRX component so that `ComponentInstallerPolicy::ComponentReady`
+  // can be invoked later on.
+  {
+    base::RunLoop run_loop;
+    auto installer = base::MakeRefCounted<ComponentInstaller>(
+        std::make_unique<MockInstallerPolicy>());
+    Unpack(test_file("jebgalgnebhfojomionfpkfelancnnkf.crx"));
+    ASSERT_EQ(result().error, update_client::UnpackerError::kNone);
+    base::FilePath base_dir;
+    ASSERT_TRUE(base::PathService::Get(DIR_COMPONENT_USER, &base_dir));
+    base_dir = base_dir.Append(relative_install_dir);
+    ASSERT_TRUE(base::CreateDirectory(base_dir));
+    installer->Install(
+        result().unpack_path, update_client::jebg_public_key, nullptr,
+        base::DoNothing(),
+        base::BindLambdaForTesting(
+            [&run_loop](const update_client::CrxInstaller::Result& result) {
+              ASSERT_EQ(result.error, 0);
+              run_loop.QuitClosure().Run();
+            }));
+    run_loop.Run();
+  }
+
+  base::RunLoop run_loop;
+  EXPECT_CALL(update_client(), DoUpdate(_, _)).WillOnce(Invoke([&run_loop]() {
+    run_loop.QuitClosure().Run();
+  }));
+
+  // Set up expectations for uninteresting calls on the mocks due to component
+  // updater waking up after the component is registered.
+  EXPECT_CALL(scheduler(), Schedule(_, _, _, _)).Times(1);
+  EXPECT_CALL(scheduler(), Stop()).Times(1);
+  EXPECT_CALL(update_client(), Stop()).Times(1);
+
+  MockRegisterHandler mock_register_handler;
+  {
+    ::testing::InSequence seq;
+    EXPECT_CALL(mock_register_handler, ComponentReady()).Times(1);
+    EXPECT_CALL(mock_register_handler, RegisterComplete()).Times(1);
+  }
+
+  auto installer_policy =
+      std::make_unique<MockInstallerPolicy>(base::BindLambdaForTesting(
+          [&mock_register_handler](const base::Version& version,
+                                   const base::FilePath& install_dir,
+                                   base::Value::Dict manifest) {
+            EXPECT_EQ(version.GetString(), "1.0");
+            mock_register_handler.ComponentReady();
+          }));
+  auto installer =
+      base::MakeRefCounted<ComponentInstaller>(std::move(installer_policy));
+  installer->Register(component_updater(),
+                      base::BindLambdaForTesting([&mock_register_handler]() {
+                        mock_register_handler.RegisterComplete();
+                      }));
+  run_loop.Run();
+}
+
 // Tests that the unpack path is removed when the install succeeded.
 TEST_F(ComponentInstallerTest, UnpackPathInstallSuccess) {
   auto installer = base::MakeRefCounted<ComponentInstaller>(
@@ -395,6 +530,69 @@ TEST_F(ComponentInstallerTest, UnpackPathInstallError) {
   EXPECT_FALSE(base::PathExists(unpack_path));
   EXPECT_CALL(update_client(), Stop()).Times(1);
   EXPECT_CALL(scheduler(), Stop()).Times(1);
+}
+
+TEST_F(ComponentInstallerTest, SelectComponentVersion) {
+  auto installer = base::MakeRefCounted<ComponentInstaller>(
+      std::make_unique<MockInstallerPolicy>());
+
+  base::FilePath base_dir;
+  base::ScopedPathOverride scoped_path_override(DIR_COMPONENT_USER);
+  ASSERT_TRUE(base::PathService::Get(DIR_COMPONENT_USER, &base_dir));
+  base_dir = base_dir.AppendASCII("select_component_version_test");
+
+  for (const auto* n : {"1", "2", "3", "4", "5", "6", "7"}) {
+    CreateComponentDirectory(base_dir, "test_component",
+                             base::StrCat({n, ".0.0.0"}), "0.0.1");
+  }
+
+  base_dir = base_dir.AppendASCII("test_component");
+
+  absl::optional<base::Version> selected_component;
+
+  auto registration_info =
+      base::MakeRefCounted<ComponentInstaller::RegistrationInfo>();
+  selected_component = installer->SelectComponentVersion(
+      base::Version("1.0.0.0"), base_dir, registration_info);
+  ASSERT_TRUE(selected_component &&
+              selected_component == base::Version("1.0.0.0"));
+  ASSERT_EQ(registration_info->version, base::Version("1.0.0.0"));
+
+  // Case where no valid bundled or registered version.
+  registration_info =
+      base::MakeRefCounted<ComponentInstaller::RegistrationInfo>();
+  selected_component = installer->SelectComponentVersion(
+      base::Version("0.0.0.0"), base_dir, registration_info);
+  ASSERT_TRUE(selected_component &&
+              *selected_component == base::Version("7.0.0.0"));
+  ASSERT_EQ(registration_info->version, base::Version("7.0.0.0"));
+
+  registration_info->version = base::Version("3.0.0.0");
+  selected_component = installer->SelectComponentVersion(
+      base::Version("5.0.0.0"), base_dir, registration_info);
+  ASSERT_TRUE(selected_component &&
+              *selected_component == base::Version("5.0.0.0"));
+  ASSERT_EQ(registration_info->version, base::Version("5.0.0.0"));
+
+  registration_info->version = base::Version("4.0.0.0");
+  selected_component = installer->SelectComponentVersion(
+      base::Version("0.0.0.0"), base_dir, registration_info);
+  ASSERT_TRUE(selected_component &&
+              *selected_component == base::Version("7.0.0.0"));
+  ASSERT_EQ(registration_info->version, base::Version("7.0.0.0"));
+
+  registration_info->version = base::Version("12.0.0.0");
+  selected_component = installer->SelectComponentVersion(
+      base::Version("1.0.0.0"), base_dir, registration_info);
+  ASSERT_FALSE(selected_component);
+  ASSERT_EQ(registration_info->version, base::Version("12.0.0.0"));
+
+  registration_info->version = base::Version("6.0.0.0");
+  selected_component = installer->SelectComponentVersion(
+      base::Version("1.0.0.0"), base_dir, registration_info);
+  ASSERT_TRUE(selected_component &&
+              *selected_component == base::Version("7.0.0.0"));
+  ASSERT_EQ(registration_info->version, base::Version("7.0.0.0"));
 }
 
 }  // namespace component_updater

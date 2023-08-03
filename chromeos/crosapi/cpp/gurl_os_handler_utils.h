@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,6 @@
 #include <vector>
 
 #include "url/gurl.h"
-
-#if defined(OS_CHROMEOS)
 
 // Adds utility functions for Lacros's system URL handling.
 //
@@ -40,12 +38,16 @@ namespace gurl_os_handler_utils {
 COMPONENT_EXPORT(CROSAPI)
 GURL SanitizeAshURL(const GURL& url, bool include_path = true);
 
+// Get the URL which should be used by Ash from a URL passed in by Lacros.
+COMPONENT_EXPORT(CROSAPI)
+GURL GetTargetURLFromLacrosURL(const GURL& url);
+
 // Determines if a given URL matches any of the given URLs in the list.
 // Note that the provided |url| needs to be sanitized.
 // Note furthermore that the passed |list| is expected to be lower case for
 // os:// scheme links.
 COMPONENT_EXPORT(CROSAPI)
-bool IsUrlInList(const GURL& url, const std::vector<GURL> list);
+bool IsUrlInList(const GURL& url, const std::vector<GURL>& list);
 
 // Returns true when the URL is an internal os:// url. Note that we do need
 // This support only for OpenURL Lacros to Ash and as such
@@ -67,7 +69,5 @@ COMPONENT_EXPORT(CROSAPI) GURL GetChromeUrlFromSystemUrl(const GURL& url);
 }  // namespace gurl_os_handler_utils
 
 }  // namespace crosapi
-
-#endif  // defined(OS_CHROMEOS)
 
 #endif  // CHROMEOS_CROSAPI_CPP_GURL_OS_HANDLER_UTILS_H_

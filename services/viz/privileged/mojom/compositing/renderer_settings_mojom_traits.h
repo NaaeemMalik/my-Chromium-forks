@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 #ifndef SERVICES_VIZ_PRIVILEGED_MOJOM_COMPOSITING_RENDERER_SETTINGS_MOJOM_TRAITS_H_
@@ -12,7 +12,7 @@
 #include "services/viz/privileged/mojom/compositing/renderer_settings.mojom-shared.h"
 #include "ui/gfx/geometry/mojom/geometry_mojom_traits.h"
 
-#if defined(USE_OZONE)
+#if BUILDFLAG(IS_OZONE)
 #include "components/viz/common/display/overlay_strategy.h"
 #endif
 
@@ -89,14 +89,6 @@ struct StructTraits<viz::mojom::RendererSettingsDataView,
     return input.slow_down_compositing_scale_factor;
   }
 
-  static bool use_skia_renderer(const viz::RendererSettings& input) {
-    return input.use_skia_renderer;
-  }
-
-  static bool allow_overlays(const viz::RendererSettings& input) {
-    return input.allow_overlays;
-  }
-
   static bool auto_resize_output_surface(const viz::RendererSettings& input) {
     return input.auto_resize_output_surface;
   }
@@ -105,7 +97,7 @@ struct StructTraits<viz::mojom::RendererSettingsDataView,
     return input.requires_alpha_channel;
   }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   static gfx::Size initial_screen_size(const viz::RendererSettings& input) {
     return input.initial_screen_size;
   }
@@ -115,10 +107,16 @@ struct StructTraits<viz::mojom::RendererSettingsDataView,
   }
 #endif
 
-#if defined(USE_OZONE)
+#if BUILDFLAG(IS_OZONE)
   static std::vector<viz::OverlayStrategy> overlay_strategies(
       const viz::RendererSettings& input) {
     return input.overlay_strategies;
+  }
+#endif
+
+#if BUILDFLAG(IS_MAC)
+  static int64_t display_id(const viz::RendererSettings& input) {
+    return input.display_id;
   }
 #endif
 

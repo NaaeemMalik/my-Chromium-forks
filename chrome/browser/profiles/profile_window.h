@@ -1,34 +1,31 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_PROFILES_PROFILE_WINDOW_H_
 #define CHROME_BROWSER_PROFILES_PROFILE_WINDOW_H_
 
-#include <string>
-
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
-#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/profile_chooser_constants.h"
 #include "chrome/browser/ui/startup/startup_types.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #error "Not used on Android"
 #endif
 
+class BrowserList;
 class Profile;
 
-namespace base { class FilePath; }
+namespace base {
+class FilePath;
+}
 
 namespace profiles {
-
-// Returns the path of the profile connected to the given email.  If no profile
-// is found an empty file path is returned.
-base::FilePath GetPathOfProfileWithEmail(ProfileManager* profile_manager,
-                                         const std::string& email);
 
 // Activates a window for |profile| on the desktop specified by
 // |desktop_type|. If no such window yet exists, or if |always_create| is
@@ -42,26 +39,22 @@ void FindOrCreateNewWindowForProfile(
     chrome::startup::IsFirstRun is_first_run,
     bool always_create);
 
-// Similar to `ProfileManager::CreateCallback` but only called once.
-using CreateOnceCallback =
-    base::OnceCallback<void(Profile*, Profile::CreateStatus)>;
-
 // Opens a Browser for |profile|.
 // If |always_create| is true a window is created even if one already exists.
 // If |is_new_profile| is true a first run window is created.
 // If |unblock_extensions| is true, all extensions are unblocked.
-// When the browser is opened, |callback| will be run if it isn't null.
-void OpenBrowserWindowForProfile(CreateOnceCallback callback,
+// |callback| is called with a nullptr `Browser` in case of failure.
+// |callback| may be null.
+void OpenBrowserWindowForProfile(base::OnceCallback<void(Browser*)> callback,
                                  bool always_create,
                                  bool is_new_profile,
                                  bool unblock_extensions,
-                                 Profile* profile,
-                                 Profile::CreateStatus status);
+                                 Profile* profile);
 
 // Loads the specified profile given by |path| asynchronously. Once profile is
 // loaded and initialized it runs |callback| if it isn't null.
 void LoadProfileAsync(const base::FilePath& path,
-                      ProfileManager::CreateCallback callback);
+                      base::OnceCallback<void(Profile*)> callback);
 
 // Opens a Browser with the specified profile given by |path|.
 // If |always_create| is true then a new window is created
@@ -69,10 +62,12 @@ void LoadProfileAsync(const base::FilePath& path,
 // opened, |callback| will be run if it isn't null.
 void SwitchToProfile(const base::FilePath& path,
                      bool always_create,
-                     ProfileManager::CreateCallback callback);
+                     base::OnceCallback<void(Browser*)> callback =
+                         base::OnceCallback<void(Browser*)>());
 
 // Opens a Browser for the guest profile and runs |callback| if it isn't null.
-void SwitchToGuestProfile(ProfileManager::CreateCallback callback);
+void SwitchToGuestProfile(base::OnceCallback<void(Browser*)> callback =
+                              base::OnceCallback<void(Browser*)>());
 
 // Returns true if |profile| has potential profile switch targets, ie there's at
 // least one other profile available to switch to, not counting guest. This is
@@ -83,18 +78,15 @@ bool HasProfileSwitchTargets(Profile* profile);
 // Close all the browser windows for |profile|.
 void CloseProfileWindows(Profile* profile);
 
-// Converts from modes in the avatar menu to modes understood by
-// ProfileMenuView.
-void BubbleViewModeFromAvatarBubbleMode(BrowserWindow::AvatarBubbleMode mode,
-                                        Profile* profile,
-                                        BubbleViewMode* bubble_view_mode);
-
 // Handles running a callback when a new Browser for the given profile
 // has been completely created.  This object deletes itself once the browser
 // is created and the callback is executed.
+// Warning: this may be called with a nullptr Browser in case of failure (e.g.
+// if the profile or the browser is destroyed during the operation).
 class BrowserAddedForProfileObserver : public BrowserListObserver {
  public:
-  BrowserAddedForProfileObserver(Profile* profile, CreateOnceCallback callback);
+  BrowserAddedForProfileObserver(Profile* profile,
+                                 base::OnceCallback<void(Browser*)> callback);
   ~BrowserAddedForProfileObserver() override;
 
   BrowserAddedForProfileObserver(const BrowserAddedForProfileObserver&) =
@@ -105,10 +97,16 @@ class BrowserAddedForProfileObserver : public BrowserListObserver {
  private:
   // Overridden from BrowserListObserver:
   void OnBrowserAdded(Browser* browser) override;
+  void OnBrowserRemoved(Browser* browser) override;
+
+  void NotifyBrowserCreatedAnDie();
 
   // Profile for which the browser should be opened.
-  raw_ptr<Profile> profile_;
-  CreateOnceCallback callback_;
+  base::WeakPtr<Profile> profile_;
+  raw_ptr<Browser> browser_ = nullptr;
+  base::OnceCallback<void(Browser*)> callback_;
+  base::ScopedObservation<BrowserList, BrowserListObserver>
+      browser_list_observation_{this};
 };
 
 }  // namespace profiles

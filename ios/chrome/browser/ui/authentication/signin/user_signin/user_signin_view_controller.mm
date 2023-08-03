@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,19 @@
 #import <MaterialComponents/MaterialActivityIndicator.h>
 
 #import "base/check_op.h"
+#import "base/ios/ios_util.h"
 #import "base/logging.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/util/rtl_geometry.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/ui/authentication/signin/signin_constants.h"
-#import "ios/chrome/browser/ui/authentication/signin/user_signin/gradient_view.h"
-#import "ios/chrome/browser/ui/util/rtl_geometry.h"
-#import "ios/chrome/browser/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/button_configuration_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
+#import "ios/chrome/common/ui/elements/gradient_view.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
 #import "ios/chrome/grit/ios_strings.h"
-#include "ui/base/device_form_factor.h"
+#import "ui/base/device_form_factor.h"
 #import "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
@@ -142,7 +145,17 @@ enum AuthenticationButtonType {
         setTitle:l10n_util::GetNSString(
                      IDS_IOS_ACCOUNT_UNIFIED_CONSENT_ADD_ACCOUNT)
         forState:UIControlStateNormal];
-    [self.primaryActionButton setImage:nil forState:UIControlStateNormal];
+    // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+    // iOS 15.
+    if (base::ios::IsRunningOnIOS15OrLater() &&
+        IsUIButtonConfigurationEnabled()) {
+      if (@available(iOS 15, *)) {
+        DCHECK(self.primaryActionButton.configuration);
+        self.primaryActionButton.configuration.image = nil;
+      }
+    } else {
+      [self.primaryActionButton setImage:nil forState:UIControlStateNormal];
+    }
     self.primaryActionButton.tag = AuthenticationButtonTypeAddAccount;
     self.primaryActionButton.accessibilityIdentifier =
         kAddAccountAccessibilityIdentifier;
@@ -160,22 +173,64 @@ enum AuthenticationButtonType {
     // Set button "more" down directional arrow image.
     UIImage* buttonImage = [[UIImage imageNamed:@"signin_confirmation_more"]
         imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-    [self.primaryActionButton setImage:buttonImage
-                              forState:UIControlStateNormal];
+
+    // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+    // iOS 15.
+    if (base::ios::IsRunningOnIOS15OrLater() &&
+        IsUIButtonConfigurationEnabled()) {
+      if (@available(iOS 15, *)) {
+        DCHECK(self.primaryActionButton.configuration);
+        self.primaryActionButton.configuration.image = buttonImage;
+      }
+    } else {
+      [self.primaryActionButton setImage:buttonImage
+                                forState:UIControlStateNormal];
+    }
+
     if (UIApplication.sharedApplication.userInterfaceLayoutDirection ==
         UIUserInterfaceLayoutDirectionLeftToRight) {
-      self.primaryActionButton.imageEdgeInsets =
-          UIEdgeInsetsMake(0, -kImageInset, 0, 0);
+      // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+      // iOS 15.
+      if (base::ios::IsRunningOnIOS15OrLater() &&
+          IsUIButtonConfigurationEnabled()) {
+        if (@available(iOS 15, *)) {
+          self.primaryActionButton.configuration.contentInsets =
+              NSDirectionalEdgeInsetsMake(0, -kImageInset, 0, 0);
+        }
+      } else {
+        UIEdgeInsets imageEdgeInsets = UIEdgeInsetsMake(0, -kImageInset, 0, 0);
+        SetImageEdgeInsets(self.primaryActionButton, imageEdgeInsets);
+      }
     } else {
-      self.primaryActionButton.imageEdgeInsets =
-          UIEdgeInsetsMake(0, 0, 0, -kImageInset);
+      // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+      // iOS 15.
+      if (base::ios::IsRunningOnIOS15OrLater() &&
+          IsUIButtonConfigurationEnabled()) {
+        if (@available(iOS 15, *)) {
+          self.primaryActionButton.configuration.contentInsets =
+              NSDirectionalEdgeInsetsMake(0, 0, 0, -kImageInset);
+        }
+      } else {
+        UIEdgeInsets imageEdgeInsets = UIEdgeInsetsMake(0, 0, 0, -kImageInset);
+        SetImageEdgeInsets(self.primaryActionButton, imageEdgeInsets);
+      }
     }
   } else {
     // By default display 'Yes I'm in' button.
     [self.primaryActionButton
         setTitle:l10n_util::GetNSString(self.acceptSigninButtonStringId)
         forState:UIControlStateNormal];
-    [self.primaryActionButton setImage:nil forState:UIControlStateNormal];
+    // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+    // iOS 15.
+    if (base::ios::IsRunningOnIOS15OrLater() &&
+        IsUIButtonConfigurationEnabled()) {
+      if (@available(iOS 15, *)) {
+        DCHECK(self.primaryActionButton.configuration);
+        self.primaryActionButton.configuration.image = nil;
+      }
+    } else {
+      [self.primaryActionButton setImage:nil forState:UIControlStateNormal];
+    }
     self.primaryActionButton.tag = AuthenticationButtonTypeConfirmation;
     self.primaryActionButton.accessibilityIdentifier =
         kConfirmationAccessibilityIdentifier;
@@ -241,14 +296,42 @@ enum AuthenticationButtonType {
   self.containerView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:self.containerView];
 
-  self.primaryActionButton = [[UIButton alloc] init];
+  // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+  // iOS 15.
+  if (base::ios::IsRunningOnIOS15OrLater() &&
+      IsUIButtonConfigurationEnabled()) {
+    if (@available(iOS 15, *)) {
+      UIButtonConfiguration* buttonConfiguration =
+          [UIButtonConfiguration plainButtonConfiguration];
+      self.primaryActionButton =
+          [UIButton buttonWithConfiguration:buttonConfiguration
+                              primaryAction:nil];
+    }
+  } else {
+    self.primaryActionButton = [[UIButton alloc] init];
+  }
+
   [self.primaryActionButton addTarget:self
                                action:@selector(onPrimaryActionButtonPressed:)
                      forControlEvents:UIControlEventTouchUpInside];
   [self updatePrimaryActionButtonStyle];
   self.primaryActionButton.translatesAutoresizingMaskIntoConstraints = NO;
 
-  self.secondaryActionButton = [[UIButton alloc] init];
+  // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+  // iOS 15.
+  if (base::ios::IsRunningOnIOS15OrLater() &&
+      IsUIButtonConfigurationEnabled()) {
+    if (@available(iOS 15, *)) {
+      UIButtonConfiguration* buttonConfiguration =
+          [UIButtonConfiguration plainButtonConfiguration];
+      self.secondaryActionButton =
+          [UIButton buttonWithConfiguration:buttonConfiguration
+                              primaryAction:nil];
+    }
+  } else {
+    self.secondaryActionButton = [[UIButton alloc] init];
+  }
+
   [self.secondaryActionButton
              addTarget:self
                 action:@selector(onSecondaryActionButtonPressed:)
@@ -274,9 +357,9 @@ enum AuthenticationButtonType {
 
   [NSLayoutConstraint activateConstraints:@[
     // Note that the bottom constraint of the container view and
-    // |embeddedViewController.view| is dependent on the selected
+    // `embeddedViewController.view` is dependent on the selected
     // Accessibility options in Settings, e.g. text size. These constraints
-    // are computed in |setAccessibilityLayoutConstraints|.
+    // are computed in `setAccessibilityLayoutConstraints`.
     [self.containerView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
     [self.containerView.leadingAnchor
         constraintEqualToAnchor:self.view.leadingAnchor],
@@ -358,10 +441,6 @@ enum AuthenticationButtonType {
 }
 
 - (NSString*)secondaryActionButtonTitle {
-  if (self.useFirstRunSkipButton) {
-    return l10n_util::GetNSString(
-        IDS_IOS_FIRSTRUN_ACCOUNT_CONSISTENCY_SKIP_BUTTON);
-  }
   return l10n_util::GetNSString(IDS_IOS_ACCOUNT_CONSISTENCY_SETUP_SKIP_BUTTON);
 }
 
@@ -376,7 +455,10 @@ enum AuthenticationButtonType {
 
 - (UIView*)gradientView {
   if (!_gradientView) {
-    _gradientView = [[GradientView alloc] init];
+    _gradientView = [[GradientView alloc]
+        initWithTopColor:[[UIColor colorNamed:kPrimaryBackgroundColor]
+                             colorWithAlphaComponent:0]
+             bottomColor:[UIColor colorNamed:kPrimaryBackgroundColor]];
   }
   return _gradientView;
 }
@@ -443,10 +525,10 @@ enum AuthenticationButtonType {
       [self.embeddedViewController.view.widthAnchor
           constraintEqualToConstant:kUserConsentMaxSize],
     ];
-    for (NSLayoutConstraint* constraints in lowerPriorityConstraints) {
-      // We do not use |UILayoutPriorityDefaultHigh| because it makes some
+    for (NSLayoutConstraint* layout_constraints in lowerPriorityConstraints) {
+      // We do not use `UILayoutPriorityDefaultHigh` because it makes some
       // multiline labels on one line and truncated on iPad.
-      constraints.priority = UILayoutPriorityRequired - 1;
+      layout_constraints.priority = UILayoutPriorityRequired - 1;
     }
     [constraints addObjectsFromArray:lowerPriorityConstraints];
     _regularSizeClassConstraints = constraints;
@@ -509,16 +591,30 @@ enum AuthenticationButtonType {
       CreateOpaqueOrTransparentButtonPointerStyleProvider();
 }
 
-// Applies font and inset to |button| according to the current size class.
+// Applies font and inset to `button` according to the current size class.
 - (void)applyDefaultSizeWithButton:(UIButton*)button
                          fontStyle:(UIFontTextStyle)fontStyle {
   const AuthenticationViewConstants& constants =
       self.authenticationViewConstants;
   CGFloat horizontalContentInset = constants.ButtonTitleContentHorizontalInset;
   CGFloat verticalContentInset = constants.ButtonTitleContentVerticalInset;
-  button.contentEdgeInsets =
-      UIEdgeInsetsMake(verticalContentInset, horizontalContentInset,
-                       verticalContentInset, horizontalContentInset);
+
+  // TODO(crbug.com/1418068): Simplify after minimum version required is >=
+  // iOS 15.
+  if (base::ios::IsRunningOnIOS15OrLater() &&
+      IsUIButtonConfigurationEnabled()) {
+    if (@available(iOS 15, *)) {
+      button.configuration.contentInsets = NSDirectionalEdgeInsetsMake(
+          verticalContentInset, horizontalContentInset, verticalContentInset,
+          horizontalContentInset);
+    }
+  } else {
+    UIEdgeInsets contentEdgeInsets =
+        UIEdgeInsetsMake(verticalContentInset, horizontalContentInset,
+                         verticalContentInset, horizontalContentInset);
+    SetContentEdgeInsets(button, contentEdgeInsets);
+  }
+
   button.titleLabel.font = [UIFont preferredFontForTextStyle:fontStyle];
   button.titleLabel.numberOfLines = 0;
 }

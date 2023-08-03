@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -76,9 +76,12 @@ void PreferenceValidationDelegate::OnAtomicPreferenceValidation(
     std::unique_ptr<TPIncident> incident(
         new ClientIncidentReport_IncidentData_TrackedPreferenceIncident());
     incident->set_path(pref_path);
-    if (!value || (!value->GetAsString(incident->mutable_atomic_value()) &&
-                   !base::JSONWriter::Write(
-                       std::move(*value), incident->mutable_atomic_value()))) {
+    if (!value) {
+      incident->clear_atomic_value();
+    } else if (value->is_string()) {
+      *incident->mutable_atomic_value() = value->GetString();
+    } else if (!base::JSONWriter::Write(std::move(*value),
+                                        incident->mutable_atomic_value())) {
       incident->clear_atomic_value();
     }
     incident->set_value_state(proto_value_state);

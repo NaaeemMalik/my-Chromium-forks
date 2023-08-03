@@ -1,12 +1,12 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser;
 
 import android.app.Activity;
-import android.support.test.InstrumentationRegistry;
 
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
@@ -18,7 +18,6 @@ import org.junit.runner.RunWith;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
@@ -26,6 +25,7 @@ import org.chromium.chrome.browser.tab.SadTab;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabSelectionType;
+import org.chromium.chrome.browser.tab.TabUtils.LoadIfNeededCaller;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.ChromeApplicationTestUtils;
@@ -101,10 +101,10 @@ public class TabTest {
     @Test
     @SmallTest
     @Feature({"Tab"})
-    @DisabledTest(message = "https://crbug.com/1090378")
     public void testTabRestoredIfKilledWhileActivityStopped() throws Exception {
         // Ensure the tab is showing before stopping the activity.
-        TestThreadUtils.runOnUiThreadBlocking(() -> mTab.show(TabSelectionType.FROM_NEW));
+        TestThreadUtils.runOnUiThreadBlocking(
+                () -> mTab.show(TabSelectionType.FROM_NEW, LoadIfNeededCaller.OTHER));
 
         Assert.assertFalse(mTab.needsReload());
         Assert.assertFalse(mTab.isHidden());
@@ -113,7 +113,7 @@ public class TabTest {
         // Stop the activity and simulate a killed renderer.
         ChromeApplicationTestUtils.fireHomeScreenIntent(InstrumentationRegistry.getTargetContext());
         TestThreadUtils.runOnUiThreadBlocking(
-                () -> ChromeTabUtils.simulateRendererKilledForTesting(mTab, false));
+                () -> ChromeTabUtils.simulateRendererKilledForTesting(mTab));
 
         CriteriaHelper.pollUiThread(mTab::isHidden);
         Assert.assertTrue(mTab.needsReload());

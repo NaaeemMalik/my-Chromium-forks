@@ -1,10 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/feedback/child_web_dialog.h"
 
-#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_dialogs.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
@@ -22,18 +22,22 @@ constexpr gfx::Size kMinSize{400, 120};
 ///////////////////////////////////////////////////////////////////////////////
 // ChildWebDialog, public:
 
-ChildWebDialog::ChildWebDialog(views::Widget* parent_widget,
+ChildWebDialog::ChildWebDialog(Profile* profile,
+                               views::Widget* parent_widget,
                                const GURL& url,
                                const std::u16string& title,
                                ui::ModalType modal_type,
+                               const std::string& args,
                                int dialog_width,
                                int dialog_height,
                                bool can_resize,
                                bool can_minimize)
-    : parent_widget_(parent_widget),
+    : profile_(profile),
+      parent_widget_(parent_widget),
       title_(title),
       url_(url),
       modal_type_(modal_type),
+      args_(args),
       dialog_width_(dialog_width),
       dialog_height_(dialog_height) {
   set_can_resize(can_resize);
@@ -43,8 +47,7 @@ ChildWebDialog::ChildWebDialog(views::Widget* parent_widget,
 ChildWebDialog::~ChildWebDialog() = default;
 
 void ChildWebDialog::Show() {
-  chrome::ShowWebDialog(parent_widget_->GetNativeView(),
-                        ProfileManager::GetActiveUserProfile(), this);
+  chrome::ShowWebDialog(parent_widget_->GetNativeView(), profile_, this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -78,7 +81,7 @@ void ChildWebDialog::GetMinimumDialogSize(gfx::Size* size) const {
 }
 
 std::string ChildWebDialog::GetDialogArgs() const {
-  return std::string();
+  return args_;
 }
 
 void ChildWebDialog::OnDialogClosed(const std::string& json_retval) {

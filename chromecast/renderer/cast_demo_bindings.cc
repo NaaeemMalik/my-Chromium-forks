@@ -1,11 +1,13 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chromecast/renderer/cast_demo_bindings.h"
 
+#include <tuple>
+
 #include "base/check.h"
-#include "base/ignore_result.h"
+#include "base/task/sequenced_task_runner.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/v8_value_converter.h"
 #include "third_party/blink/public/common/browser_interface_broker_proxy.h"
@@ -259,7 +261,7 @@ void CastDemoBindings::OnGetAvailableWifiNetworks(
   std::unique_ptr<content::V8ValueConverter> v8_converter =
       content::V8ValueConverter::Create();
   v8::Local<v8::Value> v8_value =
-      v8_converter->ToV8Value(&network_list, context);
+      v8_converter->ToV8Value(network_list, context);
 
   resolver.Get(isolate)
       ->Resolve(context, gin::ConvertToV8(isolate, v8_value))
@@ -295,7 +297,7 @@ void CastDemoBindings::OnGetConnectionStatus(
 
   std::unique_ptr<content::V8ValueConverter> v8_converter =
       content::V8ValueConverter::Create();
-  v8::Local<v8::Value> v8_value = v8_converter->ToV8Value(&status, context);
+  v8::Local<v8::Value> v8_value = v8_converter->ToV8Value(status, context);
 
   resolver.Get(isolate)
       ->Resolve(context, gin::ConvertToV8(isolate, v8_value))
@@ -330,7 +332,7 @@ void CastDemoBindings::VolumeChanged(float level) {
   volume_change_handler_ = v8::UniquePersistent<v8::Function>(isolate, handler);
 
   v8::Local<v8::Value> result;
-  ignore_result(maybe_result.ToLocal(&result));
+  std::ignore = maybe_result.ToLocal(&result);
 }
 
 void CastDemoBindings::PersistLocalStorage() {
@@ -356,7 +358,7 @@ void CastDemoBindings::ReconnectMojo() {
 void CastDemoBindings::OnMojoConnectionError() {
   LOG(WARNING) << "Disconnected from Demo Mojo. Will retry every "
                << kDelayBetweenReconnectionInMillis << " milliseconds.";
-  base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&CastDemoBindings::ReconnectMojo,
                      weak_factory_.GetWeakPtr()),

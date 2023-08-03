@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,7 +52,7 @@ bool IsArchitectureArm();
 #define DISABLE_ON_SANITIZERS(test_name) test_name
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #define DISABLE_ON_ANDROID(test_name) DISABLED_##test_name
 #else
 #define DISABLE_ON_ANDROID(test_name) test_name

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,10 +28,10 @@ IN_PROC_BROWSER_TEST_F(MetricIntegrationTest, UserTiming) {
   // Ensure that the previous page won't be stored in the back/forward cache, so
   // that the histogram will be recorded when the previous page is unloaded.
   web_contents()->GetController().GetBackForwardCache().DisableForTesting(
-      content::BackForwardCache::TEST_ASSUMES_NO_CACHING);
+      content::BackForwardCache::TEST_REQUIRES_NO_CACHING);
 
   // Check web perf API.
-  const base::ListValue eval_result =
+  const base::Value eval_result =
       EvalJs(web_contents(), "runtest()").ExtractList();
   const double fully_loaded = eval_result.GetList()[0].GetDouble();
   EXPECT_GT(fully_loaded, 0.0);

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,9 +19,8 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.FlakyTest;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
@@ -29,12 +28,7 @@ import org.chromium.chrome.browser.settings.MainSettings;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.test.ChromeBrowserTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.util.browser.Features.DisableFeatures;
 import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
-import org.chromium.components.browser_ui.site_settings.PermissionInfo;
-import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridgeJni;
-import org.chromium.components.content_settings.ContentSettingValues;
-import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.components.policy.test.annotations.Policies;
 import org.chromium.components.search_engines.TemplateUrl;
 import org.chromium.components.search_engines.TemplateUrlService;
@@ -64,6 +58,8 @@ public class SearchEngineSettingsTest {
                                                 .around(mMainSettingsTestRule)
                                                 .around(mSearchEngineSettingsTestRule);
 
+    private TemplateUrlService mTemplateUrlService;
+
     /**
      * Change search engine and make sure it works correctly.
      */
@@ -71,7 +67,6 @@ public class SearchEngineSettingsTest {
     @SmallTest
     @Feature({"Preferences"})
     @DisableIf.Build(hardware_is = "sprout", message = "crashes on android-one: crbug.com/540720")
-    @DisableFeatures({ChromeFeatureList.REVERT_DSE_AUTOMATIC_PERMISSIONS})
     public void testSearchEnginePreference() throws Exception {
         ensureTemplateUrlServiceLoaded();
 
@@ -87,55 +82,17 @@ public class SearchEngineSettingsTest {
             Assert.assertEquals("1", pref.getValueForTesting());
 
             // Simulate selecting the third search engine, ensure that TemplateUrlService is
-            // updated, and location permission granted by default for the new engine.
+            // updated.
             String keyword2 = pref.setValueForTesting("2");
-            TemplateUrlService templateUrlService = TemplateUrlServiceFactory.get();
             Assert.assertEquals(
-                    keyword2, templateUrlService.getDefaultSearchEngineTemplateUrl().getKeyword());
-            Assert.assertEquals(
-                    ContentSettingValues.ALLOW, locationPermissionForSearchEngine(keyword2));
+                    keyword2, mTemplateUrlService.getDefaultSearchEngineTemplateUrl().getKeyword());
 
-            // Simulate selecting the fourth search engine and but set a blocked permission
-            // first and ensure that location permission is NOT granted.
+            // Simulate selecting the fourth search engine.
             String keyword3 = pref.getKeywordFromIndexForTesting(3);
-            String url = templateUrlService.getSearchEngineUrlFromTemplateUrl(keyword3);
-            WebsitePreferenceBridgeJni.get().setPermissionSettingForOrigin(
-                    Profile.getLastUsedRegularProfile(), ContentSettingsType.GEOLOCATION, url, url,
-                    ContentSettingValues.BLOCK);
+            String url = mTemplateUrlService.getSearchEngineUrlFromTemplateUrl(keyword3);
             keyword3 = pref.setValueForTesting("3");
-            Assert.assertEquals(keyword3,
-                    TemplateUrlServiceFactory.get()
-                            .getDefaultSearchEngineTemplateUrl()
-                            .getKeyword());
             Assert.assertEquals(
-                    ContentSettingValues.BLOCK, locationPermissionForSearchEngine(keyword3));
-            Assert.assertEquals(
-                    ContentSettingValues.ASK, locationPermissionForSearchEngine(keyword2));
-
-            // Make sure a pre-existing ALLOW value does not get deleted when switching away
-            // from a search engine. For this to work we need to change the DSE's content
-            // setting to allow for search engine 3 before changing to search engine 2.
-            // Otherwise the block setting will cause the content setting for search engine 2
-            // to be reset when we switch to it.
-            WebsitePreferenceBridgeJni.get().setPermissionSettingForOrigin(
-                    Profile.getLastUsedRegularProfile(), ContentSettingsType.GEOLOCATION, url, url,
-                    ContentSettingValues.ALLOW);
-            keyword2 = pref.getKeywordFromIndexForTesting(2);
-            url = templateUrlService.getSearchEngineUrlFromTemplateUrl(keyword2);
-            WebsitePreferenceBridgeJni.get().setPermissionSettingForOrigin(
-                    Profile.getLastUsedRegularProfile(), ContentSettingsType.GEOLOCATION, url, url,
-                    ContentSettingValues.ALLOW);
-            keyword2 = pref.setValueForTesting("2");
-            Assert.assertEquals(keyword2,
-                    TemplateUrlServiceFactory.get()
-                            .getDefaultSearchEngineTemplateUrl()
-                            .getKeyword());
-
-            Assert.assertEquals(
-                    ContentSettingValues.ALLOW, locationPermissionForSearchEngine(keyword2));
-            pref.setValueForTesting("3");
-            Assert.assertEquals(
-                    ContentSettingValues.ALLOW, locationPermissionForSearchEngine(keyword2));
+                    keyword3, mTemplateUrlService.getDefaultSearchEngineTemplateUrl().getKeyword());
         });
     }
 
@@ -148,7 +105,7 @@ public class SearchEngineSettingsTest {
                 () -> { ChromeBrowserInitializer.getInstance().handleSynchronousStartup(); });
 
         ensureTemplateUrlServiceLoaded();
-        CriteriaHelper.pollUiThread(() -> TemplateUrlServiceFactory.get().isDefaultSearchManaged());
+        CriteriaHelper.pollUiThread(() -> mTemplateUrlService.isDefaultSearchManaged());
 
         mMainSettingsTestRule.startSettingsActivity();
 
@@ -171,13 +128,10 @@ public class SearchEngineSettingsTest {
      * Make sure that when a user switches to a search engine that uses HTTP, the location
      * permission is not added.
      */
-    /*
-     * @SmallTest
-     * @Feature({"Preferences"})
-     * BUG=crbug.com/540706
-     */
     @Test
-    @FlakyTest
+    @SmallTest
+    @Feature({"Preferences"})
+    @DisabledTest(message = "crbug.com/540706")
     @DisableIf.Build(hardware_is = "sprout", message = "fails on android-one: crbug.com/540706")
     public void testSearchEnginePreferenceHttp() throws Exception {
         ensureTemplateUrlServiceLoaded();
@@ -200,21 +154,17 @@ public class SearchEngineSettingsTest {
             int index = indexOfFirstHttpSearchEngine(pref);
             String keyword = pref.setValueForTesting(Integer.toString(index));
 
-            TemplateUrlService templateUrlService = TemplateUrlServiceFactory.get();
             Assert.assertEquals(
-                    keyword, templateUrlService.getDefaultSearchEngineTemplateUrl().getKeyword());
-            Assert.assertEquals(
-                    ContentSettingValues.ASK, locationPermissionForSearchEngine(keyword));
+                    keyword, mTemplateUrlService.getDefaultSearchEngineTemplateUrl().getKeyword());
         });
     }
 
     private int indexOfFirstHttpSearchEngine(SearchEngineSettings pref) {
-        TemplateUrlService templateUrlService = TemplateUrlServiceFactory.get();
-        List<TemplateUrl> urls = templateUrlService.getTemplateUrls();
+        List<TemplateUrl> urls = mTemplateUrlService.getTemplateUrls();
         int index;
         for (index = 0; index < urls.size(); ++index) {
             String keyword = pref.getKeywordFromIndexForTesting(index);
-            String url = templateUrlService.getSearchEngineUrlFromTemplateUrl(keyword);
+            String url = mTemplateUrlService.getSearchEngineUrlFromTemplateUrl(keyword);
             if (url.startsWith("http:")) {
                 return index;
             }
@@ -227,29 +177,23 @@ public class SearchEngineSettingsTest {
         // Make sure the template_url_service is loaded.
         final CallbackHelper onTemplateUrlServiceLoadedHelper = new CallbackHelper();
         TestThreadUtils.runOnUiThreadBlocking(() -> {
-            if (TemplateUrlServiceFactory.get().isLoaded()) {
+            if (mTemplateUrlService == null) {
+                mTemplateUrlService = TemplateUrlServiceFactory.getForProfile(
+                        Profile.getLastUsedRegularProfile());
+            }
+            if (mTemplateUrlService.isLoaded()) {
                 onTemplateUrlServiceLoadedHelper.notifyCalled();
             } else {
-                TemplateUrlServiceFactory.get().registerLoadListener(new LoadListener() {
+                mTemplateUrlService.registerLoadListener(new LoadListener() {
                     @Override
                     public void onTemplateUrlServiceLoaded() {
                         onTemplateUrlServiceLoadedHelper.notifyCalled();
                     }
                 });
-                TemplateUrlServiceFactory.get().load();
+                mTemplateUrlService.load();
             }
         });
         onTemplateUrlServiceLoadedHelper.waitForCallback(0);
-    }
-
-    private @ContentSettingValues int locationPermissionForSearchEngine(String keyword) {
-        String url = TemplateUrlServiceFactory.get().getSearchEngineUrlFromTemplateUrl(keyword);
-        PermissionInfo locationSettings =
-                new PermissionInfo(ContentSettingsType.GEOLOCATION, url, null, false);
-        @ContentSettingValues
-        int locationPermission =
-                locationSettings.getContentSetting(Profile.getLastUsedRegularProfile());
-        return locationPermission;
     }
 
     private static Preference waitForPreference(final PreferenceFragmentCompat prefFragment,

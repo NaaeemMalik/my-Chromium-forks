@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -21,11 +21,9 @@ interface WallpaperHost {
 };
 
 // Connects with container side to publish wallpaper related intents.
+// Deprecated method IDs: 0
 // Next method ID: 4
 interface WallpaperInstance {
-  // DEPRECATED: Please use Init@3 instead.
-  InitDeprecated@0(pending_remote<WallpaperHost> host_remote);
-
   // Establishes full-duplex communication with the host.
   [MinVersion=3] Init@3(pending_remote<WallpaperHost> host_remote) => ();
 

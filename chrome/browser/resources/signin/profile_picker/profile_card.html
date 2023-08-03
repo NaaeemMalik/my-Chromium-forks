@@ -18,6 +18,15 @@
     width: inherit;
   }
 
+  :host-context([chrome-refresh-2023]) cr-button {
+    --cr-hover-background-color: transparent;
+    border-radius: inherit;
+  }
+
+  :host-context([chrome-refresh-2023]) #gaiaName {
+    left: 0;
+  }
+
   #avatarContainer {
     height: var(--profile-card-avatar-icon-size);
     position: relative;
@@ -45,7 +54,7 @@
   }
 
   iron-icon {
-    --iron-icon-fill-color: var(--google-grey-refresh-700);
+    --iron-icon-fill-color: var(--google-grey-700);
   }
 
   #forceSigninContainer {
@@ -72,7 +81,7 @@
   }
 
   #hoverUnderline {
-    border-bottom: 2px solid var(--google-grey-refresh-300);
+    border-bottom: 2px solid var(--google-grey-300);
     border-radius: 0;
     height: 0;
     left: 0;
@@ -114,7 +123,7 @@
     }
 
     #hoverUnderline {
-      border-color: var(--google-grey-refresh-700);
+      border-color: var(--google-grey-700);
     }
   }
 </style>

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,10 @@
 #include <utility>
 
 #include "base/memory/weak_ptr.h"
+#include "base/task/single_thread_task_runner.h"
 #include "remoting/host/audio_capturer.h"
 #include "remoting/host/desktop_capturer_proxy.h"
+#include "remoting/host/desktop_display_info_monitor.h"
 #include "remoting/host/fake_keyboard_layout_monitor.h"
 #include "remoting/host/file_transfer/file_operations.h"
 #include "remoting/host/input_injector.h"
@@ -28,37 +30,45 @@ void FakeInputInjector::Start(
     std::unique_ptr<protocol::ClipboardStub> client_clipboard) {}
 
 void FakeInputInjector::InjectKeyEvent(const protocol::KeyEvent& event) {
-  if (key_events_)
+  if (key_events_) {
     key_events_->push_back(event);
+  }
 }
 
 void FakeInputInjector::InjectTextEvent(const protocol::TextEvent& event) {
-  if (text_events_)
+  if (text_events_) {
     text_events_->push_back(event);
+  }
 }
 
 void FakeInputInjector::InjectMouseEvent(const protocol::MouseEvent& event) {
-  if (mouse_events_)
+  if (mouse_events_) {
     mouse_events_->push_back(event);
+  }
 }
 
 void FakeInputInjector::InjectTouchEvent(const protocol::TouchEvent& event) {
-  if (touch_events_)
+  if (touch_events_) {
     touch_events_->push_back(event);
+  }
 }
 
 void FakeInputInjector::InjectClipboardEvent(
     const protocol::ClipboardEvent& event) {
-  if (clipboard_events_)
+  if (clipboard_events_) {
     clipboard_events_->push_back(event);
+  }
 }
 
 FakeScreenControls::FakeScreenControls() = default;
 FakeScreenControls::~FakeScreenControls() = default;
 
 void FakeScreenControls::SetScreenResolution(
-    const ScreenResolution& resolution) {
-}
+    const ScreenResolution& resolution,
+    absl::optional<webrtc::ScreenId> screen_id) {}
+
+void FakeScreenControls::SetVideoLayout(
+    const protocol::VideoLayout& video_layout) {}
 
 FakeDesktopEnvironment::FakeDesktopEnvironment(
     scoped_refptr<base::SingleThreadTaskRunner> capture_thread,
@@ -86,17 +96,19 @@ std::unique_ptr<ScreenControls> FakeDesktopEnvironment::CreateScreenControls() {
   return std::make_unique<FakeScreenControls>();
 }
 
-std::unique_ptr<webrtc::DesktopCapturer>
-FakeDesktopEnvironment::CreateVideoCapturer() {
-  std::unique_ptr<protocol::FakeDesktopCapturer> fake_capturer(
-      new protocol::FakeDesktopCapturer());
-  if (!frame_generator_.is_null())
+std::unique_ptr<DesktopCapturer> FakeDesktopEnvironment::CreateVideoCapturer() {
+  auto fake_capturer = std::make_unique<protocol::FakeDesktopCapturer>();
+  if (!frame_generator_.is_null()) {
     fake_capturer->set_frame_generator(frame_generator_);
+  }
 
-  std::unique_ptr<DesktopCapturerProxy> result(
-      new DesktopCapturerProxy(capture_thread_, capture_thread_, nullptr));
+  auto result = std::make_unique<DesktopCapturerProxy>(capture_thread_);
   result->set_capturer(std::move(fake_capturer));
   return std::move(result);
+}
+
+DesktopDisplayInfoMonitor* FakeDesktopEnvironment::GetDisplayInfoMonitor() {
+  return nullptr;
 }
 
 std::unique_ptr<webrtc::MouseCursorMonitor>
@@ -126,11 +138,11 @@ std::string FakeDesktopEnvironment::GetCapabilities() const {
 void FakeDesktopEnvironment::SetCapabilities(const std::string& capabilities) {}
 
 uint32_t FakeDesktopEnvironment::GetDesktopSessionId() const {
-  return UINT32_MAX;
+  return desktop_session_id_;
 }
 
-std::unique_ptr<DesktopAndCursorConditionalComposer>
-FakeDesktopEnvironment::CreateComposingVideoCapturer() {
+std::unique_ptr<RemoteWebAuthnStateChangeNotifier>
+FakeDesktopEnvironment::CreateRemoteWebAuthnStateChangeNotifier() {
   return nullptr;
 }
 
@@ -152,6 +164,7 @@ std::unique_ptr<DesktopEnvironment> FakeDesktopEnvironmentFactory::Create(
   std::unique_ptr<FakeDesktopEnvironment> result(
       new FakeDesktopEnvironment(capture_thread_, options));
   result->set_frame_generator(frame_generator_);
+  result->set_desktop_session_id(desktop_session_id_);
   last_desktop_environment_ = result->weak_factory_.GetWeakPtr();
   return std::move(result);
 }

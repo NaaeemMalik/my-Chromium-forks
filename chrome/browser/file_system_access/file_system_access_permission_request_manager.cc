@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -95,7 +95,7 @@ FileSystemAccessPermissionRequestManager::
 bool FileSystemAccessPermissionRequestManager::CanShowRequest() const {
   // Deley showing requests until the main frame is fully loaded.
   // ScheduleShowRequest() will be called again when that happens.
-  return web_contents()->IsDocumentOnLoadCompletedInMainFrame() &&
+  return web_contents()->IsDocumentOnLoadCompletedInPrimaryMainFrame() &&
          !queued_requests_.empty() && !current_request_;
 }
 
@@ -131,8 +131,7 @@ void FileSystemAccessPermissionRequestManager::DequeueAndShowRequest() {
 }
 
 void FileSystemAccessPermissionRequestManager::
-    DocumentOnLoadCompletedInMainFrame(
-        content::RenderFrameHost* render_frame_host) {
+    DocumentOnLoadCompletedInPrimaryMainFrame() {
   // This is scheduled because while all calls to the browser have been
   // issued at DOMContentLoaded, they may be bouncing around in scheduled
   // callbacks finding the UI thread still. This makes sure we allow those

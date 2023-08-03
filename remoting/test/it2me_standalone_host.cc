@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,12 +9,13 @@
 #include <memory>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/host/chromoting_host_context.h"
 #include "remoting/host/host_extension.h"
@@ -40,9 +41,9 @@ using ::remoting::protocol::MockSession;
 It2MeStandaloneHost::It2MeStandaloneHost()
     : task_environment_(
           base::test::SingleThreadTaskEnvironment::MainThreadType::UI),
-      context_(ChromotingHostContext::Create(
-          new AutoThreadTaskRunner(base::ThreadTaskRunnerHandle::Get(),
-                                   run_loop_.QuitClosure()))),
+      context_(ChromotingHostContext::Create(new AutoThreadTaskRunner(
+          base::SingleThreadTaskRunner::GetCurrentDefault(),
+          run_loop_.QuitClosure()))),
       main_task_runner_(context_->file_task_runner()),
       factory_(main_task_runner_,
                context_->video_capture_task_runner(),
@@ -50,7 +51,7 @@ It2MeStandaloneHost::It2MeStandaloneHost()
                context_->ui_task_runner()),
       connection_(base::WrapUnique(new testing::NiceMock<MockSession>())),
       session_jid_(kSessionJid),
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
       // We cannot support audio capturing for linux, since a pipe name is
       // needed to initialize AudioCapturerLinux.
       config_(protocol::SessionConfig::ForTest()),

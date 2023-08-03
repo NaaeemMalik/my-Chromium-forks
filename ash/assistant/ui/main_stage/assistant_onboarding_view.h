@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,11 +12,13 @@
 #include "ash/public/cpp/assistant/controller/assistant_controller.h"
 #include "ash/public/cpp/assistant/controller/assistant_controller_observer.h"
 #include "base/component_export.h"
+#include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "ui/views/view.h"
 
 namespace views {
 class Label;
+class TableLayoutView;
 }  // namespace views
 
 namespace ash {
@@ -59,10 +61,14 @@ class COMPONENT_EXPORT(ASSISTANT_UI) AssistantOnboardingView
   void UpdateGreeting();
   void UpdateSuggestions();
 
-  AssistantViewDelegate* const delegate_;  // Owned by AssistantController.
-  views::Label* greeting_ = nullptr;       // Owned by view hierarchy.
-  views::Label* intro_ = nullptr;          // Owned by view hierarchy.
-  views::View* grid_ = nullptr;            // Owned by view hierarchy.
+  const raw_ptr<AssistantViewDelegate, ExperimentalAsh>
+      delegate_;  // Owned by AssistantController.
+  raw_ptr<views::Label, ExperimentalAsh> greeting_ =
+      nullptr;  // Owned by view hierarchy.
+  raw_ptr<views::Label, ExperimentalAsh> intro_ =
+      nullptr;  // Owned by view hierarchy.
+  raw_ptr<views::TableLayoutView, ExperimentalAsh> table_ =
+      nullptr;  // Owned by view hierarchy.
 
   base::ScopedObservation<AssistantController, AssistantControllerObserver>
       assistant_controller_observation_{this};

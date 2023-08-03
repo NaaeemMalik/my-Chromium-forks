@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_canvas.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_record.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_shader.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/skia_conversions.h"
@@ -17,7 +18,7 @@ namespace blink {
 
 namespace {
 void DrawInternal(cc::PaintCanvas* canvas,
-                  const PaintFlags& flags,
+                  const cc::PaintFlags& flags,
                   const gfx::RectF& dest_rect,
                   const gfx::RectF& src_rect,
                   const ImageDrawOptions& draw_options,
@@ -30,7 +31,7 @@ void DrawInternal(cc::PaintCanvas* canvas,
 }  // namespace
 
 void PaintWorkletDeferredImage::Draw(cc::PaintCanvas* canvas,
-                                     const PaintFlags& flags,
+                                     const cc::PaintFlags& flags,
                                      const gfx::RectF& dest_rect,
                                      const gfx::RectF& src_rect,
                                      const ImageDrawOptions& draw_options) {

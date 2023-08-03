@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,11 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -42,23 +44,22 @@ class SafeBrowsingMetricsCollectorTest : public ::testing::Test {
                            time.ToDeltaSinceWindowsEpoch().InSeconds());
   }
 
-  const base::Value* GetTsFromUserStateAndEventType(UserState state,
-                                                    EventType event_type) {
-    const base::DictionaryValue* state_dict =
-        pref_service_.GetDictionary(prefs::kSafeBrowsingEventTimestamps);
-    const base::Value* event_dict =
-        state_dict->FindDictKey(base::NumberToString(static_cast<int>(state)));
+  const base::Value::List& GetTsFromUserStateAndEventType(
+      UserState state,
+      EventType event_type) {
+    const base::Value::Dict& state_dict =
+        pref_service_.GetDict(prefs::kSafeBrowsingEventTimestamps);
+    const base::Value::Dict* event_dict =
+        state_dict.FindDict(base::NumberToString(static_cast<int>(state)));
     DCHECK(event_dict);
-    DCHECK(event_dict->is_dict());
-    const base::Value* timestamps = event_dict->FindListKey(
+    const base::Value::List* timestamps = event_dict->FindList(
         base::NumberToString(static_cast<int>(event_type)));
     DCHECK(timestamps);
-    DCHECK(timestamps->is_list());
-    return timestamps;
+    return *timestamps;
   }
 
-  bool IsSortedInChronologicalOrder(const base::Value* ts) {
-    return std::is_sorted(ts->GetList().begin(), ts->GetList().end(),
+  bool IsSortedInChronologicalOrder(const base::Value::List& ts) {
+    return std::is_sorted(ts.begin(), ts.end(),
                           [](const base::Value& ts_a, const base::Value& ts_b) {
                             return base::ValueToInt64(ts_a).value_or(0) <
                                    base::ValueToInt64(ts_b).value_or(0);
@@ -208,21 +209,21 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
         EventType::DATABASE_INTERSTITIAL_BYPASS);
   }
 
-  const base::Value* timestamps = GetTsFromUserStateAndEventType(
+  const base::Value::List& timestamps = GetTsFromUserStateAndEventType(
       UserState::kEnhancedProtection, EventType::DATABASE_INTERSTITIAL_BYPASS);
-  EXPECT_EQ(30u, timestamps->GetList().size());
+  EXPECT_EQ(30u, timestamps.size());
   EXPECT_TRUE(IsSortedInChronologicalOrder(timestamps));
 
   task_environment_.FastForwardBy(base::Days(1));
   metrics_collector_->AddSafeBrowsingEventToPref(
       EventType::DATABASE_INTERSTITIAL_BYPASS);
 
-  EXPECT_EQ(30u, timestamps->GetList().size());
+  EXPECT_EQ(30u, timestamps.size());
   EXPECT_TRUE(IsSortedInChronologicalOrder(timestamps));
   // The oldest timestamp should be removed.
-  EXPECT_EQ(timestamps->GetList()[0], timestamps->GetList()[1]);
+  EXPECT_EQ(timestamps[0], timestamps[1]);
   // The newest timestamp should be added as the last element.
-  EXPECT_NE(timestamps->GetList()[28], timestamps->GetList()[29]);
+  EXPECT_NE(timestamps[28], timestamps[29]);
 }
 
 TEST_F(SafeBrowsingMetricsCollectorTest,
@@ -237,12 +238,12 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
   metrics_collector_->AddSafeBrowsingEventToPref(
       EventType::DATABASE_INTERSTITIAL_BYPASS);
 
-  const base::Value* enhanced_timestamps = GetTsFromUserStateAndEventType(
+  const base::Value::List& enhanced_timestamps = GetTsFromUserStateAndEventType(
       UserState::kEnhancedProtection, EventType::DATABASE_INTERSTITIAL_BYPASS);
-  EXPECT_EQ(1u, enhanced_timestamps->GetList().size());
-  const base::Value* managed_timestamps = GetTsFromUserStateAndEventType(
+  EXPECT_EQ(1u, enhanced_timestamps.size());
+  const base::Value::List& managed_timestamps = GetTsFromUserStateAndEventType(
       UserState::kManaged, EventType::DATABASE_INTERSTITIAL_BYPASS);
-  EXPECT_EQ(2u, managed_timestamps->GetList().size());
+  EXPECT_EQ(2u, managed_timestamps.size());
 }
 
 TEST_F(SafeBrowsingMetricsCollectorTest,
@@ -263,25 +264,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
   histograms.ExpectUniqueSample("SafeBrowsing.EsbDisabled.LastBypassEventType",
                                 /* sample */ EventType::CSD_INTERSTITIAL_BYPASS,
                                 /* expected_count */ 1);
-  histograms.ExpectUniqueTimeSample(
-      "SafeBrowsing.EsbDisabled.LastBypassEventInterval.CsdInterstitialBypass",
-      /* sample */ base::Hours(1),
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.BypassCountLast28Days."
-      "DatabaseInterstitialBypass",
-      /* sample */ 2,
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.BypassCountLast28Days."
-      "CsdInterstitialBypass",
-      /* sample */ 2,
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.BypassCountLast28Days."
-      "RealTimeInterstitialBypass",
-      /* sample */ 0,
-      /* expected_count */ 1);
 
   // Changing standard protection to enhanced protection shouldn't log the
   // metric.
@@ -297,30 +279,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
   SetSafeBrowsingState(&pref_service_, SafeBrowsingState::NO_SAFE_BROWSING);
   histograms.ExpectTotalCount("SafeBrowsing.EsbDisabled.LastBypassEventType",
                               /* expected_count */ 2);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.LastBypassEventType",
-      /* sample */ EventType::REAL_TIME_INTERSTITIAL_BYPASS,
-      /* expected_count */ 1);
-  histograms.ExpectTimeBucketCount(
-      "SafeBrowsing.EsbDisabled.LastBypassEventInterval."
-      "RealTimeInterstitialBypass",
-      /* sample */ base::Days(1),
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.BypassCountLast28Days."
-      "DatabaseInterstitialBypass",
-      /* sample */ 2,
-      /* expected_count */ 2);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.BypassCountLast28Days."
-      "CsdInterstitialBypass",
-      /* sample */ 2,
-      /* expected_count */ 2);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.BypassCountLast28Days."
-      "RealTimeInterstitialBypass",
-      /* sample */ 1,
-      /* expected_count */ 1);
 
   // Changing no protection to enhanced protection shouldn't log the metric.
   SetSafeBrowsingState(&pref_service_, SafeBrowsingState::ENHANCED_PROTECTION);
@@ -343,21 +301,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
       "SafeBrowsing.EsbDisabled.LastSecuritySensitiveEventType",
       /* sample */ EventType::SECURITY_SENSITIVE_SAFE_BROWSING_INTERSTITIAL,
       /* expected_count */ 1);
-  histograms.ExpectUniqueTimeSample(
-      "SafeBrowsing.EsbDisabled.LastSecuritySensitiveEventInterval."
-      "SafeBrowsingInterstitial",
-      /* sample */ base::Hours(1),
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.SecuritySensitiveCountLast28Days."
-      "SafeBrowsingInterstitial",
-      /* sample */ 1,
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.SecuritySensitiveCountLast28Days."
-      "SSLInterstitial",
-      /* sample */ 0,
-      /* expected_count */ 1);
 
   // Changing standard protection to enhanced protection shouldn't log the
   // metric.
@@ -375,16 +318,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
   histograms.ExpectTotalCount(
       "SafeBrowsing.EsbDisabled.LastSecuritySensitiveEventType",
       /* expected_count */ 2);
-  histograms.ExpectTimeBucketCount(
-      "SafeBrowsing.EsbDisabled.LastSecuritySensitiveEventInterval."
-      "SafeBrowsingInterstitial",
-      /* sample */ base::Days(1),
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.EsbDisabled.SecuritySensitiveCountLast28Days."
-      "SafeBrowsingInterstitial",
-      /* sample */ 2,
-      /* expected_count */ 1);
 
   // Changing no protection to enhanced protection shouldn't log the metric.
   SetSafeBrowsingState(&pref_service_, SafeBrowsingState::ENHANCED_PROTECTION);
@@ -636,21 +569,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest, LogDailyEventMetrics_LoggedDaily) {
       "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection.AllEvents",
       /* sample */ 4,
       /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "DatabaseInterstitialBypass",
-      /* sample */ 2,
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "CsdInterstitialBypass",
-      /* sample */ 1,
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "RealTimeInterstitialBypass",
-      /* sample */ 1,
-      /* expected_count */ 1);
   histograms.ExpectTotalCount(
       "SafeBrowsing.Daily.SecuritySensitiveCountLast28Days.EnhancedProtection."
       "AllEvents",
@@ -658,11 +576,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest, LogDailyEventMetrics_LoggedDaily) {
   histograms.ExpectBucketCount(
       "SafeBrowsing.Daily.SecuritySensitiveCountLast28Days.EnhancedProtection."
       "AllEvents",
-      /* sample */ 2,
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.SecuritySensitiveCountLast28Days.EnhancedProtection."
-      "SafeBrowsingInterstitial",
       /* sample */ 2,
       /* expected_count */ 1);
 
@@ -675,11 +588,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest, LogDailyEventMetrics_LoggedDaily) {
       "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection.AllEvents",
       /* sample */ 5,
       /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "CsdInterstitialBypass",
-      /* sample */ 2,
-      /* expected_count */ 1);
 
   task_environment_.FastForwardBy(base::Days(1));
   histograms.ExpectTotalCount(
@@ -688,11 +596,6 @@ TEST_F(SafeBrowsingMetricsCollectorTest, LogDailyEventMetrics_LoggedDaily) {
   histograms.ExpectBucketCount(
       "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection.AllEvents",
       /* sample */ 5,
-      /* expected_count */ 2);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "CsdInterstitialBypass",
-      /* sample */ 2,
       /* expected_count */ 2);
 }
 
@@ -714,26 +617,11 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
       "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection.AllEvents",
       /* sample */ 1,
       /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "DatabaseInterstitialBypass",
-      /* sample */ 0,
-      /* expected_count */ 0);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "DatabaseInterstitialBypass",
-      /* sample */ 1,
-      /* expected_count */ 1);
 
   task_environment_.FastForwardBy(base::Days(28));
   // The event is older than 28 days, so it shouldn't be counted.
   histograms.ExpectBucketCount(
       "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection.AllEvents",
-      /* sample */ 0,
-      /* expected_count */ 1);
-  histograms.ExpectBucketCount(
-      "SafeBrowsing.Daily.BypassCountLast28Days.EnhancedProtection."
-      "DatabaseInterstitialBypass",
       /* sample */ 0,
       /* expected_count */ 1);
 }
@@ -777,22 +665,18 @@ TEST_F(SafeBrowsingMetricsCollectorTest,
   FastForwardAndAddEvent(base::Days(1), EventType::CSD_INTERSTITIAL_BYPASS);
 
   task_environment_.FastForwardBy(base::Days(30));
-  const base::Value* db_timestamps = GetTsFromUserStateAndEventType(
+  const base::Value::List& db_timestamps = GetTsFromUserStateAndEventType(
       UserState::kStandardProtection, EventType::DATABASE_INTERSTITIAL_BYPASS);
   // The event is removed from pref because it was logged more than 30 days.
-  EXPECT_EQ(0u, db_timestamps->GetList().size());
-  const base::Value* csd_timestamps = GetTsFromUserStateAndEventType(
+  EXPECT_EQ(0u, db_timestamps.size());
+  const base::Value::List& csd_timestamps = GetTsFromUserStateAndEventType(
       UserState::kStandardProtection, EventType::CSD_INTERSTITIAL_BYPASS);
   // The CSD event is still in pref because it was logged less than 30 days.
-  EXPECT_EQ(1u, csd_timestamps->GetList().size());
+  EXPECT_EQ(1u, csd_timestamps.size());
 
   task_environment_.FastForwardBy(base::Days(1));
   // The CSD event is also removed because it was logged more than 30 days now.
-  EXPECT_EQ(0u, csd_timestamps->GetList().size());
-
-  histograms.ExpectUniqueSample("SafeBrowsing.MetricsCollector.IsPrefValid",
-                                /* sample */ 1,
-                                /* expected_count */ 32);
+  EXPECT_EQ(0u, csd_timestamps.size());
 }
 
 TEST_F(SafeBrowsingMetricsCollectorTest, GetUserState) {

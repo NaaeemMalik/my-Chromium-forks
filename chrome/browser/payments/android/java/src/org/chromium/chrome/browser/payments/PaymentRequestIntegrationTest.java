@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -75,7 +75,6 @@ public class PaymentRequestIntegrationTest {
     private PaymentRequestClient mClient;
     private PaymentAppFactoryInterface mFactory;
     private PaymentApp mPaymentApp;
-    private boolean mIsUserGesture;
     private boolean mWaitForUpdatedDetails;
 
     @Before
@@ -160,7 +159,7 @@ public class PaymentRequestIntegrationTest {
     }
 
     private void show(PaymentRequest request) {
-        request.show(mIsUserGesture, mWaitForUpdatedDetails);
+        request.show(mWaitForUpdatedDetails);
     }
 
     private void assertInvokePaymentAppCalled() {
@@ -243,5 +242,25 @@ public class PaymentRequestIntegrationTest {
                 .setRequestedPaymentMethods(Mockito.eq(expectedMethods));
         Mockito.verify(journeyLogger, Mockito.times(1))
                 .setSelectedMethod(Mockito.eq(PaymentMethodCategory.PLAY_BILLING));
+    }
+
+    @Test
+    @Feature({"Payments"})
+    public void testGooglePayAuthenticationRequestAndSelectionAreLogged() {
+        setInstrumentMethodName(MethodStrings.GOOGLE_PAY_AUTHENTICATION);
+        setAndroidPaymentApp();
+        JourneyLogger journeyLogger = Mockito.mock(JourneyLogger.class);
+        PaymentRequest request =
+                defaultBuilder()
+                        .setJourneyLogger(journeyLogger)
+                        .setSupportedMethod(MethodStrings.GOOGLE_PAY_AUTHENTICATION)
+                        .buildAndInit();
+        show(request);
+        List<Integer> expectedMethods = new ArrayList<>();
+        expectedMethods.add(PaymentMethodCategory.GOOGLE_PAY_AUTHENTICATION);
+        Mockito.verify(journeyLogger, Mockito.times(1))
+                .setRequestedPaymentMethods(Mockito.eq(expectedMethods));
+        Mockito.verify(journeyLogger, Mockito.times(1))
+                .setSelectedMethod(Mockito.eq(PaymentMethodCategory.GOOGLE_PAY_AUTHENTICATION));
     }
 }

@@ -58,7 +58,10 @@ class ElementData : public GarbageCollected<ElementData> {
 
   void ClearClass() const { class_names_.Clear(); }
   void SetClass(const AtomicString& class_name, bool should_fold_case) const {
-    class_names_.Set(should_fold_case ? class_name.LowerASCII() : class_name);
+    AtomicString lower_class_name;
+    if (should_fold_case && !class_name.IsLowerASCII())
+      lower_class_name = class_name.LowerASCII();
+    class_names_.Set(lower_class_name ? lower_class_name : class_name);
   }
   const SpaceSplitString& ClassNames() const { return class_names_; }
 
@@ -156,9 +159,10 @@ class ElementData : public GarbageCollected<ElementData> {
 // duplicate sets of attributes (ex. the same classes).
 class ShareableElementData final : public ElementData {
  public:
-  static ShareableElementData* CreateWithAttributes(const Vector<Attribute>&);
+  static ShareableElementData* CreateWithAttributes(
+      const Vector<Attribute, kAttributePrealloc>&);
 
-  explicit ShareableElementData(const Vector<Attribute>&);
+  explicit ShareableElementData(const Vector<Attribute, kAttributePrealloc>&);
   explicit ShareableElementData(const UniqueElementData&);
   ~ShareableElementData();
 

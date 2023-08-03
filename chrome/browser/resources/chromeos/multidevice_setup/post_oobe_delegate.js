@@ -1,11 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {MojoInterfaceProviderImpl} from 'gtx://resources/cr_components/chromeos/multidevice_setup/mojo_api.m.js';
-import {MultiDeviceSetupDelegate} from 'gtx://resources/cr_components/chromeos/multidevice_setup/multidevice_setup_delegate.m.js';
-import {assert} from 'gtx://resources/js/assert.m.js';
-import {I18nBehavior} from 'gtx://resources/js/i18n_behavior.m.js';
+import {MojoInterfaceProviderImpl} from 'gtx://resources/ash/common/multidevice_setup/mojo_api.js';
+import {MultiDeviceSetupDelegate} from 'gtx://resources/ash/common/multidevice_setup/multidevice_setup_delegate.js';
+import {I18nBehavior} from 'gtx://resources/ash/common/i18n_behavior.js';
+import {assert} from 'gtx://resources/ash/common/assert.js';
 import {html, Polymer} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 /** @implements {MultiDeviceSetupDelegate} */

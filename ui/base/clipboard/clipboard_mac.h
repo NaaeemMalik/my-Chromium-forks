@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -97,6 +97,10 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD) ClipboardMac : public Clipboard {
                  size_t markup_len,
                  const char* url_data,
                  size_t url_len) override;
+  void WriteUnsanitizedHTML(const char* markup_data,
+                            size_t markup_len,
+                            const char* url_data,
+                            size_t url_len) override;
   void WriteSvg(const char* markup_data, size_t markup_len) override;
   void WriteRTF(const char* rtf_data, size_t data_len) override;
   void WriteFilenames(std::vector<ui::FileInfo> filenames) override;

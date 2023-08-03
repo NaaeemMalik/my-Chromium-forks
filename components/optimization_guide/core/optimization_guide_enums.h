@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,29 +49,6 @@ enum class OptimizationTypeDecision {
   kMaxValue = kHintFetchStartedButNotAvailableInTime,
 };
 
-// The types of decisions that can be made for an optimization target.
-//
-// Keep in sync with OptimizationGuideOptimizationTargetDecision in enums.xml.
-enum class OptimizationTargetDecision {
-  kUnknown,
-  // The page load does not match the optimization target.
-  kPageLoadDoesNotMatch,
-  // The page load matches the optimization target.
-  kPageLoadMatches,
-  // The model needed to make the target decision was not available on the
-  // client.
-  kModelNotAvailableOnClient,
-  // The page load is part of a model prediction holdback where all decisions
-  // will return |OptimizationGuideDecision::kFalse| in an attempt to not taint
-  // the data for understanding the production recall of the model.
-  kModelPredictionHoldback,
-  // The OptimizationGuideDecider was not initialized yet.
-  kDeciderNotInitialized,
-
-  // Add new values above this line.
-  kMaxValue = kDeciderNotInitialized,
-};
-
 // The statuses for racing a hints fetch with the current navigation based
 // on the availability of hints for both the current host and URL.
 //
@@ -99,28 +76,6 @@ enum class RaceNavigationFetchAttemptStatus {
   // Add new values above this line.
   kMaxValue =
       kDeprecatedRaceNavigationFetchNotAttemptedTooManyConcurrentFetches,
-};
-
-// The statuses for a prediction model in the prediction manager when requested
-// to be evaluated.
-//
-// Keep in sync with OptimizationGuidePredictionManagerModelStatus in enums.xml.
-enum class PredictionManagerModelStatus {
-  kUnknown,
-  // The model is loaded and available for use.
-  kModelAvailable,
-  // The store is initialized but does not contain a model for the optimization
-  // target.
-  kStoreAvailableNoModelForTarget,
-  // The store is initialized and contains a model for the optimization target
-  // but it is not loaded in memory.
-  kStoreAvailableModelNotLoaded,
-  // The store is not initialized and it is unknown if it contains a model for
-  // the optimization target.
-  kStoreUnavailableModelUnknown,
-
-  // Add new values above this line.
-  kMaxValue = kStoreUnavailableModelUnknown,
 };
 
 // The statuses for a download file containing a prediction model when verified
@@ -155,9 +110,13 @@ enum class PredictionModelDownloadStatus {
   // The new directory to persist this model version's files could not be
   // created.
   kCouldNotCreateDirectory = 12,
+  // The model info was not saved to model store file.
+  kFailedModelInfoSaving = 13,
+  // The additional file was not found in the CRX file.
+  kFailedInvalidAdditionalFile = 14,
 
   // Add new values above this line.
-  kMaxValue = kCouldNotCreateDirectory,
+  kMaxValue = kFailedInvalidAdditionalFile,
 };
 
 // The status for the page content annotations being stored.
@@ -176,6 +135,52 @@ enum PageContentAnnotationsStorageStatus {
 
   // Add new values above this line.
   kMaxValue = kSpecificVisitForUrlNotFound,
+};
+
+// Different events of the prediction model delivery lifecycle for an
+// OptimizationTarget.
+// Keep in sync with OptimizationGuideModelDeliveryEvent in enums.xml.
+enum class ModelDeliveryEvent {
+  kUnknown = 0,
+
+  // The model was delivered from immediately or after a
+  // successful download.
+  kModelDeliveredAtRegistration = 1,
+  kModelDelivered = 2,
+
+  // GetModelsRequest was sent to the optimization guide server.
+  kGetModelsRequest = 3,
+
+  // Model was requested to be downloaded using download service.
+  kDownloadServiceRequest = 4,
+
+  // Download service started the model download.
+  kModelDownloadStarted = 5,
+
+  // Model got downloaded from the download service.
+  kModelDownloaded = 6,
+
+  // Download service was unavailable.
+  kDownloadServiceUnavailable = 7,
+
+  // GetModelsResponse failed.
+  kGetModelsResponseFailure = 8,
+
+  // Download URL received from model metadata is invalid
+  kDownloadURLInvalid = 9,
+
+  // Model download failed due to download service or verifying the downloaded
+  // model.
+  kModelDownloadFailure = 10,
+
+  // Loading the model from store failed.
+  kModelLoadFailed = 11,
+
+  // Model download was attempted after the model load failed.
+  kModelDownloadDueToModelLoadFailure = 12,
+
+  // Add new values above this line.
+  kMaxValue = kModelDownloadDueToModelLoadFailure,
 };
 
 }  // namespace optimization_guide

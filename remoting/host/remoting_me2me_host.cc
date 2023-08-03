@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -12,13 +12,15 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump_type.h"
+#include "base/metrics/field_trial.h"
+#include "base/notreached.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringize_macros.h"
@@ -29,19 +31,20 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "components/policy/policy_constants.h"
+#include "components/webrtc/thread_wrapper.h"
 #include "ipc/ipc_channel.h"
 #include "ipc/ipc_channel_proxy.h"
 #include "ipc/ipc_listener.h"
-#include "jingle/glue/thread_wrapper.h"
 #include "mojo/core/embedder/scoped_ipc_support.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
 #include "mojo/public/cpp/system/invitation.h"
+#include "mojo/public/cpp/system/message_pipe.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/url_util.h"
 #include "net/socket/client_socket_factory.h"
-#include "net/url_request/url_fetcher.h"
 #include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/base/constants.h"
 #include "remoting/base/cpu_utils.h"
@@ -52,18 +55,17 @@
 #include "remoting/base/rsa_key_pair.h"
 #include "remoting/base/service_urls.h"
 #include "remoting/base/util.h"
+#include "remoting/host/base/desktop_environment_options.h"
 #include "remoting/host/base/host_exit_codes.h"
 #include "remoting/host/base/switches.h"
 #include "remoting/host/base/username.h"
 #include "remoting/host/branding.h"
 #include "remoting/host/chromoting_host.h"
 #include "remoting/host/chromoting_host_context.h"
-#include "remoting/host/chromoting_messages.h"
 #include "remoting/host/config_file_watcher.h"
 #include "remoting/host/config_watcher.h"
 #include "remoting/host/crash_process.h"
 #include "remoting/host/desktop_environment.h"
-#include "remoting/host/desktop_environment_options.h"
 #include "remoting/host/desktop_session_connector.h"
 #include "remoting/host/ftl_echo_message_listener.h"
 #include "remoting/host/ftl_host_change_notification_listener.h"
@@ -77,6 +79,7 @@
 #include "remoting/host/ipc_desktop_environment.h"
 #include "remoting/host/ipc_host_event_logger.h"
 #include "remoting/host/me2me_desktop_environment.h"
+#include "remoting/host/mojom/desktop_session.mojom.h"
 #include "remoting/host/mojom/remoting_host.mojom.h"
 #include "remoting/host/pairing_registry_delegate.h"
 #include "remoting/host/pin_hash.h"
@@ -104,57 +107,73 @@
 #include "remoting/signaling/remoting_log_to_server.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/webrtc/api/scoped_refptr.h"
+#include "third_party/webrtc/rtc_base/event_tracer.h"
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include "base/file_descriptor_posix.h"
 #include "remoting/host/pam_authorization_factory_posix.h"
 #include "remoting/host/posix/signal_handler.h"
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 #include "base/mac/mac_util.h"
 #include "base/mac/scoped_cftyperef.h"
 #include "remoting/host/audio_capturer_mac.h"
 #include "remoting/host/desktop_capturer_checker.h"
 #include "remoting/host/mac/permission_utils.h"
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(REMOTING_USE_X11)
 #include <gtk/gtk.h>
+#endif  // defined(REMOTING_USE_X11)
 
+#if defined(REMOTING_USE_X11)
+#include "ui/events/platform/x11/x11_event_source.h"
+#include "ui/gfx/x/xlib_support.h"
+#endif  // defined(REMOTING_USE_X11)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #include "base/linux_util.h"
 #include "remoting/host/audio_capturer_linux.h"
 #include "remoting/host/linux/certificate_watcher.h"
-#include "ui/events/platform/x11/x11_event_source.h"
-#include "ui/gfx/x/xlib_support.h"
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_LINUX)
+#include "remoting/host/host_utmp_logger.h"
+#endif
+
+#if BUILDFLAG(IS_WIN)
 #include <commctrl.h>
 #include "base/win/registry.h"
 #include "base/win/scoped_handle.h"
 #include "base/win/windows_version.h"
 #include "remoting/host/pairing_registry_delegate_win.h"
 #include "remoting/host/win/session_desktop_environment.h"
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
-using remoting::protocol::PairingRegistry;
+#if BUILDFLAG(IS_LINUX)
+#include "remoting/host/linux/wayland_manager.h"
+#include "remoting/host/linux/wayland_utils.h"
+#endif  // BUILDFLAG(IS_LINUX)
+
 using remoting::protocol::NetworkSettings;
+using remoting::protocol::PairingRegistry;
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 
 // The following creates a section that tells Mac OS X that it is OK to let us
 // inject input in the login screen. Just the name of the section is important,
 // not its contents.
 __attribute__((used))
-__attribute__((section ("__CGPreLoginApp,__cgpreloginapp")))
+__attribute__((section("__CGPreLoginApp,__cgpreloginapp")))
 static const char magic_section[] = "";
 
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
 namespace {
 
@@ -167,17 +186,17 @@ const char kApplicationName[] = "chromoting";
 const char kStdinConfigPath[] = "-";
 #endif  // !defined(REMOTING_MULTI_PROCESS)
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 // The command line switch used to pass name of the pipe to capture audio on
 // linux.
 const char kAudioPipeSwitchName[] = "audio-pipe-name";
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 // The command line switch used to pass name of the unix domain socket used to
 // listen for security key requests.
 const char kAuthSocknameSwitchName[] = "ssh-auth-sockname";
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
 // The command line switch used by the parent to request the host to signal it
 // when it is successfully started.
@@ -205,6 +224,10 @@ const char kHostOfflineReasonZombieStateDetected[] = "ZOMBIE_STATE_DETECTED";
 // email address is Google-internal or not.
 constexpr char kGooglerEmailDomain[] = "@google.com";
 
+// File to write webrtc trace events to. If not specified, webrtc trace events
+// will not be enabled.
+const char kWebRtcTraceEventFile[] = "webrtc-trace-event-file";
+
 }  // namespace
 
 namespace remoting {
@@ -214,7 +237,8 @@ class HostProcess : public ConfigWatcher::Delegate,
                     public HeartbeatSender::Delegate,
                     public IPC::Listener,
                     public base::RefCountedThreadSafe<HostProcess>,
-                    public mojom::RemotingHostControl {
+                    public mojom::RemotingHostControl,
+                    public mojom::WorkerProcessControl {
  public:
   // |shutdown_watchdog| is armed when shutdown is started, and should be kept
   // alive as long as possible until the process exits (since destroying the
@@ -283,7 +307,9 @@ class HostProcess : public ConfigWatcher::Delegate,
 
   void StartOnNetworkThread();
 
-#if defined(OS_POSIX)
+  void ShutdownOnNetworkThread();
+
+#if BUILDFLAG(IS_POSIX)
   // Callback passed to RegisterSignalHandler() to handle SIGTERM events.
   void SigTermHandler(int signal_number);
 #endif
@@ -306,33 +332,33 @@ class HostProcess : public ConfigWatcher::Delegate,
 
   // Determines whether a new config should be applied and handles starting or
   // restarting the host process as necessary.
-  void OnConfigParsed(base::Value config);
+  void OnConfigParsed(base::Value::Dict config);
 
   // Applies the host config, returning true if successful.
-  bool ApplyConfig(const base::Value& config);
+  bool ApplyConfig(const base::Value::Dict& config);
 
   // Handles policy updates, by calling On*PolicyUpdate methods.
-  void OnPolicyUpdate(std::unique_ptr<base::DictionaryValue> policies);
+  void OnPolicyUpdate(base::Value::Dict policies);
   void OnPolicyError();
   void ReportPolicyErrorAndRestartHost();
   void ApplyHostDomainListPolicy();
   void ApplyUsernamePolicy();
   void ApplyAllowRemoteAccessConnections();
-  bool OnClientDomainListPolicyUpdate(base::DictionaryValue* policies);
-  bool OnHostDomainListPolicyUpdate(base::DictionaryValue* policies);
-  bool OnUsernamePolicyUpdate(base::DictionaryValue* policies);
-  bool OnNatPolicyUpdate(base::DictionaryValue* policies);
-  bool OnRelayPolicyUpdate(base::DictionaryValue* policies);
-  bool OnUdpPortPolicyUpdate(base::DictionaryValue* policies);
-  bool OnCurtainPolicyUpdate(base::DictionaryValue* policies);
-  bool OnHostTokenUrlPolicyUpdate(base::DictionaryValue* policies);
-  bool OnPairingPolicyUpdate(base::DictionaryValue* policies);
-  bool OnGnubbyAuthPolicyUpdate(base::DictionaryValue* policies);
-  bool OnFileTransferPolicyUpdate(base::DictionaryValue* policies);
-  bool OnEnableUserInterfacePolicyUpdate(base::DictionaryValue* policies);
-  bool OnAllowRemoteAccessConnections(base::DictionaryValue* policies);
-  bool OnMaxSessionDurationPolicyUpdate(base::DictionaryValue* policies);
-  bool OnMaxClipboardSizePolicyUpdate(base::DictionaryValue* policies);
+  bool OnClientDomainListPolicyUpdate(const base::Value::Dict& policies);
+  bool OnHostDomainListPolicyUpdate(const base::Value::Dict& policies);
+  bool OnUsernamePolicyUpdate(const base::Value::Dict& policies);
+  bool OnNatPolicyUpdate(const base::Value::Dict& policies);
+  bool OnRelayPolicyUpdate(const base::Value::Dict& policies);
+  bool OnUdpPortPolicyUpdate(const base::Value::Dict& policies);
+  bool OnCurtainPolicyUpdate(const base::Value::Dict& policies);
+  bool OnHostTokenUrlPolicyUpdate(const base::Value::Dict& policies);
+  bool OnPairingPolicyUpdate(const base::Value::Dict& policies);
+  bool OnGnubbyAuthPolicyUpdate(const base::Value::Dict& policies);
+  bool OnFileTransferPolicyUpdate(const base::Value::Dict& policies);
+  bool OnEnableUserInterfacePolicyUpdate(const base::Value::Dict& policies);
+  bool OnAllowRemoteAccessConnections(const base::Value::Dict& policies);
+  bool OnMaxSessionDurationPolicyUpdate(const base::Value::Dict& policies);
+  bool OnMaxClipboardSizePolicyUpdate(const base::Value::Dict& policies);
 
   void InitializeSignaling();
 
@@ -353,12 +379,14 @@ class HostProcess : public ConfigWatcher::Delegate,
   void GoOffline(const std::string& host_offline_reason);
   void OnHostOfflineReasonAck(bool success);
 
-#if defined(OS_WIN)
+  // mojom::WorkerProcessControl implementation.
+  void CrashProcess(const std::string& function_name,
+                    const std::string& file_name,
+                    int line_number) override;
+
+#if BUILDFLAG(IS_WIN)
   // mojom::RemotingHostControl implementation.
-  void CrashHostProcess(const std::string& function_name,
-                        const std::string& file_name,
-                        int line_number) override;
-  void ApplyHostConfig(base::Value serialized_config) override;
+  void ApplyHostConfig(base::Value::Dict serialized_config) override;
   void InitializePairingRegistry(
       ::mojo::PlatformHandle privileged_handle,
       ::mojo::PlatformHandle unprivileged_handle) override;
@@ -366,10 +394,10 @@ class HostProcess : public ConfigWatcher::Delegate,
 
   std::unique_ptr<ChromotingHostContext> context_;
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // Watch for certificate changes and kill the host when changes occur
   std::unique_ptr<CertificateWatcher> cert_watcher_;
-#endif
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
   // Created on the UI thread but used from the network thread.
   base::FilePath host_config_path_;
@@ -386,7 +414,7 @@ class HostProcess : public ConfigWatcher::Delegate,
   scoped_refptr<RsaKeyPair> key_pair_;
   std::string oauth_refresh_token_;
   std::string robot_account_username_;
-  base::Value config_{base::Value::Type::DICTIONARY};
+  base::Value::Dict config_;
   std::string host_owner_;
   bool is_googler_ = false;
   absl::optional<size_t> max_clipboard_size_;
@@ -407,7 +435,10 @@ class HostProcess : public ConfigWatcher::Delegate,
   ThirdPartyAuthConfig third_party_auth_config_;
   bool security_key_auth_policy_enabled_ = false;
   bool security_key_extension_supported_ = true;
-  int max_session_duration_minutes_ = 0;
+  absl::optional<int> max_session_duration_minutes_;
+
+  // Allows us to override field trials which are causing issues for chromoting.
+  std::unique_ptr<base::FieldTrialList> field_trial_list_;
 
   // Used to specify which window to stream, if enabled.
   webrtc::WindowId window_id_ = 0;
@@ -432,6 +463,9 @@ class HostProcess : public ConfigWatcher::Delegate,
 
   std::unique_ptr<HostStatusLogger> host_status_logger_;
   std::unique_ptr<HostEventLogger> host_event_logger_;
+#if BUILDFLAG(IS_LINUX)
+  std::unique_ptr<HostUTMPLogger> host_utmp_logger_;
+#endif
   std::unique_ptr<HostPowerSaveBlocker> power_save_blocker_;
 
   std::unique_ptr<ChromotingHost> host_;
@@ -446,7 +480,8 @@ class HostProcess : public ConfigWatcher::Delegate,
   // Accessed on the UI thread.
   std::unique_ptr<IPC::ChannelProxy> daemon_channel_;
 
-  // Owned as |desktop_environment_factory_|.
+  // Raw interface pointer which refers to the object owned by
+  // |desktop_environment_factory_|.
   raw_ptr<DesktopSessionConnector> desktop_session_connector_ = nullptr;
 #endif  // defined(REMOTING_MULTI_PROCESS)
 
@@ -460,14 +495,16 @@ class HostProcess : public ConfigWatcher::Delegate,
 
   mojo::AssociatedReceiver<mojom::RemotingHostControl> remoting_host_control_{
       this};
+  mojo::AssociatedReceiver<mojom::WorkerProcessControl> worker_process_control_{
+      this};
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   // When using the command line option to check the Accessibility or Screen
   // Recording permission, these track the permission state and indicate that
   // the host should exit immediately with the result.
   bool checking_permission_state_ = false;
   bool permission_granted_ = false;
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 };
 
 HostProcess::HostProcess(std::unique_ptr<ChromotingHostContext> context,
@@ -485,7 +522,7 @@ HostProcess::HostProcess(std::unique_ptr<ChromotingHostContext> context,
 
   StartOnUiThread();
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   if (checking_permission_state_) {
     *exit_code_out = (permission_granted_ ? EXIT_SUCCESS : EXIT_FAILURE);
   }
@@ -500,7 +537,7 @@ HostProcess::~HostProcess() {
   // We might be getting deleted on one of the threads the |host_context| owns,
   // so we need to post it back to the caller thread to safely join & delete the
   // threads it contains.  This will go away when we move to AutoThread.
-  // |context_release()| will null |context_| before the method is invoked, so
+  // |context_.release()| will null |context_| before the method is invoked, so
   // we need to pull out the task-runner on which to call DeleteSoon first.
   scoped_refptr<base::SingleThreadTaskRunner> task_runner =
       context_->ui_task_runner();
@@ -508,7 +545,7 @@ HostProcess::~HostProcess() {
 }
 
 bool HostProcess::InitWithCommandLine(const base::CommandLine* cmd_line) {
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   if (cmd_line->HasSwitch(kCheckAccessibilityPermissionSwitchName)) {
     checking_permission_state_ = true;
     permission_granted_ = mac::CanInjectInput();
@@ -537,7 +574,7 @@ bool HostProcess::InitWithCommandLine(const base::CommandLine* cmd_line) {
     }
     return false;
   }
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
   // Mojo keeps the task runner passed to it alive forever, so an
   // AutoThreadTaskRunner should not be passed to it. Otherwise, the process may
@@ -550,7 +587,8 @@ bool HostProcess::InitWithCommandLine(const base::CommandLine* cmd_line) {
   auto endpoint =
       mojo::PlatformChannel::RecoverPassedEndpointFromCommandLine(*cmd_line);
   if (!endpoint.is_valid()) {
-    LOG(ERROR) << "IPC channel endpoint provided via command line param was missing or invalid";
+    LOG(ERROR) << "IPC channel endpoint provided via command line param was "
+                  "missing or invalid";
     return false;
   }
   auto invitation = mojo::IncomingInvitation::Accept(std::move(endpoint));
@@ -561,9 +599,9 @@ bool HostProcess::InitWithCommandLine(const base::CommandLine* cmd_line) {
           .ExtractMessagePipe(cmd_line->GetSwitchValueASCII(kMojoPipeToken))
           .release(),
       IPC::Channel::MODE_CLIENT, this, context_->network_task_runner(),
-      base::ThreadTaskRunnerHandle::Get());
+      base::SingleThreadTaskRunner::GetCurrentDefault());
 
-#else  // !defined(REMOTING_MULTI_PROCESS)
+#else   // !defined(REMOTING_MULTI_PROCESS)
   if (cmd_line->HasSwitch(kHostConfigSwitchName)) {
     host_config_path_ = cmd_line->GetSwitchValuePath(kHostConfigSwitchName);
 
@@ -588,11 +626,6 @@ bool HostProcess::InitWithCommandLine(const base::CommandLine* cmd_line) {
   }
 #endif  // !defined(REMOTING_MULTI_PROCESS)
 
-  // Ignore certificate requests - the host currently has no client certificate
-  // support, so ignoring certificate requests allows connecting to servers that
-  // request, but don't require, a certificate (optional client authentication).
-  net::URLFetcher::SetIgnoreCertificateRequests(true);
-
   signal_parent_ = cmd_line->HasSwitch(kSignalParentSwitchName);
 
   if (cmd_line->HasSwitch(kReportOfflineReasonSwitchName)) {
@@ -611,7 +644,8 @@ bool HostProcess::InitWithCommandLine(const base::CommandLine* cmd_line) {
 void HostProcess::OnConfigUpdated(const std::string& serialized_config) {
   HOST_LOG << "Parsing new host configuration.";
 
-  absl::optional<base::Value> config(HostConfigFromJson(serialized_config));
+  absl::optional<base::Value::Dict> config(
+      HostConfigFromJson(serialized_config));
   if (!config.has_value()) {
     LOG(ERROR) << "Invalid configuration.";
     ShutdownHost(kInvalidHostConfigurationExitCode);
@@ -621,7 +655,7 @@ void HostProcess::OnConfigUpdated(const std::string& serialized_config) {
   OnConfigParsed(std::move(config.value()));
 }
 
-void HostProcess::OnConfigParsed(base::Value config) {
+void HostProcess::OnConfigParsed(base::Value::Dict config) {
   if (!context_->network_task_runner()->BelongsToCurrentThread()) {
     context_->network_task_runner()->PostTask(
         FROM_HERE,
@@ -630,8 +664,9 @@ void HostProcess::OnConfigParsed(base::Value config) {
   }
 
   // Filter out duplicates.
-  if (config_ == config)
+  if (config_ == config) {
     return;
+  }
 
   HOST_LOG << "Applying new host configuration.";
 
@@ -729,27 +764,36 @@ void HostProcess::StartOnNetworkThread() {
   }
 #endif  // !defined(REMOTING_MULTI_PROCESS)
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   remoting::RegisterSignalHandler(
       SIGTERM, base::BindRepeating(&HostProcess::SigTermHandler,
                                    base::Unretained(this)));
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 }
 
-#if defined(OS_POSIX)
+void HostProcess::ShutdownOnNetworkThread() {
+  DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
+  config_watcher_.reset();
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+  cert_watcher_.reset();
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+}
+
+#if BUILDFLAG(IS_POSIX)
 void HostProcess::SigTermHandler(int signal_number) {
   DCHECK(signal_number == SIGTERM);
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
   HOST_LOG << "Caught SIGTERM: Shutting down...";
   ShutdownHost(kSuccessExitCode);
 }
-#endif  // OS_POSIX
+#endif  // BUILDFLAG(IS_POSIX)
 
 void HostProcess::CreateAuthenticatorFactory() {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  if (state_ != HOST_STARTED)
+  if (state_ != HOST_STARTED) {
     return;
+  }
 
   std::string local_certificate = key_pair_->GenerateCertificate();
   if (local_certificate.empty()) {
@@ -765,16 +809,17 @@ void HostProcess::CreateAuthenticatorFactory() {
     if (allow_pairing_) {
       // On Windows |pairing_registry_| is initialized in
       // InitializePairingRegistry().
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
       if (!pairing_registry_) {
         std::unique_ptr<PairingRegistry::Delegate> delegate =
             CreatePairingRegistryDelegate();
 
-        if (delegate)
+        if (delegate) {
           pairing_registry_ = new PairingRegistry(context_->file_task_runner(),
                                                   std::move(delegate));
+        }
       }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
       pairing_registry = pairing_registry_;
     }
@@ -790,16 +835,16 @@ void HostProcess::CreateAuthenticatorFactory() {
     DCHECK(third_party_auth_config_.token_url.is_valid());
     DCHECK(third_party_auth_config_.token_validation_url.is_valid());
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
     if (!cert_watcher_) {
       cert_watcher_ = std::make_unique<CertificateWatcher>(
-          base::BindRepeating(&HostProcess::ShutdownHost, this,
-                              kSuccessExitCode),
+          base::BindRepeating(&HostProcess::ShutdownHost,
+                              base::Unretained(this), kSuccessExitCode),
           context_->file_task_runner());
       cert_watcher_->Start();
     }
     cert_watcher_->SetMonitor(host_->status_monitor());
-#endif
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
     scoped_refptr<protocol::TokenValidatorFactory> token_validator_factory =
         new TokenValidatorFactoryImpl(third_party_auth_config_, key_pair_,
@@ -809,35 +854,17 @@ void HostProcess::CreateAuthenticatorFactory() {
         token_validator_factory);
   }
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   // On Linux and Mac, perform a PAM authorization step after authentication.
   factory = std::make_unique<PamAuthorizationFactory>(std::move(factory));
-#endif
+#endif  // BUILDFLAG(IS_POSIX)
   host_->SetAuthenticatorFactory(std::move(factory));
 }
 
 // IPC::Listener implementation.
 bool HostProcess::OnMessageReceived(const IPC::Message& message) {
-  DCHECK(context_->ui_task_runner()->BelongsToCurrentThread());
-
-#if defined(REMOTING_MULTI_PROCESS)
-  bool handled = true;
-  IPC_BEGIN_MESSAGE_MAP(HostProcess, message)
-    IPC_MESSAGE_FORWARD(ChromotingDaemonNetworkMsg_DesktopAttached,
-                        desktop_session_connector_.get(),
-                        DesktopSessionConnector::OnDesktopSessionAgentAttached)
-    IPC_MESSAGE_FORWARD(ChromotingDaemonNetworkMsg_TerminalDisconnected,
-                        desktop_session_connector_.get(),
-                        DesktopSessionConnector::OnTerminalDisconnected)
-    IPC_MESSAGE_UNHANDLED(handled = false)
-  IPC_END_MESSAGE_MAP()
-
-  CHECK(handled) << "Received unexpected IPC type: " << message.type();
-  return handled;
-
-#else  // !defined(REMOTING_MULTI_PROCESS)
+  NOTREACHED() << "Received unexpected IPC type: " << message.type();
   return false;
-#endif  // !defined(REMOTING_MULTI_PROCESS)
 }
 
 void HostProcess::OnChannelError() {
@@ -854,6 +881,7 @@ void HostProcess::OnAssociatedInterfaceRequest(
     mojo::ScopedInterfaceEndpointHandle handle) {
   DCHECK(context_->ui_task_runner()->BelongsToCurrentThread());
 
+#if defined(REMOTING_MULTI_PROCESS)
   if (interface_name == mojom::RemotingHostControl::Name_) {
     if (remoting_host_control_.is_bound()) {
       LOG(ERROR) << "Receiver already bound for associated interface: "
@@ -864,11 +892,33 @@ void HostProcess::OnAssociatedInterfaceRequest(
     mojo::PendingAssociatedReceiver<mojom::RemotingHostControl>
         pending_receiver(std::move(handle));
     remoting_host_control_.Bind(std::move(pending_receiver));
+  } else if (interface_name == mojom::WorkerProcessControl::Name_) {
+    if (worker_process_control_.is_bound()) {
+      LOG(ERROR) << "Receiver already bound for associated interface: "
+                 << mojom::WorkerProcessControl::Name_;
+      CrashProcess(__FUNCTION__, __FILE__, __LINE__);
+    }
+
+    mojo::PendingAssociatedReceiver<mojom::WorkerProcessControl>
+        pending_receiver(std::move(handle));
+    worker_process_control_.Bind(std::move(pending_receiver));
+  } else if (interface_name == mojom::DesktopSessionConnectionEvents::Name_) {
+    if (!desktop_session_connector_->BindConnectionEventsReceiver(
+            std::move(handle))) {
+      LOG(ERROR) << "Failed to bind Receiver for associated interface: "
+                 << mojom::DesktopSessionConnectionEvents::Name_;
+      CrashProcess(__FUNCTION__, __FILE__, __LINE__);
+    }
   } else {
     LOG(ERROR) << "Unknown associated interface requested: " << interface_name
                << ", crashing the network process";
     CrashProcess(__FUNCTION__, __FILE__, __LINE__);
   }
+#else   // !defined(REMOTING_MULTI_PROCESS)
+  LOG(ERROR) << "Unexpected call requesting an associated interface: "
+             << interface_name << ", crashing the network process";
+  CrashProcess(__FUNCTION__, __FILE__, __LINE__);
+#endif  // !defined(REMOTING_MULTI_PROCESS)
 }
 
 void HostProcess::StartOnUiThread() {
@@ -904,18 +954,25 @@ void HostProcess::StartOnUiThread() {
       base::BindRepeating(&HostProcess::OnPolicyUpdate, base::Unretained(this)),
       base::BindRepeating(&HostProcess::OnPolicyError, base::Unretained(this)));
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX)
+  if (IsRunningWayland()) {
+    WaylandManager::Get()->Init(context_->ui_task_runner());
+  }
+#endif  // BUILDFLAG(IS_LINUX)
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // If an audio pipe is specific on the command-line then initialize
   // AudioCapturerLinux to capture from it.
-  base::FilePath audio_pipe_name = base::CommandLine::ForCurrentProcess()->
-      GetSwitchValuePath(kAudioPipeSwitchName);
+  base::FilePath audio_pipe_name =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
+          kAudioPipeSwitchName);
   if (!audio_pipe_name.empty()) {
     remoting::AudioCapturerLinux::InitializePipeReader(
         context_->audio_task_runner(), audio_pipe_name);
   }
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   base::FilePath security_key_socket_name =
       base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
           kAuthSocknameSwitchName);
@@ -925,17 +982,26 @@ void HostProcess::StartOnUiThread() {
   } else {
     security_key_extension_supported_ = false;
   }
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
   // Create a desktop environment factory appropriate to the build type &
   // platform.
 #if defined(REMOTING_MULTI_PROCESS)
+  // Set up the AssociatedRemote used to send requests to the Daemon process.
+  // We need to do a little dance here using a pending associated receiver so
+  // that the remote is associated with the proper task_runner since it will be
+  // invoked on the network thread.
+  mojo::AssociatedRemote<mojom::DesktopSessionManager> remote;
+  mojo::GenericPendingAssociatedReceiver pending_receiver =
+      remote.BindNewEndpointAndPassReceiver(context_->network_task_runner());
+  daemon_channel_->GetRemoteAssociatedInterface(std::move(pending_receiver));
+
   IpcDesktopEnvironmentFactory* desktop_environment_factory =
       new IpcDesktopEnvironmentFactory(
           context_->audio_task_runner(), context_->network_task_runner(),
-          context_->network_task_runner(), daemon_channel_.get());
+          context_->network_task_runner(), std::move(remote));
   desktop_session_connector_ = desktop_environment_factory;
-#else  // !defined(REMOTING_MULTI_PROCESS)
+#else   // !defined(REMOTING_MULTI_PROCESS)
   BasicDesktopEnvironmentFactory* desktop_environment_factory;
   desktop_environment_factory = new Me2MeDesktopEnvironmentFactory(
       context_->network_task_runner(), context_->video_capture_task_runner(),
@@ -951,24 +1017,35 @@ void HostProcess::StartOnUiThread() {
 void HostProcess::ShutdownOnUiThread() {
   DCHECK(context_->ui_task_runner()->BelongsToCurrentThread());
 
+  context_->network_task_runner()->PostTask(
+      FROM_HERE, base::BindOnce(&HostProcess::ShutdownOnNetworkThread, this));
+
   // Tear down resources that need to be torn down on the UI thread.
   desktop_environment_factory_.reset();
   policy_watcher_.reset();
 
 #if defined(REMOTING_MULTI_PROCESS)
   daemon_channel_.reset();
+  desktop_session_connector_ = nullptr;
 #endif  // defined(REMOTING_MULTI_PROCESS)
 
   // It is now safe for the HostProcess to be deleted.
   self_ = nullptr;
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // Cause the global AudioPipeReader to be freed, otherwise the audio
   // thread will remain in-use and prevent the process from exiting.
   // TODO(wez): DesktopEnvironmentFactory should own the pipe reader.
   // See crbug.com/161373 and crbug.com/104544.
   AudioCapturerLinux::InitializePipeReader(nullptr, base::FilePath());
-#endif
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(REMOTING_USE_X11)
+  context_->input_task_runner()->PostTask(
+      FROM_HERE,
+      base::BindOnce([]() { delete ui::X11EventSource::GetInstance(); }));
+#endif  // (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) &&
+        // defined(REMOTING_USE_X11)
 }
 
 void HostProcess::OnHostNotFound() {
@@ -981,7 +1058,7 @@ void HostProcess::OnFirstHeartbeatSuccessful() {
     return;
   }
   HOST_LOG << "Host ready to receive connections.";
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   if (signal_parent_) {
     kill(getppid(), SIGUSR1);
     signal_parent_ = false;
@@ -994,8 +1071,8 @@ void HostProcess::OnHostDeleted() {
   ShutdownHost(kHostDeletedExitCode);
 }
 
-#if defined(OS_WIN)
-void HostProcess::ApplyHostConfig(base::Value config) {
+#if BUILDFLAG(IS_WIN)
+void HostProcess::ApplyHostConfig(base::Value::Dict config) {
   DCHECK(context_->ui_task_runner()->BelongsToCurrentThread());
   OnConfigParsed(std::move(config));
 }
@@ -1026,27 +1103,27 @@ void HostProcess::InitializePairingRegistry(
   delegate->SetRootKeys(static_cast<HKEY>(privileged_handle.ReleaseHandle()),
                         static_cast<HKEY>(unprivileged_handle.ReleaseHandle()));
 
-  pairing_registry_ = new PairingRegistry(context_->file_task_runner(),
-                                          std::move(delegate));
+  pairing_registry_ =
+      new PairingRegistry(context_->file_task_runner(), std::move(delegate));
 
   // (Re)Create the authenticator factory now that |pairing_registry_| has been
   // initialized.
   CreateAuthenticatorFactory();
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 // Applies the host config, returning true if successful.
-bool HostProcess::ApplyConfig(const base::Value& config) {
+bool HostProcess::ApplyConfig(const base::Value::Dict& config) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  const std::string* host_id = config.FindStringKey(kHostIdConfigPath);
+  const std::string* host_id = config.FindString(kHostIdConfigPath);
   if (!host_id) {
     LOG(ERROR) << "Config does not define " << kHostIdConfigPath << ".";
     return false;
   }
   host_id_ = *host_id;
 
-  const std::string* key_base64 = config.FindStringKey(kPrivateKeyConfigPath);
+  const std::string* key_base64 = config.FindString(kPrivateKeyConfigPath);
   if (!key_base64) {
     LOG(ERROR) << "Private key couldn't be read from the config file.";
     return false;
@@ -1059,7 +1136,7 @@ bool HostProcess::ApplyConfig(const base::Value& config) {
   }
 
   const std::string* host_secret_hash =
-      config.FindStringKey(kHostSecretHashConfigPath);
+      config.FindString(kHostSecretHashConfigPath);
   if (!host_secret_hash) {
     LOG(ERROR) << "Missing host_secret_hash value in configuration file.";
     return false;
@@ -1072,7 +1149,7 @@ bool HostProcess::ApplyConfig(const base::Value& config) {
 
   // Retrieve robot account to use for signaling and backend communication.
   const std::string* robot_account_username =
-      config.FindStringKey(kXmppLoginConfigPath);
+      config.FindString(kXmppLoginConfigPath);
   if (!robot_account_username) {
     LOG(ERROR) << "Robot account username is not defined in the config.";
     return false;
@@ -1081,7 +1158,7 @@ bool HostProcess::ApplyConfig(const base::Value& config) {
 
   // Retrieve robot account credentials for session signaling.
   const std::string* oauth_refresh_token =
-      config.FindStringKey(kOAuthRefreshTokenConfigPath);
+      config.FindString(kOAuthRefreshTokenConfigPath);
   if (!oauth_refresh_token) {
     LOG(ERROR) << "Robot account credentials are not defined in the config.";
     return false;
@@ -1094,9 +1171,9 @@ bool HostProcess::ApplyConfig(const base::Value& config) {
   // field. We are not generating separate addresses nor using JID any more but
   // we still read host_owner_email first for compatibility reason.
   const std::string* host_owner_ptr =
-      config.FindStringPath(kHostOwnerEmailConfigPath);
+      config.FindString(kHostOwnerEmailConfigPath);
   if (!host_owner_ptr) {
-    host_owner_ptr = config.FindStringPath(kHostOwnerConfigPath);
+    host_owner_ptr = config.FindString(kHostOwnerConfigPath);
   }
   if (!host_owner_ptr) {
     LOG(ERROR) << "Host config has no host_owner or host_owner_email fields.";
@@ -1111,8 +1188,7 @@ bool HostProcess::ApplyConfig(const base::Value& config) {
   return true;
 }
 
-void HostProcess::OnPolicyUpdate(
-    std::unique_ptr<base::DictionaryValue> policies) {
+void HostProcess::OnPolicyUpdate(base::Value::Dict policies) {
   if (!context_->network_task_runner()->BelongsToCurrentThread()) {
     context_->network_task_runner()->PostTask(
         FROM_HERE, base::BindOnce(&HostProcess::OnPolicyUpdate, this,
@@ -1121,30 +1197,31 @@ void HostProcess::OnPolicyUpdate(
   }
 
   bool restart_required = false;
-  restart_required |= OnClientDomainListPolicyUpdate(policies.get());
-  restart_required |= OnHostDomainListPolicyUpdate(policies.get());
-  restart_required |= OnCurtainPolicyUpdate(policies.get());
+  restart_required |= OnClientDomainListPolicyUpdate(policies);
+  restart_required |= OnHostDomainListPolicyUpdate(policies);
+  restart_required |= OnCurtainPolicyUpdate(policies);
   // Note: UsernamePolicyUpdate must run after OnCurtainPolicyUpdate.
-  restart_required |= OnUsernamePolicyUpdate(policies.get());
-  restart_required |= OnNatPolicyUpdate(policies.get());
-  restart_required |= OnRelayPolicyUpdate(policies.get());
-  restart_required |= OnUdpPortPolicyUpdate(policies.get());
-  restart_required |= OnHostTokenUrlPolicyUpdate(policies.get());
-  restart_required |= OnPairingPolicyUpdate(policies.get());
-  restart_required |= OnGnubbyAuthPolicyUpdate(policies.get());
-  restart_required |= OnFileTransferPolicyUpdate(policies.get());
-  restart_required |= OnEnableUserInterfacePolicyUpdate(policies.get());
-  restart_required |= OnAllowRemoteAccessConnections(policies.get());
-  restart_required |= OnMaxSessionDurationPolicyUpdate(policies.get());
-  restart_required |= OnMaxClipboardSizePolicyUpdate(policies.get());
+  restart_required |= OnUsernamePolicyUpdate(policies);
+  restart_required |= OnNatPolicyUpdate(policies);
+  restart_required |= OnRelayPolicyUpdate(policies);
+  restart_required |= OnUdpPortPolicyUpdate(policies);
+  restart_required |= OnHostTokenUrlPolicyUpdate(policies);
+  restart_required |= OnPairingPolicyUpdate(policies);
+  restart_required |= OnGnubbyAuthPolicyUpdate(policies);
+  restart_required |= OnFileTransferPolicyUpdate(policies);
+  restart_required |= OnEnableUserInterfacePolicyUpdate(policies);
+  restart_required |= OnAllowRemoteAccessConnections(policies);
+  restart_required |= OnMaxSessionDurationPolicyUpdate(policies);
+  restart_required |= OnMaxClipboardSizePolicyUpdate(policies);
 
   policy_state_ = POLICY_LOADED;
 
   if (state_ == HOST_STARTING) {
     StartHostIfReady();
   } else if (state_ == HOST_STARTED) {
-    if (restart_required)
+    if (restart_required) {
       RestartHost(kHostOfflineReasonPolicyChangeRequiresRestart);
+    }
   }
 }
 
@@ -1158,7 +1235,7 @@ void HostProcess::OnPolicyError() {
   if (policy_state_ != POLICY_ERROR_REPORTED) {
     policy_state_ = POLICY_ERROR_REPORT_PENDING;
     if ((state_ == HOST_STARTED) ||
-        (state_ == HOST_STARTING && !config_.DictEmpty())) {
+        (state_ == HOST_STARTING && !config_.empty())) {
       ReportPolicyErrorAndRestartHost();
     }
   }
@@ -1166,7 +1243,7 @@ void HostProcess::OnPolicyError() {
 
 void HostProcess::ReportPolicyErrorAndRestartHost() {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
-  DCHECK(!config_.DictEmpty());
+  DCHECK(!config_.empty());
 
   DCHECK_EQ(policy_state_, POLICY_ERROR_REPORT_PENDING);
   policy_state_ = POLICY_ERROR_REPORTED;
@@ -1176,8 +1253,9 @@ void HostProcess::ReportPolicyErrorAndRestartHost() {
 }
 
 void HostProcess::ApplyHostDomainListPolicy() {
-  if (state_ != HOST_STARTED)
+  if (state_ != HOST_STARTED) {
     return;
+  }
 
   HOST_LOG << "Policy sets host domains: "
            << base::JoinString(host_domain_list_, ", ");
@@ -1198,8 +1276,9 @@ void HostProcess::ApplyHostDomainListPolicy() {
 }
 
 void HostProcess::ApplyAllowRemoteAccessConnections() {
-  if (state_ != HOST_STARTED)
+  if (state_ != HOST_STARTED) {
     return;
+  }
 
   HOST_LOG << "Policy allows remote access connections: "
            << allow_remote_access_connections_;
@@ -1210,17 +1289,18 @@ void HostProcess::ApplyAllowRemoteAccessConnections() {
 }
 
 bool HostProcess::OnHostDomainListPolicyUpdate(
-    base::DictionaryValue* policies) {
+    const base::Value::Dict& policies) {
   // Returns false: never restart the host after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  const base::ListValue* list;
-  if (!policies->GetList(policy::key::kRemoteAccessHostDomainList, &list)) {
+  const base::Value::List* list =
+      policies.FindList(policy::key::kRemoteAccessHostDomainList);
+  if (!list) {
     return false;
   }
 
   host_domain_list_.clear();
-  for (const auto& value : list->GetList()) {
+  for (const auto& value : *list) {
     host_domain_list_.push_back(value.GetString());
   }
 
@@ -1229,17 +1309,17 @@ bool HostProcess::OnHostDomainListPolicyUpdate(
 }
 
 bool HostProcess::OnClientDomainListPolicyUpdate(
-    base::DictionaryValue* policies) {
+    const base::Value::Dict& policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
-  const base::ListValue* list;
-  if (!policies->GetList(policy::key::kRemoteAccessHostClientDomainList,
-                         &list)) {
+  const base::Value::List* list =
+      policies.FindList(policy::key::kRemoteAccessHostClientDomainList);
+  if (!list) {
     return false;
   }
 
   client_domain_list_.clear();
-  for (const auto& value : list->GetList()) {
+  for (const auto& value : *list) {
     client_domain_list_.push_back(value.GetString());
   }
 
@@ -1247,19 +1327,19 @@ bool HostProcess::OnClientDomainListPolicyUpdate(
 }
 
 void HostProcess::ApplyUsernamePolicy() {
-  if (state_ != HOST_STARTED)
+  if (state_ != HOST_STARTED) {
     return;
+  }
 
   if (host_username_match_required_) {
     HOST_LOG << "Policy requires host username match.";
 
     std::string username = GetUsername();
-    bool shutdown =
-        username.empty() ||
-        !base::StartsWith(host_owner_, username + std::string("@"),
-                          base::CompareCase::INSENSITIVE_ASCII);
+    bool shutdown = username.empty() ||
+                    !base::StartsWith(host_owner_, username + std::string("@"),
+                                      base::CompareCase::INSENSITIVE_ASCII);
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
     // On Mac, we run as root at the login screen, so the username won't match.
     // However, there's no need to enforce the policy at the login screen, as
     // the client will have to reconnect if a login occurs.
@@ -1271,10 +1351,11 @@ void HostProcess::ApplyUsernamePolicy() {
     // Curtain-mode on Windows presents the standard OS login prompt to the user
     // for each connection, removing the need for an explicit user-name matching
     // check.
-#if defined(OS_WIN) && defined(REMOTING_RDP_SESSION)
-    if (desktop_environment_options_.enable_curtaining())
+#if BUILDFLAG(IS_WIN) && defined(REMOTING_RDP_SESSION)
+    if (desktop_environment_options_.enable_curtaining()) {
       return;
-#endif  // defined(OS_WIN) && defined(REMOTING_RDP_SESSION)
+    }
+#endif  // BUILDFLAG(IS_WIN) && defined(REMOTING_RDP_SESSION)
 
     // Shutdown the host if the username does not match.
     if (shutdown) {
@@ -1286,28 +1367,32 @@ void HostProcess::ApplyUsernamePolicy() {
   }
 }
 
-bool HostProcess::OnUsernamePolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnUsernamePolicyUpdate(const base::Value::Dict& policies) {
   // Returns false: never restart the host after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
   absl::optional<bool> host_username_match_required =
-      policies->FindBoolKey(policy::key::kRemoteAccessHostMatchUsername);
-  if (!host_username_match_required.has_value())
+      policies.FindBool(policy::key::kRemoteAccessHostMatchUsername);
+  if (!host_username_match_required.has_value()) {
     return false;
+  }
 
   host_username_match_required_ = host_username_match_required.value();
   ApplyUsernamePolicy();
+#endif
   return false;
 }
 
-bool HostProcess::OnNatPolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnNatPolicyUpdate(const base::Value::Dict& policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
   absl::optional<bool> allow_nat_traversal =
-      policies->FindBoolKey(policy::key::kRemoteAccessHostFirewallTraversal);
-  if (!allow_nat_traversal.has_value())
+      policies.FindBool(policy::key::kRemoteAccessHostFirewallTraversal);
+  if (!allow_nat_traversal.has_value()) {
     return false;
+  }
 
   allow_nat_traversal_ = allow_nat_traversal.value();
   if (allow_nat_traversal_) {
@@ -1318,14 +1403,15 @@ bool HostProcess::OnNatPolicyUpdate(base::DictionaryValue* policies) {
   return true;
 }
 
-bool HostProcess::OnRelayPolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnRelayPolicyUpdate(const base::Value::Dict& policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  absl::optional<bool> allow_relay = policies->FindBoolKey(
-      policy::key::kRemoteAccessHostAllowRelayedConnection);
-  if (!allow_relay.has_value())
+  absl::optional<bool> allow_relay =
+      policies.FindBool(policy::key::kRemoteAccessHostAllowRelayedConnection);
+  if (!allow_relay.has_value()) {
     return false;
+  }
 
   allow_relay_ = allow_relay.value();
   if (allow_relay_) {
@@ -1336,36 +1422,37 @@ bool HostProcess::OnRelayPolicyUpdate(base::DictionaryValue* policies) {
   return true;
 }
 
-bool HostProcess::OnUdpPortPolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnUdpPortPolicyUpdate(const base::Value::Dict& policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  std::string string_value;
-  if (!policies->GetString(policy::key::kRemoteAccessHostUdpPortRange,
-                           &string_value)) {
+  const std::string* string_value =
+      policies.FindString(policy::key::kRemoteAccessHostUdpPortRange);
+  if (!string_value) {
     return false;
   }
 
-  if (!PortRange::Parse(string_value, &udp_port_range_)) {
+  if (!PortRange::Parse(*string_value, &udp_port_range_)) {
     // PolicyWatcher verifies that the value is formatted correctly.
-    LOG(FATAL) << "Invalid port range: " << string_value;
+    LOG(FATAL) << "Invalid port range: " << *string_value;
   }
   HOST_LOG << "Policy restricts UDP port range to: " << udp_port_range_;
   return true;
 }
 
-bool HostProcess::OnCurtainPolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnCurtainPolicyUpdate(const base::Value::Dict& policies) {
   // Returns true if the host has to be restarted after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
   absl::optional<bool> curtain_required =
-      policies->FindBoolKey(policy::key::kRemoteAccessHostRequireCurtain);
-  if (!curtain_required.has_value())
+      policies.FindBool(policy::key::kRemoteAccessHostRequireCurtain);
+  if (!curtain_required.has_value()) {
     return false;
+  }
 
   desktop_environment_options_.set_enable_curtaining(curtain_required.value());
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   if (curtain_required.value()) {
     // When curtain mode is in effect on Mac, the host process runs in the
     // user's switched-out session, but launchd will also run an instance at
@@ -1394,8 +1481,9 @@ bool HostProcess::OnCurtainPolicyUpdate(base::DictionaryValue* policies) {
   return true;
 }
 
-bool HostProcess::OnHostTokenUrlPolicyUpdate(base::DictionaryValue* policies) {
-  switch (ThirdPartyAuthConfig::Parse(*policies, &third_party_auth_config_)) {
+bool HostProcess::OnHostTokenUrlPolicyUpdate(
+    const base::Value::Dict& policies) {
+  switch (ThirdPartyAuthConfig::Parse(policies, &third_party_auth_config_)) {
     case ThirdPartyAuthConfig::NoPolicy:
       return false;
     case ThirdPartyAuthConfig::ParsingSuccess:
@@ -1412,13 +1500,14 @@ bool HostProcess::OnHostTokenUrlPolicyUpdate(base::DictionaryValue* policies) {
   }
 }
 
-bool HostProcess::OnPairingPolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnPairingPolicyUpdate(const base::Value::Dict& policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
   absl::optional<bool> allow_pairing =
-      policies->FindBoolKey(policy::key::kRemoteAccessHostAllowClientPairing);
-  if (!allow_pairing.has_value())
+      policies.FindBool(policy::key::kRemoteAccessHostAllowClientPairing);
+  if (!allow_pairing.has_value()) {
     return false;
+  }
 
   allow_pairing_ = allow_pairing.value();
   if (allow_pairing_) {
@@ -1429,13 +1518,14 @@ bool HostProcess::OnPairingPolicyUpdate(base::DictionaryValue* policies) {
   return true;
 }
 
-bool HostProcess::OnGnubbyAuthPolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnGnubbyAuthPolicyUpdate(const base::Value::Dict& policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
   absl::optional<bool> security_key_auth_policy_enabled =
-      policies->FindBoolKey(policy::key::kRemoteAccessHostAllowGnubbyAuth);
-  if (!security_key_auth_policy_enabled.has_value())
+      policies.FindBool(policy::key::kRemoteAccessHostAllowGnubbyAuth);
+  if (!security_key_auth_policy_enabled.has_value()) {
     return false;
+  }
 
   security_key_auth_policy_enabled_ = security_key_auth_policy_enabled.value();
   if (security_key_auth_policy_enabled_) {
@@ -1447,13 +1537,15 @@ bool HostProcess::OnGnubbyAuthPolicyUpdate(base::DictionaryValue* policies) {
   return true;
 }
 
-bool HostProcess::OnFileTransferPolicyUpdate(base::DictionaryValue* policies) {
+bool HostProcess::OnFileTransferPolicyUpdate(
+    const base::Value::Dict& policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
   absl::optional<bool> file_transfer_enabled =
-      policies->FindBoolKey(policy::key::kRemoteAccessHostAllowFileTransfer);
-  if (!file_transfer_enabled.has_value())
+      policies.FindBool(policy::key::kRemoteAccessHostAllowFileTransfer);
+  if (!file_transfer_enabled.has_value()) {
     return false;
+  }
 
   desktop_environment_options_.set_enable_file_transfer(
       file_transfer_enabled.value());
@@ -1469,13 +1561,14 @@ bool HostProcess::OnFileTransferPolicyUpdate(base::DictionaryValue* policies) {
 }
 
 bool HostProcess::OnEnableUserInterfacePolicyUpdate(
-    base::DictionaryValue* policies) {
+    const base::Value::Dict& policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
   absl::optional<bool> enable_user_interface =
-      policies->FindBoolKey(policy::key::kRemoteAccessHostEnableUserInterface);
-  if (!enable_user_interface)
+      policies.FindBool(policy::key::kRemoteAccessHostEnableUserInterface);
+  if (!enable_user_interface) {
     return false;
+  }
 
   // Save the value until we have parsed the host config since we only want the
   // policy to be applied to machines owned by a Googler.
@@ -1491,18 +1584,20 @@ bool HostProcess::OnEnableUserInterfacePolicyUpdate(
 }
 
 bool HostProcess::OnMaxSessionDurationPolicyUpdate(
-    base::DictionaryValue* policies) {
+    const base::Value::Dict& policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  if (!policies->GetInteger(
-          policy::key::kRemoteAccessHostMaximumSessionDurationMinutes,
-          &max_session_duration_minutes_)) {
+  absl::optional<int> value = policies.FindInt(
+      policy::key::kRemoteAccessHostMaximumSessionDurationMinutes);
+  if (!value) {
     return false;
   }
 
+  max_session_duration_minutes_ = *value;
+
   if (max_session_duration_minutes_ > 0) {
     HOST_LOG << "Policy sets maximum session duration to "
-             << max_session_duration_minutes_ << " minutes.";
+             << max_session_duration_minutes_.value() << " minutes.";
   } else {
     HOST_LOG << "Policy does not set a maximum session duration.";
   }
@@ -1512,17 +1607,17 @@ bool HostProcess::OnMaxSessionDurationPolicyUpdate(
 }
 
 bool HostProcess::OnMaxClipboardSizePolicyUpdate(
-    base::DictionaryValue* policies) {
+    const base::Value::Dict& policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  int max_clipboard_size;
-  if (!policies->GetInteger(policy::key::kRemoteAccessHostClipboardSizeBytes,
-                            &max_clipboard_size)) {
+  absl::optional<int> max_clipboard_size =
+      policies.FindInt(policy::key::kRemoteAccessHostClipboardSizeBytes);
+  if (!max_clipboard_size) {
     return false;
   }
 
-  if (max_clipboard_size >= 0) {
-    max_clipboard_size_ = max_clipboard_size;
+  if (*max_clipboard_size >= 0) {
+    max_clipboard_size_ = *max_clipboard_size;
     HOST_LOG << "Policy sets maximum clipboard size to "
              << max_clipboard_size_.value() << " bytes.";
   } else {
@@ -1535,14 +1630,15 @@ bool HostProcess::OnMaxClipboardSizePolicyUpdate(
 }
 
 bool HostProcess::OnAllowRemoteAccessConnections(
-    base::DictionaryValue* policies) {
+    const base::Value::Dict& policies) {
   // Returns false: never restart the host after this policy update.
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
-  absl::optional<bool> allow_remote_access_connections = policies->FindBoolKey(
+  absl::optional<bool> allow_remote_access_connections = policies.FindBool(
       policy::key::kRemoteAccessHostAllowRemoteAccessConnections);
-  if (!allow_remote_access_connections.has_value())
+  if (!allow_remote_access_connections.has_value()) {
     return false;
+  }
 
   // Update the value if the policy was set and retrieval was successful.
   allow_remote_access_connections_ = allow_remote_access_connections.value();
@@ -1565,8 +1661,7 @@ void HostProcess::InitializeSignaling() {
   // Unretained is sound because we own the OAuthTokenGetterImpl, and the
   // callback will never be invoked once it is destroyed.
   oauth_token_getter_ = std::make_unique<OAuthTokenGetterImpl>(
-      std::move(oauth_credentials),
-      context_->url_loader_factory(), false);
+      std::move(oauth_credentials), context_->url_loader_factory(), false);
 
   log_to_server_ = std::make_unique<RemotingLogToServer>(
       ServerLogEntry::ME2ME,
@@ -1575,6 +1670,7 @@ void HostProcess::InitializeSignaling() {
       context_->url_loader_factory());
   zombie_host_detector_ = std::make_unique<ZombieHostDetector>(base::BindOnce(
       &HostProcess::OnZombieStateDetected, base::Unretained(this)));
+
   auto ftl_signal_strategy = std::make_unique<FtlSignalStrategy>(
       std::make_unique<OAuthTokenGetterProxy>(
           oauth_token_getter_->GetWeakPtr()),
@@ -1599,7 +1695,7 @@ void HostProcess::StartHostIfReady() {
   DCHECK_EQ(state_, HOST_STARTING);
 
   // Start the host if both the config and the policies are loaded.
-  if (!config_.DictEmpty()) {
+  if (!config_.empty()) {
     if (!report_offline_reason_.empty()) {
       SetState(HOST_GOING_OFFLINE_TO_STOP);
       GoOffline(report_offline_reason_);
@@ -1615,6 +1711,18 @@ void HostProcess::StartHost() {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
   DCHECK(!host_);
 
+  // This thread is used as a network thread in WebRTC.
+  webrtc::ThreadWrapper::EnsureForCurrentMessageLoop();
+
+  // Initialize global field trials.
+  field_trial_list_ = std::make_unique<base::FieldTrialList>();
+
+  // Override LossBasedBweV2 trial.
+  // TODO(b/266103942): Remove this override once we figure out why the BWE is
+  // crashing for some users and have a fix available.
+  base::FieldTrialList::CreateTrialsFromString(
+      "WebRTC-Bwe-LossBasedBweV2/Enabled:false/");
+
   SetState(HOST_STARTED);
 
   InitializeSignaling();
@@ -1623,8 +1731,9 @@ void HostProcess::StartHost() {
   if (allow_nat_traversal_) {
     network_flags = NetworkSettings::NAT_TRAVERSAL_STUN |
                     NetworkSettings::NAT_TRAVERSAL_OUTGOING;
-    if (allow_relay_)
+    if (allow_relay_) {
       network_flags |= NetworkSettings::NAT_TRAVERSAL_RELAY;
+    }
   }
 
   NetworkSettings network_settings(network_flags);
@@ -1642,6 +1751,7 @@ void HostProcess::StartHost() {
   scoped_refptr<protocol::TransportContext> transport_context =
       new protocol::TransportContext(
           std::make_unique<protocol::ChromiumPortAllocatorFactory>(),
+          webrtc::ThreadWrapper::current()->SocketServer(),
           context_->url_loader_factory(), oauth_token_getter_.get(),
           network_settings, protocol::TransportRole::SERVER);
   std::unique_ptr<protocol::SessionManager> session_manager(
@@ -1649,8 +1759,9 @@ void HostProcess::StartHost() {
 
   std::unique_ptr<protocol::CandidateSessionConfig> protocol_config =
       protocol::CandidateSessionConfig::CreateDefault();
-  if (!desktop_environment_factory_->SupportsAudioCapture())
+  if (!desktop_environment_factory_->SupportsAudioCapture()) {
     protocol_config->DisableAudioChannel();
+  }
   protocol_config->set_webrtc_supported(true);
   session_manager->set_protocol_config(std::move(protocol_config));
 
@@ -1664,14 +1775,13 @@ void HostProcess::StartHost() {
         enable_user_interface_);
   }
 
-  // The feature is enabled for all Googlers using a supported platform.
-  desktop_environment_options_.set_enable_remote_open_url(is_googler_);
+  // Always enable remote open URL when the platform supports it. There is an
+  // additional IsRemoteOpenUrlSupported() check that makes sure the capability
+  // won't be advertised if it's missing a registry key or something.
+  desktop_environment_options_.set_enable_remote_open_url(true);
 
-#if defined(OS_LINUX) || !defined(NDEBUG)
-  // Experimental feature. Enabled on Linux for easier testing.
-  if (is_googler_) {
-    desktop_environment_options_.set_enable_remote_webauthn(true);
-  }
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
+  desktop_environment_options_.set_enable_remote_webauthn(is_googler_);
 #endif
 
   if (max_clipboard_size_.has_value()) {
@@ -1695,13 +1805,21 @@ void HostProcess::StartHost() {
 
   host_->AddExtension(std::make_unique<TestEchoExtension>());
 
-  if (max_session_duration_minutes_ > 0) {
+  if (max_session_duration_minutes_ && max_session_duration_minutes_ > 0) {
     host_->SetMaximumSessionDuration(
-        base::Minutes(max_session_duration_minutes_));
+        base::Minutes(max_session_duration_minutes_.value()));
   }
 
   host_status_logger_ = std::make_unique<HostStatusLogger>(
       host_->status_monitor(), log_to_server_.get());
+
+#if BUILDFLAG(IS_LINUX)
+  const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
+  if (cmd_line->HasSwitch(kEnableUtempter)) {
+    host_utmp_logger_ =
+        std::make_unique<HostUTMPLogger>(host_->status_monitor());
+  }
+#endif
 
   power_save_blocker_ = std::make_unique<HostPowerSaveBlocker>(
       host_->status_monitor(), context_->ui_task_runner(),
@@ -1716,14 +1834,16 @@ void HostProcess::StartHost() {
 
   // Set up reporting the host status notifications.
 #if defined(REMOTING_MULTI_PROCESS)
+  mojo::AssociatedRemote<mojom::HostStatusObserver> remote;
+  daemon_channel_->GetRemoteAssociatedInterface(&remote);
   host_event_logger_ = std::make_unique<IpcHostEventLogger>(
-      host_->status_monitor(), daemon_channel_.get());
+      host_->status_monitor(), std::move(remote));
 #else  // !defined(REMOTING_MULTI_PROCESS)
   host_event_logger_ =
       HostEventLogger::Create(host_->status_monitor(), kApplicationName);
 #endif  // !defined(REMOTING_MULTI_PROCESS)
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   // Don't run the permission-checks as root (i.e. at the login screen), as they
   // are not actionable there.
   // Also, the permission-checks are not needed on MacOS 10.15+, as they are
@@ -1732,7 +1852,7 @@ void HostProcess::StartHost() {
   if (getuid() != 0U && base::mac::IsAtMostOS10_14()) {
     mac::PromptUserToChangeTrustStateIfNeeded(context_->ui_task_runner());
   }
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
   host_->Start(host_owner_);
   host_->StartChromotingHostServices();
@@ -1803,9 +1923,10 @@ void HostProcess::GoOffline(const std::string& host_offline_reason) {
     // to directory.
     OnHostOfflineReasonAck(true);
     return;
-  } else if (!config_.DictEmpty()) {
-    if (!signal_strategy_)
+  } else if (!config_.empty()) {
+    if (!signal_strategy_) {
       InitializeSignaling();
+    }
 
     HOST_LOG << "SendHostOfflineReason: sending " << host_offline_reason << ".";
     heartbeat_sender_->SetHostOfflineReason(
@@ -1852,25 +1973,26 @@ void HostProcess::OnHostOfflineReasonAck(bool success) {
   }
 }
 
-#if defined(OS_WIN)
-void HostProcess::CrashHostProcess(const std::string& function_name,
-                                   const std::string& file_name,
-                                   int line_number) {
+void HostProcess::CrashProcess(const std::string& function_name,
+                               const std::string& file_name,
+                               int line_number) {
   // The daemon requested us to crash the process.
-  CrashProcess(function_name, file_name, line_number);
+  ::remoting::CrashProcess(function_name, file_name, line_number);
 }
-#endif
 
 int HostProcessMain() {
   HOST_LOG << "Starting host process: version " << STRINGIZE(VERSION);
+  const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(REMOTING_USE_X11)
   // Initialize Xlib for multi-threaded use, allowing non-Chromium code to
   // use X11 safely (such as the WebRTC capturer, GTK ...)
   x11::InitXlib();
+#endif  // defined(REMOTING_USE_X11)
 
-  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          kReportOfflineReasonSwitchName)) {
+#if defined(REMOTING_USE_X11)
+  if (!cmd_line->HasSwitch(kReportOfflineReasonSwitchName)) {
     // Required for any calls into GTK functions, such as the Disconnect and
     // Continue windows, though these should not be used for the Me2Me case
     // (crbug.com/104377).
@@ -1880,11 +2002,20 @@ int HostProcessMain() {
     gtk_init(nullptr, nullptr);
 #endif
   }
+#endif  // defined(REMOTING_USE_X11)
 
   // Need to prime the host OS version value for linux to prevent IO on the
   // network thread. base::GetLinuxDistro() caches the result.
   base::GetLinuxDistro();
-#endif
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+  if (cmd_line->HasSwitch(kWebRtcTraceEventFile)) {
+    rtc::tracing::SetupInternalTracer();
+    rtc::tracing::StartInternalCapture(
+        cmd_line->GetSwitchValuePath(kWebRtcTraceEventFile)
+            .AsUTF8Unsafe()
+            .c_str());
+  }
 
   base::ThreadPoolInstance::CreateAndStartWithDefaultParams("Me2Me");
 
@@ -1892,25 +2023,26 @@ int HostProcessMain() {
   base::SingleThreadTaskExecutor main_task_executor(base::MessagePumpType::UI);
   base::RunLoop run_loop;
   std::unique_ptr<ChromotingHostContext> context =
-      ChromotingHostContext::Create(new AutoThreadTaskRunner(
+      ChromotingHostContext::Create(base::MakeRefCounted<AutoThreadTaskRunner>(
           main_task_executor.task_runner(), run_loop.QuitClosure()));
-  if (!context)
+  if (!context) {
     return kInitializationFailed;
+  }
 
   // NetworkChangeNotifier must be initialized after SingleThreadTaskExecutor.
   std::unique_ptr<net::NetworkChangeNotifier> network_change_notifier(
       net::NetworkChangeNotifier::CreateIfNeeded());
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(REMOTING_USE_X11)
   // Create an X11EventSource on all UI threads, so the global X11 connection
   // (x11::Connection::Get()) can dispatch X events.
   auto event_source =
       std::make_unique<ui::X11EventSource>(x11::Connection::Get());
-  auto input_task_runner = context->input_task_runner();
-  input_task_runner->PostTask(FROM_HERE, base::BindOnce([]() {
-                                new ui::X11EventSource(x11::Connection::Get());
-                              }));
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+  context->input_task_runner()->PostTask(
+      FROM_HERE,
+      base::BindOnce([]() { new ui::X11EventSource(x11::Connection::Get()); }));
+#endif  // (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) &&
+        // defined(REMOTING_USE_X11)
 
   // Create & start the HostProcess using these threads.
   // TODO(wez): The HostProcess holds a reference to itself until Shutdown().
@@ -1922,14 +2054,12 @@ int HostProcessMain() {
   // Run the main (also UI) task executor until the host no longer needs it.
   run_loop.Run();
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
-  input_task_runner->PostTask(FROM_HERE, base::BindOnce([]() {
-                                delete ui::X11EventSource::GetInstance();
-                              }));
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
-
   // Block until tasks blocking shutdown have completed their execution.
   base::ThreadPoolInstance::Get()->Shutdown();
+
+  if (cmd_line->HasSwitch(kWebRtcTraceEventFile)) {
+    rtc::tracing::ShutdownInternalTracer();
+  }
 
   return exit_code;
 }

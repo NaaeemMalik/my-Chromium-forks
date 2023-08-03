@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "base/base_paths.h"
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/scoped_native_library.h"
@@ -17,7 +17,6 @@
 #include "base/test/test_reg_util_win.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/win/win_util.h"
-#include "base/win/windows_version.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/win/conflicts/incompatible_applications_updater.h"
 #include "chrome/browser/win/conflicts/module_database.h"
@@ -28,7 +27,6 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
-#include "components/services/quarantine/public/cpp/quarantine_features_win.h"
 #include "content/public/test/browser_test.h"
 
 // This class allows to wait until the kIncompatibleApplications preference is
@@ -104,10 +102,8 @@ class IncompatibleApplicationsBrowserTest : public InProcessBrowserTest {
     ASSERT_NO_FATAL_FAILURE(
         registry_override_manager_.OverrideRegistry(HKEY_CURRENT_USER));
 
-    scoped_feature_list_.InitWithFeatures(
-        {features::kIncompatibleApplicationsWarning,
-         quarantine::kOutOfProcessQuarantine},
-        {});
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kIncompatibleApplicationsWarning);
 
     ASSERT_NO_FATAL_FAILURE(CreateModuleList());
     ASSERT_NO_FATAL_FAILURE(InstallThirdPartyApplication());
@@ -137,9 +133,7 @@ class IncompatibleApplicationsBrowserTest : public InProcessBrowserTest {
 
     std::string contents;
     ASSERT_TRUE(module_list.SerializeToString(&contents));
-    ASSERT_EQ(base::WriteFile(GetModuleListPath(), contents.data(),
-                              static_cast<int>(contents.size())),
-              static_cast<int>(contents.size()));
+    ASSERT_TRUE(base::WriteFile(GetModuleListPath(), contents));
   }
 
   // Registers an uninstallation entry for the third-party application, and
@@ -207,9 +201,6 @@ constexpr wchar_t IncompatibleApplicationsBrowserTest::kApplicationName[];
 // page is shown after a browser crash.
 IN_PROC_BROWSER_TEST_F(IncompatibleApplicationsBrowserTest,
                        InjectIncompatibleDLL) {
-  if (base::win::GetVersion() < base::win::Version::WIN10)
-    return;
-
   // Create the observer early so the change is guaranteed to be observed.
   auto incompatible_applications_observer =
       std::make_unique<IncompatibleApplicationsObserver>();

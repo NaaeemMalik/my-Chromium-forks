@@ -1,8 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {addSingletonGetter, sendWithPromise} from 'gtx://resources/js/cr.m.js';
+import {sendWithPromise} from 'gtx://resources/ash/common/cr.m.js';
+import {addSingletonGetter} from 'gtx://resources/ash/common/cr_deprecated.js';
 import {LogMessage} from './types.js';
 
 /**

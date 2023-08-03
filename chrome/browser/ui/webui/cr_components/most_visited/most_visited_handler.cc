@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,13 @@
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/web_applications/preinstalled_web_app_manager.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
+#include "components/history/core/browser/features.h"
 #include "components/ntp_tiles/constants.h"
 #include "components/ntp_tiles/most_visited_sites.h"
 #include "components/search/ntp_features.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/window_open_disposition_utils.h"
 
 namespace {
 
@@ -34,8 +36,7 @@ ntp_tiles::NTPTileImpression MakeNTPTileImpression(
       /*visual_type=*/
       ntp_tiles::TileVisualType::ICON_REAL /* unused on desktop */,
       /*icon_type=*/favicon_base::IconType::kInvalid /* unused on desktop */,
-      /*url_for_rappor=*/
-      tile.url /* used on desktop for logging */);
+      /*url_for_rappor=*/GURL() /* unused */);
 }
 
 }  // namespace
@@ -52,7 +53,7 @@ MostVisitedHandler::MostVisitedHandler(
       most_visited_sites_(
           ChromeMostVisitedSitesFactory::NewForProfile(profile)),
       web_contents_(web_contents),
-      logger_(profile, ntp_url),
+      logger_(profile, ntp_url, ntp_navigation_start_time),
       ntp_navigation_start_time_(ntp_navigation_start_time),
       page_handler_(this, std::move(pending_page_handler)),
       page_(std::move(pending_page)) {
@@ -184,7 +185,7 @@ void MostVisitedHandler::OnMostVisitedTileNavigation(
   // Use a link transition for query tiles, e.g., repeatable queries, so that
   // their visit count is not updated by this navigation. Otherwise duplicate
   // query tiles could also be offered as most visited.
-  // |is_query_tile| can be true only when ntp_features::kNtpRepeatableQueries
+  // |is_query_tile| can be true only when history::kOrganicRepeatableQueries
   // is enabled.
   web_contents_->OpenURL(content::OpenURLParams(
       tile->url, content::Referrer(), disposition,
@@ -214,7 +215,7 @@ void MostVisitedHandler::OnURLsAvailable(
     value->source = static_cast<int32_t>(tile.source);
     value->title_source = static_cast<int32_t>(tile.title_source);
     value->is_query_tile =
-        base::FeatureList::IsEnabled(ntp_features::kNtpRepeatableQueries) &&
+        base::FeatureList::IsEnabled(history::kOrganicRepeatableQueries) &&
         template_url_service &&
         template_url_service->IsSearchResultsPageFromDefaultSearchProvider(
             tile.url);

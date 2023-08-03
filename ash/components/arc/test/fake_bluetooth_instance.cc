@@ -1,12 +1,12 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include <utility>
 
 #include "ash/components/arc/test/fake_bluetooth_instance.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 
 namespace arc {
 
@@ -46,11 +46,6 @@ FakeBluetoothInstance::LEConnectionStateChangeData::LEConnectionStateChangeData(
 
 FakeBluetoothInstance::LEConnectionStateChangeData::
     ~LEConnectionStateChangeData() = default;
-
-void FakeBluetoothInstance::InitDeprecated(
-    mojo::PendingRemote<mojom::BluetoothHost> host_remote) {
-  Init(std::move(host_remote), base::DoNothing());
-}
 
 void FakeBluetoothInstance::Init(
     mojo::PendingRemote<mojom::BluetoothHost> host_remote,
@@ -161,4 +156,8 @@ void FakeBluetoothInstance::OnMTUReceived(
     mojom::BluetoothAddressPtr remote_addr,
     uint16_t mtu) {}
 
+void FakeBluetoothInstance::OnServiceChanged(
+    mojom::BluetoothAddressPtr remote_addr) {
+        service_changed_flag_ = true;
+    }
 }  // namespace arc

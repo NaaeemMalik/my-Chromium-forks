@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,11 +18,14 @@
 #include "ash/style/ash_color_provider.h"
 #include "ash/system/holding_space/holding_space_tray_bubble.h"
 #include "ash/system/tray/tray_background_view.h"
+#include "base/callback_list.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/simple_menu_model.h"
+#include "ui/compositor/layer_tree_owner.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
 
@@ -40,8 +43,8 @@ class ImageView;
 
 namespace ash {
 
-class HoldingSpaceProgressRing;
 class HoldingSpaceTrayIcon;
+class ProgressIndicator;
 
 // The HoldingSpaceTray shows the tray button in the bottom area of the screen.
 // This class also controls the lifetime for all of the tools available in the
@@ -80,8 +83,6 @@ class ASH_EXPORT HoldingSpaceTray : public TrayBackgroundView,
   bool AreDropTypesRequired() override;
   bool CanDrop(const ui::OSExchangeData& data) override;
   int OnDragUpdated(const ui::DropTargetEvent& event) override;
-  ui::mojom::DragOperation OnPerformDrop(
-      const ui::DropTargetEvent& event) override;
   views::View::DropCallback GetDropCallback(
       const ui::DropTargetEvent& event) override;
   void Layout() override;
@@ -119,6 +120,7 @@ class ASH_EXPORT HoldingSpaceTray : public TrayBackgroundView,
   // HoldingSpaceControllerObserver:
   void OnHoldingSpaceModelAttached(HoldingSpaceModel* model) override;
   void OnHoldingSpaceModelDetached(HoldingSpaceModel* model) override;
+  void OnHoldingSpaceForceShowInShelfChanged() override;
 
   // HoldingSpaceModelObserver:
   void OnHoldingSpaceItemsAdded(
@@ -136,7 +138,6 @@ class ASH_EXPORT HoldingSpaceTray : public TrayBackgroundView,
 
   // views::WidgetObserver:
   void OnWidgetDragWillStart(views::Widget* widget) override;
-  void OnWidgetDestroying(views::Widget* widget) override;
 
   // Registers pref change registrars for preferences relevant to the holding
   // space tray state.
@@ -165,6 +166,10 @@ class ASH_EXPORT HoldingSpaceTray : public TrayBackgroundView,
   // enabled/ disabled by the user at runtime.
   bool PreviewsShown() const;
 
+  // Updates the `default_tray_icon_` to account for potential overlap with the
+  // inner icon of the `progress_indicator_` as both may occupy the same space.
+  void UpdateDefaultTrayIcon();
+
   // Updates this view (and its children) to reflect state as a potential drop
   // target. If `event` is `nullptr`, this view is *not* a drop target.
   // Otherwise this view is a drop target if the `event` is located within
@@ -177,7 +182,8 @@ class ASH_EXPORT HoldingSpaceTray : public TrayBackgroundView,
   // Pins the dropped files `unpinned_file_paths` to the tray.
   void PerformDrop(std::vector<base::FilePath> unpinned_file_paths,
                    const ui::DropTargetEvent& event,
-                   ui::mojom::DragOperation& output_drag_op);
+                   ui::mojom::DragOperation& output_drag_op,
+                   std::unique_ptr<ui::LayerTreeOwner> drag_image_layer_owner);
 
   std::unique_ptr<HoldingSpaceTrayBubble> bubble_;
   std::unique_ptr<aura::client::DragDropClientObserver> drag_drop_observer_;
@@ -185,24 +191,29 @@ class ASH_EXPORT HoldingSpaceTray : public TrayBackgroundView,
   // Default tray icon shown when there are no previews available (or the
   // previews are disabled).
   // Owned by views hierarchy.
-  views::ImageView* default_tray_icon_ = nullptr;
+  raw_ptr<views::ImageView, ExperimentalAsh> default_tray_icon_ = nullptr;
 
   // Content forward tray icon that contains holding space item previews.
   // Owned by views hierarchy.
-  HoldingSpaceTrayIcon* previews_tray_icon_ = nullptr;
+  raw_ptr<HoldingSpaceTrayIcon, ExperimentalAsh> previews_tray_icon_ = nullptr;
 
   // The view drawn on top of all other child views to indicate that this
   // view is a drop target capable of handling the current drag payload.
-  views::View* drop_target_overlay_ = nullptr;
+  raw_ptr<views::View, ExperimentalAsh> drop_target_overlay_ = nullptr;
 
   // The icon parented by the `drop_target_overlay_` to indicate that this view
   // is a drop target capable of handling the current drag payload.
-  views::ImageView* drop_target_icon_ = nullptr;
+  raw_ptr<views::ImageView, ExperimentalAsh> drop_target_icon_ = nullptr;
 
-  // Owns the `ui::Layer` which paints a ring to indicate progress of all
-  // holding space items in the model attached to the holding space controller.
+  // Owns the `ui::Layer` which paints indication of progress for all holding
+  // space items in the model attached to the holding space controller.
   // NOTE: The `ui::Layer` is *not* painted if there are no items in progress.
-  std::unique_ptr<HoldingSpaceProgressRing> progress_ring_;
+  std::unique_ptr<ProgressIndicator> progress_indicator_;
+
+  // Subscription to receive notification of changes to the
+  // `progress_indicator_`'s underlying progress.
+  base::RepeatingClosureList::Subscription
+      progress_indicator_progress_changed_callback_list_subscription_;
 
   // When the holding space previews feature is enabled, the user can enable/
   // disable previews at runtime. This registrar is associated with the active

@@ -1,11 +1,12 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.net.smoke;
 
 import android.content.Context;
-import android.support.test.InstrumentationRegistry;
+
+import androidx.test.core.app.ApplicationProvider;
 
 import org.junit.Assert;
 import org.junit.rules.TestRule;
@@ -56,7 +57,7 @@ public class CronetSmokeTestRule implements TestRule {
 
     private void ruleSetUp() throws Exception {
         mCronetEngineBuilder =
-                new ExperimentalCronetEngine.Builder(InstrumentationRegistry.getTargetContext());
+                new ExperimentalCronetEngine.Builder(ApplicationProvider.getApplicationContext());
         initTestSupport();
     }
 
@@ -107,8 +108,9 @@ public class CronetSmokeTestRule implements TestRule {
      *
      * @throws Exception if the class cannot be instantiated.
      */
+    @SuppressWarnings("DiscouragedApi")
     private void initTestSupport() throws Exception {
-        Context ctx = InstrumentationRegistry.getTargetContext();
+        Context ctx = ApplicationProvider.getApplicationContext();
         String packageName = ctx.getPackageName();
         int resId = ctx.getResources().getIdentifier(SUPPORT_IMPL_RES_KEY, "string", packageName);
         String className = ctx.getResources().getString(resId);

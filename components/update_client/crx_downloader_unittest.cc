@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,14 @@
 
 #include <utility>
 
-#include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/memory/ref_counted.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "components/update_client/crx_downloader_factory.h"
 #include "components/update_client/net/network_chromium.h"
@@ -140,7 +139,7 @@ void CrxDownloaderTest::DownloadComplete(const CrxDownloader::Result& result) {
 void CrxDownloaderTest::DownloadProgress(int64_t downloaded_bytes,
                                          int64_t total_bytes) {
   if (downloaded_bytes != -1 && total_bytes != -1)
-    DCHECK_LE(downloaded_bytes, total_bytes);
+    EXPECT_LE(downloaded_bytes, total_bytes);
   downloaded_bytes_ = downloaded_bytes;
   total_bytes_ = total_bytes;
   ++num_progress_calls_;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,17 +13,17 @@
 #include "base/no_destructor.h"
 #include "build/build_config.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/windows_types.h"
 #endif
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 #ifdef __OBJC__
 @class NSString;
 #else
 class NSString;
 #endif
-#endif  // defined(OS_APPLE)
+#endif  // BUILDFLAG(IS_APPLE)
 
 namespace ui {
 
@@ -34,7 +34,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD_TYPES) ClipboardFormatType {
   ClipboardFormatType();
   ~ClipboardFormatType();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   explicit ClipboardFormatType(UINT native_format);
   ClipboardFormatType(UINT native_format, LONG index);
   ClipboardFormatType(UINT native_format, LONG index, DWORD tymed);
@@ -62,7 +62,13 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD_TYPES) ClipboardFormatType {
   static const ClipboardFormatType& BitmapType();
   static const ClipboardFormatType& WebCustomDataType();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_CHROMEOS)
+  // ChromeOS custom type to sync clipboard source metadata between Ash and
+  // Lacros.
+  static const ClipboardFormatType& DataTransferEndpointDataType();
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_WIN)
   // ANSI formats. Only Windows differentiates between ANSI and UNICODE formats
   // in ClipboardFormatType. Reference:
   // https://docs.microsoft.com/en-us/windows/win32/learnwin32/working-with-strings
@@ -82,19 +88,28 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD_TYPES) ClipboardFormatType {
   static const ClipboardFormatType& MozUrlType();
 #endif
 
-  // For custom formats we hardcode the web custom format prefix and the index.
-  // Due to Windows/Linux limitations, please place limits on the amount of
-  // `WebCustomFormatName` calls with unique `index` argument.
+  // For custom formats, individual types are added to the clipboard with a type
+  // consisting of a prefix + index, and a map type that maps the custom format
+  // type to the type used on the clipboard. On Windows/Linux, this is done
+  // because there is a limited amount of system resources available to hold
+  // format types, so they must be conserved. On the Mac, there is no limit, but
+  // types must be named using strict alphanumerics, and MIME types do not
+  // conform to that naming restriction, so types must be mapped, and therefore
+  // the same mapping scheme is reused.
+
+  // Returns the format identifier used for web custom format data on the
+  // clipboard. Derived from the provided `index` value.
   static std::string WebCustomFormatName(int index);
-  // Gets the ClipboardFormatType corresponding to a format string,
-  // registering it with the system if needed.
+
+  // Returns the ClipboardFormatType used for web custom format data,
+  // registering it with the system if needed. Pass in a value obtained from
+  // `WebCustomFormatName` above.
   static ClipboardFormatType CustomPlatformType(
       const std::string& format_string);
-  // Returns the web custom format map that has the mapping of MIME types to
-  // custom format names.
+
+  // Returns the ClipboardFormatType used for the web custom format map that has
+  // the mapping of MIME types to custom format names.
   static const ClipboardFormatType& WebCustomFormatMap();
-  // Returns the web custom format map name.
-  static std::string WebCustomFormatMapName();
 
   // ClipboardFormatType can be used in a set on some platforms.
   bool operator<(const ClipboardFormatType& other) const;
@@ -102,10 +117,10 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD_TYPES) ClipboardFormatType {
   // Returns a human-readable format name, or an empty string as an error value
   // if the format isn't found.
   std::string GetName() const;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   const FORMATETC& ToFormatEtc() const { return *ChromeToWindowsType(&data_); }
-#elif defined(OS_APPLE)
-  NSString* ToNSString() const { return data_; }
+#elif BUILDFLAG(IS_APPLE)
+  NSString* ToNSString() const { return uttype_; }
   // Custom copy and assignment constructor to handle NSString.
   ClipboardFormatType(const ClipboardFormatType& other);
   ClipboardFormatType& operator=(const ClipboardFormatType& other);
@@ -128,7 +143,7 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD_TYPES) ClipboardFormatType {
   //
   // In all platforms, format names may be ASCII or UTF8/16.
   // TODO(huangdarwin): Convert interfaces to std::u16string.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // When there are multiple files in the data store and they are described
   // using a file group descriptor, the file contents are retrieved by
   // requesting the CFSTR_FILECONTENTS clipboard format type and also providing
@@ -140,12 +155,14 @@ class COMPONENT_EXPORT(UI_BASE_CLIPBOARD_TYPES) ClipboardFormatType {
   // FORMATETC:
   // https://docs.microsoft.com/en-us/windows/desktop/com/the-formatetc-structure
   CHROME_FORMATETC data_;
-#elif defined(USE_AURA) || defined(OS_ANDROID) || defined(OS_FUCHSIA)
+#elif defined(USE_AURA) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
   explicit ClipboardFormatType(const std::string& native_format);
   std::string data_;
-#elif defined(OS_APPLE)
-  explicit ClipboardFormatType(NSString* native_format);
-  NSString* data_;
+#elif BUILDFLAG(IS_APPLE)
+  explicit ClipboardFormatType(NSString* uttype);
+  // A Uniform Type identifier string. TODO(macOS 11): Change to a UTType
+  // object.
+  NSString* uttype_;
 #else
 #error No ClipboardFormatType definition.
 #endif

@@ -1,28 +1,33 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/permissions/request_type.h"
 
 #include "base/check.h"
+#include "base/feature_list.h"
 #include "base/notreached.h"
+#include "base/ranges/algorithm.h"
+#include "build/build_config.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/permissions/features.h"
+#include "components/permissions/permission_request.h"
 #include "components/permissions/permissions_client.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/resources/android/theme_resources.h"
 #else
 #include "components/permissions/vector_icons/vector_icons.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/vector_icon_types.h"
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 namespace permissions {
 
 namespace {
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 int GetIconIdAndroid(RequestType type) {
   switch (type) {
     case RequestType::kAccessibilityEvents:
@@ -53,14 +58,15 @@ int GetIconIdAndroid(RequestType type) {
     case RequestType::kProtectedMediaIdentifier:
       return IDR_ANDROID_INFOBAR_PROTECTED_MEDIA_IDENTIFIER;
     case RequestType::kStorageAccess:
+    case RequestType::kTopLevelStorageAccess:
       return IDR_ANDROID_INFOBAR_PERMISSION_COOKIE;
   }
   NOTREACHED();
   return 0;
 }
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 const gfx::VectorIcon& GetIconIdDesktop(RequestType type) {
   switch (type) {
     case RequestType::kAccessibilityEvents:
@@ -75,12 +81,12 @@ const gfx::VectorIcon& GetIconIdDesktop(RequestType type) {
       return vector_icons::kContentPasteIcon;
     case RequestType::kDiskQuota:
       return vector_icons::kFolderIcon;
-    case RequestType::kFontAccess:
-      return vector_icons::kFontDownloadIcon;
     case RequestType::kGeolocation:
       return vector_icons::kLocationOnIcon;
     case RequestType::kIdleDetection:
       return vector_icons::kDevicesIcon;
+    case RequestType::kLocalFonts:
+      return vector_icons::kFontDownloadIcon;
     case RequestType::kMicStream:
       return vector_icons::kMicIcon;
     case RequestType::kMidiSysex:
@@ -89,7 +95,7 @@ const gfx::VectorIcon& GetIconIdDesktop(RequestType type) {
       return vector_icons::kFileDownloadIcon;
     case RequestType::kNotifications:
       return vector_icons::kNotificationsIcon;
-#if defined(OS_CHROMEOS) || defined(OS_WIN)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
     case RequestType::kProtectedMediaIdentifier:
       // This icon is provided by ChromePermissionsClient::GetOverrideIconId.
       NOTREACHED();
@@ -102,8 +108,9 @@ const gfx::VectorIcon& GetIconIdDesktop(RequestType type) {
     case RequestType::kU2fApiRequest:
       return kUsbSecurityKeyIcon;
     case RequestType::kStorageAccess:
+    case RequestType::kTopLevelStorageAccess:
       return vector_icons::kCookieIcon;
-    case RequestType::kWindowPlacement:
+    case RequestType::kWindowManagement:
       return vector_icons::kSelectWindowIcon;
   }
   NOTREACHED();
@@ -135,7 +142,7 @@ const gfx::VectorIcon& GetBlockedIconIdDesktop(RequestType type) {
   NOTREACHED();
   return gfx::kNoneIcon;
 }
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 absl::optional<RequestType> ContentSettingsTypeToRequestTypeIfExists(
     ContentSettingsType content_settings_type) {
@@ -144,7 +151,7 @@ absl::optional<RequestType> ContentSettingsTypeToRequestTypeIfExists(
       return RequestType::kAccessibilityEvents;
     case ContentSettingsType::AR:
       return RequestType::kArSession;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     case ContentSettingsType::CAMERA_PAN_TILT_ZOOM:
       return RequestType::kCameraPanTiltZoom;
 #endif
@@ -152,9 +159,9 @@ absl::optional<RequestType> ContentSettingsTypeToRequestTypeIfExists(
       return RequestType::kCameraStream;
     case ContentSettingsType::CLIPBOARD_READ_WRITE:
       return RequestType::kClipboard;
-#if !defined(OS_ANDROID)
-    case ContentSettingsType::FONT_ACCESS:
-      return RequestType::kFontAccess;
+#if !BUILDFLAG(IS_ANDROID)
+    case ContentSettingsType::LOCAL_FONTS:
+      return RequestType::kLocalFonts;
 #endif
     case ContentSettingsType::GEOLOCATION:
       return RequestType::kGeolocation;
@@ -166,11 +173,11 @@ absl::optional<RequestType> ContentSettingsTypeToRequestTypeIfExists(
       return RequestType::kMidiSysex;
     case ContentSettingsType::NOTIFICATIONS:
       return RequestType::kNotifications;
-#if defined(OS_ANDROID) || defined(OS_CHROMEOS) || defined(OS_WIN)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
     case ContentSettingsType::PROTECTED_MEDIA_IDENTIFIER:
       return RequestType::kProtectedMediaIdentifier;
 #endif
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     case ContentSettingsType::NFC:
       return RequestType::kNfcDevice;
 #endif
@@ -178,10 +185,12 @@ absl::optional<RequestType> ContentSettingsTypeToRequestTypeIfExists(
       return RequestType::kStorageAccess;
     case ContentSettingsType::VR:
       return RequestType::kVrSession;
-#if !defined(OS_ANDROID)
-    case ContentSettingsType::WINDOW_PLACEMENT:
-      return RequestType::kWindowPlacement;
+#if !BUILDFLAG(IS_ANDROID)
+    case ContentSettingsType::WINDOW_MANAGEMENT:
+      return RequestType::kWindowManagement;
 #endif
+    case ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS:
+      return RequestType::kTopLevelStorageAccess;
     default:
       return absl::nullopt;
   }
@@ -208,7 +217,7 @@ absl::optional<ContentSettingsType> RequestTypeToContentSettingsType(
       return ContentSettingsType::ACCESSIBILITY_EVENTS;
     case RequestType::kArSession:
       return ContentSettingsType::AR;
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     case RequestType::kCameraPanTiltZoom:
       return ContentSettingsType::CAMERA_PAN_TILT_ZOOM;
 #endif
@@ -216,9 +225,9 @@ absl::optional<ContentSettingsType> RequestTypeToContentSettingsType(
       return ContentSettingsType::MEDIASTREAM_CAMERA;
     case RequestType::kClipboard:
       return ContentSettingsType::CLIPBOARD_READ_WRITE;
-#if !defined(OS_ANDROID)
-    case RequestType::kFontAccess:
-      return ContentSettingsType::FONT_ACCESS;
+#if !BUILDFLAG(IS_ANDROID)
+    case RequestType::kLocalFonts:
+      return ContentSettingsType::LOCAL_FONTS;
 #endif
     case RequestType::kGeolocation:
       return ContentSettingsType::GEOLOCATION;
@@ -228,13 +237,13 @@ absl::optional<ContentSettingsType> RequestTypeToContentSettingsType(
       return ContentSettingsType::MEDIASTREAM_MIC;
     case RequestType::kMidiSysex:
       return ContentSettingsType::MIDI_SYSEX;
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     case RequestType::kNfcDevice:
       return ContentSettingsType::NFC;
 #endif
     case RequestType::kNotifications:
       return ContentSettingsType::NOTIFICATIONS;
-#if defined(OS_ANDROID) || defined(OS_CHROMEOS) || defined(OS_WIN)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
     case RequestType::kProtectedMediaIdentifier:
       return ContentSettingsType::PROTECTED_MEDIA_IDENTIFIER;
 #endif
@@ -242,19 +251,32 @@ absl::optional<ContentSettingsType> RequestTypeToContentSettingsType(
       return ContentSettingsType::STORAGE_ACCESS;
     case RequestType::kVrSession:
       return ContentSettingsType::VR;
-#if !defined(OS_ANDROID)
-    case RequestType::kWindowPlacement:
-      return ContentSettingsType::WINDOW_PLACEMENT;
+#if !BUILDFLAG(IS_ANDROID)
+    case RequestType::kWindowManagement:
+      return ContentSettingsType::WINDOW_MANAGEMENT;
 #endif
+    case RequestType::kTopLevelStorageAccess:
+      return ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS;
     default:
       // Not associated with a ContentSettingsType.
       return absl::nullopt;
   }
 }
 
+// Returns whether confirmation chips can be displayed
+bool IsConfirmationChipSupported(RequestType for_request_type) {
+  return base::ranges::any_of(
+      std::vector<RequestType>{
+          RequestType::kNotifications, RequestType::kGeolocation,
+          RequestType::kCameraStream, RequestType::kMicStream},
+      [for_request_type](permissions::RequestType request_type) {
+        return request_type == for_request_type;
+      });
+}
+
 IconId GetIconId(RequestType type) {
   IconId override_id = PermissionsClient::Get()->GetOverrideIconId(type);
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   if (override_id)
     return override_id;
   return GetIconIdAndroid(type);
@@ -265,7 +287,7 @@ IconId GetIconId(RequestType type) {
 #endif
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 IconId GetBlockedIconId(RequestType type) {
   return GetBlockedIconIdDesktop(type);
 }
@@ -277,7 +299,7 @@ const char* PermissionKeyForRequestType(permissions::RequestType request_type) {
       return "accessibility_events";
     case permissions::RequestType::kArSession:
       return "ar_session";
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     case permissions::RequestType::kCameraPanTiltZoom:
       return "camera_pan_tilt_zoom";
 #endif
@@ -287,9 +309,9 @@ const char* PermissionKeyForRequestType(permissions::RequestType request_type) {
       return "clipboard";
     case permissions::RequestType::kDiskQuota:
       return "disk_quota";
-#if !defined(OS_ANDROID)
-    case permissions::RequestType::kFontAccess:
-      return "font_access";
+#if !BUILDFLAG(IS_ANDROID)
+    case permissions::RequestType::kLocalFonts:
+      return "local_fonts";
 #endif
     case permissions::RequestType::kGeolocation:
       return "geolocation";
@@ -301,17 +323,17 @@ const char* PermissionKeyForRequestType(permissions::RequestType request_type) {
       return "midi_sysex";
     case permissions::RequestType::kMultipleDownloads:
       return "multiple_downloads";
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
     case permissions::RequestType::kNfcDevice:
       return "nfc_device";
 #endif
     case permissions::RequestType::kNotifications:
       return "notifications";
-#if defined(OS_ANDROID) || defined(OS_CHROMEOS) || defined(OS_WIN)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
     case permissions::RequestType::kProtectedMediaIdentifier:
       return "protected_media_identifier";
 #endif
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
     case permissions::RequestType::kRegisterProtocolHandler:
       return "register_protocol_handler";
     case permissions::RequestType::kSecurityAttestation:
@@ -319,15 +341,22 @@ const char* PermissionKeyForRequestType(permissions::RequestType request_type) {
 #endif
     case permissions::RequestType::kStorageAccess:
       return "storage_access";
-#if !defined(OS_ANDROID)
+    case permissions::RequestType::kTopLevelStorageAccess:
+      return "top_level_storage_access";
+#if !BUILDFLAG(IS_ANDROID)
     case permissions::RequestType::kU2fApiRequest:
       return "u2f_api_request";
 #endif
     case permissions::RequestType::kVrSession:
       return "vr_session";
-#if !defined(OS_ANDROID)
-    case permissions::RequestType::kWindowPlacement:
-      return "window_placement";
+#if !BUILDFLAG(IS_ANDROID)
+    case permissions::RequestType::kWindowManagement:
+      if (base::FeatureList::IsEnabled(
+              features::kWindowManagementPermissionAlias)) {
+        return "window_management";
+      } else {
+        return "window_placement";
+      }
 #endif
   }
 

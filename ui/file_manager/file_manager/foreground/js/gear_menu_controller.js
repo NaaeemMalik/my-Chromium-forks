@@ -1,8 +1,9 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {str, util} from '../../common/js/util.js';
+import {getDriveQuotaMetadata, getSizeStats} from '../../common/js/api.js';
+import {str, strf, util} from '../../common/js/util.js';
 import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
 import {DirectoryChangeEvent} from '../../externs/directory_change_event.js';
 
@@ -13,11 +14,9 @@ import {GearMenu} from './ui/gear_menu.js';
 import {MultiMenuButton} from './ui/multi_menu_button.js';
 import {ProvidersMenu} from './ui/providers_menu.js';
 
-
 export class GearMenuController {
   /**
    * @param {!MultiMenuButton} gearButton
-   * @param {!FilesToggleRippleElement} toggleRipple
    * @param {!GearMenu} gearMenu
    * @param {!ProvidersMenu} providersMenu
    * @param {!DirectoryModel} directoryModel
@@ -25,13 +24,10 @@ export class GearMenuController {
    * @param {!ProvidersModel} providersModel
    */
   constructor(
-      gearButton, toggleRipple, gearMenu, providersMenu, directoryModel,
-      commandHandler, providersModel) {
+      gearButton, gearMenu, providersMenu, directoryModel, commandHandler,
+      providersModel) {
     /** @private @const {!MultiMenuButton} */
     this.gearButton_ = gearButton;
-
-    /** @private @const {!FilesToggleRippleElement} */
-    this.toggleRipple_ = toggleRipple;
 
     /** @private @const {!GearMenu} */
     this.gearMenu_ = gearMenu;
@@ -49,7 +45,6 @@ export class GearMenuController {
     this.providersModel_ = providersModel;
 
     gearButton.addEventListener('menushow', this.onShowGearMenu_.bind(this));
-    gearButton.addEventListener('menuhide', this.onHideGearMenu_.bind(this));
     directoryModel.addEventListener(
         'directory-changed', this.onDirectoryChanged_.bind(this));
     chrome.fileManagerPrivate.onPreferencesChanged.addListener(
@@ -61,7 +56,6 @@ export class GearMenuController {
    * @private
    */
   onShowGearMenu_() {
-    this.toggleRipple_.activated = true;
     this.refreshRemainingSpace_(false); /* Without loading caption. */
 
     this.providersModel_.getMountableProviders().then(providers => {
@@ -72,13 +66,6 @@ export class GearMenuController {
       }
       this.gearMenu_.updateShowProviders(shouldHide);
     });
-  }
-
-  /**
-   * @private
-   */
-  onHideGearMenu_() {
-    this.toggleRipple_.activated = false;
   }
 
   /**
@@ -125,11 +112,27 @@ export class GearMenuController {
       return;
     }
 
+    if (currentVolumeInfo.volumeType == VolumeManagerCommon.VolumeType.DRIVE) {
+      this.gearMenu_.setSpaceInfo(
+          getDriveQuotaMetadata(currentDirectory)
+              .then(
+                  quota /* chrome.fileManagerPrivate.DriveQuotaMetadata */ => ({
+                    totalSize: quota.totalBytes,
+                    usedSize: quota.usedBytes,
+                    warningMessage: quota.organizationLimitExceeded ?
+                        strf('DRIVE_ORGANIZATION_STORAGE_FULL') :
+                        null,
+                  })),
+          true);
+      return;
+    }
+
     this.gearMenu_.setSpaceInfo(
-        new Promise(fulfill => {
-          chrome.fileManagerPrivate.getSizeStats(
-              currentVolumeInfo.volumeId, fulfill);
-        }),
+        getSizeStats(currentVolumeInfo.volumeId)
+            .then(size /* chrome.fileManagerPrivate.MountPointSizeStats */ => ({
+                    totalSize: size.totalSize,
+                    usedSize: size.totalSize - size.remainingSize,
+                  })),
         true);
   }
 

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,12 @@
 
 namespace content {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
+std::string SandboxedProcessLauncherDelegate::GetSandboxTag() {
+  // This implies that policies will not share backing data.
+  return "";
+}
+
 bool SandboxedProcessLauncherDelegate::DisableDefaultPolicy() {
   return false;
 }
@@ -17,6 +22,11 @@ bool SandboxedProcessLauncherDelegate::DisableDefaultPolicy() {
 bool SandboxedProcessLauncherDelegate::GetAppContainerId(
     std::string* appcontainer_id) {
   return false;
+}
+
+bool SandboxedProcessLauncherDelegate::InitializeConfig(
+    sandbox::TargetConfig* config) {
+  return true;
 }
 
 bool SandboxedProcessLauncherDelegate::PreSpawnTarget(
@@ -27,10 +37,6 @@ bool SandboxedProcessLauncherDelegate::PreSpawnTarget(
 void SandboxedProcessLauncherDelegate::PostSpawnTarget(
     base::ProcessHandle process) {}
 
-bool SandboxedProcessLauncherDelegate::ShouldLaunchElevated() {
-  return false;
-}
-
 bool SandboxedProcessLauncherDelegate::ShouldUnsandboxedRunInJob() {
   return false;
 }
@@ -38,23 +44,37 @@ bool SandboxedProcessLauncherDelegate::ShouldUnsandboxedRunInJob() {
 bool SandboxedProcessLauncherDelegate::CetCompatible() {
   return true;
 }
-#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(USE_ZYGOTE_HANDLE)
-ZygoteHandle SandboxedProcessLauncherDelegate::GetZygote() {
+bool SandboxedProcessLauncherDelegate::AllowWindowsFontsDir() {
+  return false;
+}
+#endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(IS_WIN)
+bool SandboxedProcessLauncherDelegate::ShouldLaunchElevated() {
+  return false;
+}
+
+bool SandboxedProcessLauncherDelegate::ShouldUseUntrustedMojoInvitation() {
+  return false;
+}
+#endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(USE_ZYGOTE)
+ZygoteCommunication* SandboxedProcessLauncherDelegate::GetZygote() {
   // Default to the sandboxed zygote. If a more lax sandbox is needed, then the
   // child class should override this method and use the unsandboxed zygote.
   return GetGenericZygote();
 }
-#endif  // BUILDFLAG(USE_ZYGOTE_HANDLE)
+#endif  // BUILDFLAG(USE_ZYGOTE)
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 base::EnvironmentMap SandboxedProcessLauncherDelegate::GetEnvironment() {
   return base::EnvironmentMap();
 }
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 
 bool SandboxedProcessLauncherDelegate::DisclaimResponsibility() {
   return false;
@@ -64,6 +84,6 @@ bool SandboxedProcessLauncherDelegate::EnableCpuSecurityMitigations() {
   return false;
 }
 
-#endif  // OS_MAC
+#endif  // BUILDFLAG(IS_MAC)
 
 }  // namespace content

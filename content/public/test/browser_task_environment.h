@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,11 +8,12 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
+#include "base/task/sequence_manager/sequence_manager.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 
 namespace base {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 namespace win {
 class ScopedCOMInitializer;
 }  // namespace win
@@ -100,7 +101,7 @@ class TestBrowserThread;
 //     template <typename... TaskEnvironmentTraits>
 //     explicit FooBase(TaskEnvironmentTraits&&... traits)
 //         : task_environment_(
-//               base::in_place,
+//               absl::in_place,
 //               std::forward<TaskEnvironmentTraits>(traits)...) {}
 //
 //     // Alternatively a subclass may pass this tag to ask this FooBase not to
@@ -154,7 +155,8 @@ class BrowserTaskEnvironment : public base::test::TaskEnvironment {
                                               TaskEnvironmentTraits...>::value>>
   NOINLINE explicit BrowserTaskEnvironment(TaskEnvironmentTraits... traits)
       : BrowserTaskEnvironment(
-            base::test::TaskEnvironment(
+            CreateTaskEnvironmentWithPriorities(
+                CreateBrowserTaskPrioritySettings(),
                 SubclassCreatesDefaultTaskRunner{},
                 base::trait_helpers::GetEnum<MainThreadType,
                                              MainThreadType::UI>(traits...),
@@ -174,6 +176,9 @@ class BrowserTaskEnvironment : public base::test::TaskEnvironment {
   ~BrowserTaskEnvironment() override;
 
  private:
+  static base::sequence_manager::SequenceManager::PrioritySettings
+  CreateBrowserTaskPrioritySettings();
+
   // The template constructor has to be in the header but it delegates to this
   // constructor to initialize all other members out-of-line.
   BrowserTaskEnvironment(base::test::TaskEnvironment&& scoped_task_environment,
@@ -195,7 +200,7 @@ class BrowserTaskEnvironment : public base::test::TaskEnvironment {
   std::unique_ptr<TestBrowserThread> ui_thread_;
   std::unique_ptr<TestBrowserThread> io_thread_;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   std::unique_ptr<base::win::ScopedCOMInitializer> com_initializer_;
 #endif
 };

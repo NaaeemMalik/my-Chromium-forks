@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,16 @@
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/sequence_checker.h"
-#include "base/task/post_task.h"
+#include "base/task/sequenced_task_runner.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/autocomplete_provider_client.h"
 #include "components/omnibox/browser/on_device_head_model.h"
+#include "components/optimization_guide/machine_learning_tflite_buildflags.h"
+
+// TODO(crbug.com/1372112): clean up this build flag guard later if possible.
+#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+#include "components/omnibox/browser/on_device_tail_model_executor.h"
+#endif
 
 class AutocompleteProviderListener;
 
@@ -24,8 +30,8 @@ class AutocompleteProviderListener;
 // greater than 99, such that its matches will not show before any other
 // providers; However the relevance can be changed to any arbitrary value by
 // Finch when the input is not classified as a URL.
-// TODO(crbug.com/925072): make some cleanups after removing |model_| and |this|
-// in task postings from this class.
+// TODO(crbug.com/1372112): rename this provider to "OnDeviceProvider" since it
+// will serve both head and tail suggestions.
 class OnDeviceHeadProvider : public AutocompleteProvider {
  public:
   static OnDeviceHeadProvider* Create(AutocompleteProviderClient* client,
@@ -44,6 +50,9 @@ class OnDeviceHeadProvider : public AutocompleteProvider {
   // from the on device head model for a search request to the model.
   struct OnDeviceHeadProviderParams;
 
+  // The structure holds params for on device model files.
+  struct OnDeviceModelFileParams;
+
   OnDeviceHeadProvider(AutocompleteProviderClient* client,
                        AutocompleteProviderListener* listener);
   ~OnDeviceHeadProvider() override;
@@ -59,35 +68,44 @@ class OnDeviceHeadProvider : public AutocompleteProvider {
   // matches the given AutocompleteInput.
   void DoSearch(std::unique_ptr<OnDeviceHeadProviderParams> params);
   // SearchDone: called after DoSearch, fills |matches_| with the suggestions
-  // fetches by DoSearch and then calls OnProviderUpdate.
+  // fetches by DoSearch and then calls NotifyListeners.
   void SearchDone(std::unique_ptr<OnDeviceHeadProviderParams> params);
 
-  // Helper functions to read model filename from the static
+  // Helper functions to read model file params from the static
   // OnDeviceModelUpdateListener instance.
-  std::string GetOnDeviceHeadModelFilename() const;
+  static OnDeviceModelFileParams GetOnDeviceModelFileParams();
 
-  // Fetches suggestions matching the params from the given on device head
-  // model.
+  // Fetches suggestions matching the params from the given on device model.
   static std::unique_ptr<OnDeviceHeadProviderParams> GetSuggestionsFromModel(
-      const std::string& model_filename,
+      OnDeviceModelFileParams model_file_params,
+#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+      OnDeviceTailModelExecutor* tail_model_executor,
+#endif
       const size_t provider_max_matches,
       std::unique_ptr<OnDeviceHeadProviderParams> params);
 
   raw_ptr<AutocompleteProviderClient> client_;
-  raw_ptr<AutocompleteProviderListener> listener_;
 
-  // The task runner dedicated for on device head model operations which is
-  // added to offload expensive operations out of the UI sequence.
+  // The task runner dedicated for on device model operations which is added to
+  // offload expensive operations out of the UI sequence.
   scoped_refptr<base::SequencedTaskRunner> worker_task_runner_;
 
   // Sequence checker that ensure autocomplete request handling will only happen
   // on main thread.
   SEQUENCE_CHECKER(main_sequence_checker_);
 
-  // The request id used to trace current request to the on device head model.
+  // The request id used to trace current request to the on device models.
   // The id will be increased whenever a new request is received from the
   // AutocompleteController.
   size_t on_device_search_request_id_;
+
+#if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
+  using ExecutorUniquePtr =
+      std::unique_ptr<OnDeviceTailModelExecutor, base::OnTaskRunnerDeleter>;
+
+  // The executor to run the tail suggest model.
+  ExecutorUniquePtr on_device_tail_model_executor_;
+#endif
 
   base::WeakPtrFactory<OnDeviceHeadProvider> weak_ptr_factory_{this};
 };

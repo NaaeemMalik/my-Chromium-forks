@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,18 +10,19 @@
 #include <string>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/values.h"
 #include "chrome/browser/apps/app_service/app_icon/app_icon_factory.h"
 #include "chrome/browser/ash/crostini/crostini_simple_types.h"
-#include "chrome/browser/ash/crostini/crostini_util.h"
-#include "chromeos/dbus/vm_applications/apps.pb.h"
+#include "chrome/browser/ash/guest_os/guest_id.h"
+#include "chrome/browser/ash/guest_os/public/types.h"
+#include "chromeos/ash/components/dbus/vm_applications/apps.pb.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/services/app_service/public/cpp/icon_types.h"
-#include "components/services/app_service/public/mojom/app_service.mojom.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/resource/resource_scale_factor.h"
 
@@ -77,8 +78,6 @@ using IconContentCallback = base::OnceCallback<void(std::string)>;
 // so some care is required.
 class GuestOsRegistryService : public KeyedService {
  public:
-  using VmType = vm_tools::apps::ApplicationList_VmType;
-
   class Registration {
    public:
     Registration(const std::string app_id, const base::Value pref);
@@ -225,7 +224,7 @@ class GuestOsRegistryService : public KeyedService {
   // Inform the registry that the badge color for `container_id` has changed. In
   // practice, this sends an update notification for all apps associated with
   // this container, which will prompt the icons to be regenerated.
-  void ContainerBadgeColorChanged(const crostini::ContainerId& container_id);
+  void ContainerBadgeColorChanged(const guest_os::GuestId& container_id);
 
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
@@ -234,7 +233,7 @@ class GuestOsRegistryService : public KeyedService {
   void AppLaunched(const std::string& app_id);
 
   // Serializes the current time and stores it in |dictionary|.
-  void SetCurrentTime(base::Value* dictionary, const char* key) const;
+  void SetCurrentTime(base::Value::Dict& dictionary, const char* key) const;
 
   // Set the display scaled setting of the |app_id| to |scaled|.
   void SetAppScaled(const std::string& app_id, bool scaled);
@@ -248,9 +247,6 @@ class GuestOsRegistryService : public KeyedService {
                                    const std::string& container_name);
 
  private:
-  // Run start up tasks for the registry (e.g. recording metrics).
-  void RecordStartupMetrics();
-
   // Construct path to app local data.
   base::FilePath GetAppPath(const std::string& app_id) const;
   // Called to request an icon from the container.
@@ -287,11 +283,14 @@ class GuestOsRegistryService : public KeyedService {
       apps::LoadIconCallback callback);
 
   // Callback for when a saved container icon is svg and was transcoded.
-  void OnSvgIconTranscoded(std::string app_id, std::string icon_content);
+  void OnSvgIconTranscoded(std::string app_id,
+                           ui::ResourceScaleFactor scale_factor,
+                           std::string svg_icon_content,
+                           std::string png_icon_content);
 
   // Owned by the Profile.
-  Profile* const profile_;
-  PrefService* const prefs_;
+  const raw_ptr<Profile, ExperimentalAsh> profile_;
+  const raw_ptr<PrefService, ExperimentalAsh> prefs_;
 
   // Keeps root folder where Crostini app icons for different scale factors are
   // stored.
@@ -299,7 +298,7 @@ class GuestOsRegistryService : public KeyedService {
 
   base::ObserverList<Observer>::Unchecked observers_;
 
-  const base::Clock* clock_;
+  raw_ptr<const base::Clock, ExperimentalAsh> clock_;
 
   // Keeps record for icon request to avoid duplication. Each app may contain
   // several requests for different scale factors. Scale factor is defined by

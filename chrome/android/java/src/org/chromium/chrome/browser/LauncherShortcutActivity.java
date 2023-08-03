@@ -1,10 +1,9 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -14,10 +13,12 @@ import android.graphics.drawable.Icon;
 import android.os.Build;
 import android.os.Bundle;
 
+import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
+import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.SharedPreferencesManager;
 
@@ -41,7 +42,8 @@ public class LauncherShortcutActivity extends Activity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        String intentAction = getIntent().getAction();
+        Intent intent = getIntent();
+        String intentAction = intent.getAction();
 
         // Exit early if the original intent action isn't for opening a new tab.
         if (!intentAction.equals(ACTION_OPEN_NEW_TAB)
@@ -51,6 +53,15 @@ public class LauncherShortcutActivity extends Activity {
         }
 
         Intent newIntent = getChromeLauncherActivityIntent(this, intentAction);
+        // Retain FLAG_ACTIVITY_MULTIPLE_TASK in the intent if present, to support multi-instance
+        // launch if lesser than the max number of instances is open. If the max number of instances
+        // is open, fall back to default ChromeLauncherActivity behavior for VIEW intents without
+        // this flag set.
+        if ((intent.getFlags() & Intent.FLAG_ACTIVITY_MULTIPLE_TASK) != 0
+                && MultiWindowUtils.getInstanceCount() < MultiWindowUtils.getMaxInstances()) {
+            newIntent.setFlags(newIntent.getFlags() | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+        }
+
         startActivity(newIntent);
         finish();
     }
@@ -90,7 +101,7 @@ public class LauncherShortcutActivity extends Activity {
      * @return True if adding the shortcut has succeeded. False if the call fails due to rate
      *         limiting. See {@link ShortcutManager#addDynamicShortcuts}.
      */
-    @TargetApi(Build.VERSION_CODES.N_MR1)
+    @RequiresApi(Build.VERSION_CODES.N_MR1)
     private static boolean addIncognitoLauncherShortcut(Context context) {
         Intent intent = new Intent(LauncherShortcutActivity.ACTION_OPEN_NEW_INCOGNITO_TAB);
         intent.setPackage(context.getPackageName());
@@ -116,7 +127,7 @@ public class LauncherShortcutActivity extends Activity {
      * Removes the dynamic "New incognito tab" launcher shortcut.
      * @param context The context used to retrieve the system {@link ShortcutManager}.
      */
-    @TargetApi(Build.VERSION_CODES.N_MR1)
+    @RequiresApi(Build.VERSION_CODES.N_MR1)
     private static void removeIncognitoLauncherShortcut(Context context) {
         List<String> shortcutList = new ArrayList<>();
         shortcutList.add(DYNAMIC_OPEN_NEW_INCOGNITO_TAB_ID);

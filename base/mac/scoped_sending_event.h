@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,8 +24,7 @@
 - (void)setHandlingSendEvent:(BOOL)handlingSendEvent;
 @end
 
-namespace base {
-namespace mac {
+namespace base::mac {
 
 class BASE_EXPORT ScopedSendingEvent {
  public:
@@ -43,7 +42,6 @@ class BASE_EXPORT ScopedSendingEvent {
   BOOL handling_;  // Value of -[app_ handlingSendEvent] at construction.
 };
 
-}  // namespace mac
-}  // namespace base
+}  // namespace base::mac
 
 #endif  // BASE_MAC_SCOPED_SENDING_EVENT_H_

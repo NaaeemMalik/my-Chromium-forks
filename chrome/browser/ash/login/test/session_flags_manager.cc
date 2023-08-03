@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,8 @@
 #include "base/strings/stringprintf.h"
 #include "base/values.h"
 #include "chrome/common/chrome_paths.h"
-#include "chromeos/cryptohome/cryptohome_parameters.h"
-#include "chromeos/dbus/session_manager/fake_session_manager_client.h"
+#include "chromeos/ash/components/cryptohome/cryptohome_parameters.h"
+#include "chromeos/ash/components/dbus/session_manager/fake_session_manager_client.h"
 #include "components/user_manager/user_names.h"
 #include "third_party/cros_system_api/switches/chrome_switches.h"
 
@@ -61,11 +61,11 @@ void SessionFlagsManager::SetUpSessionRestore() {
 
 void SessionFlagsManager::SetDefaultLoginSwitches(
     const std::vector<Switch>& switches) {
-  default_switches_ = {{switches::kPolicySwitchesBegin, ""}};
+  default_switches_ = {{chromeos::switches::kPolicySwitchesBegin, ""}};
   default_switches_.insert(default_switches_.end(), switches.begin(),
                            switches.end());
   default_switches_.emplace_back(
-      std::make_pair(switches::kPolicySwitchesEnd, ""));
+      std::make_pair(chromeos::switches::kPolicySwitchesEnd, ""));
 }
 
 void SessionFlagsManager::AppendSwitchesToCommandLine(
@@ -123,35 +123,36 @@ void SessionFlagsManager::LoadStateFromBackingFile() {
     return;
 
   DCHECK(value->is_dict());
-  const std::string* user_id = value->FindStringKey(kUserIdKey);
+  base::Value::Dict& value_dict = value->GetDict();
+  const std::string* user_id = value_dict.FindString(kUserIdKey);
   if (user_id && !user_id->empty()) {
     user_id_ = *user_id;
   }
 
-  const std::string* user_hash = value->FindStringKey(kUserHashKey);
+  const std::string* user_hash = value_dict.FindString(kUserHashKey);
   if (user_hash && !user_hash->empty()) {
     user_hash_ = *user_hash;
   }
 
-  base::Value* user_flags = value->FindListKey(kUserFlagsKey);
+  base::Value::List* user_flags = value_dict.FindList(kUserFlagsKey);
   if (user_flags) {
     user_flags_ = std::vector<Switch>();
-    for (const base::Value& flag : user_flags->GetList()) {
+    for (const base::Value& flag : *user_flags) {
       DCHECK(flag.is_dict());
       user_flags_->emplace_back(
-          std::make_pair(*flag.FindStringKey(kFlagNameKey),
-                         *flag.FindStringKey(kFlagValueKey)));
+          std::make_pair(*flag.GetDict().FindString(kFlagNameKey),
+                         *flag.GetDict().FindString(kFlagValueKey)));
     }
   }
 
-  base::Value* restart_job = value->FindListKey(kRestartJobKey);
+  base::Value::List* restart_job = value_dict.FindList(kRestartJobKey);
   if (restart_job) {
     restart_job_ = std::vector<Switch>();
-    for (const base::Value& job_switch : restart_job->GetList()) {
+    for (const base::Value& job_switch : *restart_job) {
       DCHECK(job_switch.is_dict());
       restart_job_->emplace_back(
-          std::make_pair(*job_switch.FindStringKey(kFlagNameKey),
-                         *job_switch.FindStringKey(kFlagValueKey)));
+          std::make_pair(*job_switch.GetDict().FindString(kFlagNameKey),
+                         *job_switch.GetDict().FindString(kFlagValueKey)));
     }
   }
 }
@@ -188,7 +189,7 @@ void SessionFlagsManager::StoreStateToBackingFile() {
     user_profile = it->second;
   }
 
-  base::Value cached_state(base::Value::Type::DICTIONARY);
+  base::Value cached_state(base::Value::Type::DICT);
 
   // Restart job command line should already contain login user and profile
   // switches, no reason to store it separately.
@@ -232,15 +233,15 @@ base::Value SessionFlagsManager::GetSwitchesValueFromArgv(
   base::CommandLine cmd_line(base::CommandLine::NO_PROGRAM);
   cmd_line.InitFromArgv(argv);
 
-  base::Value flag_list(base::Value::Type::LIST);
+  base::Value::List flag_list;
   for (const auto& flag : cmd_line.GetSwitches()) {
-    base::Value flag_value(base::Value::Type::DICTIONARY);
-    flag_value.SetKey(kFlagNameKey, base::Value(flag.first));
-    flag_value.SetKey(kFlagValueKey, base::Value(flag.second));
+    base::Value::Dict flag_value;
+    flag_value.Set(kFlagNameKey, flag.first);
+    flag_value.Set(kFlagValueKey, flag.second);
 
     flag_list.Append(std::move(flag_value));
   }
-  return flag_list;
+  return base::Value(std::move(flag_list));
 }
 
 }  // namespace test

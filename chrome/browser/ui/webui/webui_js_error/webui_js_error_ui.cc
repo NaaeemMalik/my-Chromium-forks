@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,23 +16,13 @@
 #include "chrome/grit/webui_js_error_resources.h"
 #include "chrome/grit/webui_js_error_resources_map.h"
 #include "content/public/browser/web_ui_data_source.h"
-#include "content/public/common/content_features.h"
 
 WebUIJsErrorUI::WebUIJsErrorUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
-#if !defined(OS_WIN) && !defined(OS_FUCHSIA)
-  VLOG(3) << std::boolalpha << "gtx://webuijserror loading. "
-          << "Experiment state: send javascript errors is "
-          << base::FeatureList::IsEnabled(
-                 features::kSendWebUIJavaScriptErrorReports)
-          << " and send to prod is "
-          << features::kWebUIJavaScriptErrorReportsSendToProductionParam.Get();
-#else
   VLOG(3) << "gtx://webuijserror loading.";
-#endif
 
-  content::WebUIDataSource* source =
-      content::WebUIDataSource::Create(chrome::kChromeUIWebUIJsErrorHost);
+  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
+      Profile::FromWebUI(web_ui), chrome::kChromeUIWebUIJsErrorHost);
 
   // As this is just a debugging page, we don't waste the translators' time by
   // actually translating the i18n strings. However, we still want to be able to
@@ -50,8 +40,6 @@ WebUIJsErrorUI::WebUIJsErrorUI(content::WebUI* web_ui)
       source,
       base::make_span(kWebuiJsErrorResources, kWebuiJsErrorResourcesSize),
       IDR_WEBUI_JS_ERROR_WEBUI_JS_ERROR_HTML);
-  Profile* profile = Profile::FromWebUI(web_ui);
-  content::WebUIDataSource::Add(profile, source);
 }
 
 WebUIJsErrorUI::~WebUIJsErrorUI() = default;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,8 +20,8 @@ TestAuthenticationRequester::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
 }
 
-void TestAuthenticationRequester::OnCVCAuthenticationComplete(
-    const CreditCardCVCAuthenticator::CVCAuthenticationResponse& response) {
+void TestAuthenticationRequester::OnCvcAuthenticationComplete(
+    const CreditCardCvcAuthenticator::CvcAuthenticationResponse& response) {
   did_succeed_ = response.did_succeed;
   if (*did_succeed_) {
     DCHECK(response.card);
@@ -29,7 +29,7 @@ void TestAuthenticationRequester::OnCVCAuthenticationComplete(
   }
 }
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 bool TestAuthenticationRequester::ShouldOfferFidoAuth() const {
   return false;
 }
@@ -40,9 +40,9 @@ bool TestAuthenticationRequester::UserOptedInToFidoFromSettingsPageOnMobile()
 }
 #endif
 
-#if !defined(OS_IOS)
+#if !BUILDFLAG(IS_IOS)
 void TestAuthenticationRequester::OnFIDOAuthenticationComplete(
-    const CreditCardFIDOAuthenticator::FidoAuthenticationResponse& response) {
+    const CreditCardFidoAuthenticator::FidoAuthenticationResponse& response) {
   did_succeed_ = response.did_succeed;
   if (*did_succeed_) {
     DCHECK(response.card);

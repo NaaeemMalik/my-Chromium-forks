@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@ package org.chromium.chrome.test.smoke;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.support.test.InstrumentationRegistry;
 
+import androidx.test.InstrumentationRegistry;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.LargeTest;
 
 import org.junit.Assert;
@@ -61,7 +62,7 @@ public class ChromeBundleSmokeTest {
 
     private void runTestActivity(int testCase) {
         // This intent will trigger installation of the module if not present.
-        Context context = InstrumentationRegistry.getContext();
+        Context context = ApplicationProvider.getApplicationContext();
         Intent intent = new Intent();
         intent.setComponent(new ComponentName(mPackageName, TARGET_ACTIVITY));
         intent.putExtra("test_case", testCase);

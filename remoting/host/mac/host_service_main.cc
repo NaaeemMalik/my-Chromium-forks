@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,12 @@
 #include <string>
 
 #include "base/at_exit.h"
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/mac/mac_util.h"
-#include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
@@ -275,7 +274,7 @@ bool HostService::Enable() {
     HOST_LOG << "Message from chmod: " << output;
   }
 
-  if (base::WriteFile(enabled_file_, nullptr, 0) < 0) {
+  if (!base::WriteFile(enabled_file_, base::StringPiece())) {
     LOG(ERROR) << "Failed to write enabled file";
     return false;
   }
@@ -287,8 +286,7 @@ bool HostService::WriteStdinToConfig() {
   std::istreambuf_iterator<char> begin(std::cin);
   std::istreambuf_iterator<char> end;
   std::string config(begin, end);
-  if (base::WriteFile(config_file_, config.data(), config.size()) !=
-      static_cast<int>(config.size())) {
+  if (!base::WriteFile(config_file_, config)) {
     LOG(ERROR) << "Failed to write config file";
     return false;
   }

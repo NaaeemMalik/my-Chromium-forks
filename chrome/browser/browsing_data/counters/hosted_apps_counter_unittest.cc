@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,9 @@
 #include <string>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/guid.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/browsing_data/core/browsing_data_utils.h"
@@ -23,6 +23,7 @@
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/value_builder.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace {
 
@@ -42,22 +43,22 @@ class HostedAppsCounterTest : public testing::Test {
   // Adding and removing apps and extensions. ----------------------------------
 
   std::string AddExtension() {
-    return AddItem(
-        base::GenerateGUID(),
-        std::unique_ptr<base::DictionaryValue>());
+    return AddItem(base::Uuid::GenerateRandomV4().AsLowercaseString(),
+                   /*app_manifest=*/absl::nullopt);
   }
 
   std::string AddPackagedApp() {
     return AddItem(
-        base::GenerateGUID(),
+        base::Uuid::GenerateRandomV4().AsLowercaseString(),
         DictionaryBuilder()
-            .Set("launch", DictionaryBuilder().Set(
-                "local_path", "index.html").Build())
+            .Set("launch",
+                 DictionaryBuilder().Set("local_path", "index.html").Build())
             .Build());
   }
 
   std::string AddHostedApp() {
-    return AddHostedAppWithName(base::GenerateGUID());
+    return AddHostedAppWithName(
+        base::Uuid::GenerateRandomV4().AsLowercaseString());
   }
 
   std::string AddHostedAppWithName(const std::string& name) {
@@ -72,15 +73,16 @@ class HostedAppsCounterTest : public testing::Test {
   }
 
   std::string AddItem(const std::string& name,
-                      std::unique_ptr<base::Value> app_manifest) {
+                      absl::optional<base::Value::Dict> app_manifest) {
     DictionaryBuilder manifest_builder;
     manifest_builder
         .Set("manifest_version", 2)
         .Set("name", name)
         .Set("version", "1");
 
-    if (app_manifest)
-        manifest_builder.Set("app", std::move(app_manifest));
+    if (app_manifest) {
+      manifest_builder.Set("app", std::move(*app_manifest));
+    }
 
     scoped_refptr<const extensions::Extension> item =
         extensions::ExtensionBuilder()

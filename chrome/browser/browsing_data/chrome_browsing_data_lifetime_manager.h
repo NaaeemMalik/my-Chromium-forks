@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,18 +24,6 @@ class BrowserContext;
 class Profile;
 
 namespace browsing_data {
-
-// The data types values of the BrowsingDataSettings policy.
-namespace policy_data_types {
-extern const char kBrowsingHistory[];
-extern const char kDownloadHistory[];
-extern const char kCookiesAndOtherSiteData[];
-extern const char kCachedImagesAndFiles[];
-extern const char kPasswordSignin[];
-extern const char kAutofill[];
-extern const char kSiteSettings[];
-extern const char kHostedAppData[];
-}  // namespace policy_data_types
 
 // The fields of each item defined in the BrowsingDataSettings policy.
 namespace policy_fields {
@@ -101,7 +89,7 @@ class ChromeBrowsingDataLifetimeManager : public KeyedService {
   std::vector<ScheduledRemovalSettings> scheduled_removals_settings_;
   PrefChangeRegistrar pref_change_registrar_;
   raw_ptr<Profile> profile_;
-  raw_ptr<content::BrowsingDataRemover::Observer>
+  raw_ptr<content::BrowsingDataRemover::Observer, DanglingUntriaged>
       testing_data_remover_observer_ = nullptr;
   absl::optional<base::Time> end_time_for_testing_;
   base::WeakPtrFactory<ChromeBrowsingDataLifetimeManager> weak_ptr_factory_{

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.ColorRes;
 
-import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.omnibox.SecurityStatusIcon;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.components.security_state.SecurityStateModel;
@@ -29,7 +29,6 @@ public class PageInfoConnectionController
     private final WebContents mWebContents;
     private final PageInfoRowView mRowView;
     private final PageInfoControllerDelegate mDelegate;
-    private final VrHandler mVrHandler;
     private final String mContentPublisher;
     private final boolean mIsInternalPage;
     private String mTitle;
@@ -43,7 +42,6 @@ public class PageInfoConnectionController
         mRowView = view;
         mWebContents = webContents;
         mDelegate = delegate;
-        mVrHandler = mDelegate.getVrHandler();
         mContentPublisher = publisher;
         mIsInternalPage = isInternalPage;
     }
@@ -61,8 +59,7 @@ public class PageInfoConnectionController
     @Override
     public View createViewForSubpage(ViewGroup parent) {
         mContainer = new FrameLayout(mRowView.getContext());
-        mInfoView =
-                ConnectionInfoView.create(mRowView.getContext(), mWebContents, this, mVrHandler);
+        mInfoView = ConnectionInfoView.create(mRowView.getContext(), mWebContents, this);
         return mContainer;
     }
 
@@ -128,9 +125,8 @@ public class PageInfoConnectionController
             messageBuilder.append(" ");
             SpannableString detailsText =
                     new SpannableString(mRowView.getContext().getString(R.string.details_link));
-            final ForegroundColorSpan blueSpan =
-                    new ForegroundColorSpan(ApiCompatibilityUtils.getColor(
-                            mRowView.getContext().getResources(), R.color.default_text_color_link));
+            final ForegroundColorSpan blueSpan = new ForegroundColorSpan(
+                    SemanticColorUtils.getDefaultTextColorLink(mRowView.getContext()));
             detailsText.setSpan(
                     blueSpan, 0, detailsText.length(), Spannable.SPAN_INCLUSIVE_EXCLUSIVE);
             messageBuilder.append(detailsText);

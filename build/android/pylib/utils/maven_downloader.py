@@ -1,5 +1,5 @@
 #!/usr/bin/env vpython3
-# Copyright 2017 The Chromium Authors. All rights reserved.
+# Copyright 2017 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -121,7 +121,7 @@ class _SingleArtifactDownloader:
       if ret_code != 0:
         raise Exception('Command "{}" failed'.format(' '.join(cmd)))
     except OSError as e:
-      if e.errno == os.errno.ENOENT:
+      if e.errno == errno.ENOENT:
         raise Exception('mvn command not found. Please install Maven.') from e
       raise
 

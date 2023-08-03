@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,10 +15,13 @@ import org.chromium.base.Log;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
+import org.chromium.device.DeviceFeatureList;
 import org.chromium.device.mojom.ReportingMode;
 import org.chromium.device.mojom.SensorType;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Implementation of PlatformSensor that uses Android Sensor Framework. Lifetime is controlled by
@@ -76,10 +79,16 @@ public class PlatformSensor implements SensorEventListener {
     private final PlatformSensorProvider mProvider;
 
     /**
+     * Detect crbug.com/1383180 by checking if multiple instances of PlatformSensor exist at the
+     * same time for the same sensor type.
+     */
+    private static Set<Integer> sExistingSensorObjects = new HashSet<>();
+
+    /**
      * Creates new PlatformSensor.
      *
      * @param provider object that shares SensorManager and polling thread Handler with sensors.
-     * @param sensorType type of the sensor to be constructed. @see android.hardware.Sensor.TYPE_*
+     * @param type type of the sensor to be constructed. @see android.hardware.Sensor.TYPE_*
      * @param nativePlatformSensorAndroid identifier of device::PlatformSensorAndroid instance.
      */
     @CalledByNative
@@ -88,47 +97,46 @@ public class PlatformSensor implements SensorEventListener {
         SensorManager sensorManager = provider.getSensorManager();
         if (sensorManager == null) return null;
 
-        List<Sensor> sensors;
+        int sensorType;
         int readingCount;
         switch (type) {
             case SensorType.AMBIENT_LIGHT:
-                sensors = provider.getSensorManager().getSensorList(Sensor.TYPE_LIGHT);
+                sensorType = Sensor.TYPE_LIGHT;
                 readingCount = 1;
                 break;
             case SensorType.ACCELEROMETER:
-                sensors = provider.getSensorManager().getSensorList(Sensor.TYPE_ACCELEROMETER);
+                sensorType = Sensor.TYPE_ACCELEROMETER;
                 readingCount = 3;
                 break;
             case SensorType.LINEAR_ACCELERATION:
-                sensors =
-                        provider.getSensorManager().getSensorList(Sensor.TYPE_LINEAR_ACCELERATION);
+                sensorType = Sensor.TYPE_LINEAR_ACCELERATION;
                 readingCount = 3;
                 break;
             case SensorType.GRAVITY:
-                sensors = provider.getSensorManager().getSensorList(Sensor.TYPE_GRAVITY);
+                sensorType = Sensor.TYPE_GRAVITY;
                 readingCount = 3;
                 break;
             case SensorType.GYROSCOPE:
-                sensors = provider.getSensorManager().getSensorList(Sensor.TYPE_GYROSCOPE);
+                sensorType = Sensor.TYPE_GYROSCOPE;
                 readingCount = 3;
                 break;
             case SensorType.MAGNETOMETER:
-                sensors = provider.getSensorManager().getSensorList(Sensor.TYPE_MAGNETIC_FIELD);
+                sensorType = Sensor.TYPE_MAGNETIC_FIELD;
                 readingCount = 3;
                 break;
             case SensorType.ABSOLUTE_ORIENTATION_QUATERNION:
-                sensors = provider.getSensorManager().getSensorList(Sensor.TYPE_ROTATION_VECTOR);
+                sensorType = Sensor.TYPE_ROTATION_VECTOR;
                 readingCount = 4;
                 break;
             case SensorType.RELATIVE_ORIENTATION_QUATERNION:
-                sensors =
-                        provider.getSensorManager().getSensorList(Sensor.TYPE_GAME_ROTATION_VECTOR);
+                sensorType = Sensor.TYPE_GAME_ROTATION_VECTOR;
                 readingCount = 4;
                 break;
             default:
                 return null;
         }
 
+        List<Sensor> sensors = sensorManager.getSensorList(sensorType);
         if (sensors.isEmpty()) return null;
         return new PlatformSensor(
                 sensors.get(0), readingCount, provider, nativePlatformSensorAndroid);
@@ -144,6 +152,10 @@ public class PlatformSensor implements SensorEventListener {
         mSensor = sensor;
         mNativePlatformSensorAndroid = nativePlatformSensorAndroid;
         mMinDelayUsec = mSensor.getMinDelay();
+
+        Integer sensorType = Integer.valueOf(mSensor.getType());
+        assert !sExistingSensorObjects.contains(sensorType);
+        sExistingSensorObjects.add(sensorType);
     }
 
     /**
@@ -212,6 +224,38 @@ public class PlatformSensor implements SensorEventListener {
         return sensorStarted;
     }
 
+    /**
+     * Requests sensor to start polling for data.
+     */
+    @CalledByNative
+    protected void startSensor2(double frequency) {
+        // If we already polling hw with same frequency, do not restart the sensor.
+        if (mCurrentPollingFrequency == frequency) return;
+
+        // Unregister old listener if polling frequency has changed.
+        unregisterListener();
+
+        mProvider.sensorStarted(this);
+        boolean sensorStarted;
+        try {
+            sensorStarted = mProvider.getSensorManager().registerListener(
+                    this, mSensor, getSamplingPeriod(frequency), mProvider.getHandler());
+        } catch (RuntimeException e) {
+            // This can fail due to internal framework errors. https://crbug.com/884190
+            Log.w(TAG, "Failed to register sensor listener.", e);
+            sensorStarted = false;
+        }
+
+        if (!sensorStarted) {
+            stopSensor();
+            synchronized (mLock) {
+                sensorError();
+            }
+        } else {
+            mCurrentPollingFrequency = frequency;
+        }
+    }
+
     private void unregisterListener() {
         // Do not unregister if current polling frequency is 0, not polling for data.
         if (mCurrentPollingFrequency == 0) return;
@@ -245,7 +289,13 @@ public class PlatformSensor implements SensorEventListener {
      */
     @CalledByNative
     protected void sensorDestroyed() {
-        stopSensor();
+        Integer sensorType = Integer.valueOf(mSensor.getType());
+        assert sExistingSensorObjects.contains(sensorType);
+        sExistingSensorObjects.remove(sensorType);
+
+        if (!DeviceFeatureList.isEnabled(DeviceFeatureList.ASYNC_SENSOR_CALLS)) {
+            stopSensor();
+        }
         synchronized (mLock) {
             mNativePlatformSensorAndroid = 0;
         }
@@ -263,8 +313,10 @@ public class PlatformSensor implements SensorEventListener {
      */
     @GuardedBy("mLock")
     protected void sensorError() {
-        PlatformSensorJni.get().notifyPlatformSensorError(
-                mNativePlatformSensorAndroid, PlatformSensor.this);
+        if (mNativePlatformSensorAndroid != 0) {
+            PlatformSensorJni.get().notifyPlatformSensorError(
+                    mNativePlatformSensorAndroid, PlatformSensor.this);
+        }
     }
 
     /**

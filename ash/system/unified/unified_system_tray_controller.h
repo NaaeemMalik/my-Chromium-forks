@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,8 +12,12 @@
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/system/audio/unified_volume_slider_controller.h"
 #include "ash/system/media/unified_media_controls_controller.h"
+#include "ash/system/time/calendar_metrics.h"
+#include "ash/system/time/calendar_model.h"
 #include "ash/system/unified/unified_system_tray_model.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
+#include "quick_settings_view.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/compositor/throughput_tracker.h"
 #include "ui/gfx/geometry/point.h"
@@ -26,11 +30,16 @@ namespace gfx {
 class SlideAnimation;
 }  // namespace gfx
 
+namespace views {
+class View;
+}  // namespace views
+
 namespace ash {
 
 class DetailedViewController;
 class FeaturePodControllerBase;
 class PaginationController;
+class QuickSettingsMediaViewController;
 class UnifiedMediaControlsController;
 class UnifiedBrightnessSliderController;
 class UnifiedVolumeSliderController;
@@ -45,6 +54,15 @@ class ASH_EXPORT UnifiedSystemTrayController
       public UnifiedVolumeSliderController::Delegate,
       public UnifiedMediaControlsController::Delegate {
  public:
+  class Observer : public base::CheckedObserver {
+   public:
+    // Gets called when `ShowCalendarView`, right as animations starts.
+    virtual void OnOpeningCalendarView() {}
+
+    // Gets called when leaving from the calendar view to main view.
+    virtual void OnTransitioningFromCalendarToMainView() {}
+  };
+
   explicit UnifiedSystemTrayController(
       scoped_refptr<UnifiedSystemTrayModel> model,
       UnifiedSystemTrayBubble* bubble = nullptr,
@@ -56,11 +74,15 @@ class ASH_EXPORT UnifiedSystemTrayController
 
   ~UnifiedSystemTrayController() override;
 
+  void AddObserver(Observer* observer);
+  void RemoveObserver(Observer* observer);
+
   // Registers pref to preserve tray expanded state between reboots.
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
 
-  // Create the view. The created view is unowned.
-  UnifiedSystemTrayView* CreateView();
+  // Create the view in the bubble.
+  std::unique_ptr<UnifiedSystemTrayView> CreateUnifiedQuickSettingsView();
+  std::unique_ptr<QuickSettingsView> CreateQuickSettingsView(int max_height);
 
   // Sign out from the current user. Called from the view.
   void HandleSignOutAction();
@@ -74,6 +96,8 @@ class ASH_EXPORT UnifiedSystemTrayController
   void HandlePageSwitchAction(int page);
   // Show date and time settings. Called from the view.
   void HandleOpenDateTimeSettingsAction();
+  // Show power settings. Called from the view.
+  void HandleOpenPowerSettingsAction();
   // Show enterprise managed device info. Called from the view.
   void HandleEnterpriseInfoAction();
   // Toggle expanded state of UnifiedSystemTrayView. Called from the view.
@@ -105,14 +129,15 @@ class ASH_EXPORT UnifiedSystemTrayController
   void ShowLocaleDetailedView();
   // Show the detailed view of audio. Called from the view.
   void ShowAudioDetailedView();
-  // Show the detailed view for dark mode. Called from the feature pod button.
-  void ShowDarkModeDetailedView();
+  // Show the detailed view of display. Called from the view.
+  void ShowDisplayDetailedView();
   // Show the detailed view of notifier settings. Called from the view.
   void ShowNotifierSettingsView();
   // Show the detailed view of media controls. Called from the view.
   void ShowMediaControlsDetailedView();
   // Show the detailed view of Calendar. Called from the view.
-  void ShowCalendarView();
+  void ShowCalendarView(calendar_metrics::CalendarViewShowSource show_source,
+                        calendar_metrics::CalendarEventSource event_source);
 
   // If you want to add a new detailed view, add here.
 
@@ -142,6 +167,9 @@ class ASH_EXPORT UnifiedSystemTrayController
   // Collapse the tray without animating.
   void CollapseWithoutAnimating();
 
+  // Return whether a detailed view is currently being shown.
+  bool IsDetailedViewShown() const;
+
   // SessionObserver:
   void OnActiveUserPrefServiceChanged(PrefService* pref_service) override;
 
@@ -157,6 +185,15 @@ class ASH_EXPORT UnifiedSystemTrayController
   void ShowMediaControls() override;
   void OnMediaControlsViewClicked() override;
 
+  // Sets whether the quick settings view should show the media view.
+  void SetShowMediaView(bool show_media_view);
+
+  // Return true if UnifiedSystemTray is expanded.
+  bool IsExpanded() const;
+
+  // Update the bubble view layout.
+  void UpdateBubble();
+
   scoped_refptr<UnifiedSystemTrayModel> model() { return model_; }
 
   PaginationController* pagination_controller() {
@@ -167,14 +204,27 @@ class ASH_EXPORT UnifiedSystemTrayController
     return detailed_view_controller_.get();
   }
 
+  QuickSettingsMediaViewController* media_view_controller() {
+    DCHECK(media_view_controller_);
+    return media_view_controller_.get();
+  }
+
   bool showing_audio_detailed_view() const {
     return showing_audio_detailed_view_;
   }
 
+  bool showing_display_detailed_view() const {
+    return showing_display_detailed_view_;
+  }
+
+  bool showing_calendar_view() const { return showing_calendar_view_; }
+
  private:
   friend class SystemTrayTestApi;
-  friend class UnifiedSystemTrayControllerTest;
+  friend class UnifiedBrightnessViewTest;
   friend class UnifiedMessageCenterBubbleTest;
+  friend class UnifiedSystemTrayControllerTest;
+  friend class UnifiedVolumeViewTest;
 
   // How the expanded state is toggled. The enum is used to back an UMA
   // histogram and should be treated as append-only.
@@ -194,6 +244,11 @@ class ASH_EXPORT UnifiedSystemTrayController
   // Initialize feature pod controllers and their views.
   // If you want to add a new feature pod item, you have to add here.
   void InitFeaturePods();
+
+  // Initialize feature pod controllers and their tile views.
+  // Temporarily only adds two feature tiles and other placeholder tiles.
+  // TODO(b/252871301): Create each feature's tile.
+  void InitFeatureTiles();
 
   // Add the feature pod controller and its view.
   void AddFeaturePodItem(std::unique_ptr<FeaturePodControllerBase> controller);
@@ -215,9 +270,6 @@ class ASH_EXPORT UnifiedSystemTrayController
   // keeps returning 1.0.
   double GetDragExpandedAmount(const gfx::PointF& location) const;
 
-  // Return true if UnifiedSystemTray is expanded.
-  bool IsExpanded() const;
-
   // Return true if message center needs to be collapsed due to limited
   // screen height.
   bool IsMessageCenterCollapseRequired() const;
@@ -228,17 +280,20 @@ class ASH_EXPORT UnifiedSystemTrayController
   // views::AnimationDelegateViews:
   base::TimeDelta GetAnimationDurationForReporting() const override;
 
+  bool ShouldShowDeferredUpdateDialog() const;
+
   // Model that stores UI specific variables. Unowned.
   scoped_refptr<UnifiedSystemTrayModel> model_;
 
   // Unowned. Owned by Views hierarchy.
-  UnifiedSystemTrayView* unified_view_ = nullptr;
+  raw_ptr<UnifiedSystemTrayView, ExperimentalAsh> unified_view_ = nullptr;
+  raw_ptr<QuickSettingsView, ExperimentalAsh> quick_settings_view_ = nullptr;
 
   // Unowned.
-  UnifiedSystemTrayBubble* bubble_ = nullptr;
+  raw_ptr<UnifiedSystemTrayBubble, ExperimentalAsh> bubble_ = nullptr;
 
   // The pref service of the currently active user. Can be null in tests.
-  PrefService* active_user_prefs_ = nullptr;
+  raw_ptr<PrefService, ExperimentalAsh> active_user_prefs_ = nullptr;
 
   // The controller of the current detailed view. If the main view is shown,
   // it's null. Owned.
@@ -251,13 +306,16 @@ class ASH_EXPORT UnifiedSystemTrayController
   std::unique_ptr<PaginationController> pagination_controller_;
 
   std::unique_ptr<UnifiedMediaControlsController> media_controls_controller_;
+  std::unique_ptr<QuickSettingsMediaViewController> media_view_controller_;
 
   // Controller of volume slider. Owned.
   std::unique_ptr<UnifiedVolumeSliderController> volume_slider_controller_;
+  raw_ptr<views::View, ExperimentalAsh> unified_volume_view_ = nullptr;
 
   // Controller of brightness slider. Owned.
   std::unique_ptr<UnifiedBrightnessSliderController>
       brightness_slider_controller_;
+  raw_ptr<views::View, ExperimentalAsh> unified_brightness_view_ = nullptr;
 
   // If the previous state is expanded or not. Only valid during dragging (from
   // BeginDrag to EndDrag).
@@ -278,6 +336,12 @@ class ASH_EXPORT UnifiedSystemTrayController
   absl::optional<ui::ThroughputTracker> animation_tracker_;
 
   bool showing_audio_detailed_view_ = false;
+
+  bool showing_display_detailed_view_ = false;
+
+  bool showing_calendar_view_ = false;
+
+  base::ObserverList<Observer> observers_;
 };
 
 }  // namespace ash

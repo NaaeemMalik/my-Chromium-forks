@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,7 +18,6 @@
 #include "base/time/time.h"
 #include "net/base/hash_value.h"
 #include "net/base/net_export.h"
-#include "net/cert/cert_status_flags.h"
 #include "net/cert/x509_cert_types.h"
 #include "third_party/boringssl/src/include/openssl/base.h"
 
@@ -242,13 +241,6 @@ class NET_EXPORT X509Certificate
     return intermediate_ca_certs_;
   }
 
-  // Creates a CRYPTO_BUFFER from the DER-encoded representation. Unlike
-  // creating a CRYPTO_BUFFER directly, this function does some minimal
-  // checking to reject obviously invalid inputs.
-  // Returns NULL on failure.
-  static bssl::UniquePtr<CRYPTO_BUFFER> CreateCertBufferFromBytes(
-      base::span<const uint8_t> data);
-
   // Creates all possible CRYPTO_BUFFERs from |data| encoded in a specific
   // |format|. Returns an empty collection on failure.
   static std::vector<bssl::UniquePtr<CRYPTO_BUFFER>> CreateCertBuffersFromBytes(
@@ -266,7 +258,7 @@ class NET_EXPORT X509Certificate
   SHA256HashValue CalculateChainFingerprint256() const;
 
   // Returns true if the certificate is self-signed.
-  static bool IsSelfSigned(const CRYPTO_BUFFER* cert_buffer);
+  static bool IsSelfSigned(CRYPTO_BUFFER* cert_buffer);
 
  private:
   friend class base::RefCountedThreadSafe<X509Certificate>;

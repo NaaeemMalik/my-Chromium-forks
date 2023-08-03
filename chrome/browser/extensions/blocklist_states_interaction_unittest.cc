@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/browser/extensions/test_blocklist.h"
+#include "chrome/browser/profiles/profile.h"
 #include "components/safe_browsing/buildflags.h"
 #include "extensions/browser/blocklist_extension_prefs.h"
 #include "extensions/browser/blocklist_state.h"
-#include "extensions/common/extension_features.h"
 #include "extensions/test/extension_state_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -31,8 +31,6 @@ constexpr char kTestExtensionId[] = "behllobkkfkfnphdnhnkndlbkcpglgmj";
 class BlocklistStatesInteractionUnitTest : public ExtensionServiceTestBase {
  public:
   BlocklistStatesInteractionUnitTest() {
-    feature_list_.InitAndEnableFeature(
-        extensions_features::kDisablePolicyViolationExtensionsRemotely);
     // Set this flag to true so the acknowledged bit is not automatically set
     // by the extension error controller on the first run.
     ExtensionPrefs::SetRunAlertsInFirstRunForTest();
@@ -60,7 +58,7 @@ class BlocklistStatesInteractionUnitTest : public ExtensionServiceTestBase {
   void SetOmahaBlocklistStateForExtension(const std::string& extension_id,
                                           const std::string& omaha_attribute,
                                           bool value) {
-    base::Value attributes(base::Value::Type::DICTIONARY);
+    base::Value attributes(base::Value::Type::DICT);
     attributes.SetBoolKey(omaha_attribute, value);
     service()->PerformActionBasedOnOmahaAttributes(extension_id, attributes);
   }

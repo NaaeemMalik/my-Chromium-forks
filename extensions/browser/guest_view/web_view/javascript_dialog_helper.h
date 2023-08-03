@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,7 +46,7 @@ class JavaScriptDialogHelper : public content::JavaScriptDialogManager {
                             const std::string& user_input);
 
   // Pointer to the webview that is being helped.
-  WebViewGuest* const web_view_guest_;
+  const raw_ptr<WebViewGuest> web_view_guest_;
 
   base::WeakPtrFactory<JavaScriptDialogHelper> weak_factory_{this};
 };

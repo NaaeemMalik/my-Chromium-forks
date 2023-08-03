@@ -1,11 +1,10 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef REMOTING_SIGNALING_FAKE_SIGNAL_STRATEGY_H_
 #define REMOTING_SIGNALING_FAKE_SIGNAL_STRATEGY_H_
 
-#include <list>
 #include <queue>
 #include <string>
 
@@ -28,7 +27,7 @@ class FakeSignalStrategy : public SignalStrategy {
   using PeerCallback = base::RepeatingCallback<void(
       std::unique_ptr<jingle_xmpp::XmlElement> message)>;
 
-  // Calls ConenctTo() to connect |peer1| and |peer2|. Both |peer1| and |peer2|
+  // Calls ConnectTo() to connect |peer1| and |peer2|. Both |peer1| and |peer2|
   // must belong to the current thread.
   static void Connect(FakeSignalStrategy* peer1, FakeSignalStrategy* peer2);
 
@@ -39,13 +38,12 @@ class FakeSignalStrategy : public SignalStrategy {
 
   ~FakeSignalStrategy() override;
 
-  const std::vector<std::unique_ptr<jingle_xmpp::XmlElement>>& received_messages() {
+  const std::vector<std::unique_ptr<jingle_xmpp::XmlElement>>&
+  received_messages() {
     return received_messages_;
   }
 
-  void set_send_delay(base::TimeDelta delay) {
-    send_delay_ = delay;
-  }
+  void set_send_delay(base::TimeDelta delay) { send_delay_ = delay; }
 
   void SetError(Error error);
   void SetIsSignInError(bool is_sign_in_error);

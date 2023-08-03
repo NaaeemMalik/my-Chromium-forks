@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /* Javascript module for gtx://weblayer. */
 
-import {isAndroid} from 'gtx://resources/js/cr.m.js';
-import {$} from 'gtx://resources/js/util.m.js';
+import {isAndroid} from 'gtx://resources/js/platform.js';
+import {$} from 'gtx://resources/js/util_ts.js';
 
 import {PageHandler} from './weblayer_internals.mojom-webui.js';
 

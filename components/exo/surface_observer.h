@@ -1,12 +1,20 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_EXO_SURFACE_OBSERVER_H_
 #define COMPONENTS_EXO_SURFACE_OBSERVER_H_
 
+#include <cstdint>
+#include <string>
+
+namespace gfx {
+class Rect;
+}
+
 namespace exo {
 class Surface;
+enum class OverlayPriority;
 
 // Observers can listen to various events on the Surfaces.
 class SurfaceObserver {
@@ -33,6 +41,29 @@ class SurfaceObserver {
   // |state| is the index of the desk which the window moved to,
   // or -1 for a window assigned to all desks.
   virtual void OnDeskChanged(Surface* surface, int state) {}
+
+  // Called when the display of this surface has changed. Only called after
+  // successfully updating sub-surfaces.
+  virtual void OnDisplayChanged(Surface* surface,
+                                int64_t old_display,
+                                int64_t new_display) {}
+
+  // Starts or ends throttling.
+  virtual void ThrottleFrameRate(bool on) {}
+
+  // Called when tooltip is shown.
+  // `bounds` is relative to `surface`.
+  virtual void OnTooltipShown(Surface* surface,
+                              const std::u16string& text,
+                              const gfx::Rect& bounds) {}
+
+  // Called when tooltip is hidden.
+  virtual void OnTooltipHidden(Surface* surface) {}
+
+  virtual void OnFullscreenStateChanged(bool fullscreen) {}
+
+  virtual void OnOverlayPriorityHintChanged(
+      OverlayPriority overlay_priority_hint) {}
 
  protected:
   virtual ~SurfaceObserver() {}

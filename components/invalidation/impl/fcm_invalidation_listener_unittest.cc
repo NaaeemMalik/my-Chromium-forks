@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -36,8 +36,8 @@ class TestFCMSyncNetworkChannel : public FCMSyncNetworkChannel {
   void StopListening() override {}
 
   void RequestDetailedStatus(
-      const base::RepeatingCallback<void(const base::DictionaryValue&)>&
-          callback) override {}
+      const base::RepeatingCallback<void(base::Value::Dict)>& callback)
+      override {}
 
   using FCMSyncNetworkChannel::DeliverIncomingMessage;
   using FCMSyncNetworkChannel::DeliverToken;
@@ -75,7 +75,7 @@ class FakeDelegate : public FCMInvalidationListener::Delegate {
     auto it = invalidations_.find(topic);
     if (it == invalidations_.end()) {
       ADD_FAILURE() << "No invalidations for topic " << topic;
-      return nullptr;
+      return "";
     } else {
       return it->second.back().payload();
     }
@@ -91,46 +91,7 @@ class FakeDelegate : public FCMInvalidationListener::Delegate {
     }
   }
 
-  bool StartsWithUnknownVersion(const Topic& topic) const {
-    auto it = invalidations_.find(topic);
-    if (it == invalidations_.end()) {
-      ADD_FAILURE() << "No invalidations for topic " << topic;
-      return false;
-    } else {
-      return it->second.front().is_unknown_version();
-    }
-  }
-
   InvalidatorState GetInvalidatorState() const { return state_; }
-
-  void AcknowledgeNthInvalidation(const Topic& topic, size_t n) {
-    List& list = invalidations_[topic];
-    auto it = list.begin() + n;
-    it->Acknowledge();
-  }
-
-  void AcknowledgeAll(const Topic& topic) {
-    List& list = invalidations_[topic];
-    for (Invalidation& invalidation : list) {
-      invalidation.Acknowledge();
-    }
-  }
-
-  void DropNthInvalidation(const Topic& topic, size_t n) {
-    List& list = invalidations_[topic];
-    auto it = list.begin() + n;
-    it->Drop();
-    dropped_invalidations_map_.erase(topic);
-    dropped_invalidations_map_.insert(std::make_pair(topic, *it));
-  }
-
-  void RecoverFromDropEvent(const Topic& topic) {
-    auto it = dropped_invalidations_map_.find(topic);
-    if (it != dropped_invalidations_map_.end()) {
-      it->second.Acknowledge();
-      dropped_invalidations_map_.erase(it);
-    }
-  }
 
   // FCMInvalidationListener::Delegate implementation.
   void OnInvalidate(const TopicInvalidationMap& invalidation_map) override {
@@ -163,8 +124,7 @@ class MockSubscriptionManager : public PerUserTopicSubscriptionManager {
       : PerUserTopicSubscriptionManager(nullptr /* identity_provider */,
                                         nullptr /* pref_service */,
                                         nullptr /* loader_factory */,
-                                        "fake_sender_id",
-                                        false) {
+                                        "fake_sender_id") {
     ON_CALL(*this, LookupSubscribedPublicTopicByPrivateTopic)
         .WillByDefault(testing::ReturnArg<0>());
   }
@@ -221,28 +181,8 @@ class FCMInvalidationListenerTest : public testing::Test {
     return fake_delegate_.IsUnknownVersion(topic);
   }
 
-  bool StartsWithUnknownVersion(const Topic& topic) const {
-    return fake_delegate_.StartsWithUnknownVersion(topic);
-  }
-
-  void AcknowledgeNthInvalidation(const Topic& topic, size_t n) {
-    fake_delegate_.AcknowledgeNthInvalidation(topic, n);
-  }
-
-  void DropNthInvalidation(const Topic& topic, size_t n) {
-    return fake_delegate_.DropNthInvalidation(topic, n);
-  }
-
-  void RecoverFromDropEvent(const Topic& topic) {
-    return fake_delegate_.RecoverFromDropEvent(topic);
-  }
-
   InvalidatorState GetInvalidatorState() {
     return fake_delegate_.GetInvalidatorState();
-  }
-
-  void AcknowledgeAll(const Topic& topic) {
-    fake_delegate_.AcknowledgeAll(topic);
   }
 
   void FireInvalidate(const Topic& topic,

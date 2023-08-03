@@ -1,18 +1,19 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/gestures/view_revealing_vertical_pan_handler.h"
 
+#import <algorithm>
+
 #import "base/check_op.h"
-#include "base/cxx17_backports.h"
-#include "base/ios/block_types.h"
-#include "base/logging.h"
+#import "base/ios/block_types.h"
+#import "base/logging.h"
+#import "base/mac/foundation_util.h"
 #import "base/notreached.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/ui/gestures/layout_switcher.h"
 #import "ios/chrome/browser/ui/gestures/pan_handler_scroll_view.h"
-#include "ios/chrome/browser/ui/util/ui_util.h"
-#import "ios/chrome/browser/ui/util/uikit_ui_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -44,34 +45,60 @@ enum class LayoutTransitionState {
   Finishing,
 };
 
+// Defines which scrolling view is being tracked.
+enum class ScrollViewTracking {
+  None,
+  Gesture,
+  WebView,
+  NTP,
+};
 }  // namespace
+
+@interface ViewRevealingPanGestureRecognizer ()
+
+// Trigger for this custom PanGestureRecognizer.
+@property(nonatomic, assign) ViewRevealTrigger trigger;
+
+@end
+
+@implementation ViewRevealingPanGestureRecognizer
+
+- (instancetype)initWithTarget:(id)target
+                        action:(SEL)action
+                       trigger:(ViewRevealTrigger)trigger {
+  if (self = [super initWithTarget:target action:action]) {
+    _trigger = trigger;
+  }
+  return self;
+}
+
+@end
 
 @interface ViewRevealingVerticalPanHandler ()
 
-// Privately redeclare |currentState| as readwrite.
+// Privately redeclare `currentState` as readwrite.
 @property(nonatomic, readwrite, assign) ViewRevealState currentState;
 
+// The latest trigger that brought the view to the currentState (or nextState if
+// a transition is on).
+@property(nonatomic, readwrite, assign) ViewRevealTrigger changeStateTrigger;
 // The state that the currentState will be set to if the transition animation
 // completes with its REVERSED property set to NO.
 @property(nonatomic, assign) ViewRevealState nextState;
 // The property animator for revealing the view.
 @property(nonatomic, strong) UIViewPropertyAnimator* animator;
-// Total distance between the Peeked state and Revealed state. Equal to
-// |revealedHeight| - |peekedHeight|.
+// Total distance between the Peeked state and Revealed state.
 @property(nonatomic, assign, readonly) CGFloat remainingHeight;
-// Height of the cover view (the view in front of the view that will be
-// revealed) that will still be visible after the remaining reveal transition.
-@property(nonatomic, assign, readonly) CGFloat revealedCoverHeight;
 // The progress of the animator.
 @property(nonatomic, assign) CGFloat progressWhenInterrupted;
 // Set of UI elements which are animated during view reveal transitions.
 @property(nonatomic, strong) NSHashTable<id<ViewRevealingAnimatee>>* animatees;
 // The current state tracking whether the revealed view is undergoing a
-// transition of layout. This is |::Inactive| initially. It is set to |::Active|
-// when the transition layout is created.  It is set to |::Finishing| when the
+// transition of layout. This is `::Inactive` initially. It is set to `::Active`
+// when the transition layout is created.  It is set to `::Finishing` when the
 // layout transition should start to finish. (This takes time because of
 // finishing animations/UIKit restrictions). Finally, in the transition's
-// completion block, this is set back to |::Inactive|.
+// completion block, this is set back to `::Inactive`.
 @property(nonatomic, assign) LayoutTransitionState layoutTransitionState;
 // Whether new pan gestures should be handled. Set to NO when a pan gesture ends
 // and set to YES when a pan gesture starts while layoutInTransition is NO.
@@ -91,23 +118,24 @@ enum class LayoutTransitionState {
 // gestures received while one is active will be ignored.
 @property(nonatomic, weak) UIGestureRecognizer* currentRecognizer;
 
+// Defines which scrolling view is being tracked to avoid crossing signals.
+@property(nonatomic, assign) ScrollViewTracking scrollViewTracking;
+
 @end
 
 @implementation ViewRevealingVerticalPanHandler
 
 - (instancetype)initWithPeekedHeight:(CGFloat)peekedHeight
-                 revealedCoverHeight:(CGFloat)revealedCoverHeight
                       baseViewHeight:(CGFloat)baseViewHeight
                         initialState:(ViewRevealState)initialState {
   if (self = [super init]) {
     _peekedHeight = peekedHeight;
-    _revealedCoverHeight = revealedCoverHeight;
     _baseViewHeight = baseViewHeight;
-    _revealedHeight = baseViewHeight - revealedCoverHeight;
-    _remainingHeight = _revealedHeight - peekedHeight;
+    _remainingHeight = baseViewHeight - peekedHeight;
     _currentState = initialState;
     _animatees = [NSHashTable weakObjectsHashTable];
     _layoutTransitionState = LayoutTransitionState::Inactive;
+    _scrollViewTracking = ScrollViewTracking::None;
   }
   return self;
 }
@@ -121,7 +149,16 @@ enum class LayoutTransitionState {
   if (!self.gesturesEnabled)
     return;
   self.currentRecognizer = gesture;
+  self.scrollViewTracking = ScrollViewTracking::Gesture;
   CGFloat translationY = [gesture translationInView:gesture.view.superview].y;
+
+  if ([gesture isKindOfClass:ViewRevealingPanGestureRecognizer.class]) {
+    self.changeStateTrigger =
+        (base::mac::ObjCCastStrict<ViewRevealingPanGestureRecognizer>(gesture))
+            .trigger;
+  } else {
+    self.changeStateTrigger = ViewRevealTrigger::Unknown;
+  }
 
   if (gesture.state == UIGestureRecognizerStateBegan) {
     [self panGestureBegan];
@@ -140,20 +177,34 @@ enum class LayoutTransitionState {
   [self.animatees addObject:animatee];
   // Make sure the newly added animatee is in the correct state.
   [UIView performWithoutAnimation:^{
-    [animatee willAnimateViewRevealFromState:self.currentState
-                                     toState:self.currentState];
-    [animatee animateViewReveal:self.currentState];
-    [animatee didAnimateViewReveal:self.currentState];
+    if ([animatee respondsToSelector:@selector
+                  (willAnimateViewRevealFromState:toState:)]) {
+      [animatee willAnimateViewRevealFromState:self.currentState
+                                       toState:self.currentState];
+    }
+    if ([animatee respondsToSelector:@selector(animateViewReveal:)]) {
+      [animatee animateViewReveal:self.currentState];
+    }
+    if ([animatee respondsToSelector:@selector
+                  (didAnimateViewRevealFromState:toState:trigger:)]) {
+      [animatee didAnimateViewRevealFromState:self.currentState
+                                      toState:self.currentState
+                                      trigger:self.changeStateTrigger];
+    }
   }];
 }
 
 - (void)setBaseViewHeight:(CGFloat)baseViewHeight {
   _baseViewHeight = baseViewHeight;
-  _revealedHeight = baseViewHeight - _revealedCoverHeight;
-  _remainingHeight = _revealedHeight - _peekedHeight;
+  _remainingHeight = baseViewHeight - _peekedHeight;
 }
 
-- (void)setNextState:(ViewRevealState)state animated:(BOOL)animated {
+- (void)setNextState:(ViewRevealState)state
+            animated:(BOOL)animated
+             trigger:(ViewRevealTrigger)trigger {
+  // Remember new trigger even if the next state is ignored.
+  self.changeStateTrigger = trigger;
+
   // Don't change animation if state is already currentState, it creates
   // confusion.
   if (self.currentState == state) {
@@ -190,8 +241,11 @@ enum class LayoutTransitionState {
 // from the current view reveal state.
 - (void)willAnimateViewReveal {
   for (id<ViewRevealingAnimatee> animatee in self.animatees) {
-    [animatee willAnimateViewRevealFromState:self.currentState
-                                     toState:self.nextState];
+    if ([animatee respondsToSelector:@selector
+                  (willAnimateViewRevealFromState:toState:)]) {
+      [animatee willAnimateViewRevealFromState:self.currentState
+                                       toState:self.nextState];
+    }
   }
 }
 
@@ -199,15 +253,35 @@ enum class LayoutTransitionState {
 // reveal state.
 - (void)animateToNextViewRevealState {
   for (id<ViewRevealingAnimatee> animatee in self.animatees) {
-    [animatee animateViewReveal:self.nextState];
+    if ([animatee respondsToSelector:@selector(animateViewReveal:)]) {
+      [animatee animateViewReveal:self.nextState];
+    }
   }
 }
 
 // Called inside the completion block of the current animation. Takes as
 // argument the state to which the animatees did animate to.
-- (void)didAnimateViewReveal:(ViewRevealState)viewRevealState {
+- (void)didAnimateViewRevealFromState:(ViewRevealState)fromViewRevealState
+                              toState:(ViewRevealState)toViewRevealState {
   for (id<ViewRevealingAnimatee> animatee in self.animatees) {
-    [animatee didAnimateViewReveal:viewRevealState];
+    if ([animatee respondsToSelector:@selector
+                  (didAnimateViewRevealFromState:toState:trigger:)]) {
+      [animatee didAnimateViewRevealFromState:fromViewRevealState
+                                      toState:toViewRevealState
+                                      trigger:self.changeStateTrigger];
+    }
+  }
+}
+
+// Calls animatees who want to know when a web view drag starts and when it
+// ends (at the end of deceleration).
+- (void)webViewIsDragging:(BOOL)dragging
+          viewRevealState:(ViewRevealState)viewRevealState {
+  for (id<ViewRevealingAnimatee> animatee in self.animatees) {
+    if ([animatee respondsToSelector:@selector(webViewIsDragging:
+                                                 viewRevealState:)]) {
+      [animatee webViewIsDragging:dragging viewRevealState:viewRevealState];
+    }
   }
 }
 
@@ -217,6 +291,7 @@ enum class LayoutTransitionState {
   if (self.currentState == self.nextState) {
     return;
   }
+  ViewRevealState startState = self.currentState;
   [self willAnimateViewReveal];
   [self.animator stopAnimation:YES];
 
@@ -231,7 +306,12 @@ enum class LayoutTransitionState {
     if (!weakSelf.animator.reversed) {
       weakSelf.currentState = weakSelf.nextState;
     }
-    [weakSelf didAnimateViewReveal:weakSelf.currentState];
+    // Animator crashes if stopAnimation is called during this completer. It can
+    // happened if a listener to `didAnimateViewRevealFromState:toState`
+    // triggers a new state change. Make it nil to avoid calling that.
+    weakSelf.animator = nil;
+    [weakSelf didAnimateViewRevealFromState:startState
+                                    toState:weakSelf.currentState];
   }];
   [self.animator pauseAnimation];
   [self createLayoutTransitionIfNeeded];
@@ -268,21 +348,18 @@ enum class LayoutTransitionState {
 
   switch (self.currentState) {
     case ViewRevealState::Hidden: {
-      nextLayoutState = (self.nextState == ViewRevealState::Revealed ||
-                         self.nextState == ViewRevealState::Fullscreen)
+      nextLayoutState = (self.nextState == ViewRevealState::Revealed)
                             ? LayoutSwitcherState::Grid
                             : LayoutSwitcherState::Horizontal;
       break;
     }
     case ViewRevealState::Peeked:
-      if (self.nextState == ViewRevealState::Revealed ||
-          self.nextState == ViewRevealState::Fullscreen) {
+      if (self.nextState == ViewRevealState::Revealed) {
         nextLayoutState = LayoutSwitcherState::Grid;
         animated = YES;
       }
       break;
     case ViewRevealState::Revealed:
-    case ViewRevealState::Fullscreen:
       if (self.nextState == ViewRevealState::Peeked) {
         nextLayoutState = LayoutSwitcherState::Horizontal;
         animated = YES;
@@ -304,7 +381,7 @@ enum class LayoutTransitionState {
 // Notifies the layout switcher that a layout transition should happen.
 - (void)willTransitionToLayout:(LayoutSwitcherState)nextState {
   // Don't do anything if there isn't a layout switcher available. Especially
-  // don't change the |layoutTransitionState|.
+  // don't change the `layoutTransitionState`.
   if (!self.layoutSwitcherProvider.layoutSwitcher) {
     return;
   }
@@ -328,7 +405,9 @@ enum class LayoutTransitionState {
           self.animator.state == UIViewAnimatingStateActive) {
         return;
       }
-      [self setNextState:self.nextState animated:YES];
+      [self setNextState:self.nextState
+                animated:YES
+                 trigger:self.changeStateTrigger];
     });
   };
   [self.layoutSwitcherProvider.layoutSwitcher
@@ -338,10 +417,10 @@ enum class LayoutTransitionState {
 }
 
 // Notifies the layout switcher that a layout transition finished with
-// |success|.
+// `success`.
 - (void)didTransitionToLayoutSuccessfully:(BOOL)success {
   // Don't do anything if there isn't a layout switcher available. Especially
-  // don't change the |layoutTransitionState|.
+  // don't change the `layoutTransitionState`.
   if (!self.layoutSwitcherProvider.layoutSwitcher) {
     return;
   }
@@ -419,9 +498,6 @@ enum class LayoutTransitionState {
         return ViewRevealState::Revealed;
       }
       return self.currentState;
-    case ViewRevealState::Fullscreen:
-      NOTREACHED();
-      return ViewRevealState::Fullscreen;
   }
 }
 
@@ -443,13 +519,10 @@ enum class LayoutTransitionState {
     case ViewRevealState::Revealed:
       progress = translation / (-self.remainingHeight);
       break;
-    case ViewRevealState::Fullscreen:
-      progress = translation / (self.baseViewHeight - self.revealedHeight);
-      break;
   }
 
   progress += self.progressWhenInterrupted;
-  progress = base::clamp<CGFloat>(progress, 0, 1);
+  progress = std::clamp<CGFloat>(progress, 0, 1);
   self.animator.fractionComplete = progress;
   if (self.layoutTransitionState == LayoutTransitionState::Active) {
     [self.layoutSwitcherProvider.layoutSwitcher
@@ -509,15 +582,21 @@ enum class LayoutTransitionState {
   }
 }
 
-#pragma mark - UIScrollViewDelegate
+#pragma mark - UIScrollViewDelegate (NTP)
 
 - (void)scrollViewWillBeginDragging:(UIScrollView*)scrollView {
   PanHandlerScrollView* view =
       [[PanHandlerScrollView alloc] initWithScrollView:scrollView];
+  self.scrollViewTracking = ScrollViewTracking::NTP;
+  [self webViewIsDragging:YES viewRevealState:self.currentState];
   [self panHandlerScrollViewWillBeginDragging:view];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView*)scrollView {
+  if (self.scrollViewTracking != ScrollViewTracking::NTP) {
+    return;
+  }
+
   PanHandlerScrollView* view =
       [[PanHandlerScrollView alloc] initWithScrollView:scrollView];
   [self panHandlerScrollViewDidScroll:view];
@@ -526,6 +605,10 @@ enum class LayoutTransitionState {
 - (void)scrollViewWillEndDragging:(UIScrollView*)scrollView
                      withVelocity:(CGPoint)velocity
               targetContentOffset:(inout CGPoint*)targetContentOffset {
+  if (self.scrollViewTracking != ScrollViewTracking::NTP) {
+    return;
+  }
+
   PanHandlerScrollView* view =
       [[PanHandlerScrollView alloc] initWithScrollView:scrollView];
   [self panHandlerScrollViewWillEndDragging:view
@@ -533,9 +616,11 @@ enum class LayoutTransitionState {
                         targetContentOffset:targetContentOffset];
 }
 
-- (void)scrollViewDidEndDragging:(UIScrollView*)scrollView
-                  willDecelerate:(BOOL)decelerate {
-  // No-op.
+- (void)scrollViewDidEndDecelerating:(UIScrollView*)scrollView {
+  if (self.scrollViewTracking != ScrollViewTracking::NTP) {
+    return;
+  }
+  [self webViewIsDragging:NO viewRevealState:self.currentState];
 }
 
 #pragma mark - CRWWebViewScrollViewProxyObserver
@@ -544,11 +629,16 @@ enum class LayoutTransitionState {
     (CRWWebViewScrollViewProxy*)webViewScrollViewProxy {
   PanHandlerScrollView* view = [[PanHandlerScrollView alloc]
       initWithWebViewScrollViewProxy:webViewScrollViewProxy];
+  self.scrollViewTracking = ScrollViewTracking::WebView;
+  [self webViewIsDragging:YES viewRevealState:self.currentState];
   [self panHandlerScrollViewWillBeginDragging:view];
 }
 
 - (void)webViewScrollViewDidScroll:
     (CRWWebViewScrollViewProxy*)webViewScrollViewProxy {
+  if (self.scrollViewTracking != ScrollViewTracking::WebView) {
+    return;
+  }
   PanHandlerScrollView* view = [[PanHandlerScrollView alloc]
       initWithWebViewScrollViewProxy:webViewScrollViewProxy];
   [self panHandlerScrollViewDidScroll:view];
@@ -558,11 +648,27 @@ enum class LayoutTransitionState {
             (CRWWebViewScrollViewProxy*)webViewScrollViewProxy
                             withVelocity:(CGPoint)velocity
                      targetContentOffset:(inout CGPoint*)targetContentOffset {
+  if (self.scrollViewTracking != ScrollViewTracking::WebView) {
+    return;
+  }
+
   PanHandlerScrollView* view = [[PanHandlerScrollView alloc]
       initWithWebViewScrollViewProxy:webViewScrollViewProxy];
   [self panHandlerScrollViewWillEndDragging:view
                                withVelocity:velocity
                         targetContentOffset:targetContentOffset];
+
+  if (!self.deferredScrollEnabled) {
+    self.scrollViewTracking = ScrollViewTracking::None;
+  }
+}
+
+- (void)webViewScrollViewDidEndDecelerating:
+    (CRWWebViewScrollViewProxy*)webViewScrollViewProxy {
+  if (self.scrollViewTracking != ScrollViewTracking::WebView) {
+    return;
+  }
+  [self webViewIsDragging:NO viewRevealState:self.currentState];
 }
 
 #pragma mark - UIScrollViewDelegate + CRWWebViewScrollViewProxyObserver
@@ -583,10 +689,10 @@ enum class LayoutTransitionState {
       break;
     }
     case ViewRevealState::Revealed:
-    case ViewRevealState::Fullscreen:
       // The scroll views should be covered in Revealed state, so should not
-      // be able to be scrolled.
-      NOTREACHED();
+      // be able to be scrolled. But this can still happen with NTP, due to
+      // some async calls, so ignore.
+      break;
   }
 }
 
@@ -673,7 +779,7 @@ enum class LayoutTransitionState {
 #pragma mark - Private
 
 // If self.deferredScrollEnabled is YES, returns YES if the pan gesture should
-// be active for the given |scrollView| due to a top overscroll and sets up the
+// be active for the given `scrollView` due to a top overscroll and sets up the
 // initial pan state.
 - (BOOL)checkDeferredDraggingForPanHandlerScrollView:
     (PanHandlerScrollView*)scrollView {
@@ -695,6 +801,7 @@ enum class LayoutTransitionState {
   UIPanGestureRecognizer* gesture = scrollView.panGestureRecognizer;
   self.startTransitionY = [gesture translationInView:gesture.view.superview].y;
   self.currentRecognizer = scrollView.panGestureRecognizer;
+  self.changeStateTrigger = ViewRevealTrigger::WebScroll;
   [self panGestureBegan];
   self.lastScrollOffset = scrollView.contentOffset;
   self.deferredScrollEnabled = NO;

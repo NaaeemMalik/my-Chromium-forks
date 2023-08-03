@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,11 @@ namespace base {
 class SingleThreadTaskRunner;
 }  // namespace base
 
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
 namespace web {
 class NetworkContextOwner;
 }
-#endif  // defined(OS_IOS)
+#endif  // BUILDFLAG(IS_IOS)
 
 namespace net {
 class URLRequestContext;
@@ -71,9 +71,9 @@ class NET_EXPORT URLRequestContextGetter
   // web::NetworkContextOwner to restrict visibility.
   friend class URLFetcherCore;
 
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
   friend class web::NetworkContextOwner;
-#endif  // defined(OS_IOS)
+#endif  // BUILDFLAG(IS_IOS)
 
   // Adds / removes an observer to watch for shutdown of |this|'s context. Must
   // only be called on network thread. May not be called once

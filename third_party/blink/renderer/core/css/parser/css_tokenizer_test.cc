@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ void CompareTokens(const CSSParserToken& expected,
       break;
     case kNumberToken:
       ASSERT_EQ(expected.GetNumericSign(), actual.GetNumericSign());
-      FALLTHROUGH;
+      [[fallthrough]];
     case kPercentageToken:
       ASSERT_EQ(expected.GetNumericValueType(), actual.GetNumericValueType());
       ASSERT_DOUBLE_EQ(expected.NumericValue(), actual.NumericValue());
@@ -64,8 +64,9 @@ void TestTokens(const String& string,
   expected_tokens.push_back(token1);
   if (token2.GetType() != kEOFToken) {
     expected_tokens.push_back(token2);
-    if (token3.GetType() != kEOFToken)
+    if (token3.GetType() != kEOFToken) {
       expected_tokens.push_back(token3);
+    }
   }
 
   CSSParserTokenRange expected(expected_tokens);
@@ -77,8 +78,9 @@ void TestTokens(const String& string,
   // Just check that serialization doesn't hit any asserts
   actual.Serialize();
 
-  while (!expected.AtEnd() || !actual.AtEnd())
+  while (!expected.AtEnd() || !actual.AtEnd()) {
     CompareTokens(expected.Consume(), actual.Consume());
+  }
 }
 
 static CSSParserToken Ident(const String& string) {
@@ -198,8 +200,8 @@ TEST(CSSTokenizerTest, DelimiterToken) {
   TEST_TOKENS("*", Delim('*'));
   TEST_TOKENS("%", Delim('%'));
   TEST_TOKENS("~", Delim('~'));
-  TEST_TOKENS("&", Delim('&'));
   TEST_TOKENS("|", Delim('|'));
+  TEST_TOKENS("&", Delim('&'));
   TEST_TOKENS("\x7f", Delim('\x7f'));
   TEST_TOKENS("\1", Delim('\x1'));
   TEST_TOKENS("~-", Delim('~'), Delim('-'));

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,8 @@
         type: Protocol.Runtime.ConsoleAPICalledEventType.Error,
         stackTrace: badStackTrace,
       });
-  SDK.consoleModel.addMessage(badStackTraceMessage);
+  const consoleModel = SDK.targetManager.primaryPageTarget().model(SDK.ConsoleModel);
+  consoleModel.addMessage(badStackTraceMessage);
 
   await ConsoleTestRunner.dumpConsoleMessages();
   TestRunner.completeTest();

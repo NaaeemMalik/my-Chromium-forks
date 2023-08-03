@@ -1,20 +1,22 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/browsing_data/browsing_data_remover_browsertest_base.h"
-#include "base/memory/raw_ptr.h"
 
 #include <memory>
 #include <utility>
 #include <vector>
 
-#include "base/callback.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
+#include "base/ranges/algorithm.h"
 #include "base/test/bind.h"
+#include "build/build_config.h"
 #include "build/buildflag.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browsing_data/browsing_data_file_system_util.h"
@@ -37,14 +39,14 @@
 #include "third_party/re2/src/re2/re2.h"
 #include "ui/base/models/tree_model.h"
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/ui_test_utils.h"
 #endif
 
 namespace {
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 // TODO(crbug/1179729): Move these functions to
 // /chrome/test/base/test_utils.{h|cc}.
 base::FilePath GetTestFilePath(const char* dir, const char* file) {
@@ -98,9 +100,9 @@ class CookiesTreeObserver : public CookiesTreeModel::Observer {
       : quit_closure_(std::move(quit_closure)) {}
   ~CookiesTreeObserver() override = default;
 
-  void TreeModelBeginBatch(CookiesTreeModel* model) override {}
+  void TreeModelBeginBatchDeprecated(CookiesTreeModel* model) override {}
 
-  void TreeModelEndBatch(CookiesTreeModel* model) override {
+  void TreeModelEndBatchDeprecated(CookiesTreeModel* model) override {
     std::move(quit_closure_).Run();
   }
 
@@ -138,11 +140,11 @@ BrowsingDataRemoverBrowserTestBase::~BrowsingDataRemoverBrowserTestBase() =
     default;
 
 void BrowsingDataRemoverBrowserTestBase::InitFeatureList(
-    std::vector<base::Feature> enabled_features) {
+    std::vector<base::test::FeatureRef> enabled_features) {
   feature_list_.InitWithFeatures(enabled_features, {});
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 Browser* BrowsingDataRemoverBrowserTestBase::GetBrowser() const {
   return incognito_browser_ ? incognito_browser_.get() : browser();
 }
@@ -175,20 +177,14 @@ void BrowsingDataRemoverBrowserTestBase::RunScriptAndCheckResult(
     content::WebContents* web_contents) {
   if (!web_contents)
     web_contents = GetActiveWebContents();
-  std::string data;
-  ASSERT_TRUE(
-      content::ExecuteScriptAndExtractString(web_contents, script, &data));
-  ASSERT_EQ(data, result);
+  ASSERT_EQ(result, content::EvalJs(web_contents, script));
 }
 
 bool BrowsingDataRemoverBrowserTestBase::RunScriptAndGetBool(
     const std::string& script,
     content::WebContents* web_contents) {
   EXPECT_TRUE(web_contents);
-  bool data;
-  EXPECT_TRUE(
-      content::ExecuteScriptAndExtractBool(web_contents, script, &data));
-  return data;
+  return content::EvalJs(web_contents, script).ExtractBool();
 }
 
 void BrowsingDataRemoverBrowserTestBase::VerifyDownloadCount(size_t expected,
@@ -211,7 +207,7 @@ void BrowsingDataRemoverBrowserTestBase::DownloadAnItem() {
       download_manager, 1,
       content::DownloadTestObserver::ON_DANGEROUS_DOWNLOAD_ACCEPT);
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   GURL download_url = GetTestUrl("downloads", "a_zip_file.zip");
   ASSERT_TRUE(content::NavigateToURL(GetActiveWebContents(), download_url,
                                      GURL("about:blank")));
@@ -271,22 +267,22 @@ BrowsingDataRemoverBrowserTestBase::network_context() {
 // window created by tests, more specific behaviour requires other means.
 content::WebContents*
 BrowsingDataRemoverBrowserTestBase::GetActiveWebContents() {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   return chrome_test_utils::GetActiveWebContents(this);
 #else
   return GetBrowser()->tab_strip_model()->GetActiveWebContents();
 #endif
 }
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
 content::WebContents* BrowsingDataRemoverBrowserTestBase::GetActiveWebContents(
     Browser* browser) {
   return browser->tab_strip_model()->GetActiveWebContents();
 }
-#endif  // !defined(OS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 Profile* BrowsingDataRemoverBrowserTestBase::GetProfile() {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   return chrome_test_utils::GetProfile(this);
 #else
   return GetBrowser()->profile();
@@ -372,7 +368,7 @@ bool BrowsingDataRemoverBrowserTestBase::CheckUserDirectoryForString(
           pos < 30 ? 0 : pos - 30,
           std::min(content.size() - 1, pos + hostname.size() + 30));
       LOG(WARNING) << "Found file content: " << file << "\n"
-                   << partial_content << "\n";
+                   << partial_content << "\n" << found;
     }
   }
   return found;
@@ -383,12 +379,7 @@ int BrowsingDataRemoverBrowserTestBase::GetCookiesTreeModelCount(
   int count = 0;
   for (const auto& node : root->children()) {
     EXPECT_GE(node->children().size(), 1u);
-    count += std::count_if(node->children().cbegin(), node->children().cend(),
-                           [](const auto& child) {
-                             // TODO(crbug.com/642955): Include quota nodes.
-                             return child->GetDetailedInfo().node_type !=
-                                    CookieTreeNode::DetailedInfo::TYPE_QUOTA;
-                           });
+    count += node->children().size();
   }
   return count;
 }
@@ -411,40 +402,16 @@ std::string BrowsingDataRemoverBrowserTestBase::GetCookiesTreeModelInfo(
 
 std::unique_ptr<CookiesTreeModel>
 BrowsingDataRemoverBrowserTestBase::GetCookiesTreeModel(Profile* profile) {
-  content::StoragePartition* storage_partition =
-      profile->GetDefaultStoragePartition();
-  content::ServiceWorkerContext* service_worker_context =
-      storage_partition->GetServiceWorkerContext();
-  storage::FileSystemContext* file_system_context =
-      storage_partition->GetFileSystemContext();
-  content::NativeIOContext* native_io_context =
-      storage_partition->GetNativeIOContext();
-  auto container = std::make_unique<LocalDataContainer>(
-      base::MakeRefCounted<browsing_data::CookieHelper>(
-          storage_partition,
-          CookiesTreeModel::GetCookieDeletionDisabledCallback(profile)),
-      base::MakeRefCounted<browsing_data::DatabaseHelper>(profile),
-      base::MakeRefCounted<browsing_data::LocalStorageHelper>(profile),
-      /*session_storage_helper=*/nullptr,
-      base::MakeRefCounted<browsing_data::IndexedDBHelper>(storage_partition),
-      base::MakeRefCounted<browsing_data::FileSystemHelper>(
-          file_system_context,
-          browsing_data_file_system_util::GetAdditionalFileSystemTypes(),
-          native_io_context),
-      BrowsingDataQuotaHelper::Create(profile),
-      base::MakeRefCounted<browsing_data::ServiceWorkerHelper>(
-          service_worker_context),
-      base::MakeRefCounted<browsing_data::SharedWorkerHelper>(
-          storage_partition),
-      base::MakeRefCounted<browsing_data::CacheStorageHelper>(
-          storage_partition),
-      BrowsingDataMediaLicenseHelper::Create(file_system_context));
+  auto container = LocalDataContainer::CreateFromStoragePartition(
+      profile->GetDefaultStoragePartition(),
+      CookiesTreeModel::GetCookieDeletionDisabledCallback(profile));
   base::RunLoop run_loop;
   CookiesTreeObserver observer(run_loop.QuitClosure());
   auto model = std::make_unique<CookiesTreeModel>(
       std::move(container), profile->GetExtensionSpecialStoragePolicy());
   model->AddCookiesTreeObserver(&observer);
   run_loop.Run();
+  model->RemoveCookiesTreeObserver(&observer);
   return model;
 }
 
@@ -454,9 +421,10 @@ bool BrowsingDataRemoverBrowserTestBase::SetGaiaCookieForProfile(
   GURL google_url = GaiaUrls::GetInstance()->secure_google_url();
   auto cookie = net::CanonicalCookie::CreateUnsafeCookieForTesting(
       "SAPISID", std::string(), "." + google_url.host(), "/", base::Time(),
-      base::Time(), base::Time(), true /* secure */, false /* httponly */,
-      net::CookieSameSite::NO_RESTRICTION, net::COOKIE_PRIORITY_DEFAULT,
-      false /* same_party */);
+      base::Time(), base::Time(), base::Time(), /*secure=*/true,
+      /*httponly=*/false, net::CookieSameSite::NO_RESTRICTION,
+      net::COOKIE_PRIORITY_DEFAULT,
+      /*same_party=*/false);
   bool success = false;
   base::RunLoop loop;
   base::OnceCallback<void(net::CookieAccessResult)> callback =

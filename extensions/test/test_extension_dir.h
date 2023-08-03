@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,12 @@ class TestExtensionDir {
   TestExtensionDir();
 
   ~TestExtensionDir();
+
+  TestExtensionDir(const TestExtensionDir&) = delete;
+  TestExtensionDir(TestExtensionDir&&) noexcept;
+
+  TestExtensionDir& operator=(const TestExtensionDir&) = delete;
+  TestExtensionDir& operator=(TestExtensionDir&&);
 
   // Writes |manifest| to manifest.json within the unpacked dir.  No validation
   // is performed. If desired this should be done on extension installation.

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,21 +9,19 @@
 #include <string>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/values.h"
 #include "base/version.h"
 #include "components/component_updater/component_installer.h"
 
 namespace component_updater {
-const base::FilePath::CharType kClientModelBinaryPbFileName[] =
-    FILE_PATH_LITERAL("client_model.pb");
-const base::FilePath::CharType kVisualTfLiteModelFileName[] =
-    FILE_PATH_LITERAL("visual_model.tflite");
 
 namespace {
+const char kClientSidePhishingManifestName[] = "Client Side Phishing Detection";
+
 // The SHA256 of the SubjectPublicKeyInfo used to sign the extension.
 // The extension id is: imefjhfbkmcmebodilednhmaccmincoa
 const uint8_t kClientSidePhishingPublicKeySHA256[32] = {
@@ -31,9 +29,12 @@ const uint8_t kClientSidePhishingPublicKeySHA256[32] = {
     0xc0, 0x22, 0xc8, 0xd2, 0xe0, 0xe3, 0xe2, 0x33, 0x88, 0x1f, 0x09,
     0x6d, 0xde, 0x65, 0x6a, 0x83, 0x32, 0x71, 0x52, 0x6e, 0x77};
 
-const char kClientSidePhishingManifestName[] = "Client Side Phishing Detection";
-
 }  // namespace
+
+const base::FilePath::CharType kClientModelBinaryPbFileName[] =
+    FILE_PATH_LITERAL("client_model.pb");
+const base::FilePath::CharType kVisualTfLiteModelFileName[] =
+    FILE_PATH_LITERAL("visual_model.tflite");
 
 ClientSidePhishingComponentInstallerPolicy::
     ClientSidePhishingComponentInstallerPolicy(
@@ -45,6 +46,14 @@ ClientSidePhishingComponentInstallerPolicy::
 
 ClientSidePhishingComponentInstallerPolicy::
     ~ClientSidePhishingComponentInstallerPolicy() = default;
+
+// static
+void ClientSidePhishingComponentInstallerPolicy::GetPublicHash(
+    std::vector<uint8_t>* hash) {
+  hash->assign(kClientSidePhishingPublicKeySHA256,
+               kClientSidePhishingPublicKeySHA256 +
+                   std::size(kClientSidePhishingPublicKeySHA256));
+}
 
 bool ClientSidePhishingComponentInstallerPolicy::
     SupportsGroupPolicyEnabledComponentUpdates() const {
@@ -58,7 +67,7 @@ bool ClientSidePhishingComponentInstallerPolicy::RequiresNetworkEncryption()
 
 update_client::CrxInstaller::Result
 ClientSidePhishingComponentInstallerPolicy::OnCustomInstall(
-    const base::Value& manifest,
+    const base::Value::Dict& manifest,
     const base::FilePath& install_dir) {
   return update_client::CrxInstaller::Result(0);  // Nothing custom here.
 }
@@ -68,13 +77,13 @@ void ClientSidePhishingComponentInstallerPolicy::OnCustomUninstall() {}
 void ClientSidePhishingComponentInstallerPolicy::ComponentReady(
     const base::Version& version,
     const base::FilePath& install_dir,
-    base::Value manifest) {
+    base::Value::Dict manifest) {
   read_files_callback_.Run(install_dir);
 }
 
 // Called during startup and installation before ComponentReady().
 bool ClientSidePhishingComponentInstallerPolicy::VerifyInstallation(
-    const base::Value& manifest,
+    const base::Value::Dict& manifest,
     const base::FilePath& install_dir) const {
   // No need to actually validate the proto here, since we'll do the checking
   // in PopulateFromDynamicUpdate().
@@ -89,9 +98,7 @@ ClientSidePhishingComponentInstallerPolicy::GetRelativeInstallDir() const {
 
 void ClientSidePhishingComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign(kClientSidePhishingPublicKeySHA256,
-               kClientSidePhishingPublicKeySHA256 +
-                   base::size(kClientSidePhishingPublicKeySHA256));
+  GetPublicHash(hash);
 }
 
 std::string ClientSidePhishingComponentInstallerPolicy::GetName() const {

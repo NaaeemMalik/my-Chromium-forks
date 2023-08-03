@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,8 +13,6 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "components/sync/base/time.h"
 #include "components/sync/driver/sync_service.h"
 #include "components/sync/driver/sync_token_status.h"
@@ -26,59 +24,7 @@
 #include "components/version_info/version_info.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_features.h"
-#endif
-
-namespace syncer {
-
-namespace sync_ui_util {
-
-const char kIdentityTitle[] = "Identity";
-const char kDetailsKey[] = "details";
-
-// Resource paths.
-const char kAboutJS[] = "about.js";
-const char kChromeSyncJS[] = "chrome_sync.js";
-const char kDataJS[] = "data.js";
-const char kEventsJS[] = "events.js";
-const char kSearchJS[] = "search.js";
-const char kSyncIndexJS[] = "sync_index.js";
-const char kSyncLogJS[] = "sync_log.js";
-const char kSyncNodeBrowserJS[] = "sync_node_browser.js";
-const char kSyncSearchJS[] = "sync_search.js";
-const char kUserEventsJS[] = "user_events.js";
-const char kTrafficLogJS[] = "traffic_log.js";
-const char kInvalidationsJS[] = "invalidations.js";
-
-// Message handlers.
-const char kGetAllNodes[] = "getAllNodes";
-const char kRequestDataAndRegisterForUpdates[] =
-    "requestDataAndRegisterForUpdates";
-const char kRequestIncludeSpecificsInitialState[] =
-    "requestIncludeSpecificsInitialState";
-const char kRequestListOfTypes[] = "requestListOfTypes";
-const char kRequestStart[] = "requestStart";
-const char kRequestStopKeepData[] = "requestStopKeepData";
-const char kRequestStopClearData[] = "requestStopClearData";
-const char kSetIncludeSpecifics[] = "setIncludeSpecifics";
-const char kTriggerRefresh[] = "triggerRefresh";
-const char kWriteUserEvent[] = "writeUserEvent";
-
-// Other strings.
-const char kEntityCounts[] = "entityCounts";
-const char kEntities[] = "entities";
-const char kNonTombstoneEntities[] = "nonTombstoneEntities";
-const char kIncludeSpecifics[] = "includeSpecifics";
-const char kModelType[] = "modelType";
-const char kOnAboutInfoUpdated[] = "onAboutInfoUpdated";
-const char kOnEntityCountsUpdated[] = "onEntityCountsUpdated";
-const char kOnProtocolEvent[] = "onProtocolEvent";
-const char kOnReceivedIncludeSpecificsInitialState[] =
-    "onReceivedIncludeSpecificsInitialState";
-const char kOnReceivedListOfTypes[] = "onReceivedListOfTypes";
-const char kTypes[] = "types";
-const char kOnInvalidationReceived[] = "onInvalidationReceived";
+namespace syncer::sync_ui_util {
 
 namespace {
 
@@ -92,11 +38,11 @@ const char kBadStateCSSClass[] = "in_bad_state";
 // 'stat_status'.
 class StatBase {
  public:
-  base::Value ToValue() const {
-    base::Value result(base::Value::Type::DICTIONARY);
-    result.SetKey("stat_name", base::Value(key_));
-    result.SetKey("stat_value", value_.Clone());
-    result.SetKey("stat_status", base::Value(status_));
+  base::Value::Dict ToValue() const {
+    base::Value::Dict result;
+    result.Set("stat_name", base::Value(key_));
+    result.Set("stat_value", value_.Clone());
+    result.Set("stat_status", base::Value(status_));
     return result;
   }
 
@@ -141,14 +87,14 @@ class Section {
     return AddStat(key, std::string(kUninitialized));
   }
 
-  base::Value ToValue() const {
-    base::Value result(base::Value::Type::DICTIONARY);
-    result.SetKey("title", base::Value(title_));
-    base::Value stats(base::Value::Type::LIST);
+  base::Value::Dict ToValue() const {
+    base::Value::Dict result;
+    result.Set("title", base::Value(title_));
+    base::Value::List stats;
     for (const std::unique_ptr<StatBase>& stat : stats_)
       stats.Append(stat->ToValue());
-    result.SetKey("data", std::move(stats));
-    result.SetKey("is_sensitive", base::Value(is_sensitive_));
+    result.Set("data", std::move(stats));
+    result.Set("is_sensitive", base::Value(is_sensitive_));
     return result;
   }
 
@@ -181,8 +127,8 @@ class SectionList {
 
   // If |include_sensitive_data| is true, returns all added sections. Otherwise,
   // omits those added with |is_sensitive| set to true.
-  base::Value ToValue(IncludeSensitiveData include_sensitive_data) const {
-    base::Value result(base::Value::Type::LIST);
+  base::Value::List ToValue(IncludeSensitiveData include_sensitive_data) const {
+    base::Value::List result;
     for (const std::unique_ptr<Section>& section : sections_) {
       if (include_sensitive_data || !section->is_sensitive()) {
         result.Append(section->ToValue());
@@ -201,8 +147,6 @@ std::string GetDisableReasonsString(
     return "None";
   }
   std::vector<std::string> reason_strings;
-  if (disable_reasons.Has(SyncService::DISABLE_REASON_PLATFORM_OVERRIDE))
-    reason_strings.push_back("Platform override");
   if (disable_reasons.Has(SyncService::DISABLE_REASON_ENTERPRISE_POLICY))
     reason_strings.push_back("Enterprise policy");
   if (disable_reasons.Has(SyncService::DISABLE_REASON_NOT_SIGNED_IN))
@@ -231,6 +175,33 @@ std::string GetTransportStateString(syncer::SyncService::TransportState state) {
     case syncer::SyncService::TransportState::ACTIVE:
       return "Active";
   }
+  NOTREACHED();
+  return std::string();
+}
+
+std::string GetUserActionableErrorString(
+    SyncService::UserActionableError state) {
+  switch (state) {
+    case SyncService::UserActionableError::kNone:
+      return "None";
+    case SyncService::UserActionableError::kSignInNeedsUpdate:
+      return "Sign-in needs update";
+    case SyncService::UserActionableError::kNeedsPassphrase:
+      return "Needs passphrase";
+    case SyncService::UserActionableError::kNeedsTrustedVaultKeyForPasswords:
+      return "Needs trusted vault key for passwords";
+    case SyncService::UserActionableError::kNeedsTrustedVaultKeyForEverything:
+      return "Needs trusted vault key for everything";
+    case SyncService::UserActionableError::
+        kTrustedVaultRecoverabilityDegradedForPasswords:
+      return "Trusted vault recoverability degraded for passwords";
+    case SyncService::UserActionableError::
+        kTrustedVaultRecoverabilityDegradedForEverything:
+      return "Trusted vault recoverability degraded for everything";
+    case SyncService::UserActionableError::kGenericUnrecoverableError:
+      return "Generic unrecoverable error";
+  }
+
   NOTREACHED();
   return std::string();
 }
@@ -322,11 +293,11 @@ std::string GetConnectionStatus(const SyncTokenStatus& status) {
 // its contents.  Most of the message consists of simple fields in
 // gtx://sync-internals which are grouped into sections and populated with
 // the help of the SyncStat classes defined above.
-std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
+base::Value::Dict ConstructAboutInformation(
     IncludeSensitiveData include_sensitive_data,
     SyncService* service,
     const std::string& channel) {
-  auto about_info = std::make_unique<base::DictionaryValue>();
+  base::Value::Dict about_info;
 
   SectionList section_list;
 
@@ -334,12 +305,10 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
       section_list.AddSection("Summary", /*is_sensitive=*/false);
   Stat<std::string>* transport_state =
       section_summary->AddStringStat("Transport State");
+  Stat<std::string>* error_state =
+      section_summary->AddStringStat("User Actionable Error");
   Stat<std::string>* disable_reasons =
       section_summary->AddStringStat("Disable Reasons");
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  Stat<std::string>* os_feature_state =
-      section_summary->AddStringStat("Chrome OS Sync Feature");
-#endif
   Stat<bool>* feature_enabled =
       section_summary->AddBoolStat("Sync Feature Enabled");
   Stat<bool>* setup_in_progress =
@@ -438,21 +407,11 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
       section_counters->AddIntStat("Updates Downloaded");
   Stat<int>* tombstone_updates =
       section_counters->AddIntStat("Tombstone Updates");
-  Stat<int>* reflected_updates =
-      section_counters->AddIntStat("Reflected Updates");
   Stat<int>* successful_commits =
       section_counters->AddIntStat("Successful Commits");
-  Stat<int>* conflicts_resolved_local_wins =
-      section_counters->AddIntStat("Conflicts Resolved: Client Wins");
-  Stat<int>* conflicts_resolved_server_wins =
-      section_counters->AddIntStat("Conflicts Resolved: Server Wins");
 
   Section* section_this_cycle = section_list.AddSection(
       "Transient Counters (this cycle)", /*is_sensitive=*/false);
-  Stat<int>* encryption_conflicts =
-      section_this_cycle->AddIntStat("Encryption Conflicts");
-  Stat<int>* hierarchy_conflicts =
-      section_this_cycle->AddIntStat("Hierarchy Conflicts");
   Stat<int>* server_conflicts =
       section_this_cycle->AddIntStat("Server Conflicts");
   Stat<int>* committed_items =
@@ -465,33 +424,25 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
       section_that_cycle->AddIntStat("Updates Downloaded");
   Stat<int>* committed_count =
       section_that_cycle->AddIntStat("Committed Count");
-  Stat<int>* entries = section_that_cycle->AddIntStat("Entries");
 
   // Populate all the fields we declared above.
   client_version->Set(GetVersionString(channel));
 
   if (!service) {
     transport_state->Set("Sync service does not exist");
-    about_info->SetKey(kDetailsKey,
-                       section_list.ToValue(include_sensitive_data));
+    error_state->Set("Sync service does not exist");
+    about_info.Set(kDetailsKey, section_list.ToValue(include_sensitive_data));
     return about_info;
   }
 
   // Summary.
   transport_state->Set(GetTransportStateString(service->GetTransportState()));
+  const SyncService::UserActionableError user_actionable_error =
+      service->GetUserActionableError();
+  error_state->Set(GetUserActionableErrorString(user_actionable_error),
+                   /*is_good=*/user_actionable_error ==
+                       SyncService::UserActionableError::kNone);
   disable_reasons->Set(GetDisableReasonsString(service->GetDisableReasons()));
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  if (!chromeos::features::IsSyncSettingsCategorizationEnabled()) {
-    os_feature_state->Set("Flag disabled");
-  } else if (!chromeos::features::IsSyncConsentOptionalEnabled()) {
-    DCHECK(service->GetUserSettings()->IsOsSyncFeatureEnabled());
-    os_feature_state->Set("Enforced Enabled");
-  } else if (service->GetUserSettings()->IsOsSyncFeatureEnabled()) {
-    os_feature_state->Set("Enabled");
-  } else {
-    os_feature_state->Set("Disabled");
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   feature_enabled->Set(service->IsSyncFeatureEnabled());
   setup_in_progress->Set(service->IsSetupInProgress());
   std::string auth_error_str = service->GetAuthError().ToString();
@@ -574,7 +525,8 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
   if (is_status_valid) {
     cryptographer_can_encrypt->Set(full_status.cryptographer_can_encrypt);
     has_pending_keys->Set(full_status.crypto_has_pending_keys);
-    encrypted_types->Set(ModelTypeSetToString(full_status.encrypted_types));
+    encrypted_types->Set(
+        ModelTypeSetToDebugString(full_status.encrypted_types));
     has_keystore_key->Set(full_status.has_keystore_key);
     keystore_migration_time->Set(
         GetTimeStr(full_status.keystore_migration_time, "Not Migrated"));
@@ -613,17 +565,11 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
     notifications_received->Set(full_status.notifications_received);
     updates_received->Set(full_status.updates_received);
     tombstone_updates->Set(full_status.tombstone_updates_received);
-    reflected_updates->Set(full_status.reflected_updates_received);
     successful_commits->Set(full_status.num_commits_total);
-    conflicts_resolved_local_wins->Set(full_status.num_local_overwrites_total);
-    conflicts_resolved_server_wins->Set(
-        full_status.num_server_overwrites_total);
   }
 
   // Transient Counters (this cycle).
   if (is_status_valid) {
-    encryption_conflicts->Set(full_status.encryption_conflicts);
-    hierarchy_conflicts->Set(full_status.hierarchy_conflicts);
     server_conflicts->Set(full_status.server_conflicts);
     committed_items->Set(full_status.committed_count);
   }
@@ -633,12 +579,11 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
     updates_downloaded->Set(
         snapshot.model_neutral_state().num_updates_downloaded_total);
     committed_count->Set(snapshot.model_neutral_state().num_successful_commits);
-    entries->Set(static_cast<int>(snapshot.num_entries()));
   }
 
   // This list of sections belongs in the 'details' field of the returned
   // message.
-  about_info->SetKey(kDetailsKey, section_list.ToValue(include_sensitive_data));
+  about_info.Set(kDetailsKey, section_list.ToValue(include_sensitive_data));
 
   // The values set from this point onwards do not belong in the
   // details list.
@@ -650,13 +595,13 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
       full_status.sync_protocol_error.error_type != UNKNOWN_ERROR &&
       full_status.sync_protocol_error.error_type != SYNC_SUCCESS;
 
-  about_info->SetKey("actionable_error_detected",
-                     base::Value(actionable_error_detected));
+  about_info.Set("actionable_error_detected",
+                 base::Value(actionable_error_detected));
 
   // NOTE: We won't bother showing any of the following values unless
   // actionable_error_detected is set.
 
-  base::Value actionable_error(base::Value::Type::LIST);
+  base::Value::List actionable_error;
   Stat<std::string> error_type("Error Type", kUninitialized);
   Stat<std::string> action("Action", kUninitialized);
   Stat<std::string> description("Error Description", kUninitialized);
@@ -671,27 +616,23 @@ std::unique_ptr<base::DictionaryValue> ConstructAboutInformation(
   actionable_error.Append(error_type.ToValue());
   actionable_error.Append(action.ToValue());
   actionable_error.Append(description.ToValue());
-  about_info->SetKey("actionable_error", std::move(actionable_error));
+  about_info.Set("actionable_error", std::move(actionable_error));
 
-  about_info->SetKey("unrecoverable_error_detected",
-                     base::Value(service->HasUnrecoverableError()));
+  about_info.Set("unrecoverable_error_detected",
+                 base::Value(service->HasUnrecoverableError()));
 
   if (service->HasUnrecoverableError()) {
     std::string unrecoverable_error_message =
         "Unrecoverable error detected at " +
         service->GetUnrecoverableErrorLocationForDebugging().ToString() + ": " +
         service->GetUnrecoverableErrorMessageForDebugging();
-    about_info->SetKey("unrecoverable_error_message",
-                       base::Value(unrecoverable_error_message));
+    about_info.Set("unrecoverable_error_message",
+                   base::Value(unrecoverable_error_message));
   }
 
-  about_info->SetKey(
-      "type_status",
-      base::Value::FromUniquePtrValue(service->GetTypeStatusMapForDebugging()));
+  about_info.Set("type_status", service->GetTypeStatusMapForDebugging());
 
   return about_info;
 }
 
-}  // namespace sync_ui_util
-
-}  // namespace syncer
+}  // namespace syncer::sync_ui_util

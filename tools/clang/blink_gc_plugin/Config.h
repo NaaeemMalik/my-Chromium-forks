@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -139,6 +139,12 @@ class Config {
            name == "HashMap";
   }
 
+  static bool IsSTDCollection(llvm::StringRef name) {
+    return name == "vector" || name == "map" || name == "unordered_map" ||
+           name == "set" || name == "unordered_set" || name == "array" ||
+           name == "optional" || name == "variant";
+  }
+
   static bool IsGCCollection(llvm::StringRef name) {
     return name == "HeapVector" || name == "HeapDeque" ||
            name == "HeapHashSet" || name == "HeapLinkedHashSet" ||
@@ -146,11 +152,17 @@ class Config {
   }
 
   static bool IsHashMap(llvm::StringRef name) {
-    return name == "HashMap" || name == "HeapHashMap";
+    return name == "HashMap" || name == "HeapHashMap" || name == "map" ||
+           name == "unordered_map";
   }
 
   // Assumes name is a valid collection name.
   static size_t CollectionDimension(llvm::StringRef name) {
+    // In case we're dealing with a variant, we want to collect the whole
+    // parameter pack.
+    if (name == "variant") {
+      return 0;
+    }
     return (IsHashMap(name) || name == "pair") ? 2 : 1;
   }
 
@@ -182,27 +194,16 @@ class Config {
     return IsGCBase(name) || IsRefCountedBase(name);
   }
 
-  static bool IsAnnotated(clang::Decl* decl, const std::string& anno) {
+  static bool IsAnnotated(const clang::Decl* decl, const std::string& anno) {
     clang::AnnotateAttr* attr = decl->getAttr<clang::AnnotateAttr>();
     return attr && (attr->getAnnotation() == anno);
   }
 
-  static bool IsStackAnnotated(clang::Decl* decl) {
-    return IsAnnotated(decl, "blink_stack_allocated");
-  }
-
-  static bool IsIgnoreAnnotated(clang::Decl* decl) {
+  static bool IsIgnoreAnnotated(const clang::Decl* decl) {
     return IsAnnotated(decl, "blink_gc_plugin_ignore");
   }
 
-  static bool IsIgnoreCycleAnnotated(clang::Decl* decl) {
-    return IsAnnotated(decl, "blink_gc_plugin_ignore_cycle") ||
-           IsIgnoreAnnotated(decl);
-  }
-
-  static bool IsVisitor(llvm::StringRef name) {
-    return name == "Visitor" || name == "VisitorHelper";
-  }
+  static bool IsVisitor(llvm::StringRef name) { return name == "Visitor"; }
 
   static bool IsVisitorPtrType(const clang::QualType& formal_type) {
     if (!formal_type->isPointerType())

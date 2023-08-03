@@ -51,7 +51,7 @@ struct FromString<String> {
 
 template <>
 struct FromString<bool> {
-  bool operator()(const String& s) { return s.IsEmpty() || s == "true"; }
+  bool operator()(const String& s) { return s.empty() || s == "true"; }
 };
 
 template <>
@@ -85,13 +85,13 @@ struct FromString<gfx::Size> {
 // 99) MacEditingBehavior is used a fallback.
 static mojom::blink::EditingBehavior EditingBehaviorTypeForPlatform() {
   return
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
       mojom::blink::EditingBehavior::kEditingMacBehavior
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
       mojom::blink::EditingBehavior::kEditingWindowsBehavior
-#elif defined(OS_ANDROID)
+#elif BUILDFLAG(IS_ANDROID)
       mojom::blink::EditingBehavior::kEditingAndroidBehavior
-#elif defined(OS_CHROMEOS)
+#elif BUILDFLAG(IS_CHROMEOS)
       mojom::blink::EditingBehavior::kEditingChromeOSBehavior
 #else  // Rest of the UNIX-like systems
       mojom::blink::EditingBehavior::kEditingUnixBehavior
@@ -99,7 +99,7 @@ static mojom::blink::EditingBehavior EditingBehaviorTypeForPlatform() {
       ;
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 static const bool kDefaultSelectTrailingWhitespaceEnabled = true;
 #else
 static const bool kDefaultSelectTrailingWhitespaceEnabled = false;
@@ -116,6 +116,11 @@ void Settings::SetDelegate(SettingsDelegate* delegate) {
 void Settings::Invalidate(SettingsDelegate::ChangeType change_type) {
   if (delegate_)
     delegate_->SettingsChanged(change_type);
+}
+
+void Settings::SetPreferCompositingToLCDTextForTesting(bool enabled) {
+  SetLCDTextPreference(enabled ? LCDTextPreference::kIgnored
+                               : LCDTextPreference::kStronglyPreferred);
 }
 
 }  // namespace blink

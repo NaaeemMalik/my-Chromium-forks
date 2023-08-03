@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,10 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -76,14 +77,24 @@ class RealTimeUrlLookupService : public RealTimeUrlLookupServiceBase {
   bool CanPerformFullURLLookup() const override;
   bool CanCheckSubresourceURL() const override;
   bool CanCheckSafeBrowsingDb() const override;
+  bool CanCheckSafeBrowsingHighConfidenceAllowlist() const override;
   void Shutdown() override;
+  bool CanSendRTSampleRequest() const override;
+  std::string GetMetricSuffix() const override;
+
+#if defined(UNIT_TEST)
+  void set_bypass_probability_for_tests(
+      bool bypass_protego_probability_for_tests) {
+    bypass_protego_probability_for_tests_ =
+        bypass_protego_probability_for_tests;
+  }
+#endif
 
  private:
   // RealTimeUrlLookupServiceBase:
   GURL GetRealTimeLookupUrl() const override;
   net::NetworkTrafficAnnotationTag GetTrafficAnnotationTag() const override;
   bool CanPerformFullURLLookupWithToken() const override;
-  bool CanAttachReferrerChain() const override;
   int GetReferrerUserGestureLimit() const override;
   bool CanSendPageLoadToken() const override;
   void GetAccessToken(
@@ -94,7 +105,6 @@ class RealTimeUrlLookupService : public RealTimeUrlLookupServiceBase {
       RTLookupResponseCallback response_callback,
       scoped_refptr<base::SequencedTaskRunner> callback_task_runner) override;
   absl::optional<std::string> GetDMTokenString() const override;
-  std::string GetMetricSuffix() const override;
   bool ShouldIncludeCredentials() const override;
   void OnResponseUnauthorized(const std::string& invalid_access_token) override;
   double GetMinAllowedTimestampForReferrerChains() const override;
@@ -136,7 +146,11 @@ class RealTimeUrlLookupService : public RealTimeUrlLookupServiceBase {
 
   // Unowned. For checking whether real-time checks can be enabled in a given
   // location.
-  raw_ptr<variations::VariationsService> variations_;
+  raw_ptr<variations::VariationsService, DanglingUntriaged> variations_;
+
+  // Bypasses the check for probability when sending Protego sample pings.
+  // Only for unit tests.
+  bool bypass_protego_probability_for_tests_ = false;
 
   // True if Shutdown() has already been called, or started running. This allows
   // us to skip unnecessary calls to SendRequest().

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,6 @@
 
 namespace ntp_header {
 
-// The minimum height of the new tab page header view when the new tab page is
-// scrolled up.
-extern const CGFloat kMinHeaderHeight;
-
 // The scroll distance within which to animate the search field from its
 // initial frame to its final full bleed frame.
 extern const CGFloat kAnimationDistance;
@@ -21,7 +17,7 @@ extern const CGFloat kFakeLocationBarTopConstraint;
 
 extern const CGFloat kScrolledToTopOmniboxBottomMargin;
 
-extern const CGFloat kHintLabelSidePadding;
+extern const CGFloat kCenteredHintLabelSidePadding;
 
 extern const CGFloat kHintLabelHeightMargin;
 

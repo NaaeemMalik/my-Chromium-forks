@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@
 namespace optimization_guide {
 
 void TestModelExecutor::SendForExecution(
-    ExecutionCallback ui_callback_on_complete,
+    ExecutionCallback callback_on_complete,
     base::TimeTicks start_time,
     const std::vector<float>& args) {
   std::vector<float> results = std::vector<float>();
   for (auto& arg : args)
     results.push_back(arg);
-  std::move(ui_callback_on_complete).Run(std::move(results));
+  std::move(callback_on_complete).Run(std::move(results));
 }
 
 }  // namespace optimization_guide

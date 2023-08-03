@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,7 @@
 #include "third_party/blink/renderer/modules/payments/payment_request_delegate.h"
 #include "third_party/blink/renderer/modules/payments/payment_state_resolver.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/prefinalizer.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
@@ -147,6 +147,11 @@ class MODULES_EXPORT PaymentRequest final
   void OnHasEnrolledInstrument(
       payments::mojom::blink::HasEnrolledInstrumentQueryResult) override;
   void WarnNoFavicon() override;
+  void AllowConnectToSource(
+      const KURL& url,
+      const KURL& url_before_redirects,
+      bool did_follow_redirect,
+      AllowConnectToSourceCallback response_callback) override;
 
   void OnCompleteTimeout(TimerBase*);
   void OnUpdatePaymentDetailsTimeout(TimerBase*);

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@
 #include "content/common/content_export.h"
 #include "content/public/common/page_type.h"
 #include "content/public/common/referrer.h"
-#include "services/network/public/cpp/resource_request_body.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/page_transition_types.h"
 
@@ -25,6 +24,10 @@ class GURL;
 
 namespace blink {
 class PageState;
+}
+
+namespace network {
+class ResourceRequestBody;
 }
 
 namespace content {
@@ -72,7 +75,7 @@ class NavigationEntry : public base::SupportsUserData {
   virtual void SetBaseURLForDataURL(const GURL& url) = 0;
   virtual const GURL& GetBaseURLForDataURL() = 0;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // The real data: URL when it is received via WebView.loadDataWithBaseUrl
   // method. Represented as a string to circumvent the size restriction
   // of GURLs for compatibility with legacy Android WebView apps.
@@ -124,7 +127,7 @@ class NavigationEntry : public base::SupportsUserData {
   // Page-related helpers ------------------------------------------------------
 
   // Returns the title to be displayed on the tab. This could be the title of
-  // the page if it is available or the URL.
+  // the page if it is available or the simplified URL.
   virtual const std::u16string& GetTitleForDisplay() = 0;
 
   // Returns true if the current tab is in view source mode. This will be false

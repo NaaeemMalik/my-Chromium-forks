@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors. All rights reserved.
+// Copyright 2015 The Crashpad Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,9 +21,10 @@
 #include <time.h>
 #include <wchar.h>
 
+#include <mutex>
+#include <tuple>
 #include <utility>
 
-#include "base/ignore_result.h"
 #include "base/logging.h"
 #include "base/numerics/safe_math.h"
 #include "base/strings/utf_string_conversions.h"
@@ -662,13 +663,25 @@ class CrashReportDatabaseWin : public CrashReportDatabase {
 
   std::unique_ptr<Metadata> AcquireMetadata();
 
+  Settings& SettingsInternal() {
+    std::call_once(settings_init_, [this]() {
+      settings_.Initialize(base_dir_.Append(kSettings));
+    });
+    return settings_;
+  }
+
   base::FilePath base_dir_;
   Settings settings_;
+  std::once_flag settings_init_;
   InitializationStateDcheck initialized_;
 };
 
 CrashReportDatabaseWin::CrashReportDatabaseWin(const base::FilePath& path)
-    : CrashReportDatabase(), base_dir_(path), settings_(), initialized_() {}
+    : CrashReportDatabase(),
+      base_dir_(path),
+      settings_(),
+      settings_init_(),
+      initialized_() {}
 
 CrashReportDatabaseWin::~CrashReportDatabaseWin() {
 }
@@ -691,9 +704,6 @@ bool CrashReportDatabaseWin::Initialize(bool may_create) {
   if (!CreateDirectoryIfNecessary(AttachmentsRootPath()))
     return false;
 
-  if (!settings_.Initialize(base_dir_.Append(kSettings)))
-    return false;
-
   INITIALIZATION_STATE_SET_VALID(initialized_);
   return true;
 }
@@ -704,7 +714,7 @@ base::FilePath CrashReportDatabaseWin::DatabasePath() {
 
 Settings* CrashReportDatabaseWin::GetSettings() {
   INITIALIZATION_STATE_DCHECK_VALID(initialized_);
-  return &settings_;
+  return &SettingsInternal();
 }
 
 OperationStatus CrashReportDatabaseWin::PrepareNewCrashReport(
@@ -735,14 +745,14 @@ OperationStatus CrashReportDatabaseWin::FinishedWritingCrashReport(
                                     time(nullptr),
                                     ReportState::kPending));
 
-  ignore_result(report->file_remover_.release());
+  std::ignore = report->file_remover_.release();
 
   // Close all the attachments and disarm their removers too.
   for (auto& writer : report->attachment_writers_) {
     writer->Close();
   }
   for (auto& remover : report->attachment_removers_) {
-    ignore_result(remover.release());
+    std::ignore = remover.release();
   }
 
   *uuid = report->ReportID();
@@ -848,7 +858,7 @@ OperationStatus CrashReportDatabaseWin::RecordUploadAttempt(
         report->upload_explicitly_requested;
   }
 
-  if (!settings_.SetLastUploadAttemptTime(now))
+  if (!SettingsInternal().SetLastUploadAttemptTime(now))
     return kDatabaseError;
 
   return kNoError;

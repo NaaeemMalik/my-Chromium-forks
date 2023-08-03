@@ -1,18 +1,18 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/extensions/omaha_attributes_handler.h"
 
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
+#include "chrome/browser/extensions/test_blocklist.h"
+#include "chrome/browser/profiles/profile.h"
 #include "extensions/browser/blocklist_extension_prefs.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_prefs.h"
-#include "extensions/common/extension_features.h"
 #include "extensions/test/extension_state_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -26,26 +26,18 @@ constexpr char kTestExtensionId[] = "behllobkkfkfnphdnhnkndlbkcpglgmj";
 }  // namespace
 
 // Test suite to test Omaha attribute handler.
-class OmahaAttributesHandlerUnitTest : public ExtensionServiceTestBase {
- public:
-  OmahaAttributesHandlerUnitTest() {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/
-        {extensions_features::kDisablePolicyViolationExtensionsRemotely,
-         extensions_features::kDisablePotentiallyUwsExtensionsRemotely},
-        /*disabled_features=*/{});
-  }
-};
+using OmahaAttributesHandlerUnitTest = ExtensionServiceTestBase;
 
 TEST_F(OmahaAttributesHandlerUnitTest, LogPolicyViolationUWSMetrics) {
   base::HistogramTester histograms;
   InitializeGoodInstalledExtensionService();
   service()->Init();
-  base::Value attributes(base::Value::Type::DICTIONARY);
-  attributes.SetBoolKey("_policy_violation", true);
-  attributes.SetBoolKey("_potentially_uws", true);
+  base::Value::Dict attributes;
+  attributes.Set("_policy_violation", true);
+  attributes.Set("_potentially_uws", true);
 
-  service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
+  service()->PerformActionBasedOnOmahaAttributes(
+      kTestExtensionId, base::Value(std::move(attributes)));
 
   histograms.ExpectBucketCount(
       "Extensions.ExtensionDisabledRemotely2",
@@ -69,7 +61,7 @@ TEST_F(OmahaAttributesHandlerUnitTest, LogMalwareMetrics) {
   base::HistogramTester histograms;
   InitializeGoodInstalledExtensionService();
   service()->Init();
-  base::Value attributes(base::Value::Type::DICTIONARY);
+  base::Value attributes(base::Value::Type::DICT);
 
   attributes.SetBoolKey("_malware", false);
   service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
@@ -110,7 +102,7 @@ TEST_F(OmahaAttributesHandlerUnitTest, DisableRemotelyForPolicyViolation) {
 
   EXPECT_TRUE(state_tester.ExpectEnabled(kTestExtensionId));
 
-  base::Value attributes(base::Value::Type::DICTIONARY);
+  base::Value attributes(base::Value::Type::DICT);
   attributes.SetBoolKey("_policy_violation", true);
   service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
 
@@ -149,7 +141,7 @@ TEST_F(OmahaAttributesHandlerUnitTest, DisableRemotelyForPotentiallyUws) {
 
   EXPECT_TRUE(state_tester.ExpectEnabled(kTestExtensionId));
 
-  base::Value attributes(base::Value::Type::DICTIONARY);
+  base::Value attributes(base::Value::Type::DICT);
   attributes.SetBoolKey("_potentially_uws", true);
   service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
 
@@ -187,7 +179,7 @@ TEST_F(OmahaAttributesHandlerUnitTest, MultipleGreylistStates) {
 
   EXPECT_TRUE(state_tester.ExpectEnabled(kTestExtensionId));
 
-  base::Value attributes(base::Value::Type::DICTIONARY);
+  base::Value attributes(base::Value::Type::DICT);
   attributes.SetBoolKey("_policy_violation", true);
   service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
 
@@ -240,7 +232,7 @@ TEST_F(OmahaAttributesHandlerUnitTest, KeepDisabledWhenMalwareRemoved) {
   ExtensionStateTester state_tester(profile());
   EXPECT_TRUE(state_tester.ExpectEnabled(kTestExtensionId));
 
-  base::Value attributes(base::Value::Type::DICTIONARY);
+  base::Value attributes(base::Value::Type::DICT);
   attributes.SetBoolKey("_malware", true);
   attributes.SetBoolKey("_policy_violation", true);
   service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
@@ -262,43 +254,51 @@ TEST_F(OmahaAttributesHandlerUnitTest, KeepDisabledWhenMalwareRemoved) {
       kTestExtensionId, disable_reason::DISABLE_GREYLIST));
 }
 
-// Test suite to test Omaha attribute handler when features are disabled.
-class OmahaAttributesHandlerWithFeatureDisabledUnitTest
-    : public ExtensionServiceTestBase {
- public:
-  OmahaAttributesHandlerWithFeatureDisabledUnitTest() {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/
-        {},
-        /*disabled_features=*/{
-            extensions_features::kDisablePolicyViolationExtensionsRemotely,
-            extensions_features::kDisablePotentiallyUwsExtensionsRemotely});
-  }
-};
-
-TEST_F(OmahaAttributesHandlerWithFeatureDisabledUnitTest,
-       DoNotDisableRemotelyWhenFlagsDisabled) {
-  base::HistogramTester histograms;
+TEST_F(OmahaAttributesHandlerUnitTest, ExtensionUninstalledBeforeNotified) {
   InitializeGoodInstalledExtensionService();
   service()->Init();
 
-  base::Value attributes(base::Value::Type::DICTIONARY);
-  attributes.SetBoolKey("_policy_violation", true);
-  attributes.SetBoolKey("_potentially_uws", true);
-  service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
+  ExtensionStateTester state_tester(profile());
 
-  // Since the flag is disabled, we don't expect the extension to be affected.
+  EXPECT_TRUE(state_tester.ExpectEnabled(kTestExtensionId));
+
+  service()->UninstallExtension(kTestExtensionId, UNINSTALL_REASON_FOR_TESTING,
+                                nullptr);
+
+  base::Value attributes(base::Value::Type::DICT);
+  attributes.SetBoolKey("_malware", true);
+  // kTestExtensionId is already uninstalled. Performing action on it should
+  // not crash. Regression test for https://crbug.com/1305490.
+  service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
+}
+
+// Tests that an extension that was disabled through Omaha won't be re-enabled
+// if Safe Browsing blocklist policy is disabled.
+TEST_F(OmahaAttributesHandlerUnitTest,
+       NoUnsetBlocklistWhenSBBlocklistPolicyDisabled) {
+  TestBlocklist test_blocklist;
+
+  InitializeGoodInstalledExtensionService();
+  test_blocklist.Attach(service()->blocklist_);
+  service()->Init();
+
   ExtensionStateTester state_tester(profile());
   EXPECT_TRUE(state_tester.ExpectEnabled(kTestExtensionId));
-  EXPECT_FALSE(blocklist_prefs::HasOmahaBlocklistState(
-      kTestExtensionId, BitMapBlocklistState::BLOCKLISTED_CWS_POLICY_VIOLATION,
-      ExtensionPrefs::Get(profile())));
-  EXPECT_FALSE(blocklist_prefs::HasOmahaBlocklistState(
-      kTestExtensionId, BitMapBlocklistState::BLOCKLISTED_POTENTIALLY_UNWANTED,
-      ExtensionPrefs::Get(profile())));
-  // Histograms should not be logged when the flag is disabled.
-  histograms.ExpectTotalCount("Extensions.ExtensionAddDisabledRemotelyReason2",
-                              /*expected_count=*/0);
+
+  base::Value attributes(base::Value::Type::DICT);
+  attributes.SetKey("_malware", base::Value(true));
+  service()->PerformActionBasedOnOmahaAttributes(kTestExtensionId, attributes);
+  EXPECT_TRUE(state_tester.ExpectBlocklisted(kTestExtensionId));
+
+  // Disable SB blocklist by policy and refresh blocklist.
+  profile()->GetPrefs()->SetBoolean(
+      prefs::kSafeBrowsingExtensionProtectionAllowedByPolicy, false);
+  test_blocklist.NotifyUpdate();
+  task_environment()->RunUntilIdle();
+
+  // Disabling SB blocklist by policy should not impact extensions blocked by
+  // Omaha.
+  EXPECT_TRUE(state_tester.ExpectBlocklisted(kTestExtensionId));
 }
 
 }  // namespace extensions

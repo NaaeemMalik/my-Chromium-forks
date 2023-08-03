@@ -28,7 +28,7 @@
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/svg/svg_animation_element.h"
 #include "third_party/blink/renderer/core/svg_names.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
@@ -104,7 +104,9 @@ class CORE_EXPORT SVGAnimateElement : public SVGAnimationElement {
   void WillChangeAnimatedType();
   void DidChangeAnimatedType();
 
+  virtual SVGPropertyBase* CreateUnderlyingValueForAnimation() const;
   virtual SVGPropertyBase* ParseValue(const String&) const;
+  SVGPropertyBase* CreateUnderlyingValueForAttributeAnimation() const;
   SVGPropertyBase* CreatePropertyForAttributeAnimation(const String&) const;
   SVGPropertyBase* CreatePropertyForCSSAnimation(const String&) const;
 

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,10 +7,9 @@
 
 #import <UIKit/UIKit.h>
 
-
 #import "ios/chrome/app/application_delegate/app_state_agent.h"
 #import "ios/chrome/app/application_delegate/app_state_observer.h"
-#import "ios/chrome/browser/ui/main/scene_state_observer.h"
+#import "ios/chrome/browser/shared/coordinator/scene/scene_state_observer.h"
 #import "ios/chrome/browser/ui/scoped_ui_blocker/ui_blocker_manager.h"
 
 @class AppState;
@@ -24,12 +23,26 @@ typedef NS_ENUM(NSUInteger, DefaultPromoType);
 @class MemoryWarningHelper;
 @class MetricsMediator;
 @protocol StartupInformation;
-@protocol TabOpening;
-@protocol TabSwitching;
 
 namespace base {
 class TimeTicks;
 }
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+enum class PostCrashAction {
+  // Restore tabs normally after a clean shutdown.
+  kRestoreTabsCleanShutdown = 0,
+  // Restore tabs normally after an unclean shutdown.
+  kRestoreTabsUncleanShutdown = 1,
+  // kStashTabsAndShowNTP is no longer used, but the value 2 cannot be reused
+  // as it would break histograms.
+  // Restore tabs with `return to previous tab` NTP.
+  kShowNTPWithReturnToTab = 3,
+  // Show safe mode.
+  kShowSafeMode = 4,
+  kMaxValue = kShowSafeMode,
+};
 
 // Represents the application state and responds to application state changes
 // and system events.
@@ -72,13 +85,14 @@ initWithBrowserLauncher:(id<BrowserLauncher>)browserLauncher
 // active and enters the foreground. This can happen if the policies have
 // changed since the last cold start, meaning the user was signed out during
 // startup.
-@property(nonatomic) BOOL shouldShowPolicySignoutPrompt;
+@property(nonatomic) BOOL shouldShowForceSignOutPrompt;
 
-// Indicates that this app launch is one after a crash.
-@property(nonatomic, assign) BOOL postCrashLaunch;
+// Indicates what action, if any, is taken after a crash (stash tabs, show NTP,
+// show safe mode).
+@property(nonatomic, assign) PostCrashAction postCrashAction;
 
-// Indicates that session restoration might be required for connecting scenes.
-@property(nonatomic, assign) BOOL sessionRestorationRequired;
+// YES if the app is resuming from safe mode.
+@property(nonatomic) BOOL resumingFromSafeMode;
 
 // The last window which received a tap.
 @property(nonatomic, weak) UIWindow* lastTappedWindow;
@@ -100,6 +114,9 @@ initWithBrowserLauncher:(id<BrowserLauncher>)browserLauncher
 // YES if the views being presented should only support the portrait
 // orientation.
 @property(nonatomic, readonly) BOOL portraitOnly;
+
+// YES if the application is getting terminated.
+@property(nonatomic, readonly) BOOL appIsTerminating;
 
 // Saves the launchOptions to be used from -newTabFromLaunchOptions. If the
 // application is in background, initialize the browser to basic. If not, launch
@@ -155,7 +172,7 @@ initWithBrowserLauncher:(id<BrowserLauncher>)browserLauncher
 - (void)removeObserver:(id<AppStateObserver>)observer;
 
 // Adds a new agent. Agents are owned by the app state.
-// This automatically sets the app state on the |agent|.
+// This automatically sets the app state on the `agent`.
 - (void)addAgent:(id<AppStateAgent>)agent;
 // Removes an agent.
 - (void)removeAgent:(id<AppStateAgent>)agent;

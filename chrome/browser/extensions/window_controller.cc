@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <memory>
 
 #include "base/values.h"
-#include "chrome/browser/extensions/api/tabs/tabs_constants.h"
 #include "chrome/browser/extensions/window_controller_list.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/extensions/api/windows.h"
@@ -43,14 +42,14 @@ WindowController::TypeFilter WindowController::GetFilterFromWindowTypes(
 
 // static
 WindowController::TypeFilter WindowController::GetFilterFromWindowTypesValues(
-    const base::ListValue* types) {
+    const base::Value::List* types) {
   WindowController::TypeFilter filter = WindowController::kNoWindowFilter;
   if (!types)
     return filter;
-  for (const base::Value& type : types->GetList()) {
-    const std::string* window_type = type.GetIfString();
-    if (window_type)
-      filter |= 1 << api::windows::ParseWindowType(*window_type);
+  for (const base::Value& type : *types) {
+    if (!type.is_string())
+      continue;
+    filter |= 1 << api::windows::ParseWindowType(type.GetString());
   }
   return filter;
 }

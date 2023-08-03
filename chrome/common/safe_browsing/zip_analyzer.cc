@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,75 +18,88 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/common/safe_browsing/archive_analyzer_results.h"
+#include "chrome/common/safe_browsing/rar_analyzer.h"
 #include "components/safe_browsing/content/common/file_type_policies.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "third_party/zlib/google/zip_reader.h"
 
 namespace safe_browsing {
-namespace zip_analyzer {
 
-namespace {
+ZipAnalyzer::ZipAnalyzer() = default;
+ZipAnalyzer::~ZipAnalyzer() = default;
 
-// The maximum duration of ZIP analysis, in milliseconds.
-const int kZipAnalysisTimeoutMs = 10000;
+void ZipAnalyzer::Init() {
+  GetTempFile(
+      base::BindOnce(&ZipAnalyzer::OnGetTempFile, weak_factory_.GetWeakPtr()));
+}
 
-}  // namespace
+bool ZipAnalyzer::ResumeExtraction() {
+  while (const zip::ZipReader::Entry* const entry = reader_.Next()) {
+    // Clear the `temp_file` between extractions.
+    if (temp_file_.Seek(base::File::Whence::FROM_BEGIN, 0) != 0) {
+      PLOG(WARNING) << "Failed seek";
+    }
 
-void AnalyzeZipFile(base::File zip_file,
-                    base::File temp_file,
-                    ArchiveAnalyzerResults* results) {
-  base::Time start_time = base::Time::Now();
-  zip::ZipReader reader;
-  if (!reader.OpenFromPlatformFile(zip_file.GetPlatformFile())) {
-    DVLOG(1) << "Failed to open zip file";
+    // Since this code is expected to run within a utility process, this call
+    // will fail on some platforms. We handle this by passing the length
+    // into `UpdateResultsForEntry`, which will only consider
+    // the appropriate bytes. See crbug.com/1309879 and crbug.com/774762.
+    if (!temp_file_.SetLength(0)) {
+      PLOG(WARNING) << "Failed truncate";
+    }
+    zip::FileWriterDelegate writer(&temp_file_);
+    reader_.ExtractCurrentEntry(&writer, std::numeric_limits<uint64_t>::max());
+
+    has_encrypted_ |= entry->is_encrypted;
+    has_aes_encrypted_ |= entry->uses_aes_encryption;
+
+    if (!UpdateResultsForEntry(
+            temp_file_.Duplicate(), GetRootPath().Append(entry->path),
+            writer.file_length(), entry->is_encrypted, entry->is_directory)) {
+      return false;
+    }
+  }
+
+  if (has_encrypted_) {
+    base::UmaHistogramBoolean("SBClientDownload.EncryptedZipUsesAes",
+                              has_aes_encrypted_);
+  }
+
+  if (reader_.ok()) {
+    results()->analysis_result = ArchiveAnalysisResult::kValid;
+  } else {
+    results()->analysis_result = ArchiveAnalysisResult::kFailedDuringIteration;
+  }
+  results()->success = reader_.ok();
+  return true;
+}
+
+base::WeakPtr<ArchiveAnalyzer> ZipAnalyzer::GetWeakPtr() {
+  return weak_factory_.GetWeakPtr();
+}
+
+void ZipAnalyzer::OnGetTempFile(base::File temp_file) {
+  if (!temp_file.IsValid()) {
+    InitComplete(ArchiveAnalysisResult::kFailedToOpenTempFile);
+    return;
+  }
+
+  if (!reader_.OpenFromPlatformFile(GetArchiveFile().GetPlatformFile())) {
+    InitComplete(ArchiveAnalysisResult::kUnknown);
     return;
   }
 
   bool too_big_to_unpack =
-      base::checked_cast<uint64_t>(zip_file.GetLength()) >
+      base::checked_cast<uint64_t>(GetArchiveFile().GetLength()) >
       FileTypePolicies::GetInstance()->GetMaxFileSizeToAnalyze("zip");
   if (too_big_to_unpack) {
-    results->success = false;
+    InitComplete(ArchiveAnalysisResult::kTooLarge);
     return;
   }
+  temp_file_ = std::move(temp_file);
 
-  bool timeout = false;
-  bool advanced = true;
-  results->file_count = 0;
-  results->directory_count = 0;
-  for (; reader.HasMore(); advanced = reader.AdvanceToNextEntry()) {
-    if (!advanced) {
-      DVLOG(1) << "Could not advance to next entry, aborting zip scan.";
-      return;
-    }
-    if (!reader.OpenCurrentEntryInZip()) {
-      DVLOG(1) << "Failed to open current entry in zip file";
-      continue;
-    }
-    if (base::Time::Now() - start_time >
-        base::Milliseconds(kZipAnalysisTimeoutMs)) {
-      timeout = true;
-      break;
-    }
-
-    // Clear the |temp_file| between extractions.
-    temp_file.Seek(base::File::Whence::FROM_BEGIN, 0);
-    temp_file.SetLength(0);
-    zip::FileWriterDelegate writer(&temp_file);
-    reader.ExtractCurrentEntry(&writer, std::numeric_limits<uint64_t>::max());
-    UpdateArchiveAnalyzerResultsWithFile(
-        reader.current_entry_info()->file_path(), &temp_file,
-        writer.file_length(), reader.current_entry_info()->is_encrypted(),
-        results);
-
-    if (reader.current_entry_info()->is_directory())
-      results->directory_count++;
-    else
-      results->file_count++;
-  }
-
-  results->success = !timeout;
+  InitComplete(ArchiveAnalysisResult::kValid);
 }
 
-}  // namespace zip_analyzer
 }  // namespace safe_browsing

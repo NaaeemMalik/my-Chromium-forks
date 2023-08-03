@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,13 +49,13 @@ class NotificationCategoryManagerTest : public testing::Test {
   base::scoped_nsobject<FakeUNNotification> CreateNotification(
       NSString* identifier,
       UNNotificationCategory* category) {
-    UNMutableNotificationContent* content =
-        [[UNMutableNotificationContent alloc] init];
-    content.categoryIdentifier = [category identifier];
+    base::scoped_nsobject<UNMutableNotificationContent> content(
+        [[UNMutableNotificationContent alloc] init]);
+    content.get().categoryIdentifier = [category identifier];
 
     UNNotificationRequest* request =
         [UNNotificationRequest requestWithIdentifier:identifier
-                                             content:content
+                                             content:content.get()
                                              trigger:nil];
 
     base::scoped_nsobject<FakeUNNotification> notification(

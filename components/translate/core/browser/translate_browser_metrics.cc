@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,7 +25,6 @@ const char kTranslateTargetLanguage[] = "Translate.TargetLanguage";
 const char kTranslateHrefHintStatus[] = "Translate.HrefHint.Status";
 const char kTranslateHrefHintPrefsFilterStatus[] =
     "Translate.HrefHint.PrefsFilterStatus";
-const char kTranslateTargetLanguageOrigin[] = "Translate.TargetLanguage.Origin";
 const char kTranslateMenuTranslationUnavailableReasons[] =
     "Translate.MenuTranslation.UnavailableReasons";
 
@@ -73,10 +72,6 @@ void ReportTranslateHrefHintStatus(HrefTranslateStatus status) {
 void ReportTranslateHrefHintPrefsFilterStatus(
     HrefTranslatePrefsFilterStatus status) {
   base::UmaHistogramEnumeration(kTranslateHrefHintPrefsFilterStatus, status);
-}
-
-void ReportTranslateTargetLanguageOrigin(TargetLanguageOrigin origin) {
-  base::UmaHistogramEnumeration(kTranslateTargetLanguageOrigin, origin);
 }
 
 }  // namespace TranslateBrowserMetrics

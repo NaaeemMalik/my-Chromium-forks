@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "base/compiler_specific.h"
-#include "base/memory/ref_counted.h"
 #include "chrome/browser/sync/test/integration/multi_client_status_change_checker.h"
 #include "components/autofill/core/browser/data_model/autofill_structured_address_component.h"
 #include "components/autofill/core/browser/personal_data_manager_observer.h"
@@ -36,8 +34,7 @@ enum ProfileType {
 };
 
 // Used to access the personal data manager within a particular sync profile.
-autofill::PersonalDataManager* GetPersonalDataManager(int index)
-    WARN_UNUSED_RESULT;
+[[nodiscard]] autofill::PersonalDataManager* GetPersonalDataManager(int index);
 
 // Adds the form fields in |keys| to the WebDataService of sync profile
 // |profile|.
@@ -51,11 +48,11 @@ void RemoveKey(int profile, const autofill::AutofillKey& key);
 void RemoveKeys(int profile);
 
 // Gets all the form fields in the WebDataService of sync profile |profile|.
-std::set<autofill::AutofillEntry> GetAllKeys(int profile) WARN_UNUSED_RESULT;
+[[nodiscard]] std::set<autofill::AutofillEntry> GetAllKeys(int profile);
 
 // Compares the form fields in the WebDataServices of sync profiles
 // |profile_a| and |profile_b|. Returns true if they match.
-bool KeysMatch(int profile_a, int profile_b) WARN_UNUSED_RESULT;
+[[nodiscard]] bool KeysMatch(int profile_a, int profile_b);
 
 // Replaces the Autofill profiles in sync profile |profile| with
 // |autofill_profiles|.
@@ -76,18 +73,17 @@ void RemoveProfile(int profile, const std::string& guid);
 
 // Updates the autofill profile with guid |guid| in sync profile |profile|
 // to |type| and |value| with the verification status |status|.
-void UpdateProfile(
-    int profile,
-    const std::string& guid,
-    const autofill::AutofillType& type,
-    const std::u16string& value,
-    autofill::structured_address::VerificationStatus status =
-        autofill::structured_address::VerificationStatus::kObserved);
+void UpdateProfile(int profile,
+                   const std::string& guid,
+                   const autofill::AutofillType& type,
+                   const std::u16string& value,
+                   autofill::VerificationStatus status =
+                       autofill::VerificationStatus::kObserved);
 
 // Gets all the Autofill profiles in the PersonalDataManager of sync profile
 // |profile|.
-std::vector<autofill::AutofillProfile*> GetAllAutoFillProfiles(int profile)
-    WARN_UNUSED_RESULT;
+[[nodiscard]] std::vector<autofill::AutofillProfile*> GetAllAutoFillProfiles(
+    int profile);
 
 // Returns the number of autofill profiles contained by sync profile
 // |profile|.
@@ -98,7 +94,7 @@ size_t GetKeyCount(int profile);
 
 // Compares the Autofill profiles in the PersonalDataManagers of sync profiles
 // |profile_a| and |profile_b|. Returns true if they match.
-bool ProfilesMatch(int profile_a, int profile_b) WARN_UNUSED_RESULT;
+[[nodiscard]] bool ProfilesMatch(int profile_a, int profile_b);
 
 // Creates a test autofill profile based on the persona specified in |type|.
 autofill::AutofillProfile CreateAutofillProfile(ProfileType type);

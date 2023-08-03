@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback_forward.h"
 #include "base/callback_list.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
@@ -24,6 +24,8 @@ class SigningKeyPair;
 
 class DeviceTrustKeyManagerImpl : public DeviceTrustKeyManager {
  public:
+  using RotateKeyCallback =
+      base::OnceCallback<void(DeviceTrustKeyManager::KeyRotationResult)>;
   using ExportPublicKeyCallback =
       base::OnceCallback<void(absl::optional<std::string>)>;
   using SignStringCallback =
@@ -35,14 +37,24 @@ class DeviceTrustKeyManagerImpl : public DeviceTrustKeyManager {
 
   // DeviceTrustKeyManager:
   void StartInitialization() override;
-  void StartKeyRotation(const std::string& nonce) override;
+  void RotateKey(const std::string& nonce, RotateKeyCallback callback) override;
   void ExportPublicKeyAsync(ExportPublicKeyCallback callback) override;
   void SignStringAsync(const std::string& str,
                        SignStringCallback callback) override;
   absl::optional<KeyMetadata> GetLoadedKeyMetadata() const override;
+  bool HasPermanentFailure() const override;
 
  private:
   enum class InitializationState { kDefault, kLoadingKey, kRotatingKey };
+
+  struct RotateKeyRequest {
+    RotateKeyRequest(const std::string& nonce_param,
+                     RotateKeyCallback callback_param);
+    ~RotateKeyRequest();
+
+    std::string nonce;
+    RotateKeyCallback callback;
+  };
 
   // Starts a background task to try and load the key. If `create_on_fail` is
   // true, a key-creation task will be started if key loading fails. If it's
@@ -51,16 +63,23 @@ class DeviceTrustKeyManagerImpl : public DeviceTrustKeyManager {
   void OnKeyLoaded(bool create_on_fail,
                    std::unique_ptr<SigningKeyPair> loaded_key_pair);
 
+  // Invoked when synchronization of the loaded key has been done with the
+  // server. `response_code` will hold the HTTP response code of the key upload
+  // response. It will be absl::nullopt if the sync request could not be issued.
+  void OnSynchronizationFinished(absl::optional<int> response_code);
+
   // Starts a background task to try and rotate the key. Forwards `nonce` to
   // the process in charge of handling the key rotation and upload. An empty
   // nonce can be used to represent a key creation task, which means no key
   // previously existed.
-  void StartKeyRotationInner(const std::string& nonce);
+  void StartKeyRotationInner(const std::string& nonce,
+                             RotateKeyCallback callback);
 
   // Invoked when the background key rotation tasks completes with a
-  // `result_status`. `had_nonce` represents whether the process was given a
-  // nonce parameter when started or not.
-  void OnKeyRotationFinished(bool had_nonce,
+  // `result_status`. `nonce` captures the parameter given to that process
+  // when it was started.
+  void OnKeyRotationFinished(const std::string& nonce,
+                             RotateKeyCallback callback,
                              KeyRotationCommand::Status result_status);
 
   // Adds `pending_request` to the list of pending client requests. Also calls
@@ -79,6 +98,11 @@ class DeviceTrustKeyManagerImpl : public DeviceTrustKeyManager {
   void ResumeExportPublicKey(ExportPublicKeyCallback callback);
   void ResumeSignString(const std::string& str, SignStringCallback callback);
 
+  // Resumes pending key rotation requests currently stored in
+  // `pending_rotation_request_`. Returns true if there was a pending request
+  // and it was resumed, false if not.
+  bool TryResumePendingRotationRequest();
+
   bool IsFullyInitialized() const;
 
   // Owned instance in charge of creating and launching key rotation commands.
@@ -92,13 +116,28 @@ class DeviceTrustKeyManagerImpl : public DeviceTrustKeyManager {
   // that a key hasn't been loaded into memory yet.
   std::unique_ptr<SigningKeyPair> key_pair_;
 
+  // When set, represents the response code for the synchronization request
+  // of `key_pair_`.
+  absl::optional<int> sync_key_response_code_;
+
+  // If a failure deemed as "permanent" (i.e. no use in retrying) is
+  // encountered, the key manager flows will be disabled.
+  absl::optional<PermanentFailure> permanent_failure_;
+
   // List of pending client requests.
   base::OnceClosureList pending_client_requests_;
 
   // Represents whether the last key rotation process was successful or not.
   bool key_rotation_succeeded_{false};
 
+  // Potentially holds a remote key rotation request parameters.
+  // Whenever the key manager is done doing what it is currently doing, it will
+  // start a key rotation process with them.
+  std::unique_ptr<RotateKeyRequest> pending_rotation_request_;
+
   // Runner for tasks needed to be run in the background.
+  // TODO(b/210108864): Add background tasks counter to allow DCHECKing that
+  // no tasks are running the background during key rotation.
   scoped_refptr<base::SequencedTaskRunner> background_task_runner_;
 
   // Checker used to validate that non-background tasks should be

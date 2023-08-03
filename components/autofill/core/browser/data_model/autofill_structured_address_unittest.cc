@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,21 +6,25 @@
 
 #include <stddef.h>
 #include <map>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
 
 #include "base/feature_list.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/scoped_feature_list.h"
+#include "components/autofill/core/browser/data_model/autofill_structured_address_component.h"
 #include "components/autofill/core/browser/data_model/autofill_structured_address_test_utils.h"
 #include "components/autofill/core/browser/data_model/autofill_structured_address_utils.h"
+#include "components/autofill/core/browser/geo/alternative_state_name_map.h"
+#include "components/autofill/core/browser/geo/alternative_state_name_map_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using base::ASCIIToUTF16;
 
 namespace autofill {
-namespace structured_address {
 
 using AddressComponentTestValues = std::vector<AddressComponentTestValue>;
 
@@ -45,7 +49,7 @@ std::ostream& operator<<(std::ostream& out,
 }
 
 void TestAddressLineParsing(const AddressLineParsingTestCase& test_case) {
-  Address address(nullptr);
+  AddressNode address(nullptr);
   const AddressComponentTestValues test_value = {
       {.type = ADDRESS_HOME_STREET_ADDRESS,
        .value = test_case.street_address,
@@ -78,7 +82,7 @@ void TestAddressLineParsing(const AddressLineParsingTestCase& test_case) {
 }
 
 void TestAddressLineFormatting(const AddressLineParsingTestCase& test_case) {
-  Address address;
+  AddressNode address;
   const AddressComponentTestValues test_value = {
       {.type = ADDRESS_HOME_COUNTRY,
        .value = test_case.country_code,
@@ -236,7 +240,7 @@ TEST(AutofillStructuredAddress, ParseMultiLineStreetAddress) {
 }
 
 TEST(AutofillStructuredAddress, TestStreetAddressFormatting) {
-  Address address;
+  AddressNode address;
 
   std::vector<AddressLineParsingTestCase> test_cases = {
       {
@@ -308,7 +312,7 @@ TEST(AutofillStructuredAddress, TestStreetAddressFormatting) {
 
 // Test setting the first address line.
 TEST(AutofillStructuredAddress, TestSettingsAddressLine1) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues test_values = {
       {.type = ADDRESS_HOME_LINE1,
        .value = "line1",
@@ -329,7 +333,7 @@ TEST(AutofillStructuredAddress, TestSettingsAddressLine1) {
 
 // Test settings all three address lines.
 TEST(AutofillStructuredAddress, TestSettingsAddressLines) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues test_values = {
       {.type = ADDRESS_HOME_LINE1,
        .value = "line1",
@@ -362,7 +366,7 @@ TEST(AutofillStructuredAddress, TestSettingsAddressLines) {
 
 // Test setting the home street address and retrieving the address lines.
 TEST(AutofillStructuredAddress, TestGettingAddressLines) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues test_values = {
       {.type = ADDRESS_HOME_STREET_ADDRESS,
        .value = "line1\nline2\nline3",
@@ -389,7 +393,7 @@ TEST(AutofillStructuredAddress, TestGettingAddressLines) {
 
 // Test setting the home street address and retrieving the address lines.
 TEST(AutofillStructuredAddress, TestGettingAddressLines_JoinedAdditionalLines) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues test_values = {
       {.type = ADDRESS_HOME_STREET_ADDRESS,
        .value = "line1\nline2\nline3\nline4",
@@ -417,7 +421,7 @@ TEST(AutofillStructuredAddress, TestGettingAddressLines_JoinedAdditionalLines) {
 // Tests that a structured address gets successfully migrated and subsequently
 // completed.
 TEST(AutofillStructuredAddress, TestMigrationAndFinalization) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues test_values = {
       {.type = ADDRESS_HOME_STREET_ADDRESS,
        .value = "123 Street name",
@@ -487,7 +491,7 @@ TEST(AutofillStructuredAddress, TestMigrationAndFinalization) {
 
 // Tests the migration of a structured address in a verified profile.
 TEST(AutofillStructuredAddress, TestMigrationOfVerifiedProfile) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues test_values = {
       {.type = ADDRESS_HOME_STREET_ADDRESS,
        .value = "123 Street name",
@@ -529,7 +533,7 @@ TEST(AutofillStructuredAddress, TestMigrationOfVerifiedProfile) {
 // Tests that the migration does not happen of the root node
 // (ADDRESS_HOME_ADDRESS) already has a verification status.
 TEST(AutofillStructuredAddress, TestMigrationAndFinalization_AlreadyMigrated) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues test_values = {
       {.type = ADDRESS_HOME_STREET_ADDRESS,
        .value = "123 Street name",
@@ -557,7 +561,7 @@ TEST(AutofillStructuredAddress, TestMigrationAndFinalization_AlreadyMigrated) {
 // Tests that a valid address structure is not wiped.
 TEST(AutofillStructuredAddress,
      TestWipingAnInvalidSubstructure_ValidStructure) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues address_with_valid_structure = {
       // This structure is valid because all structured components are contained
       // in the unstructured representation.
@@ -581,7 +585,7 @@ TEST(AutofillStructuredAddress,
 // Tests that an invalid address structure is wiped.
 TEST(AutofillStructuredAddress,
      TestWipingAnInvalidSubstructure_InValidStructure) {
-  Address address;
+  AddressNode address;
   AddressComponentTestValues address_with_valid_structure = {
       {.type = ADDRESS_HOME_STREET_ADDRESS,
        .value = "Some other name",
@@ -614,6 +618,309 @@ TEST(AutofillStructuredAddress,
   VerifyTestValues(&address, address_with_wiped_structure);
 }
 
+// Test that the correct country for merging structured addresses is computed.
+TEST(AutofillStructuredAddress, TestGetCommonCountryForMerge) {
+  CountryCodeNode country1(nullptr);
+  CountryCodeNode country2(nullptr);
+
+  // No countries set.
+  EXPECT_EQ(country1.GetCommonCountryForMerge(country2), u"");
+  EXPECT_EQ(country2.GetCommonCountryForMerge(country1), u"");
+
+  // If exactly one country is set, use it as their common one.
+  country1.SetValue(u"AT", VerificationStatus::kObserved);
+  EXPECT_EQ(country1.GetCommonCountryForMerge(country2), u"AT");
+  EXPECT_EQ(country2.GetCommonCountryForMerge(country1), u"AT");
+
+  // If both are set to the same value, use it as their common one.
+  country2.SetValue(u"AT", VerificationStatus::kObserved);
+  EXPECT_EQ(country1.GetCommonCountryForMerge(country2), u"AT");
+  EXPECT_EQ(country2.GetCommonCountryForMerge(country1), u"AT");
+
+  // If both have a different value, there is no common one.
+  country2.SetValue(u"DE", VerificationStatus::kObserved);
+  EXPECT_EQ(country1.GetCommonCountryForMerge(country2), u"");
+  EXPECT_EQ(country2.GetCommonCountryForMerge(country1), u"");
+}
+
+struct HasNewerStreetAddressPrecedenceInMergingTestCase {
+  // State and parameterization of feature
+  // `kAutofillConvergeToExtremeLengthStreetAddress`.
+  enum class FeatureState {
+    kDisabled = 0,
+    kShorter = 1,
+    kLonger = 2
+  } feature_state;
+  std::u16string old_street_address_name, new_street_address_name;
+  VerificationStatus old_street_address_status, new_street_address_status;
+  bool expect_newer_precedence;
+};
+
+class HasNewerStreetAddressPrecedenceInMergingTest
+    : public testing::TestWithParam<
+          HasNewerStreetAddressPrecedenceInMergingTestCase> {
+ public:
+  HasNewerStreetAddressPrecedenceInMergingTest() {
+    using TestFeatureState =
+        HasNewerStreetAddressPrecedenceInMergingTestCase::FeatureState;
+    HasNewerStreetAddressPrecedenceInMergingTestCase test_case = GetParam();
+    if (test_case.feature_state != TestFeatureState::kDisabled) {
+      scoped_feature_list_.InitAndEnableFeatureWithParameters(
+          features::kAutofillConvergeToExtremeLengthStreetAddress,
+          {{features::kAutofillConvergeToLonger.name,
+            test_case.feature_state == TestFeatureState::kLonger ? "true"
+                                                                 : "false"}});
+    } else {
+      scoped_feature_list_.InitAndDisableFeature(
+          features::kAutofillConvergeToExtremeLengthStreetAddress);
+    }
+    country_code_ = std::make_unique<CountryCodeNode>(nullptr);
+    country_code_->SetValue(u"US", VerificationStatus::kParsed);
+  }
+
+ protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
+  std::unique_ptr<CountryCodeNode> country_code_;
+};
+
+// Tests the logging of which street name (old or new) was chosen during merging
+// when the feature `kAutofillConvergeToExtremeLengthStreetAddress` is enabled.
+TEST_P(HasNewerStreetAddressPrecedenceInMergingTest,
+       HasNewerStreetAddressPrecedenceInMergingTestCase) {
+  HasNewerStreetAddressPrecedenceInMergingTestCase test_case = GetParam();
+  StreetAddressNode old_street(country_code_.get());
+  StreetAddressNode new_street(country_code_.get());
+  old_street.SetValue(test_case.old_street_address_name,
+                      test_case.old_street_address_status);
+  new_street.SetValue(test_case.new_street_address_name,
+                      test_case.new_street_address_status);
+
+  old_street.MergeWithComponent(new_street);
+  EXPECT_EQ(old_street.GetValue() == new_street.GetValue(),
+            test_case.expect_newer_precedence);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    StreetAddressConvergenceTest,
+    HasNewerStreetAddressPrecedenceInMergingTest,
+    testing::Values(
+        // When the feature is disabled, always prefer the newer value.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kDisabled,
+            .old_street_address_name = u"205 Main Street",
+            .new_street_address_name = u"205 Main St",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = true},
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kDisabled,
+            .old_street_address_name = u"205 Main St",
+            .new_street_address_name = u"205 Main Street",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = true},
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kDisabled,
+            .old_street_address_name = u"205 Main St",
+            .new_street_address_name = u"205 Main Street",
+            .old_street_address_status = VerificationStatus::kUserVerified,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = false},
+        // Converge to longer --> prefer the new one.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kLonger,
+            .old_street_address_name = u"205 Main St",
+            .new_street_address_name = u"205 Main Street",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = true},
+        // Converge to longer --> prefer the old one.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kLonger,
+            .old_street_address_name = u"205 Main Street",
+            .new_street_address_name = u"205 Main St",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = false},
+        // Converge to longer, but prefer the new one, having better status.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kLonger,
+            .old_street_address_name = u"205 Main Street",
+            .new_street_address_name = u"205 Main St",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kUserVerified,
+            .expect_newer_precedence = true},
+        // Converge to shorter --> prefer the new one.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kShorter,
+            .old_street_address_name = u"205 Main Street",
+            .new_street_address_name = u"205 Main St",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = true},
+        // Converge to shorter --> prefer the old one.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kShorter,
+            .old_street_address_name = u"205 Main St",
+            .new_street_address_name = u"205 Main Street",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = false},
+        // Converge to shorter, but prefer the old one, having better status.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kShorter,
+            .old_street_address_name = u"205 Main Street",
+            .new_street_address_name = u"205 Main St",
+            .old_street_address_status = VerificationStatus::kUserVerified,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = false},
+        // Equivalent post rewriting, same status, same length --> prefer the
+        // old one.
+        HasNewerStreetAddressPrecedenceInMergingTestCase{
+            .feature_state = HasNewerStreetAddressPrecedenceInMergingTestCase::
+                FeatureState::kShorter,
+            .old_street_address_name = u"205 Main Street Av",
+            .new_street_address_name = u"205 Main St Avenue",
+            .old_street_address_status = VerificationStatus::kParsed,
+            .new_street_address_status = VerificationStatus::kParsed,
+            .expect_newer_precedence = false}));
+
+struct MergeStatesWithCanonicalNamesTestCase {
+  std::string older_state;
+  VerificationStatus older_status;
+  std::string newer_state;
+  VerificationStatus newer_status;
+  std::string expectation;
+  bool is_mergeable;
+};
+
+class MergeStatesWithCanonicalNamesTest
+    : public testing::Test,
+      public testing::WithParamInterface<
+          MergeStatesWithCanonicalNamesTestCase> {
+ private:
+  void SetUp() override {
+    feature_list_.InitAndEnableFeature(
+        autofill::features::kAutofillUseAlternativeStateNameMap);
+
+    AlternativeStateNameMap::GetInstance()
+        ->ClearAlternativeStateNameMapForTesting();
+
+    autofill::test::PopulateAlternativeStateNameMapForTesting(
+        "XX", "CS",
+        {{.canonical_name = "CanonicalState",
+          .abbreviations = {"AS"},
+          .alternative_names = {"CoolState"}}});
+    autofill::test::PopulateAlternativeStateNameMapForTesting(
+        "XX", "OS",
+        {{.canonical_name = "OtherState",
+          .abbreviations = {"OS"},
+          .alternative_names = {""}}});
+  }
+
+  base::test::ScopedFeatureList feature_list_;
+};
+
+// Test that the correct country for merging structured addresses is computed.
+TEST_P(MergeStatesWithCanonicalNamesTest, MergeTest) {
+  MergeStatesWithCanonicalNamesTestCase test_case = GetParam();
+
+  AddressComponentTestValues older_values = {
+      {.type = ADDRESS_HOME_COUNTRY,
+       .value = "XX",
+       .status = VerificationStatus::kUserVerified},
+      {.type = ADDRESS_HOME_STATE,
+       .value = test_case.older_state,
+       .status = test_case.older_status},
+  };
+
+  AddressComponentTestValues newer_values = {
+      {.type = ADDRESS_HOME_COUNTRY,
+       .value = "XX",
+       .status = VerificationStatus::kUserVerified},
+      {.type = ADDRESS_HOME_STATE,
+       .value = test_case.newer_state,
+       .status = test_case.newer_status},
+  };
+
+  // In the expectations it is already assumed that the higher
+  // verification status should always win.
+  AddressComponentTestValues expectation_values = {
+      {.type = ADDRESS_HOME_COUNTRY,
+       .value = "XX",
+       .status = VerificationStatus::kUserVerified},
+      {.type = ADDRESS_HOME_STATE,
+       .value = test_case.expectation,
+       .status = IsLessSignificantVerificationStatus(test_case.older_status,
+                                                     test_case.newer_status)
+                     ? test_case.newer_status
+                     : test_case.older_status},
+  };
+
+  AddressNode older_address;
+  SetTestValues(&older_address, older_values);
+
+  AddressNode newer_address;
+  SetTestValues(&newer_address, newer_values);
+
+  EXPECT_EQ(test_case.is_mergeable,
+            older_address.IsMergeableWithComponent(newer_address));
+
+  AddressNode expectation_address;
+  SetTestValues(&expectation_address, expectation_values);
+
+  older_address.MergeWithComponent(newer_address);
+  EXPECT_TRUE(older_address.SameAs(expectation_address));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AutofillStructuredAddress,
+    MergeStatesWithCanonicalNamesTest,
+    ::testing::Values(
+
+        // Both have the same canonical name but the older one has the better
+        // status and should win in the merge.
+        MergeStatesWithCanonicalNamesTestCase{
+            "CanonicalState", VerificationStatus::kUserVerified, "CoolState",
+            VerificationStatus::kParsed, "CanonicalState", true},
+
+        // Both have the same canonical name but the newer one has the better
+        // status and should win in the merge.
+        MergeStatesWithCanonicalNamesTestCase{
+            "CanonicalState", VerificationStatus::kObserved, "CoolState",
+            VerificationStatus::kUserVerified, "CoolState", true},
+
+        // The newer one has no canonical name but the value is a substring of
+        // the older one. The older has a higher status and should win.
+        MergeStatesWithCanonicalNamesTestCase{
+            "CanonicalState", VerificationStatus::kUserVerified, "state",
+            VerificationStatus::kParsed, "CanonicalState", true},
+
+        // The other way round: Now the old one remains because it is a
+        // substring and has the better status.
+        MergeStatesWithCanonicalNamesTestCase{
+            "state", VerificationStatus::kUserVerified, "CanonicalState",
+            VerificationStatus::kParsed, "state", true},
+
+        // Those two are not mergeable but both have a canonical name.
+        MergeStatesWithCanonicalNamesTestCase{
+            "CanonicalState", VerificationStatus::kUserVerified, "OtherState",
+            VerificationStatus::kParsed, "CanonicalState", false},
+
+        // Here the newer one does not have a canonical test.
+        MergeStatesWithCanonicalNamesTestCase{
+            "CanonicalState", VerificationStatus::kUserVerified, "Random",
+            VerificationStatus::kParsed, "CanonicalState", false}));
+
 }  // namespace
-}  // namespace structured_address
+
 }  // namespace autofill

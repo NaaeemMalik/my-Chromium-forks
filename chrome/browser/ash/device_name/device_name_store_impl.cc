@@ -1,9 +1,10 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ash/device_name/device_name_store_impl.h"
 
+#include "base/logging.h"
 #include "chrome/browser/ash/device_name/device_name_applier_impl.h"
 #include "chrome/browser/ash/device_name/device_name_validator.h"
 #include "chrome/browser/ash/ownership/owner_settings_service_ash.h"
@@ -33,7 +34,7 @@ DeviceNameStoreImpl::DeviceNameStoreImpl(
     : prefs_(prefs),
       handler_(handler),
       device_name_applier_(std::move(device_name_applier)) {
-  policy_handler_observation_.Observe(handler_);
+  policy_handler_observation_.Observe(handler_.get());
 
   if (g_browser_process->profile_manager())
     profile_manager_observer_.Observe(g_browser_process->profile_manager());
@@ -93,14 +94,14 @@ bool DeviceNameStoreImpl::IsConfiguringDeviceNameProhibitedByPolicy() const {
   switch (handler_->GetDeviceNamePolicy()) {
     case policy::DeviceNamePolicyHandler::DeviceNamePolicy::
         kPolicyHostnameNotConfigurable:
-      FALLTHROUGH;
+      [[fallthrough]];
     case policy::DeviceNamePolicyHandler::DeviceNamePolicy::
         kPolicyHostnameChosenByAdmin:
       return true;
 
     case policy::DeviceNamePolicyHandler::DeviceNamePolicy::
         kPolicyHostnameConfigurableByManagedUser:
-      FALLTHROUGH;
+      [[fallthrough]];
     case policy::DeviceNamePolicyHandler::DeviceNamePolicy::kNoPolicy:
       return false;
   }

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@
 #include "ash/components/arc/arc_features.h"
 #include "ash/components/arc/session/arc_bridge_service.h"
 #include "ash/components/arc/usb/usb_host_ui_delegate.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/singleton.h"
 #include "base/strings/stringprintf.h"
@@ -200,14 +200,6 @@ void ArcUsbHostBridge::OpenDevice(const std::string& guid,
       base::BindOnce(&OnDeviceOpenError, std::move(split_callback.second)));
 }
 
-void ArcUsbHostBridge::OpenDeviceDeprecated(
-    const std::string& guid,
-    const absl::optional<std::string>& package,
-    OpenDeviceCallback callback) {
-  LOG(ERROR) << "ArcUsbHostBridge::OpenDeviceDeprecated is deprecated";
-  OpenDevice(guid, package, std::move(callback));
-}
-
 void ArcUsbHostBridge::GetDeviceInfo(const std::string& guid,
                                      GetDeviceInfoCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_);
@@ -270,12 +262,6 @@ void ArcUsbHostBridge::Shutdown() {
 
 void ArcUsbHostBridge::SetUiDelegate(ArcUsbHostUiDelegate* ui_delegate) {
   ui_delegate_ = ui_delegate;
-}
-
-// TODO(lgcheng) Remove these part. For ARCVM the usb_host_bridge will not be
-// connected.
-void ArcUsbHostBridge::SetDelegate(std::unique_ptr<Delegate> delegate) {
-  delegate_ = std::move(delegate);
 }
 
 void ArcUsbHostBridge::InitDeviceList(
@@ -396,6 +382,11 @@ void ArcUsbHostBridge::OnDeviceRemoved(
 
   DCHECK(ui_delegate_);
   ui_delegate_->DeviceRemoved(device_info->guid);
+}
+
+// static
+void ArcUsbHostBridge::EnsureFactoryBuilt() {
+  ArcUsbHostBridgeFactory::GetInstance();
 }
 
 }  // namespace arc

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -28,8 +28,11 @@
         TestRunner.addResult(`    ${eventName} : ${frame.id}`);
         break;
       case 'FrameNavigated':
-      case 'MainFrameNavigated':
         var frame = event.data;
+        TestRunner.addResult(`    ${eventName} : ${frame.id} : ${frame.loaderId}`);
+        break;
+      case 'PrimaryPageChanged':
+        var frame = event.data.frame;
         TestRunner.addResult(`    ${eventName} : ${frame.id} : ${frame.loaderId}`);
         break;
       case 'SecurityOriginAdded':

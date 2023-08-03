@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,11 @@
 
 #include <QuartzCore/CVDisplayLink.h>
 
+#include <memory>
+#include <set>
+#include <vector>
 
+#include "base/functional/callback_forward.h"
 #include "base/mac/scoped_typeref.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/single_thread_task_runner.h"
@@ -16,37 +20,66 @@
 
 namespace ui {
 
+class DisplayLinkMac;
+
+// VSync parameters parsed from CVDisplayLinkOutputCallback's parameters.
+struct DISPLAY_EXPORT VSyncParamsMac {
+  // The time of the callback.
+  bool callback_times_valid = false;
+  base::TimeTicks callback_timebase;
+  base::TimeDelta callback_interval;
+
+  // The indicated display time.
+  bool display_times_valid = false;
+  base::TimeTicks display_timebase;
+  base::TimeDelta display_interval;
+};
+
+// Object used to control the lifetime of callbacks from DisplayLinkMac.
+class DISPLAY_EXPORT VSyncCallbackMac {
+ public:
+  using Callback = base::RepeatingCallback<void(VSyncParamsMac)>;
+  ~VSyncCallbackMac();
+
+ private:
+  friend class DisplayLinkMac;
+  VSyncCallbackMac(scoped_refptr<DisplayLinkMac> display_link,
+                   Callback callback);
+
+  // The DisplayLinkMac that `this` is observing is kept alive while `this` is
+  // alive.
+  scoped_refptr<DisplayLinkMac> display_link_;
+  Callback callback_;
+};
+
 class DISPLAY_EXPORT DisplayLinkMac
     : public base::RefCountedThreadSafe<DisplayLinkMac> {
  public:
-  // This must only be called from the main thread.
+  // Get the DisplayLinkMac for the specified display. All calls to this
+  // function (and all other functions on this class) must be on the same
+  // thread.
+  // TODO(https://crbug.com/1419870): Remove this restriction.
   static scoped_refptr<DisplayLinkMac> GetForDisplay(
       CGDirectDisplayID display_id);
 
-  // Get vsync scheduling parameters. Returns false if the populated parameters
-  // are invalid.
-  bool GetVSyncParameters(base::TimeTicks* timebase, base::TimeDelta* interval);
+  // Register an observer callback. The specified callback will be called at
+  // every VSync tick until the returned object is destroyed.
+  std::unique_ptr<VSyncCallbackMac> RegisterCallback(
+      VSyncCallbackMac::Callback callback);
 
   // Get the panel/monitor refresh rate
   double GetRefreshRate();
 
  private:
   friend class base::RefCountedThreadSafe<DisplayLinkMac>;
+  friend class VSyncCallbackMac;
 
   DisplayLinkMac(CGDirectDisplayID display_id,
                  base::ScopedTypeRef<CVDisplayLinkRef> display_link);
   virtual ~DisplayLinkMac();
 
-  void StartOrContinueDisplayLink();
-  void StopDisplayLink();
-
-  // Looks up the display and calls UpdateVSyncParameters() on the corresponding
-  // DisplayLinkMac.
-  static void DoUpdateVSyncParameters(CGDirectDisplayID display,
-                                      const CVTimeStamp& time);
-
-  // Processes the display link callback.
-  void UpdateVSyncParameters(const CVTimeStamp& time);
+  void OnDisplayLinkCallback(VSyncParamsMac params);
+  void UnregisterCallback(VSyncCallbackMac* callback);
 
   // Called by the system on the display link thread, and posts a call to
   // DoUpdateVSyncParameters() to the UI thread.
@@ -57,11 +90,10 @@ class DISPLAY_EXPORT DisplayLinkMac
                                       CVOptionFlags* flags_out,
                                       void* context);
 
-  // This is called whenever the display is reconfigured, and marks that the
-  // vsync parameters must be recalculated.
-  static void DisplayReconfigurationCallBack(CGDirectDisplayID display,
-                                             CGDisplayChangeSummaryFlags flags,
-                                             void* user_info);
+  // Looks up the display and calls UpdateVSyncParameters() on the corresponding
+  // DisplayLinkMac.
+  static void DisplayLinkCallbackOnMainThread(CGDirectDisplayID display,
+                                              VSyncParamsMac params);
 
   // The display that this display link is attached to.
   CGDirectDisplayID display_id_;
@@ -72,14 +104,8 @@ class DISPLAY_EXPORT DisplayLinkMac
   // The task runner to post tasks to from the display link thread.
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
-  // VSync parameters computed during UpdateVSyncParameters().
-  bool timebase_and_interval_valid_ = false;
-  base::TimeTicks timebase_;
-  base::TimeDelta interval_;
-
-  // The time after which we should re-start the display link to get fresh
-  // parameters.
-  base::TimeTicks recalculate_time_;
+  // Each VSyncCallbackMac holds a reference to `this`.
+  std::set<VSyncCallbackMac*> callbacks_;
 };
 
 }  // namespace ui

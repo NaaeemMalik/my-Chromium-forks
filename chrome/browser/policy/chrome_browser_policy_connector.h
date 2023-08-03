@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,12 +19,13 @@
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/core/common/policy_service.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "components/policy/core/browser/android/policy_cache_updater_android.h"
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
 #include "chrome/browser/lacros/device_settings_lacros.h"
+#include "components/policy/core/common/policy_loader_lacros.h"
 #endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
 
 class PrefService;
@@ -77,7 +78,7 @@ class ChromeBrowserPolicyConnector : public BrowserPolicyConnector {
   }
   MachineLevelUserCloudPolicyManager*
   machine_level_user_cloud_policy_manager() {
-    return machine_level_user_cloud_policy_manager_.get();
+    return machine_level_user_cloud_policy_manager_;
   }
 
   ProxyPolicyProvider* proxy_policy_provider() {
@@ -117,6 +118,14 @@ class ChromeBrowserPolicyConnector : public BrowserPolicyConnector {
 
   // The device settings used in Lacros.
   crosapi::mojom::DeviceSettings* GetDeviceSettings() const;
+
+  DeviceSettingsLacros* device_settings_lacros() {
+    return device_settings_.get();
+  }
+
+  PolicyLoaderLacros* device_account_policy_loader() {
+    return device_account_policy_loader_;
+  }
 #endif
 
  protected:
@@ -158,15 +167,15 @@ class ChromeBrowserPolicyConnector : public BrowserPolicyConnector {
 
   // The MachineLevelUserCloudPolicyManager is not directly included in the
   // vector of policy providers (defined in the base class). A proxy policy
-  // provider is used instead, so this class is responsible for holding
-  // ownership of this object.
-  std::unique_ptr<MachineLevelUserCloudPolicyManager>
-      machine_level_user_cloud_policy_manager_;
+  // provider allows this object to be initialized after the policy service
+  // is created. Owned by the proxy policy provider.
+  raw_ptr<MachineLevelUserCloudPolicyManager>
+      machine_level_user_cloud_policy_manager_ = nullptr;
 #endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   std::unique_ptr<android::PolicyCacheUpdater> policy_cache_updater_;
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
   // Owned by base class.
   raw_ptr<ConfigurationPolicyProvider> platform_provider_ = nullptr;
@@ -176,11 +185,10 @@ class ChromeBrowserPolicyConnector : public BrowserPolicyConnector {
 
 #if BUILDFLAG(IS_CHROMEOS_LACROS)
   std::unique_ptr<DeviceSettingsLacros> device_settings_ = nullptr;
+  // Owned by |platform_provider_|.
+  raw_ptr<PolicyLoaderLacros, DanglingUntriaged> device_account_policy_loader_ =
+      nullptr;
 #endif
-
-  // Holds a callback to |ChromeBrowserCloudManagementController::Init| so that
-  // its execution can be deferred until an enrollment token is available.
-  base::OnceClosure deferred_init_callback_;
 
   // Weak pointers needed for tasks that need to wait until it can be decided
   // if an enrollment token is available or not.

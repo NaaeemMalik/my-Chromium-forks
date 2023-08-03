@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,11 +13,10 @@
 #include <vector>
 
 #include "base/base_paths.h"
-#include "base/bind.h"
 #include "base/command_line.h"
-#include "base/cxx17_backports.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/json/json_file_value_serializer.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
@@ -27,8 +26,8 @@
 #include "base/process/launch.h"
 #include "base/process/process.h"
 #include "base/strings/string_util.h"
-#include "base/task/post_task.h"
 #include "base/task/thread_pool.h"
+#include "base/values.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_switches.h"
@@ -45,7 +44,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "crypto/sha2.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include "base/mac/authorization_util.h"
 #include "base/mac/scoped_authorizationref.h"
 #endif
@@ -55,7 +54,7 @@ using content::BrowserThread;
 namespace component_updater {
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 
 namespace {
 
@@ -64,14 +63,14 @@ const uint8_t kRecoverySha2Hash[] = {
     0xdf, 0x39, 0x9a, 0x9b, 0x28, 0x3a, 0x9b, 0x0c, 0xbc, 0xc3, 0x4b,
     0x29, 0x12, 0xf3, 0x9e, 0x2c, 0x19, 0x7a, 0x71, 0x4b, 0x0a, 0x7c,
     0x80, 0x1c, 0xf6, 0x29, 0x7c, 0x0a, 0x5f, 0xea, 0x67, 0xb7};
-static_assert(base::size(kRecoverySha2Hash) == crypto::kSHA256Length,
+static_assert(std::size(kRecoverySha2Hash) == crypto::kSHA256Length,
               "Wrong hash length");
 
 // File name of the recovery binary on different platforms.
 const base::FilePath::CharType kRecoveryFileName[] =
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     FILE_PATH_LITERAL("ChromeRecovery.exe");
-#else  // OS_LINUX, OS_MAC, etc.
+#else  // BUILDFLAG(IS_LINUX), BUILDFLAG(IS_MAC), etc.
     FILE_PATH_LITERAL("ChromeRecovery");
 #endif
 
@@ -111,7 +110,7 @@ bool SimulatingElevatedRecovery() {
 }
 
 std::vector<std::string> GetRecoveryInstallArguments(
-    const base::DictionaryValue& manifest,
+    const base::Value::Dict& manifest,
     bool is_deferred_run,
     const base::Version& version) {
   std::vector<std::string> arguments;
@@ -121,15 +120,17 @@ std::vector<std::string> GetRecoveryInstallArguments(
   if (is_deferred_run)
     arguments.push_back("/deferredrun");
 
-  std::string recovery_args;
-  if (manifest.GetStringASCII("x-recovery-args", &recovery_args))
-    arguments.push_back(recovery_args);
-  std::string recovery_add_version;
-  if (manifest.GetStringASCII("x-recovery-add-version",
-                              &recovery_add_version) &&
-      recovery_add_version == "yes") {
-    arguments.push_back("/version");
-    arguments.push_back(version.GetString());
+  if (const std::string* recovery_args =
+          manifest.FindString("x-recovery-args")) {
+    if (base::IsStringASCII(*recovery_args))
+      arguments.push_back(*recovery_args);
+  }
+  if (const std::string* recovery_add_version =
+          manifest.FindString("x-recovery-add-version")) {
+    if (*recovery_add_version == "yes") {
+      arguments.push_back("/version");
+      arguments.push_back(version.GetString());
+    }
   }
 
   return arguments;
@@ -137,7 +138,7 @@ std::vector<std::string> GetRecoveryInstallArguments(
 
 base::CommandLine BuildRecoveryInstallCommandLine(
     const base::FilePath& command,
-    const base::DictionaryValue& manifest,
+    const base::Value::Dict& manifest,
     bool is_deferred_run,
     const base::Version& version) {
   base::CommandLine command_line(command);
@@ -150,11 +151,10 @@ base::CommandLine BuildRecoveryInstallCommandLine(
   return command_line;
 }
 
-std::unique_ptr<base::DictionaryValue> ReadManifest(
-    const base::FilePath& manifest) {
+base::Value::Dict ReadManifest(const base::FilePath& manifest) {
   JSONFileValueDeserializer deserializer(manifest);
   std::string error;
-  return base::DictionaryValue::From(deserializer.Deserialize(NULL, &error));
+  return std::move(*deserializer.Deserialize(nullptr, &error)).TakeDict();
 }
 
 void WaitForElevatedInstallToComplete(base::Process process) {
@@ -178,37 +178,40 @@ void DoElevatedInstallRecoveryComponent(const base::FilePath& path) {
   if (!base::PathExists(main_file) || !base::PathExists(manifest_file))
     return;
 
-  std::unique_ptr<base::DictionaryValue> manifest(ReadManifest(manifest_file));
-  std::string name;
-  manifest->GetStringASCII("name", &name);
-  if (name != kRecoveryManifestName)
+  base::Value::Dict manifest(ReadManifest(manifest_file));
+  const std::string* name = manifest.FindString("name");
+  if (!name || *name != kRecoveryManifestName)
     return;
   std::string proposed_version;
-  manifest->GetStringASCII("version", &proposed_version);
+  if (const std::string* ptr = manifest.FindString("version")) {
+    if (base::IsStringASCII(*ptr))
+      proposed_version = *ptr;
+  }
   const base::Version version(proposed_version);
   if (!version.IsValid())
     return;
 
   const bool is_deferred_run = true;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   const auto cmdline = BuildRecoveryInstallCommandLine(
-      main_file, *manifest, is_deferred_run, version);
+      main_file, manifest, is_deferred_run, version);
 
   RecordRecoveryComponentUMAEvent(RCE_RUNNING_ELEVATED);
 
   base::LaunchOptions options;
   options.start_hidden = true;
-  base::Process process = base::LaunchElevatedProcess(cmdline, options);
-#elif defined(OS_MAC)
-  base::mac::ScopedAuthorizationRef authRef(
-      base::mac::AuthorizationCreateToRunAsRoot(nullptr));
+  options.elevated = true;
+  base::Process process = base::LaunchProcess(cmdline, options);
+#elif BUILDFLAG(IS_MAC)
+  base::mac::ScopedAuthorizationRef authRef =
+      base::mac::AuthorizationCreateToRunAsRoot(nullptr);
   if (!authRef.get()) {
     RecordRecoveryComponentUMAEvent(RCE_ELEVATED_FAILED);
     return;
   }
 
-  const auto arguments = GetRecoveryInstallArguments(
-      *manifest, is_deferred_run, version);
+  const auto arguments =
+      GetRecoveryInstallArguments(manifest, is_deferred_run, version);
   // Convert the arguments memory layout to the format required by
   // ExecuteWithPrivilegesAndGetPID(): an array of string pointers
   // that ends with a null pointer.
@@ -367,7 +370,7 @@ bool RecoveryComponentInstaller::RunInstallCommand(
   RecordRecoveryComponentUMAEvent(RCE_RUNNING_NON_ELEVATED);
 
   base::LaunchOptions options;
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   options.start_hidden = true;
 #endif
   base::Process process = base::LaunchProcess(cmdline, options);
@@ -389,7 +392,7 @@ bool RecoveryComponentInstaller::RunInstallCommand(
   return true;
 }
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 // Sets the POSIX executable permissions on a file
 bool SetPosixExecutablePermission(const base::FilePath& path) {
   int permissions = 0;
@@ -402,7 +405,7 @@ bool SetPosixExecutablePermission(const base::FilePath& path) {
     return true;  // No need to update
   return base::SetPosixFilePermissions(path, permissions | kExecutableMask);
 }
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
 void RecoveryComponentInstaller::Install(
     const base::FilePath& unpack_path,
@@ -417,42 +420,51 @@ void RecoveryComponentInstaller::Install(
       FROM_HERE, base::BindOnce(std::move(callback), result));
 }
 
-bool RecoveryComponentInstaller::DoInstall(
-    const base::FilePath& unpack_path) {
-  const base::Value manifest = update_client::ReadManifest(unpack_path);
-  if (!manifest.is_dict())
+bool RecoveryComponentInstaller::DoInstall(const base::FilePath& unpack_path) {
+  absl::optional<base::Value::Dict> manifest =
+      update_client::ReadManifest(unpack_path);
+  if (!manifest.has_value()) {
     return false;
-  const std::string* name = manifest.FindStringKey("name");
-  if (!name || *name != kRecoveryManifestName)
+  }
+  const std::string* name = manifest->FindString("name");
+  if (!name || *name != kRecoveryManifestName) {
     return false;
-  const std::string* proposed_version = manifest.FindStringKey("version");
-  if (!proposed_version || !base::IsStringASCII(*proposed_version))
+  }
+  const std::string* proposed_version = manifest->FindString("version");
+  if (!proposed_version || !base::IsStringASCII(*proposed_version)) {
     return false;
+  }
   base::Version version(*proposed_version);
-  if (!version.IsValid())
+  if (!version.IsValid()) {
     return false;
-  if (current_version_.CompareTo(version) >= 0)
+  }
+  if (current_version_.CompareTo(version) >= 0) {
     return false;
+  }
 
   // Passed the basic tests. Copy the installation to a permanent directory.
   base::FilePath path;
-  if (!base::PathService::Get(DIR_RECOVERY_BASE, &path))
+  if (!base::PathService::Get(DIR_RECOVERY_BASE, &path)) {
     return false;
-  if (!base::PathExists(path) && !base::CreateDirectory(path))
+  }
+  if (!base::PathExists(path) && !base::CreateDirectory(path)) {
     return false;
+  }
   path = path.AppendASCII(version.GetString());
-  if (base::PathExists(path) && !base::DeletePathRecursively(path))
+  if (base::PathExists(path) && !base::DeletePathRecursively(path)) {
     return false;
+  }
   if (!base::Move(unpack_path, path)) {
     DVLOG(1) << "Recovery component move failed.";
     return false;
   }
 
   base::FilePath main_file = path.Append(kRecoveryFileName);
-  if (!base::PathExists(main_file))
+  if (!base::PathExists(main_file)) {
     return false;
+  }
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   // The current version of the CRX unzipping does not restore
   // correctly the executable flags/permissions. See https://crbug.com/555011
   if (!SetPosixExecutablePermission(main_file)) {
@@ -466,8 +478,7 @@ bool RecoveryComponentInstaller::DoInstall(
   // Run the recovery component.
   const bool is_deferred_run = false;
   const auto cmdline = BuildRecoveryInstallCommandLine(
-      main_file, base::Value::AsDictionaryValue(manifest), is_deferred_run,
-      current_version_);
+      main_file, manifest.value(), is_deferred_run, current_version_);
 
   if (!RunInstallCommand(cmdline, path)) {
     return false;
@@ -492,13 +503,13 @@ bool RecoveryComponentInstaller::Uninstall() {
   return false;
 }
 
-#endif  // defined(OS_WIN) || defined(OS_MAC)
+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
 void RegisterRecoveryComponent(ComponentUpdateService* cus,
                                PrefService* prefs) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   if (SimulatingElevatedRecovery()) {
     content::GetUIThreadTaskRunner({})->PostTask(
         FROM_HERE, base::BindOnce(&SimulateElevatedRecoveryHelper, prefs));
@@ -524,7 +535,7 @@ void AcceptedElevatedRecoveryInstall(PrefService* prefs) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#if defined(OS_WIN) || defined(OS_MAC)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   ElevatedInstallRecoveryComponent(
       prefs->GetFilePath(prefs::kRecoveryComponentUnpackPath));
 #endif

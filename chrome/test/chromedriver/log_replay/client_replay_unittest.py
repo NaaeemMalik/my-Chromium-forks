@@ -1,13 +1,13 @@
-#!/usr/bin/env python
-# Copyright 2018 The Chromium Authors. All rights reserved.
+#!/usr/bin/env python3
+# Copyright 2018 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 """Unit tests for the client_replay.CommandSequence class."""
 
+import io
 import optparse
 import os
-import StringIO
 import sys
 import unittest
 
@@ -60,7 +60,17 @@ _MULTI_SESSION = ('[1531428669.535][INFO]: [b15232d5497ec0d8300a5a1ea56f33ce] '
                   '[1531428670.535][INFO]: [a81dc5521092a5ba132b9c0b6cf6e84f] '
                   'RESPONSE GetSessions {\n"param2": 42\n}\n' + _COMMAND_ONLY)
 
-_WINDOW_IDS = ["CDwindow-00", "CDwindow-98", "other thing"]
+_WINDOW_ID_1 = "11111111111111111111111111111111"
+_WINDOW_ID_2 = "22222222222222222222222222222222"
+_WINDOW_IDS = [
+    _WINDOW_ID_1,
+    _WINDOW_ID_2,
+    "other thing",  # Random string not in the targetID format.
+    "1234567890123456789012345678901",  # Too short string.
+    "123456789012345678901234567890123",  # Too long string.
+    "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG",  # String with not allowed symbol.
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",  # String with not allowed symbol.
+]
 _ELEMENT_ID = {"element-6066-11e4-a52e-4f735466cecf": "0.87-1"}
 _ELEMENT_IDS = [{"element-6066-11e4-a52e-4f735466cecf": "0.87-1"},
                 {"element-6066-11e4-a52e-4f735466cecf": "0.87-2"}]
@@ -73,7 +83,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     super(ChromeDriverClientReplayUnitTest, self).__init__(*args, **kwargs)
 
   def testNextCommandEmptyParams(self):
-    string_buffer = StringIO.StringIO(_NO_PARAMS)
+    string_buffer = io.StringIO(_NO_PARAMS)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     command = command_sequence.NextCommand(None)
@@ -88,7 +98,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(response.session_id, _SESSION_ID)
 
   def testNextCommandWithParams(self):
-    string_buffer = StringIO.StringIO(_WITH_PARAMS)
+    string_buffer = io.StringIO(_WITH_PARAMS)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     command = command_sequence.NextCommand(None)
@@ -104,7 +114,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(response.session_id, _SESSION_ID)
 
   def testParserGetNext(self):
-    string_buffer = StringIO.StringIO(_WITH_PARAMS)
+    string_buffer = io.StringIO(_WITH_PARAMS)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     command = command_sequence._parser.GetNext()
@@ -114,31 +124,31 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(command.session_id, _SESSION_ID)
 
   def testGetNextClientHeaderLine(self):
-    string_buffer = StringIO.StringIO(_PAYLOAD_SCRIPT)
+    string_buffer = io.StringIO(_PAYLOAD_SCRIPT)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
-    self.assertEquals(command_sequence._parser._GetNextClientHeaderLine(),
+    self.assertEqual(command_sequence._parser._GetNextClientHeaderLine(),
         ("[1531428670.535][INFO]: [b15232d5497ec0d8300a5a1ea56f33ce]"
             " RESPONSE GetTitle {\n"))
 
   def testGetNextClientHeaderLine_readableTimeLinux(self):
-    string_buffer = StringIO.StringIO(_PAYLOAD_READABLE_TIME_LINUX)
+    string_buffer = io.StringIO(_PAYLOAD_READABLE_TIME_LINUX)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
-    self.assertEquals(command_sequence._parser._GetNextClientHeaderLine(),
+    self.assertEqual(command_sequence._parser._GetNextClientHeaderLine(),
         ("[08-12-2019_15:45:34.824002][INFO]:"
          " [b15232d5497ec0d8300a5a1ea56f33ce] RESPONSE GetTitle {\n"))
 
   def testGetNextClientHeaderLine_readableTimeWindows(self):
-    string_buffer = StringIO.StringIO(_PAYLOAD_READABLE_TIME_WINDOWS)
+    string_buffer = io.StringIO(_PAYLOAD_READABLE_TIME_WINDOWS)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
-    self.assertEquals(command_sequence._parser._GetNextClientHeaderLine(),
+    self.assertEqual(command_sequence._parser._GetNextClientHeaderLine(),
         ("[08-12-2019_15:45:34.824][INFO]:"
          " [b15232d5497ec0d8300a5a1ea56f33ce] RESPONSE GetTitle {\n"))
 
   def testIngestLoggedResponse(self):
-    string_buffer = StringIO.StringIO(_RESPONSE_ONLY)
+    string_buffer = io.StringIO(_RESPONSE_ONLY)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     response = command_sequence._parser.GetNext()
@@ -148,11 +158,11 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(response.session_id, _SESSION_ID)
 
   def testIngestRealResponseInitSession(self):
-    real_resp = {u'value': {
-        u'sessionId': u'b15232d5497ec0d8300a5a1ea56f33ce',
-        u'capabilities': {
-            u'browserVersion': u'76.0.3809.100',
-            u'browserName': u'chrome',
+    real_resp = {'value': {
+        'sessionId': 'b15232d5497ec0d8300a5a1ea56f33ce',
+        'capabilities': {
+            'browserVersion': '76.0.3809.100',
+            'browserName': 'chrome',
         }
     }}
 
@@ -165,7 +175,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(command_sequence._staged_logged_session_id, None)
 
   def testIngestRealResponseNone(self):
-    real_resp = {u'value': None}
+    real_resp = {'value': None}
 
     command_sequence = client_replay.CommandSequence()
     command_sequence._IngestRealResponse(real_resp)
@@ -173,7 +183,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(command_sequence._last_response, None)
 
   def testIngestRealResponseInt(self):
-    real_resp = {u'value': 1}
+    real_resp = {'value': 1}
 
     command_sequence = client_replay.CommandSequence()
     command_sequence._IngestRealResponse(real_resp)
@@ -184,7 +194,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(command_sequence._last_response, None)
 
   def testGetPayload_simple(self):
-    string_buffer = StringIO.StringIO(_RESPONSE_ONLY)
+    string_buffer = io.StringIO(_RESPONSE_ONLY)
     header = string_buffer.readline()
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
@@ -192,7 +202,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(payload_string, '{"param2": 42\n}\n')
 
   def testGetPayload_script(self):
-    string_buffer = StringIO.StringIO(_PAYLOAD_SCRIPT)
+    string_buffer = io.StringIO(_PAYLOAD_SCRIPT)
     header = string_buffer.readline()
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
@@ -200,7 +210,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
     self.assertEqual(payload_string, '{"param2": "function(){func()}"\n}\n')
 
   def testGetPayload_badscript(self):
-    string_buffer = StringIO.StringIO(_BAD_SCRIPT)
+    string_buffer = io.StringIO(_BAD_SCRIPT)
     header = string_buffer.readline()
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
@@ -221,10 +231,10 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
                      [{"ELEMENT": "0.00-0"}, {"ELEMENT": "0.00-1"}])
 
   def testSubstitutePayloadIds_windows(self):
-    id_map = {"CDwindow-98": "CDwindow-00"}
-    substituted = ["CDwindow-98"]
+    id_map = {_WINDOW_ID_2: _WINDOW_ID_1}
+    substituted = [_WINDOW_ID_2]
     client_replay._ReplaceWindowAndElementIds(substituted, id_map)
-    self.assertEqual(substituted, ["CDwindow-00"])
+    self.assertEqual(substituted, [_WINDOW_ID_1])
 
   def testSubstitutePayloadIds_recursion(self):
     id_map = {"0.78-1": "0.00-0", "0.78-2": "0.00-1"}
@@ -234,7 +244,7 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
 
   def testGetAnyElementids_window(self):
     ids = client_replay._GetAnyElementIds(_WINDOW_IDS)
-    self.assertEqual(ids, ["CDwindow-00", "CDwindow-98"])
+    self.assertEqual(ids, [_WINDOW_ID_1, _WINDOW_ID_2])
 
   def testGetAnyElementids_element(self):
     ids = client_replay._GetAnyElementIds(_ELEMENT_ID)
@@ -338,31 +348,31 @@ class ChromeDriverClientReplayUnitTest(unittest.TestCase):
                      _SESSION_ID)
 
   def testParseCommand_true(self):
-    string_buffer = StringIO.StringIO(_COMMAND_ONLY)
+    string_buffer = io.StringIO(_COMMAND_ONLY)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     self.assertTrue(command_sequence._parser.GetNext().IsCommand())
 
   def testParseCommand_false(self):
-    string_buffer = StringIO.StringIO(_RESPONSE_ONLY)
+    string_buffer = io.StringIO(_RESPONSE_ONLY)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     self.assertFalse(command_sequence._parser.GetNext().IsCommand())
 
   def testParseResponse_true(self):
-    string_buffer = StringIO.StringIO(_RESPONSE_ONLY)
+    string_buffer = io.StringIO(_RESPONSE_ONLY)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     self.assertTrue(command_sequence._parser.GetNext().IsResponse())
 
   def testParseResponse_false(self):
-    string_buffer = StringIO.StringIO(_COMMAND_ONLY)
+    string_buffer = io.StringIO(_COMMAND_ONLY)
     command_sequence = client_replay.CommandSequence()
     command_sequence._parser = client_replay._Parser(string_buffer)
     self.assertFalse(command_sequence._parser.GetNext().IsResponse())
 
   def testHandleGetSessions(self):
-    string_buffer = StringIO.StringIO(_MULTI_SESSION)
+    string_buffer = io.StringIO(_MULTI_SESSION)
     command_sequence = client_replay.CommandSequence(string_buffer)
     first_command = command_sequence._parser.GetNext()
     command = command_sequence._HandleGetSessions(

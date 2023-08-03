@@ -28,9 +28,10 @@
 
 #include <cstddef>
 
+#include "base/check_op.h"
 #include "base/dcheck_is_on.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 #if DCHECK_IS_ON()
 #include "third_party/blink/renderer/platform/wtf/threading.h"
@@ -210,8 +211,7 @@ class Supplementable : public GarbageCollectedMixin {
   void Trace(Visitor* visitor) const override { visitor->Trace(supplements_); }
 
  protected:
-  using SupplementMap =
-      HeapHashMap<const char*, Member<Supplement<T>>, PtrHash<const char>>;
+  using SupplementMap = HeapHashMap<const char*, Member<Supplement<T>>>;
   SupplementMap supplements_;
 
   Supplementable()

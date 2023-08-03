@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 
 #include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
@@ -15,6 +16,7 @@
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/enterprise/connectors/connectors_service.h"
+#include "chrome/browser/enterprise/identifiers/profile_id_service_factory.h"
 #include "chrome/browser/enterprise/signals/signals_utils.h"
 #include "chrome/browser/enterprise/util/affiliation.h"
 #include "chrome/browser/policy/chrome_browser_policy_connector.h"
@@ -22,16 +24,22 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/component_updater/pref_names.h"
+#include "components/enterprise/browser/identifiers/profile_id_service.h"
 #include "components/policy/content/policy_blocklist_service.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/site_isolation_policy.h"
 #include "device_management_backend.pb.h"
 
-#if defined(OS_LINUX)
+#if BUILDFLAG(IS_POSIX)
 #include "net/dns/public/resolv_reader.h"
+#include "net/dns/public/scoped_res_state.h"
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_MAC)
+#include <CoreFoundation/CoreFoundation.h>
+#endif
+
+#if BUILDFLAG(IS_WIN)
 #include <netfw.h>
 #include <windows.h>
 #include <wrl/client.h>
@@ -47,7 +55,15 @@ namespace enterprise_signals {
 
 namespace {
 
-#if defined(OS_LINUX)
+absl::optional<std::string> GetEnterpriseProfileId(Profile* profile) {
+  auto* profile_id_service =
+      enterprise::ProfileIdServiceFactory::GetForProfile(profile);
+  if (profile_id_service)
+    return profile_id_service->GetProfileId();
+  return absl::nullopt;
+}
+
+#if BUILDFLAG(IS_LINUX)
 const char** GetUfwConfigPath() {
   static const char* path = "/etc/ufw/ufw.conf";
   return &path;
@@ -63,9 +79,8 @@ SettingValue GetUfwStatus() {
     return SettingValue::UNKNOWN;
   }
   base::SplitStringIntoKeyValuePairs(file_content, '=', '\n', &values);
-  auto is_ufw_enabled = std::find_if(values.begin(), values.end(), [](auto v) {
-    return v.first == "ENABLED";
-  });
+  auto is_ufw_enabled = base::ranges::find(
+      values, "ENABLED", &std::pair<std::string, std::string>::first);
   if (is_ufw_enabled == values.end())
     return SettingValue::UNKNOWN;
 
@@ -76,9 +91,9 @@ SettingValue GetUfwStatus() {
   else
     return SettingValue::UNKNOWN;
 }
-#endif  // defined(OS_LINUX)
+#endif  // BUILDFLAG(IS_LINUX)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 SettingValue GetWinOSFirewall() {
   Microsoft::WRL::ComPtr<INetFwPolicy2> firewall_policy;
   HRESULT hr = CoCreateInstance(CLSID_NetFwPolicy2, nullptr, CLSCTX_ALL,
@@ -96,7 +111,7 @@ SettingValue GetWinOSFirewall() {
   // The most restrictive active profile takes precedence.
   constexpr NET_FW_PROFILE_TYPE2 kProfileTypes[] = {
       NET_FW_PROFILE2_PUBLIC, NET_FW_PROFILE2_PRIVATE, NET_FW_PROFILE2_DOMAIN};
-  for (size_t i = 0; i < base::size(kProfileTypes); ++i) {
+  for (size_t i = 0; i < std::size(kProfileTypes); ++i) {
     if ((profile_types & kProfileTypes[i]) != 0) {
       VARIANT_BOOL enabled = VARIANT_TRUE;
       hr = firewall_policy->get_FirewallEnabled(kProfileTypes[i], &enabled);
@@ -114,7 +129,7 @@ SettingValue GetWinOSFirewall() {
 }
 #endif
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 SettingValue GetMacOSFirewall() {
   // There is no official Apple documentation on how to obtain the enabled
   // status of the firewall (System Preferences> Security & Privacy> Firewall).
@@ -199,6 +214,8 @@ void ContextInfoFetcher::Fetch(ContextInfoCallback callback) {
       GetAnalysisConnectorProviders(enterprise_connectors::FILE_DOWNLOADED);
   info.on_bulk_data_entry_providers =
       GetAnalysisConnectorProviders(enterprise_connectors::BULK_DATA_ENTRY);
+  info.on_print_providers =
+      GetAnalysisConnectorProviders(enterprise_connectors::PRINT);
   info.realtime_url_check_mode = GetRealtimeUrlCheckMode();
   info.on_security_event_providers = GetOnSecurityEventProviders();
   info.browser_version = version_info::GetVersionNumber();
@@ -206,8 +223,6 @@ void ContextInfoFetcher::Fetch(ContextInfoCallback callback) {
       content::SiteIsolationPolicy::UseDedicatedProcessesForAllSites();
   info.built_in_dns_client_enabled =
       utils::GetBuiltInDnsClientEnabled(g_browser_process->local_state());
-  info.chrome_cleanup_enabled =
-      utils::GetChromeCleanupEnabled(g_browser_process->local_state());
   info.chrome_remote_desktop_app_blocked =
       utils::GetChromeRemoteDesktopAppBlocked(
           PolicyBlocklistFactory::GetForBrowserContext(browser_context_));
@@ -219,8 +234,9 @@ void ContextInfoFetcher::Fetch(ContextInfoCallback callback) {
       utils::GetSafeBrowsingProtectionLevel(profile->GetPrefs());
   info.password_protection_warning_trigger =
       utils::GetPasswordProtectionWarningTrigger(profile->GetPrefs());
+  info.enterprise_profile_id = GetEnterpriseProfileId(profile);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   base::ThreadPool::CreateCOMSTATaskRunner({base::MayBlock()})
       .get()
       ->PostTaskAndReplyWithResult(
@@ -268,11 +284,11 @@ std::vector<std::string> ContextInfoFetcher::GetOnSecurityEventProviders() {
 }
 
 SettingValue ContextInfoFetcher::GetOSFirewall() {
-#if defined(OS_LINUX)
+#if BUILDFLAG(IS_LINUX)
   return GetUfwStatus();
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
   return GetWinOSFirewall();
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
   return GetMacOSFirewall();
 #elif BUILDFLAG(IS_CHROMEOS_ASH)
   return GetChromeosFirewall();
@@ -281,7 +297,7 @@ SettingValue ContextInfoFetcher::GetOSFirewall() {
 #endif
 }
 
-#if defined(OS_LINUX)
+#if BUILDFLAG(IS_LINUX)
 ScopedUfwConfigPathForTesting::ScopedUfwConfigPathForTesting(const char* path)
     : initial_path_(*GetUfwConfigPath()) {
   *GetUfwConfigPath() = path;
@@ -290,29 +306,26 @@ ScopedUfwConfigPathForTesting::ScopedUfwConfigPathForTesting(const char* path)
 ScopedUfwConfigPathForTesting::~ScopedUfwConfigPathForTesting() {
   *GetUfwConfigPath() = initial_path_;
 }
-#endif  // defined(OS_LINUX)
+#endif  // BUILDFLAG(IS_LINUX)
 
 std::vector<std::string> ContextInfoFetcher::GetDnsServers() {
   std::vector<std::string> dns_addresses;
-#if defined(OS_LINUX)
-  std::vector<net::IPEndPoint> nameservers;
-  std::unique_ptr<net::ResolvReader> resolv_reader =
-      std::make_unique<net::ResolvReader>();
-
-  std::unique_ptr<struct __res_state> res = resolv_reader->GetResState();
+#if BUILDFLAG(IS_POSIX)
+  std::unique_ptr<net::ScopedResState> res = net::ResolvReader().GetResState();
   if (res) {
-    if (net::GetNameservers(*res.get()).has_value())
-      nameservers = net::GetNameservers(*res.get()).value();
-    resolv_reader->CloseResState(res.get());
-    // If any name server is 0.0.0.0, assume the configuration is invalid.
-    for (const net::IPEndPoint& nameserver : nameservers) {
-      if (nameserver.address().IsZero())
-        return std::vector<std::string>();
-      else
-        dns_addresses.push_back(nameserver.ToString());
+    absl::optional<std::vector<net::IPEndPoint>> nameservers =
+        net::GetNameservers(res->state());
+    if (nameservers) {
+      // If any name server is 0.0.0.0, assume the configuration is invalid.
+      for (const net::IPEndPoint& nameserver : nameservers.value()) {
+        if (nameserver.address().IsZero())
+          return std::vector<std::string>();
+        else
+          dns_addresses.push_back(nameserver.ToString());
+      }
     }
   }
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
   absl::optional<std::vector<net::IPEndPoint>> nameservers;
   absl::optional<net::WinDnsSystemSettings> settings =
       net::ReadWinSystemDnsSettings();

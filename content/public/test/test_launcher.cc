@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,17 +13,18 @@
 #include <utility>
 #include <vector>
 
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/debug/debugger.h"
 #include "base/environment.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/sequence_checker.h"
+#include "base/strings/escape.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -31,6 +32,7 @@
 #include "base/test/gtest_xml_util.h"
 #include "base/test/launcher/test_launcher.h"
 #include "base/test/test_suite.h"
+#include "base/test/test_support_ios.h"
 #include "base/test/test_switches.h"
 #include "base/test/test_timeouts.h"
 #include "base/time/time.h"
@@ -41,19 +43,21 @@
 #include "content/public/app/content_main_delegate.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_switches.h"
-#include "content/public/common/sandbox_init.h"
 #include "gpu/config/gpu_switches.h"
-#include "net/base/escape.h"
 #include "services/tracing/public/cpp/perfetto/perfetto_traced_process.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/buildflags.h"
 #include "ui/base/ui_base_features.h"
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_ANDROID)
+#include "content/app/android/content_main_android.h"
+#endif
+
+#if BUILDFLAG(IS_POSIX)
 #include "base/files/file_descriptor_watcher_posix.h"
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/base_switches.h"
 #include "content/public/app/sandbox_helper_win.h"
 #include "sandbox/policy/win/sandbox_win.h"
@@ -62,7 +66,7 @@
 
 // To avoid conflicts with the macro from the Windows SDK...
 #undef GetCommandLine
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
 #include "base/mac/scoped_nsautorelease_pool.h"
 #include "sandbox/mac/seatbelt_exec.h"
 #endif
@@ -80,12 +84,12 @@ const char kManualTestPrefix[] = "MANUAL_";
 
 TestLauncherDelegate* g_launcher_delegate = nullptr;
 
-// ContentMain is not run on Android in the test process, and is run via
-// java for child processes. So ContentMainParams does not exist there.
-#if !defined(OS_ANDROID)
 // The global ContentMainParams config to be copied in each test.
+//
+// Note that ContentMain is not run on Android in the test process, and is run
+// via java for child processes. So this ContentMainParams is not used directly
+// there. But it is still used to stash parameters for the test.
 const ContentMainParams* g_params = nullptr;
-#endif
 
 void PrintUsage() {
   fprintf(stdout,
@@ -312,61 +316,46 @@ std::string TestLauncherDelegate::GetUserDataDirectoryCommandLineSwitch() {
   return std::string();
 }
 
-int LaunchTests(TestLauncherDelegate* launcher_delegate,
-                size_t parallel_jobs,
-                int argc,
-                char** argv) {
+int LaunchTestsInternal(TestLauncherDelegate* launcher_delegate,
+                        size_t parallel_jobs,
+                        int argc,
+                        char** argv) {
   DCHECK(!g_launcher_delegate);
   g_launcher_delegate = launcher_delegate;
 
-  base::CommandLine::Init(argc, argv);
-  AppendCommandLineSwitches();
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-
-  // TODO(tluk) Remove deprecation warning after a few releases. Deprecation
-  // warning issued version 79.
-  if (command_line->HasSwitch("single_process")) {
-    fprintf(stderr, "use --single-process-tests instead of --single_process");
-    exit(1);
-  }
-
-  if (command_line->HasSwitch(switches::kHelpFlag)) {
-    PrintUsage();
-    return 0;
-  }
-
-#if !defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // The ContentMainDelegate is set for browser tests on Android by the
   // browser test target and is not created by the |launcher_delegate|.
+  ContentMainParams params(GetContentMainDelegateForTesting());
+#else
   std::unique_ptr<ContentMainDelegate> content_main_delegate(
       launcher_delegate->CreateContentMainDelegate());
   ContentClientCreator::Create(content_main_delegate.get());
   // Many tests use GURL during setup, so we need to register schemes early in
   // test launching.
   RegisterContentSchemes();
-
-  // ContentMain is not run on Android in the test process, and is run via
-  // java for child processes.
   ContentMainParams params(content_main_delegate.get());
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   sandbox::SandboxInterfaceInfo sandbox_info = {nullptr};
   InitializeSandboxInfo(&sandbox_info);
 
   params.instance = GetModuleHandle(NULL);
   params.sandbox_info = &sandbox_info;
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
   sandbox::SeatbeltExecServer::CreateFromArgumentsResult seatbelt =
       sandbox::SeatbeltExecServer::CreateFromArguments(
-          command_line->GetProgram().value().c_str(), argc, argv);
+          command_line->GetProgram().value().c_str(), argc,
+          const_cast<const char**>(argv));
   if (seatbelt.sandbox_required) {
     CHECK(seatbelt.server->InitializeSandbox());
   }
-#elif !defined(OS_ANDROID)
+#elif !BUILDFLAG(IS_ANDROID)
   params.argc = argc;
   params.argv = const_cast<const char**>(argv);
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
   // Disable system tracing for browser tests by default. This prevents breakage
   // of tests that spin the run loop until idle on platforms with system tracing
@@ -374,9 +363,11 @@ int LaunchTests(TestLauncherDelegate* launcher_delegate,
   // custom system tracing service.
   tracing::PerfettoTracedProcess::SetSystemProducerEnabledForTesting(false);
 
-#if !defined(OS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID)
   // This needs to be before trying to run tests as otherwise utility processes
   // end up being launched as a test, which leads to rerunning the test.
+  // ContentMain is not run on Android in the test process, and is run via
+  // java for child processes.
   if (command_line->HasSwitch(switches::kProcessType) ||
       command_line->HasSwitch(switches::kLaunchAsBrowser)) {
     // The main test process has this initialized by the base::TestSuite. But
@@ -392,8 +383,8 @@ int LaunchTests(TestLauncherDelegate* launcher_delegate,
        command_line->HasSwitch(base::kGTestFilterFlag)) ||
       command_line->HasSwitch(base::kGTestListTestsFlag) ||
       command_line->HasSwitch(base::kGTestHelpFlag)) {
-#if !defined(OS_ANDROID)
     g_params = &params;
+#if !BUILDFLAG(IS_ANDROID)
     // The call to RunTestSuite() below bypasses TestLauncher, which creates
     // a temporary directory that is used as the user-data-dir. Create a
     // temporary directory now so that the test doesn't use the users home
@@ -413,6 +404,8 @@ int LaunchTests(TestLauncherDelegate* launcher_delegate,
   base::AtExitManager at_exit;
   testing::InitGoogleTest(&argc, argv);
 
+  base::TimeTicks start_time(base::TimeTicks::Now());
+
   // The main test process has this initialized by the base::TestSuite. But
   // this process is just sharding the test off to each main test process, and
   // doesn't have a TestSuite, so must initialize this explicitly as the
@@ -431,7 +424,7 @@ int LaunchTests(TestLauncherDelegate* launcher_delegate,
   base::debug::VerifyDebugger();
 
   base::SingleThreadTaskExecutor executor(base::MessagePumpType::IO);
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
   base::FileDescriptorWatcher file_descriptor_watcher(executor.task_runner());
 #endif
 
@@ -441,18 +434,54 @@ int LaunchTests(TestLauncherDelegate* launcher_delegate,
   base::TestLauncher launcher(&delegate, parallel_jobs);
   const int result = launcher.Run() ? 0 : 1;
   launcher_delegate->OnDoneRunningTests();
+  fprintf(stdout, "Tests took %" PRId64 " seconds.\n",
+          (base::TimeTicks::Now() - start_time).InSeconds());
+  fflush(stdout);
   return result;
+}
+
+int LaunchTests(TestLauncherDelegate* launcher_delegate,
+                size_t parallel_jobs,
+                int argc,
+                char** argv) {
+  base::CommandLine::Init(argc, argv);
+  AppendCommandLineSwitches();
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+
+  // TODO(tluk) Remove deprecation warning after a few releases. Deprecation
+  // warning issued version 79.
+  if (command_line->HasSwitch("single_process")) {
+    fprintf(stderr, "use --single-process-tests instead of --single_process");
+    exit(1);
+  }
+
+  if (command_line->HasSwitch(switches::kHelpFlag)) {
+    PrintUsage();
+    return 0;
+  }
+
+#if BUILDFLAG(IS_IOS)
+  // We need to spawn the UIApplication up for testing, that is done via
+  // RunTestsFromIOSApp. We do not want to do this for subprocesses that
+  // do not require a UIApplication.
+  if (!command_line->HasSwitch(switches::kProcessType) &&
+      !command_line->HasSwitch(switches::kLaunchAsBrowser)) {
+    base::InitIOSRunHook(base::BindOnce(&LaunchTestsInternal, launcher_delegate,
+                                        parallel_jobs, argc, argv));
+    return base::RunTestsFromIOSApp();
+  }
+#endif
+
+  return LaunchTestsInternal(launcher_delegate, parallel_jobs, argc, argv);
 }
 
 TestLauncherDelegate* GetCurrentTestLauncherDelegate() {
   return g_launcher_delegate;
 }
 
-#if !defined(OS_ANDROID)
 ContentMainParams CopyContentMainParams() {
   return g_params->ShallowCopyForTesting();
 }
-#endif
 
 bool IsPreTest() {
   auto* test = testing::UnitTest::GetInstance();

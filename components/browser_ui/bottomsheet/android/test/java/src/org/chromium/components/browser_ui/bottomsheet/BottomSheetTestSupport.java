@@ -1,9 +1,10 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.browser_ui.bottomsheet;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
@@ -112,7 +113,8 @@ public class BottomSheetTestSupport {
      * @return Whether has any token to suppress the bottom sheet.
      */
     public boolean hasSuppressionTokens() {
-        return mController.hasSuppressionTokensForTesting();
+        return ThreadUtils.runOnUiThreadBlockingNoException(
+                () -> mController.hasSuppressionTokensForTesting());
     }
 
     /**

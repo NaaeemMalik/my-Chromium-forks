@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "base/compiler_specific.h"
 #include "ui/aura/window.h"
 #include "ui/base/class_property.h"
 #include "ui/base/ui_base_types.h"
@@ -50,6 +49,11 @@ class ASH_EXPORT TestWidgetBuilder {
   // Set the window id used on the window of a test widget.
   TestWidgetBuilder& SetWindowId(int window_id);
 
+  // Having a non-empty title helps avoid accessibility paint check failures
+  // in tests. For instance, `WindowMiniView` gets its accessible name from
+  // the window title.
+  TestWidgetBuilder& SetWindowTitle(const std::u16string& title);
+
   // A widget is shown when created by default. Use this if you want not
   // to show when created.
   TestWidgetBuilder& SetShow(bool show);
@@ -81,11 +85,12 @@ class ASH_EXPORT TestWidgetBuilder {
   // won't be deleted when the window is deleted first and
   // Widget::GetNativeWindow() may return nullptr. Use this if there is a clear
   // owner of the widget that controls the lifetime of the widget.
-  std::unique_ptr<views::Widget> BuildOwnsNativeWidget() WARN_UNUSED_RESULT;
+  [[nodiscard]] std::unique_ptr<views::Widget> BuildOwnsNativeWidget();
 
  private:
   views::Widget::InitParams widget_init_params_;
   int window_id_ = aura::Window::kInitialId;
+  std::u16string window_title_ = std::u16string();
   bool show_ = true;
   bool built_ = false;
 };

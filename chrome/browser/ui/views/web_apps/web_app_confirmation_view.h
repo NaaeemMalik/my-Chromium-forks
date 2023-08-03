@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@
 
 #include <string>
 
+#include "base/memory/raw_ptr_exclusion.h"
 #include "chrome/browser/ui/browser_dialogs.h"
-#include "chrome/browser/web_applications/web_application_info.h"
+#include "chrome/browser/web_applications/web_app_install_info.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
 #include "ui/views/metadata/view_factory.h"
@@ -26,7 +27,7 @@ class WebAppConfirmationView : public views::DialogDelegateView,
                                public views::TextfieldController {
  public:
   METADATA_HEADER(WebAppConfirmationView);
-  WebAppConfirmationView(std::unique_ptr<WebApplicationInfo> web_app_info,
+  WebAppConfirmationView(std::unique_ptr<WebAppInstallInfo> web_app_info,
                          chrome::AppInstallationAcceptanceCallback callback);
   WebAppConfirmationView(const WebAppConfirmationView&) = delete;
   WebAppConfirmationView& operator=(const WebAppConfirmationView&) = delete;
@@ -49,23 +50,33 @@ class WebAppConfirmationView : public views::DialogDelegateView,
   // Get the trimmed contents of the title text field.
   std::u16string GetTrimmedTitle() const;
 
-  // The WebApplicationInfo that the user is editing.
+  // The WebAppInstallInfo that the user is editing.
   // Cleared when the dialog completes (Accept/WindowClosing).
-  std::unique_ptr<WebApplicationInfo> web_app_info_;
+  std::unique_ptr<WebAppInstallInfo> web_app_info_;
 
   // The callback to be invoked when the dialog is completed.
   chrome::AppInstallationAcceptanceCallback callback_;
 
   // Checkbox to launch as a window.
-  views::Checkbox* open_as_window_checkbox_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION views::Checkbox* open_as_window_checkbox_ = nullptr;
 
   // Radio buttons to launch as a tab, window or tabbed window.
-  views::RadioButton* open_as_tab_radio_ = nullptr;
-  views::RadioButton* open_as_window_radio_ = nullptr;
-  views::RadioButton* open_as_tabbed_window_radio_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION views::RadioButton* open_as_tab_radio_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION views::RadioButton* open_as_window_radio_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION views::RadioButton* open_as_tabbed_window_radio_ = nullptr;
 
   // Textfield showing the title of the app.
-  views::Textfield* title_tf_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION views::Textfield* title_tf_ = nullptr;
 };
 
 BEGIN_VIEW_BUILDER(, WebAppConfirmationView, views::DialogDelegateView)

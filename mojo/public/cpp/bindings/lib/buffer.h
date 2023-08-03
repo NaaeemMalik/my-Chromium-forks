@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,8 @@
 
 #include <vector>
 
-#include "base/compiler_specific.h"
 #include "base/component_export.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "mojo/public/cpp/system/handle.h"
 #include "mojo/public/cpp/system/message.h"
 
@@ -97,7 +97,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE) Buffer {
 
   // Serializes |handles| into the buffer object. Only valid to call when this
   // Buffer is backed by a message object.
-  bool AttachHandles(std::vector<ScopedHandle>* handles) WARN_UNUSED_RESULT;
+  [[nodiscard]] bool AttachHandles(std::vector<ScopedHandle>* handles);
 
   // Seals this Buffer so it can no longer be used for allocation, and ensures
   // the backing message object has a complete accounting of the size of the
@@ -119,7 +119,9 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE) Buffer {
 
   // The storage location and capacity currently backing |message_|. Owned by
   // the message object internally, not by this Buffer.
-  void* data_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union, #addr-of
+  RAW_PTR_EXCLUSION void* data_ = nullptr;
   size_t size_ = 0;
 
   // The current write offset into |data_| if this Buffer is being used for

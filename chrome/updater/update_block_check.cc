@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,13 @@
 
 #include <utility>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "build/build_config.h"
 #include "chrome/updater/update_service.h"
 
 namespace updater {
 
-#if !defined(OS_WIN)
+#if !BUILDFLAG(IS_WIN)
 
 // Linux and macOS don't have mechanisms to detect if a connection is metered.
 void ShouldBlockUpdateForMeteredNetwork(

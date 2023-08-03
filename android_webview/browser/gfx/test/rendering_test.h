@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,7 +49,7 @@ class RenderingTest : public testing::Test,
 
   // BrowserViewRendererClient overrides.
   void OnNewPicture() override;
-  void PostInvalidate() override;
+  void PostInvalidate(bool inside_vsync) override;
   gfx::Point GetLocationOnScreen() override;
   void ScrollContainerViewTo(const gfx::Point& new_value) override {}
   void UpdateScrollState(const gfx::Point& max_scroll_offset,
@@ -58,7 +58,8 @@ class RenderingTest : public testing::Test,
                          float min_page_scale_factor,
                          float max_page_scale_factor) override {}
   void DidOverscroll(const gfx::Vector2d& overscroll_delta,
-                     const gfx::Vector2dF& overscroll_velocity) override {}
+                     const gfx::Vector2dF& overscroll_velocity,
+                     bool inside_vsync) override {}
   ui::TouchHandleDrawable* CreateDrawable() override;
 
   // WindowHooks overrides.

@@ -1,5 +1,5 @@
-alcooper@chromium.org
-bajones@chromium.org
-bialpio@chromium.org
+file://components/webxr/OWNERS
 mthiesse@chromium.org
 vollick@chromium.org
+
+per-file *.sha1=file://build/OWNERS

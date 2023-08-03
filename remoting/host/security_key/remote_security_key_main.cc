@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,30 +13,32 @@
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_executor.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
-#include "mojo/core/embedder/embedder.h"
 #include "mojo/core/embedder/scoped_ipc_support.h"
+#include "remoting/base/breakpad.h"
 #include "remoting/base/logging.h"
+#include "remoting/base/mojo_util.h"
 #include "remoting/host/base/host_exit_codes.h"
+#include "remoting/host/chromoting_host_services_client.h"
 #include "remoting/host/security_key/security_key_ipc_client.h"
 #include "remoting/host/security_key/security_key_message_handler.h"
+#include "remoting/host/usage_stats_consent.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
 
 #include "remoting/host/win/acl_util.h"
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 namespace remoting {
 
 int StartRemoteSecurityKey() {
-#if defined(OS_WIN)
-  if (!AddProcessAccessRightForWellKnownSid(
-          WinLocalServiceSid, PROCESS_QUERY_LIMITED_INFORMATION)) {
+  if (!ChromotingHostServicesClient::Initialize()) {
     return kInitializationFailed;
   }
 
+#if BUILDFLAG(IS_WIN)
   // GetStdHandle() returns pseudo-handles for stdin and stdout even if
   // the hosting executable specifies "Windows" subsystem. However the returned
   // handles are invalid in that case unless standard input and output are
@@ -54,7 +56,7 @@ int StartRemoteSecurityKey() {
   // handles as soon as we retrieve the corresponding file handles.
   SetStdHandle(STD_INPUT_HANDLE, nullptr);
   SetStdHandle(STD_OUTPUT_HANDLE, nullptr);
-#elif defined(OS_POSIX)
+#elif BUILDFLAG(IS_POSIX)
   // The files are automatically closed.
   base::File read_file(STDIN_FILENO);
   base::File write_file(STDOUT_FILENO);
@@ -62,9 +64,9 @@ int StartRemoteSecurityKey() {
 #error Not implemented.
 #endif
 
-  mojo::core::Init();
+  InitializeMojo();
   mojo::core::ScopedIPCSupport ipc_support(
-      base::ThreadTaskRunnerHandle::Get(),
+      base::SingleThreadTaskRunner::GetCurrentDefault(),
       mojo::core::ScopedIPCSupport::ShutdownPolicy::FAST);
 
   base::RunLoop run_loop;
@@ -87,6 +89,12 @@ int RemoteSecurityKeyMain(int argc, char** argv) {
 
   base::CommandLine::Init(argc, argv);
   remoting::InitHostLogging();
+
+#if defined(REMOTING_ENABLE_BREAKPAD)
+  if (IsUsageStatsAllowed()) {
+    InitializeCrashReporting();
+  }
+#endif  // defined(REMOTING_ENABLE_BREAKPAD)
 
   return StartRemoteSecurityKey();
 }

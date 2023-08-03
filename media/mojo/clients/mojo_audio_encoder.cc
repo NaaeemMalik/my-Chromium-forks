@@ -1,13 +1,13 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "media/mojo/clients/mojo_audio_encoder.h"
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "media/base/audio_buffer.h"
 #include "media/mojo/common/media_type_converters.h"
@@ -18,7 +18,7 @@ MojoAudioEncoder::MojoAudioEncoder(
     mojo::PendingRemote<mojom::AudioEncoder> remote_encoder)
     : pending_remote_encoder_(std::move(remote_encoder)),
       buffer_pool_(new AudioBufferMemoryPool()),
-      runner_(base::SequencedTaskRunnerHandle::Get()) {
+      runner_(base::SequencedTaskRunner::GetCurrentDefault()) {
   weak_this_ = weak_factory_.GetWeakPtr();
 }
 
@@ -26,12 +26,13 @@ MojoAudioEncoder::~MojoAudioEncoder() = default;
 
 void MojoAudioEncoder::Initialize(const Options& options,
                                   OutputCB output_cb,
-                                  StatusCB done_cb) {
+                                  EncoderStatusCB done_cb) {
   DCHECK(output_cb);
   DCHECK(done_cb);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (remote_encoder_.is_bound() || client_receiver_.is_bound()) {
-    PostStatusCallback(std::move(done_cb), StatusCode::kEncoderInitializeTwice);
+    PostStatusCallback(std::move(done_cb),
+                       EncoderStatus::Codes::kEncoderInitializeTwice);
     return;
   }
 
@@ -39,7 +40,7 @@ void MojoAudioEncoder::Initialize(const Options& options,
 
   if (!remote_encoder_.is_bound() || !remote_encoder_.is_connected()) {
     PostStatusCallback(std::move(done_cb),
-                       StatusCode::kEncoderInitializationError);
+                       EncoderStatus::Codes::kEncoderInitializationError);
     return;
   }
 
@@ -52,13 +53,14 @@ void MojoAudioEncoder::Initialize(const Options& options,
 
 void MojoAudioEncoder::Encode(std::unique_ptr<AudioBus> audio_bus,
                               base::TimeTicks capture_time,
-                              StatusCB done_cb) {
+                              EncoderStatusCB done_cb) {
   DCHECK(audio_bus);
   DCHECK(done_cb);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!remote_encoder_.is_bound() || !remote_encoder_.is_connected()) {
-    PostStatusCallback(std::move(done_cb), StatusCode::kEncoderFailedEncode);
+    PostStatusCallback(std::move(done_cb),
+                       EncoderStatus::Codes::kEncoderFailedEncode);
     return;
   }
 
@@ -70,12 +72,13 @@ void MojoAudioEncoder::Encode(std::unique_ptr<AudioBus> audio_bus,
                           WrapCallbackAsPending(std::move(done_cb)));
 }
 
-void MojoAudioEncoder::Flush(StatusCB done_cb) {
+void MojoAudioEncoder::Flush(EncoderStatusCB done_cb) {
   DCHECK(done_cb);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!remote_encoder_.is_bound() || !remote_encoder_.is_connected()) {
-    PostStatusCallback(std::move(done_cb), StatusCode::kEncoderFailedFlush);
+    PostStatusCallback(std::move(done_cb),
+                       EncoderStatus::Codes::kEncoderFailedFlush);
     return;
   }
 
@@ -92,24 +95,24 @@ void MojoAudioEncoder::OnEncodedBufferReady(media::EncodedAudioBuffer buffer,
 }
 
 void MojoAudioEncoder::CallAndReleaseCallback(PendingCallbackHandle handle,
-                                              const Status& status) {
+                                              const EncoderStatus& status) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!pending_callbacks_.empty()) {
-    StatusCB callback = std::move(*handle);
+    EncoderStatusCB callback = std::move(*handle);
     pending_callbacks_.erase(handle);
     std::move(callback).Run(status);
   }
 }
 
-MojoAudioEncoder::WrappedStatusCB MojoAudioEncoder::WrapCallbackAsPending(
-    StatusCB callback) {
+MojoAudioEncoder::WrappedEncoderStatusCB
+MojoAudioEncoder::WrapCallbackAsPending(EncoderStatusCB callback) {
   PendingCallbackHandle handle =
       pending_callbacks_.insert(pending_callbacks_.end(), std::move(callback));
   return base::BindOnce(&MojoAudioEncoder::CallAndReleaseCallback, weak_this_,
                         handle);
 }
 
-void MojoAudioEncoder::CallAndReleaseAllPendingCallbacks(Status status) {
+void MojoAudioEncoder::CallAndReleaseAllPendingCallbacks(EncoderStatus status) {
   for (auto& callback : pending_callbacks_)
     PostStatusCallback(std::move(callback), status);
   pending_callbacks_.clear();
@@ -125,12 +128,14 @@ void MojoAudioEncoder::BindRemote() {
 void MojoAudioEncoder::OnConnectionError() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(!remote_encoder_.is_connected());
-  CallAndReleaseAllPendingCallbacks(StatusCode::kEncoderMojoConnectionError);
+  CallAndReleaseAllPendingCallbacks(
+      EncoderStatus::Codes::kEncoderMojoConnectionError);
   weak_factory_.InvalidateWeakPtrs();
   remote_encoder_.reset();
 }
 
-void MojoAudioEncoder::PostStatusCallback(StatusCB callback, Status status) {
+void MojoAudioEncoder::PostStatusCallback(EncoderStatusCB callback,
+                                          EncoderStatus status) {
   runner_->PostTask(FROM_HERE,
                     base::BindOnce(std::move(callback), std::move(status)));
 }

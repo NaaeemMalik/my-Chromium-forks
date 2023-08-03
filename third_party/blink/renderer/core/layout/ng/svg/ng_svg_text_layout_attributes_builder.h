@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,8 @@
 
 #include "third_party/blink/renderer/core/layout/ng/svg/ng_svg_character_data.h"
 #include "third_party/blink/renderer/core/layout/ng/svg/svg_inline_node_data.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
+#include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 
 namespace blink {
 
@@ -39,6 +40,9 @@ class NGSvgTextLayoutAttributesBuilder final {
   // This function can be called just once after Build().
   SvgInlineNodeData* CreateSvgInlineNodeData();
 
+  // This function can be called after Build().
+  unsigned IfcTextContentOffsetAt(wtf_size_t index);
+
  private:
   LayoutBlockFlow* block_flow_;
 
@@ -47,6 +51,11 @@ class NGSvgTextLayoutAttributesBuilder final {
   // NGSvgCharacterData. This is named 'resolved' because this is
   // the outcome of '3. Resolve character positioning'.
   Vector<std::pair<unsigned, NGSvgCharacterData>> resolved_;
+
+  // The result of Build().
+  // A list of IFC text content offsets for the corresponding addressable
+  // character index in resolved_.
+  Vector<unsigned> ifc_text_content_offsets_;
 
   // The result of Build().
   // A list of a pair of start addressable character index and end

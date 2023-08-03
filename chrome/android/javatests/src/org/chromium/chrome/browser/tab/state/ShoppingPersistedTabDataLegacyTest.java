@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,6 +25,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.optimization_guide.OptimizationGuideBridge;
 import org.chromium.chrome.browser.optimization_guide.OptimizationGuideBridgeJni;
+import org.chromium.chrome.browser.price_tracking.PriceTrackingFeatures;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeBrowserTestRule;
 import org.chromium.chrome.test.util.browser.Features;
@@ -67,6 +68,7 @@ public class ShoppingPersistedTabDataLegacyTest {
                 mOptimizationGuideBridgeJniMock,
                 HintsProto.OptimizationType.SHOPPING_PAGE_PREDICTOR.getNumber(),
                 OptimizationGuideDecision.TRUE, null);
+        PriceTrackingFeatures.setPriceTrackingEnabledForTesting(false);
         TestThreadUtils.runOnUiThreadBlocking(() -> {
             ShoppingPersistedTabData.onDeferredStartup();
             PersistedTabDataConfiguration.setUseTestConfig(true);
@@ -161,7 +163,7 @@ public class ShoppingPersistedTabDataLegacyTest {
         ShoppingPersistedTabDataTestUtils.acquireSemaphore(updateSemaphore);
         return ShoppingPersistedTabDataTestUtils.getTimeLastUpdatedOnUiThread(tab);
     }
-    @UiThreadTest
+
     @SmallTest
     @Test
     @CommandLineFlags.

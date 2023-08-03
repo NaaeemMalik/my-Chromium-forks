@@ -17,7 +17,7 @@ status, setting a priority, labeling/categorizing as appropriate (or handing off
 to another component), and (possibly) assigning an owner.  The only reason bugs
 should remain untriaged (i.e., *status=Unconfirmed* or *status=Untriaged*) is
 because of they need additional information from someone.  These bugs should be
-labeled as such (*Needs=Feedback* or *Needs=TestConfirmation*).
+labeled as such (*Needs=Feedback*, *Needs=Investigation*, or *Needs=TestConfirmation*).
 
 ### Non-goals
 
@@ -28,7 +28,7 @@ labeled as such (*Needs=Feedback* or *Needs=TestConfirmation*).
 ## Process
 
 * Every Monday, Wednesday and Friday, the triage engineer looks over [all
-  *Unconfirmed* and *Untriaged* omnibox bugs (without *Needs=Feedback*)](https://bugs.chromium.org/p/chromium/issues/list?can=2&q=component%3AUI%3EBrowser%3EOmnibox+status%3AUnconfirmed%2CUntriaged+-component%3AUI%3EBrowser%3EOmnibox%3ESecurityIndicators+-Needs%3DFeedback&colspec=ID+Pri+M+Stars+ReleaseBlock+Component+Status+Owner+Summary+OS+Modified&x=m&y=releaseblock&cells=ids)
+  *Unconfirmed* and *Untriaged* omnibox bugs (without *Needs=Feedback*)](https://bugs.chromium.org/p/chromium/issues/list?can=2&q=component:UI>Browser>Omnibox+status:Unconfirmed,Untriaged+-component:UI>Browser>Omnibox>SecurityIndicators+-Needs=Feedback,Investigation,TestConfirmation&colspec=ID+Pri+M+Stars+ReleaseBlock+Component+Status+Owner+Summary+OS+Modified&x=m&y=releaseblock&cells=ids)
   and triages them.
 * Every week on Tuesday, the triage engineer looks over [all *Unconfirmed* and
   *Untriaged* bugs filed that aren’t categorized as omnibox yet have relevant
@@ -175,6 +175,7 @@ The subcomponents of omnibox bugs include:
 | --- | --- |
 | UI>Browser>Omnibox>AiS | Answers in Suggest. |
 | UI>Browser>Omnibox>DocumentSuggest | Documents provided by Google Drive |
+| UI>Browser>Omnibox>NTPRealbox | Suggestions displayed in the searchbox on the New Tab Page. |
 | UI>Browser>Omnibox>SecurityIndicators | Secure/insecure icons; triaged by another team. |
 | UI>Browser>Omnibox>TabToSearch | Custom search engines, omnibox extensions, etc. (including adding, triggering, ranking, etc. for them). |
 | UI>Browser>Omnibox>ZeroSuggest | Suggestions displayed on omnibox focus (both contextual and non-contextual). |
@@ -238,7 +239,7 @@ The [timeline dashboard](http://go/uma-timeline) is your friend,
 especially the split by channel, split by platform, split by milestone, and
 split by version features.  Some tips on how to investigate using the timeline
 dashboard:
- 
+
 * If the regression is on Dev, see if you can spot it on Canary.  That can
   usually indicate a narrow regression range.  This can usually be done unless
   the histogram is too noisy.

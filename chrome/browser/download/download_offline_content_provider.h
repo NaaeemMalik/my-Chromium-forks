@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,10 +82,6 @@ class DownloadOfflineContentProvider
   void RenameItem(const ContentId& id,
                   const std::string& name,
                   RenameCallback callback) override;
-  void ChangeSchedule(
-      const offline_items_collection::ContentId& id,
-      absl::optional<offline_items_collection::OfflineItemSchedule> schedule)
-      override;
 
   // Methods that can be run in reduced mode.
   void CancelDownload(const ContentId& id) override;
@@ -136,6 +132,13 @@ class DownloadOfflineContentProvider
 
   // Ensure that download core service is started.
   void EnsureDownloadCoreServiceStarted();
+
+  // Helper method to run callbacks with the latest download information.
+  void RunGetAllItemsCallback(
+      OfflineContentProvider::MultipleItemCallback callback);
+  void RunGetItemByIdCallback(
+      const ContentId& id,
+      OfflineContentProvider::SingleItemCallback callback);
 
   raw_ptr<OfflineContentAggregator> aggregator_;
   std::string name_space_;

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,10 @@
  * @fileoverview This extends List for use in the table.
  */
 
-import {getPropertyDescriptor} from 'gtx://resources/js/cr.m.js';
-import {List} from 'gtx://resources/js/cr/ui/list.m.js';
-import {ListItem} from 'gtx://resources/js/cr/ui/list_item.m.js';
+import {getPropertyDescriptor} from 'gtx://resources/ash/common/cr_deprecated.js';
+
+import {List} from '../list.js';
+import {ListItem} from '../list_item.js';
 
 import {Table} from './table.js';
 

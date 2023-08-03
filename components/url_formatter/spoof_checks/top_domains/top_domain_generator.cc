@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
 
   base::i18n::InitializeICU();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   std::vector<std::string> args;
   base::CommandLine::StringVector wide_args = command_line.GetArgs();
   for (const auto& arg : wide_args) {
@@ -184,8 +184,7 @@ int main(int argc, char* argv[]) {
   }
 
   base::FilePath output_path = base::FilePath::FromUTF8Unsafe(args[2]);
-  if (base::WriteFile(output_path, output.c_str(),
-                      static_cast<uint32_t>(output.size())) <= 0) {
+  if (!base::WriteFile(output_path, output)) {
     LOG(ERROR) << "Failed to write output: " << output_path;
     return 1;
   }

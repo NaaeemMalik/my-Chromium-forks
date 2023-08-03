@@ -1,12 +1,12 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/local_discovery/endpoint_resolver.h"
 
-#include "base/bind.h"
 #include "base/command_line.h"
 #include "base/debug/dump_without_crashing.h"
+#include "base/functional/bind.h"
 #include "build/build_config.h"
 #include "chrome/browser/local_discovery/service_discovery_shared_client.h"
 #include "chrome/common/chrome_switches.h"
@@ -23,7 +23,7 @@ EndpointResolver::~EndpointResolver() {}
 
 void EndpointResolver::Start(const net::HostPortPair& address,
                              ResultCallback callback) {
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   net::IPAddress ip_address;
   if (!ip_address.AssignFromIPLiteral(address.host())) {
     NOTREACHED() << address.ToString();
@@ -34,7 +34,7 @@ void EndpointResolver::Start(const net::HostPortPair& address,
 
   // OSX already has IP there.
   std::move(callback).Run(net::IPEndPoint(ip_address, address.port()));
-#else   // OS_MAC
+#else   // BUILDFLAG(IS_MAC)
   net::AddressFamily address_family = net::ADDRESS_FAMILY_UNSPECIFIED;
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kPrivetIPv6Only)) {
@@ -47,7 +47,7 @@ void EndpointResolver::Start(const net::HostPortPair& address,
                      base::Unretained(this), address.port(),
                      std::move(callback)));
   domain_resolver_->Start();
-#endif  // OS_MAC
+#endif  // BUILDFLAG(IS_MAC)
 }
 
 void EndpointResolver::DomainResolveComplete(

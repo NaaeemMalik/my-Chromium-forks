@@ -1,12 +1,12 @@
-// Copyright (c) 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assertInstanceof} from 'gtx://resources/js/assert.m.js';
-import {decorate} from 'gtx://resources/js/cr/ui.m.js';
-import {Menu} from 'gtx://resources/js/cr/ui/menu.m.js';
-import {MenuItem} from 'gtx://resources/js/cr/ui/menu_item.m.js';
-import {EventTracker} from 'gtx://resources/js/event_tracker.m.js';
+import {assertInstanceof} from 'gtx://resources/ash/common/assert.js';
+import {decorate} from '../../../common/js/ui.js';
+import {Menu} from './menu.js';
+import {MenuItem} from './menu_item.js';
+import {EventTracker} from 'gtx://resources/ash/common/event_tracker.js';
 
 /**
  * Creates a menu that supports sub-menus.

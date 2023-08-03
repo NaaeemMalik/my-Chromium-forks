@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,9 +20,7 @@ import static org.hamcrest.core.AllOf.allOf;
 import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE;
 import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 
-import android.os.Build.VERSION_CODES;
-import android.support.test.InstrumentationRegistry;
-
+import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 
 import org.junit.Assert;
@@ -35,7 +33,6 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -43,9 +40,9 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
-import org.chromium.chrome.tab_ui.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.browser.Features;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.test.util.UiRestriction;
@@ -65,7 +62,10 @@ import java.util.concurrent.TimeoutException;
         ChromeFeatureList.TAB_GROUPS_CONTINUATION_ANDROID+"<Study"})
 // Disable TAB_TO_GTS_ANIMATION to make it less flaky. When animation is enabled, the suggestion
 // cards will be removed temporarily, then append again.
-@Features.DisableFeatures({ChromeFeatureList.TAB_TO_GTS_ANIMATION})
+// TODO(https://crbug.com/1362059): The message cards aren't shown the first time when entering GTS
+// with Start surface enabled.
+@Features.DisableFeatures({
+    ChromeFeatureList.TAB_TO_GTS_ANIMATION, ChromeFeatureList.START_SURFACE_ANDROID})
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
         "force-fieldtrials=Study/Group"})
 public class TabSuggestionMessageCardTest {
@@ -147,9 +147,9 @@ public class TabSuggestionMessageCardTest {
         mTabSelectionEditorTestingRobot.resultRobot.verifyTabSelectionEditorIsVisible();
     }
 
-    private void acceptSuggestion() {
+    private void acceptSuggestion(int id) {
         mTabSelectionEditorTestingRobot.resultRobot.verifyTabSelectionEditorIsVisible();
-        mTabSelectionEditorTestingRobot.actionRobot.clickToolbarActionButton();
+        mTabSelectionEditorTestingRobot.actionRobot.clickToolbarActionView(id);
         mTabSelectionEditorTestingRobot.resultRobot.verifyTabSelectionEditorIsHidden();
     }
 
@@ -168,13 +168,12 @@ public class TabSuggestionMessageCardTest {
     @Test
     @MediumTest
     @CommandLineFlags.Add({BASE_PARAMS + ENABLE_CLOSE_SUGGESTION_PARAM})
-    @DisableIf.Build(sdk_is_less_than = VERSION_CODES.N, message = "https://crbug.com/1260161")
     public void closeTabSuggestionReviewedAndAccepted() {
         CriteriaHelper.pollUiThread(TabSuggestionMessageService::isSuggestionAvailableForTesting);
 
         enteringTabSwitcherAndVerifySuggestionIsShown(mClosingSuggestionMessage);
         reviewSuggestion();
-        acceptSuggestion();
+        acceptSuggestion(R.id.tab_selection_editor_close_menu_item);
 
         onViewWaiting(allOf(withParent(withId(R.id.snackbar)), withText("3 tabs closed")));
     }
@@ -200,7 +199,7 @@ public class TabSuggestionMessageCardTest {
 
         enteringTabSwitcherAndVerifySuggestionIsShown(mGroupingSuggestionMessage);
         reviewSuggestion();
-        acceptSuggestion();
+        acceptSuggestion(R.id.tab_selection_editor_group_menu_item);
 
         onViewWaiting(allOf(withParent(withId(R.id.snackbar)), withText("3 tabs grouped")));
     }
@@ -288,7 +287,7 @@ public class TabSuggestionMessageCardTest {
 
         enteringTabSwitcherAndVerifySuggestionIsShown(mGroupingSuggestionMessage);
         reviewSuggestion();
-        acceptSuggestion();
+        acceptSuggestion(R.id.tab_selection_editor_group_menu_item);
 
         onView(withId(R.id.tab_grid_message_item)).check(doesNotExist());
     }

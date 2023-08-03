@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@
 #include "chrome/browser/nearby_sharing/nearby_sharing_service.h"
 #include "chrome/browser/nearby_sharing/nearby_sharing_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/sharesheet/sharesheet_types.h"
 #include "chrome/browser/ui/webui/nearby_share/nearby_share_dialog_ui.h"
 #include "chrome/common/webui_url_constants.h"
@@ -28,6 +27,7 @@
 #include "storage/browser/file_system/file_system_url.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/views/controls/webview/webview.h"
 #include "url/gurl.h"
@@ -35,62 +35,47 @@
 
 namespace {
 
-base::FilePath GetFilePathFromGurl(
-    const GURL& gurl,
-    const storage::FileSystemContext* fs_context) {
-  // For filesystem:// type URL. Path managed by file_manager (e.g. MyFiles).
-  if (gurl.SchemeIs(url::kFileSystemScheme)) {
-    if (!fs_context) {
-      return base::FilePath();
-    }
-
-    const storage::FileSystemURL fs_url =
-        fs_context->CrackURLInFirstPartyContext(gurl);
-    if (fs_url.is_valid()) {
-      return fs_url.path();
-    }
-  }
-
-  // For file:// type URL. Path is not managed by file_manager (used by ARC).
-  if (gurl.SchemeIs(url::kFileScheme)) {
-    base::FilePath file_path;
-    if (net::FileURLToFilePath(gurl, &file_path)) {
-      return file_path;
-    }
-  }
-  return base::FilePath();
-}
-
-std::vector<base::FilePath> ResolveFileUrls(
-    Profile* profile,
-    const std::vector<apps::mojom::IntentFilePtr>& files) {
-  std::vector<base::FilePath> file_paths;
+base::FilePath ResolveFileUrl(Profile* profile,
+                              const apps::IntentFilePtr& file) {
   storage::FileSystemContext* fs_context =
       file_manager::util::GetFileManagerFileSystemContext(profile);
-  for (const auto& file : files) {
-    const base::FilePath file_path = GetFilePathFromGurl(file->url, fs_context);
-    if (!file_path.empty()) {
-      file_paths.push_back(file_path);
-    }
+  DCHECK(fs_context);
+
+  // file: type URLs are used by ARC Nearby Share.
+  if (file->url.SchemeIsFile()) {
+    base::FilePath out;
+    net::FileURLToFilePath(file->url, &out);
+    return out;
   }
-  return file_paths;
+
+  // filesystem: type URLs, for paths managed by file_manager (e.g. MyFiles).
+  DCHECK(file->url.SchemeIsFileSystem());
+  const storage::FileSystemURL fs_url =
+      fs_context->CrackURLInFirstPartyContext(file->url);
+  if (fs_url.is_valid()) {
+    return fs_url.path();
+  }
+
+  return base::FilePath();
 }
 
 std::string GetFirstFilenameFromFileUrls(
     Profile* profile,
-    const absl::optional<std::vector<apps::mojom::IntentFilePtr>>& file_urls) {
-  if (!file_urls) {
+    const std::vector<apps::IntentFilePtr>& file_urls) {
+  if (file_urls.empty()) {
     return std::string();
   }
 
-  auto file_paths = ResolveFileUrls(profile, *file_urls);
-  return file_paths.size() == 1u ? file_paths[0].BaseName().AsUTF8Unsafe()
-                                 : std::string();
+  if (file_urls[0]->file_name.has_value()) {
+    return file_urls[0]->file_name->path().AsUTF8Unsafe();
+  }
+
+  return ResolveFileUrl(profile, file_urls[0]).BaseName().AsUTF8Unsafe();
 }
 
 std::vector<std::unique_ptr<Attachment>> CreateTextAttachmentFromIntent(
     Profile* profile,
-    const apps::mojom::IntentPtr& intent) {
+    const apps::IntentPtr& intent) {
   // TODO(crbug.com/1186730): Detect address and phone number text shares and
   // apply the correct |TextAttachment::Type|.
   TextAttachment::Type type = intent->share_text ? TextAttachment::Type::kText
@@ -120,14 +105,21 @@ std::vector<std::unique_ptr<Attachment>> CreateTextAttachmentFromIntent(
 
 std::vector<std::unique_ptr<Attachment>> CreateFileAttachmentsFromIntent(
     Profile* profile,
-    const apps::mojom::IntentPtr& intent) {
-  std::vector<base::FilePath> file_paths =
-      ResolveFileUrls(profile, *intent->files);
-
+    const apps::IntentPtr& intent) {
   std::vector<std::unique_ptr<Attachment>> attachments;
-  for (auto& file_path : file_paths) {
-    attachments.push_back(
-        std::make_unique<FileAttachment>(std::move(file_path)));
+
+  for (const auto& file : intent->files) {
+    base::FilePath file_path = ResolveFileUrl(profile, file);
+    if (file_path.empty()) {
+      continue;
+    }
+    if (file->file_name.has_value()) {
+      attachments.push_back(std::make_unique<FileAttachment>(
+          std::move(file_path), file->file_name->path()));
+    } else {
+      attachments.push_back(
+          std::make_unique<FileAttachment>(std::move(file_path)));
+    }
   }
   return attachments;
 }
@@ -160,7 +152,7 @@ const gfx::VectorIcon& NearbyShareAction::GetActionIcon() {
 void NearbyShareAction::LaunchAction(
     sharesheet::SharesheetController* controller,
     views::View* root_view,
-    apps::mojom::IntentPtr intent) {
+    apps::IntentPtr intent) {
   gfx::Size size = ComputeSize();
   controller->SetBubbleSize(size.width(), size.height());
 
@@ -196,15 +188,15 @@ bool NearbyShareAction::HasActionView() {
   return true;
 }
 
-bool NearbyShareAction::ShouldShowAction(const apps::mojom::IntentPtr& intent,
+bool NearbyShareAction::ShouldShowAction(const apps::IntentPtr& intent,
                                          bool contains_hosted_document) {
-  bool valid_file_share = apps_util::IsShareIntent(intent) && intent->files &&
-                          !intent->files->empty() && !intent->share_text &&
+  bool valid_file_share = intent && intent->IsShareIntent() &&
+                          !intent->files.empty() && !intent->share_text &&
                           !intent->url && !intent->drive_share_url &&
                           !contains_hosted_document;
 
   bool valid_text_share = intent->action == apps_util::kIntentActionSend &&
-                          intent->share_text && !intent->files;
+                          intent->share_text && intent->files.empty();
 
   bool valid_url_share = intent->action == apps_util::kIntentActionView &&
                          intent->url && intent->url->is_valid() &&
@@ -212,10 +204,10 @@ bool NearbyShareAction::ShouldShowAction(const apps::mojom::IntentPtr& intent,
 
   // Disallow sharing multiple drive files at once. There isn't a valid
   // |drive_share_url| in this case.
-  bool valid_drive_share =
-      intent->action == apps_util::kIntentActionSend &&
-      intent->drive_share_url && intent->drive_share_url->is_valid() &&
-      intent->files && intent->files->size() == 1u && !intent->share_text;
+  bool valid_drive_share = intent->action == apps_util::kIntentActionSend &&
+                           intent->drive_share_url &&
+                           intent->drive_share_url->is_valid() &&
+                           intent->files.size() == 1u && !intent->share_text;
 
   return (valid_file_share || valid_text_share || valid_url_share ||
           valid_drive_share) &&
@@ -236,7 +228,7 @@ bool NearbyShareAction::IsNearbyShareDisabledByPolicy() {
 
 std::vector<std::unique_ptr<Attachment>>
 NearbyShareAction::CreateAttachmentsFromIntent(Profile* profile,
-                                               apps::mojom::IntentPtr intent) {
+                                               apps::IntentPtr intent) {
   if (intent->share_text || intent->url || intent->drive_share_url) {
     return CreateTextAttachmentFromIntent(profile, intent);
   } else {

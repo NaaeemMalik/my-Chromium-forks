@@ -1,32 +1,37 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/reading_list/reading_list_table_view_controller.h"
 
-#include "base/check_op.h"
-#include "base/cxx17_backports.h"
-#include "base/ios/ios_util.h"
-#include "base/mac/foundation_util.h"
-#include "base/metrics/histogram_macros.h"
-#include "base/metrics/user_metrics.h"
-#include "base/metrics/user_metrics_action.h"
-#import "components/prefs/ios/pref_observer_bridge.h"
-#include "components/prefs/pref_change_registrar.h"
-#include "components/prefs/pref_service.h"
-#include "components/strings/grit/components_strings.h"
+#import "base/check_op.h"
+#import "base/ios/ios_util.h"
+#import "base/mac/foundation_util.h"
+#import "base/metrics/histogram_macros.h"
+#import "base/metrics/user_metrics.h"
+#import "base/metrics/user_metrics_action.h"
+#import "components/strings/grit/components_strings.h"
 #import "ios/chrome/app/tests_hook.h"
-#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/drag_and_drop/drag_item_util.h"
 #import "ios/chrome/browser/drag_and_drop/table_view_url_drag_drop_handler.h"
 #import "ios/chrome/browser/main/browser.h"
-#import "ios/chrome/browser/ui/alert_coordinator/action_sheet_coordinator.h"
-#import "ios/chrome/browser/ui/list_model/list_item+Controller.h"
-#import "ios/chrome/browser/ui/list_model/list_item.h"
+#import "ios/chrome/browser/shared/coordinator/alert/action_sheet_coordinator.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/ui/list_model/list_item+Controller.h"
+#import "ios/chrome/browser/shared/ui/list_model/list_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/ui/authentication/cells/signin_promo_view_configurator.h"
+#import "ios/chrome/browser/ui/authentication/cells/signin_promo_view_delegate.h"
+#import "ios/chrome/browser/ui/authentication/cells/table_view_signin_promo_item.h"
+#import "ios/chrome/browser/ui/keyboard/UIKeyCommand+Chrome.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_constants.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_data_sink.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_data_source.h"
-#import "ios/chrome/browser/ui/reading_list/reading_list_features.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_item.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_item_updater.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_list_view_controller_audience.h"
@@ -34,40 +39,32 @@
 #import "ios/chrome/browser/ui/reading_list/reading_list_menu_provider.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_toolbar_button_commands.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_toolbar_button_manager.h"
-#import "ios/chrome/browser/ui/settings/cells/settings_switch_cell.h"
 #import "ios/chrome/browser/ui/settings/cells/sync_switch_item.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_link_header_footer_item.h"
-#import "ios/chrome/browser/ui/table_view/cells/table_view_text_header_footer_item.h"
-#import "ios/chrome/browser/ui/table_view/table_view_utils.h"
-#include "ios/chrome/browser/ui/ui_feature_flags.h"
-#import "ios/chrome/browser/ui/util/uikit_ui_util.h"
-#include "ios/chrome/grit/ios_strings.h"
-#include "ui/base/l10n/l10n_util_mac.h"
+#import "ios/chrome/grit/ios_strings.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 namespace {
+
+// Height for the header on top of the sign-in promo cell.
+constexpr CGFloat kSignInPromoSectionHeaderHeight = 10;
 // Types of ListItems used by the reading list UI.
 typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeHeader = kItemTypeEnumZero,
   ItemTypeItem,
   SwitchItemType,
   SwitchItemFooterType,
+  ItemTypeSignInPromo,
 };
 // Identifiers for sections in the reading list.
 typedef NS_ENUM(NSInteger, SectionIdentifier) {
-  SectionIdentifierMessagesSwitch = kSectionIdentifierEnumZero,
+  SectionIdentifierSignInPromo = kSectionIdentifierEnumZero,
   SectionIdentifierUnread,
   SectionIdentifierRead,
 };
-
-// User action names for toggling whether to show the Reading List Message.
-const char kReadingListMessagesToggleUserActionTurnOn[] =
-    "IOS.ReadingList.MessagesPromptToggle.On";
-const char kReadingListMessagesToggleUserActionTurnOff[] =
-    "IOS.ReadingList.MessagesPromptToggle.Off";
 
 // Returns the ReadingListSelectionState corresponding with the provided numbers
 // of read and unread items.
@@ -82,21 +79,15 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
     return ReadingListSelectionState::ONLY_UNREAD_ITEMS;
   return ReadingListSelectionState::NONE;
 }
+
 }  // namespace
 
-@interface ReadingListTableViewController () <PrefObserverDelegate,
-                                              ReadingListDataSink,
+@interface ReadingListTableViewController () <ReadingListDataSink,
                                               ReadingListToolbarButtonCommands,
-                                              TableViewURLDragDataSource> {
-  // Pref observer to track changes to prefs.
-  std::unique_ptr<PrefObserverBridge> _prefObserverBridge;
-  // Registrar for pref changes notifications.
-  std::unique_ptr<PrefChangeRegistrar> _prefChangeRegistrar;
-}
+                                              TableViewURLDragDataSource>
 
 // Redefine the model to return ReadingListListItems
-@property(nonatomic, readonly)
-    TableViewModel<TableViewItem<ReadingListListItem>*>* tableViewModel;
+@property(nonatomic, readonly) TableViewModel<TableViewItem*>* tableViewModel;
 
 // The number of batch operation triggered by UI.
 // One UI operation can trigger multiple batch operation, so this can be greater
@@ -120,8 +111,6 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 @property(nonatomic, readonly, getter=isEditingWithSwipe) BOOL editingWithSwipe;
 // Handler for URL drag interactions.
 @property(nonatomic, strong) TableViewURLDragDropHandler* dragDropHandler;
-// The toggle setting of showing the Reading List Messages prompt.
-@property(nonatomic, strong) SyncSwitchItem* messagesPromptToggleSwitchItem;
 @end
 
 @implementation ReadingListTableViewController
@@ -223,29 +212,12 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 - (void)viewDidLoad {
   [super viewDidLoad];
 
-  if (IsReadingListMessagesEnabled()) {
-    // Reset the boolean if an entry was added from a Messages prompt since the
-    // user has now seen that new entry in the Reading List.
-    [[NSUserDefaults standardUserDefaults]
-        setBool:NO
-         forKey:kLastReadingListEntryAddedFromMessages];
-
-    // pref observer listens to the Messages prompt in case two Reading Lists
-    // are shown in multiwindow.
-    _prefChangeRegistrar = std::make_unique<PrefChangeRegistrar>();
-    _prefChangeRegistrar->Init(self.browser->GetBrowserState()->GetPrefs());
-    _prefObserverBridge.reset(new PrefObserverBridge(self));
-    _prefObserverBridge->ObserveChangesForPreference(
-        kPrefReadingListMessagesNeverShow, _prefChangeRegistrar.get());
-  }
-
   self.title = l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_READING_LIST);
 
   self.tableView.accessibilityIdentifier =
       [[self class] accessibilityIdentifier];
   self.tableView.estimatedRowHeight = 56;
   self.tableView.rowHeight = UITableViewAutomaticDimension;
-  self.tableView.estimatedSectionHeaderHeight = 56;
   self.tableView.allowsMultipleSelectionDuringEditing = YES;
   self.tableView.allowsMultipleSelection = YES;
   self.dragDropHandler = [[TableViewURLDragDropHandler alloc] init];
@@ -253,6 +225,13 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   self.dragDropHandler.dragDataSource = self;
   self.tableView.dragDelegate = self.dragDropHandler;
   self.tableView.dragInteractionEnabled = true;
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+  // In case the sign-in promo visibility is changed before the first layout,
+  // we need to refresh the empty view margin after the layout is done, to apply
+  // the correct top margin value according to the promo view's height.
+  [self updateEmptyViewTopMargin];
 }
 
 - (void)viewWillTransitionToSize:(CGSize)size
@@ -273,34 +252,6 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
 #pragma mark - UITableViewDataSource
 
-- (UITableViewCell*)tableView:(UITableView*)tableView
-        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [super tableView:tableView
-                     cellForRowAtIndexPath:indexPath];
-  if ([cell isKindOfClass:[SettingsSwitchCell class]]) {
-    DCHECK(IsReadingListMessagesEnabled());
-    SettingsSwitchCell* switchCell =
-        base::mac::ObjCCastStrict<SettingsSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(switchAction:)
-                    forControlEvents:UIControlEventValueChanged];
-  }
-  return cell;
-}
-
-- (UIView*)tableView:(UITableView*)tableView
-    viewForFooterInSection:(NSInteger)section {
-  UIView* footer = [super tableView:tableView viewForFooterInSection:section];
-  if ([footer isKindOfClass:[TableViewTextHeaderFooterView class]]) {
-    DCHECK(IsReadingListMessagesEnabled());
-    TableViewTextHeaderFooterView* textFooter =
-        base::mac::ObjCCastStrict<TableViewTextHeaderFooterView>(footer);
-    textFooter.subtitleLabel.numberOfLines = 0;
-    textFooter.subtitleLabel.lineBreakMode = NSLineBreakByWordWrapping;
-  }
-  return footer;
-}
-
 - (void)tableView:(UITableView*)tableView
     commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
      forRowAtIndexPath:(NSIndexPath*)indexPath {
@@ -312,60 +263,35 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
             removeEmptySections:NO];
 }
 
-#pragma mark - SettingsSwitchCell action
-
-- (void)switchAction:(UISwitch*)sender {
-  PrefService* user_prefs = self.browser->GetBrowserState()->GetPrefs();
-  BOOL neverShowPrompt = ![sender isOn];
-  if (neverShowPrompt) {
-    base::RecordAction(
-        base::UserMetricsAction(kReadingListMessagesToggleUserActionTurnOff));
-  } else {
-    base::RecordAction(
-        base::UserMetricsAction(kReadingListMessagesToggleUserActionTurnOn));
-  }
-  user_prefs->SetBoolean(kPrefReadingListMessagesNeverShow, neverShowPrompt);
-}
-
-#pragma mark - PrefObserverDelegate
-
-- (void)onPreferenceChanged:(const std::string&)preferenceName {
-  DCHECK(IsReadingListMessagesEnabled());
-  if (preferenceName == kPrefReadingListMessagesNeverShow) {
-    PrefService* user_prefs = self.browser->GetBrowserState()->GetPrefs();
-    self.messagesPromptToggleSwitchItem.on =
-        !user_prefs->GetBoolean(kPrefReadingListMessagesNeverShow);
-    NSIndexPath* indexPath = [self.tableViewModel
-        indexPathForItemType:SwitchItemType
-           sectionIdentifier:SectionIdentifierMessagesSwitch];
-    [self reconfigureCellsForItems:@[ [self.tableViewModel
-                                       itemAtIndexPath:indexPath] ]];
-  }
-}
-
 #pragma mark - UITableViewDelegate
 
 - (void)tableView:(UITableView*)tableView
     didSelectRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [self tableView:tableView
-                    cellForRowAtIndexPath:indexPath];
-  if ([cell isKindOfClass:[SettingsSwitchCell class]]) {
-    DCHECK(IsReadingListMessagesEnabled());
-    return;
-  }
   if (self.editing) {
     // Update the selected item counts and the toolbar buttons.
-    NSInteger sectionID =
-        [self.tableViewModel sectionIdentifierForSection:indexPath.section];
-    if (sectionID == SectionIdentifierUnread)
-      self.selectedUnreadItemCount++;
-    if (sectionID == SectionIdentifierRead)
-      self.selectedReadItemCount++;
+    SectionIdentifier sectionID =
+        static_cast<SectionIdentifier>([self.tableViewModel
+            sectionIdentifierForSectionIndex:indexPath.section]);
+    switch (sectionID) {
+      case SectionIdentifierUnread:
+        self.selectedUnreadItemCount++;
+        break;
+      case SectionIdentifierRead:
+        self.selectedReadItemCount++;
+        break;
+      case SectionIdentifierSignInPromo:
+        NOTREACHED_NORETURN();
+    }
   } else {
     // Open the URL.
-    id<ReadingListListItem> item =
-        [self.tableViewModel itemAtIndexPath:indexPath];
-    [self.delegate readingListListViewController:self openItem:item];
+    TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
+    // TODO(crbug.com/1430839): the runtime check will be replaced using new
+    // methods implementations in TableViewItem and ReadingListTableViewItem.
+    if ([item conformsToProtocol:@protocol(ReadingListListItem)]) {
+      [self.delegate
+          readingListListViewController:self
+                               openItem:(id<ReadingListListItem>)item];
+    }
   }
 }
 
@@ -373,12 +299,19 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
     didDeselectRowAtIndexPath:(NSIndexPath*)indexPath {
   if (self.editing) {
     // Update the selected item counts and the toolbar buttons.
-    NSInteger sectionID =
-        [self.tableViewModel sectionIdentifierForSection:indexPath.section];
-    if (sectionID == SectionIdentifierUnread)
-      self.selectedUnreadItemCount--;
-    if (sectionID == SectionIdentifierRead)
-      self.selectedReadItemCount--;
+    SectionIdentifier sectionID =
+        static_cast<SectionIdentifier>([self.tableViewModel
+            sectionIdentifierForSectionIndex:indexPath.section]);
+    switch (sectionID) {
+      case SectionIdentifierUnread:
+        self.selectedUnreadItemCount--;
+        break;
+      case SectionIdentifierRead:
+        self.selectedReadItemCount--;
+        break;
+      case SectionIdentifierSignInPromo:
+        NOTREACHED_NORETURN();
+    }
   }
 }
 
@@ -394,16 +327,26 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
     // Don't show the context menu when currently in editing mode.
     return nil;
   }
-  TableViewItem<ReadingListListItem>* item =
-      [self.tableViewModel itemAtIndexPath:indexPath];
-  if (item.type != ItemTypeItem) {
+  TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
+  // TODO(crbug.com/1430839): the runtime check will be replaced using new
+  // methods implementations in TableViewItem and ReadingListTableViewItem.
+  if ([item conformsToProtocol:@protocol(ReadingListListItem)]) {
+    return [self.menuProvider
+        contextMenuConfigurationForItem:(id<ReadingListListItem>)item
+                               withView:[self.tableView
+                                            cellForRowAtIndexPath:indexPath]];
+  } else {
     return nil;
   }
+}
 
-  return [self.menuProvider
-      contextMenuConfigurationForItem:item
-                             withView:[self.tableView
-                                          cellForRowAtIndexPath:indexPath]];
+- (CGFloat)tableView:(UITableView*)tableView
+    heightForHeaderInSection:(NSInteger)section {
+  if ([self.tableViewModel sectionIdentifierForSectionIndex:section] ==
+      SectionIdentifierSignInPromo) {
+    return kSignInPromoSectionHeaderHeight;
+  }
+  return UITableViewAutomaticDimension;
 }
 
 #pragma mark - TableViewURLDragDataSource
@@ -412,12 +355,16 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
     URLInfoAtIndexPath:(NSIndexPath*)indexPath {
   if (self.tableView.editing)
     return nil;
-  TableViewItem<ReadingListListItem>* item =
-      [self.tableViewModel itemAtIndexPath:indexPath];
-  if (item.type != ItemTypeItem) {
+  TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
+  // TODO(crbug.com/1430839): the runtime check will be replaced using new
+  // methods implementations in TableViewItem and ReadingListTableViewItem.
+  if ([item conformsToProtocol:@protocol(ReadingListListItem)]) {
+    id<ReadingListListItem> readingListItem = (id<ReadingListListItem>)item;
+    return [[URLInfo alloc] initWithURL:readingListItem.entryURL
+                                  title:readingListItem.title];
+  } else {
     return nil;
   }
-  return [[URLInfo alloc] initWithURL:item.entryURL title:item.title];
 }
 
 #pragma mark - UIAdaptivePresentationControllerDelegate
@@ -435,11 +382,6 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 - (void)loadModel {
   [super loadModel];
   self.dataSourceModifiedWhileEditing = NO;
-  // Add Reading List Messages toggle here so that it shows even if there are no
-  // entries.
-  if (IsReadingListMessagesEnabled()) {
-    [self addPromptToggleItemAndSection];
-  }
   if (self.dataSource.hasElements) {
     [self loadItems];
     [self.audience readingListHasItems:YES];
@@ -449,6 +391,23 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   } else {
     [self tableIsEmpty];
   }
+}
+
+#pragma mark - UIResponder
+
+// To always be able to register key commands via -keyCommands, the VC must be
+// able to become first responder.
+- (BOOL)canBecomeFirstResponder {
+  return YES;
+}
+
+- (NSArray*)keyCommands {
+  return @[ UIKeyCommand.cr_close ];
+}
+
+- (void)keyCommand_close {
+  base::RecordAction(base::UserMetricsAction("MobileKeyCommandClose"));
+  [self.delegate dismissReadingListListViewController:self];
 }
 
 #pragma mark - ReadingListDataSink
@@ -488,7 +447,7 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
 #pragma mark - ReadingListDataSink Helpers
 
-// Returns the items for the |sectionID|.
+// Returns the items for the `sectionID`.
 - (NSArray<id<ReadingListListItem>>*)itemsForSection:
     (SectionIdentifier)sectionID {
   TableViewModel* model = self.tableViewModel;
@@ -712,6 +671,63 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
                  style:UIAlertActionStyleCancel];
 }
 
+#pragma mark - Sign-in Promo
+
+- (void)promoStateChanged:(BOOL)promoEnabled
+        promoConfigurator:(SigninPromoViewConfigurator*)promoConfigurator
+            promoDelegate:(id<SigninPromoViewDelegate>)promoDelegate {
+  if (promoEnabled) {
+    CHECK(![self.tableViewModel
+        hasSectionForSectionIdentifier:SectionIdentifierSignInPromo]);
+    [self.tableViewModel
+        insertSectionWithIdentifier:SectionIdentifierSignInPromo
+                            atIndex:0];
+    TableViewSigninPromoItem* signInPromoItem =
+        [[TableViewSigninPromoItem alloc] initWithType:ItemTypeSignInPromo];
+    signInPromoItem.configurator = promoConfigurator;
+    signInPromoItem.text =
+        l10n_util::GetNSString(IDS_IOS_SIGNIN_PROMO_READING_LIST);
+    signInPromoItem.delegate = promoDelegate;
+    [self.tableViewModel addItem:signInPromoItem
+         toSectionWithIdentifier:SectionIdentifierSignInPromo];
+  } else {
+    CHECK([self.tableViewModel
+        hasSectionForSectionIdentifier:SectionIdentifierSignInPromo]);
+    [self.tableViewModel
+        removeSectionWithIdentifier:SectionIdentifierSignInPromo];
+  }
+  [self.tableView reloadData];
+  [self updateEmptyViewTopMargin];
+}
+
+- (void)configureSigninPromoWithConfigurator:
+            (SigninPromoViewConfigurator*)promoConfigurator
+                             identityChanged:(BOOL)identityChanged {
+  if (![self.tableViewModel
+          hasSectionForSectionIdentifier:SectionIdentifierSignInPromo] ||
+      !identityChanged) {
+    return;
+  }
+
+  NSIndexPath* indexPath =
+      [self.tableViewModel indexPathForItemType:ItemTypeSignInPromo
+                              sectionIdentifier:SectionIdentifierSignInPromo];
+  TableViewSigninPromoItem* signInPromoItem =
+      base::mac::ObjCCast<TableViewSigninPromoItem>(
+          [self.tableViewModel itemAtIndexPath:indexPath]);
+  if (!signInPromoItem) {
+    return;
+  }
+
+  signInPromoItem.configurator = promoConfigurator;
+  [self reloadCellsForItems:@[ signInPromoItem ]
+           withRowAnimation:UITableViewRowAnimationNone];
+
+  // The sign-in promo view height may have been changed after the configurator
+  // change, we need to update the empty view top margin according to it.
+  [self updateEmptyViewTopMargin];
+}
+
 #pragma mark - Item Loading Helpers
 
 // Uses self.dataSource to load the TableViewItems into self.tableViewModel.
@@ -725,31 +741,8 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self updateToolbarItems];
 }
 
-// Adds section and SyncSwitchItem instance for the toggle setting of showing
-// the Reading List Messages prompt.
-- (void)addPromptToggleItemAndSection {
-  TableViewModel* model = self.tableViewModel;
-  [model addSectionWithIdentifier:SectionIdentifierMessagesSwitch];
-  self.messagesPromptToggleSwitchItem =
-      [[SyncSwitchItem alloc] initWithType:SwitchItemType];
-  self.messagesPromptToggleSwitchItem.text =
-      l10n_util::GetNSString(IDS_IOS_READING_LIST_MESSAGES_SETTING_TITLE);
-  self.messagesPromptToggleSwitchItem.enabled = YES;
-  PrefService* user_prefs = self.browser->GetBrowserState()->GetPrefs();
-  self.messagesPromptToggleSwitchItem.on =
-      !user_prefs->GetBoolean(kPrefReadingListMessagesNeverShow);
-  [model addItem:self.messagesPromptToggleSwitchItem
-      toSectionWithIdentifier:SectionIdentifierMessagesSwitch];
-  TableViewLinkHeaderFooterItem* footerItem =
-      [[TableViewLinkHeaderFooterItem alloc] initWithType:SwitchItemFooterType];
-  footerItem.text =
-      l10n_util::GetNSString(IDS_IOS_READING_LIST_MESSAGES_MODAL_DESCRIPTION);
-  [model setFooter:footerItem
-      forSectionWithIdentifier:SectionIdentifierMessagesSwitch];
-}
-
-// Adds |items| to self.tableViewModel for the section designated by
-// |sectionID|.
+// Adds `items` to self.tableViewModel for the section designated by
+// `sectionID`.
 - (void)loadItemsFromArray:(NSArray<id<ReadingListListItem>>*)items
                  toSection:(SectionIdentifier)sectionID {
   if (!items.count)
@@ -757,18 +750,34 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
   TableViewModel* model = self.tableViewModel;
   [model addSectionWithIdentifier:sectionID];
-  [model setHeader:[self headerForSection:sectionID]
+  [model setHeader:[self headerForSectionIndex:sectionID]
       forSectionWithIdentifier:sectionID];
+  __weak __typeof(self) weakSelf = self;
   for (TableViewItem<ReadingListListItem>* item in items) {
     item.type = ItemTypeItem;
-    [self.dataSource fetchFaviconForItem:item];
     [model addItem:item toSectionWithIdentifier:sectionID];
+
+    // This function is currently reloading the model.
+    // It has been observed that the item just added is not fully available,
+    // the model containing the item but the item count of the section not
+    // being updated correctly.
+    // Updating the favicon can lead to synchronous update of the item if the
+    // icon is already available. To avoid causing a crash, update the trigger
+    // the favicon asynchronously.
+    // TODO(crbug.com/1368111): check the fix actually prevents crashing.
+    __weak __typeof(item) weakItem = item;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      if (weakSelf && weakItem) {
+        [weakSelf.dataSource fetchFaviconForItem:weakItem];
+      }
+    });
   }
 }
 
 // Returns a TableViewTextItem that displays the title for the section
-// designated by |sectionID|.
-- (TableViewHeaderFooterItem*)headerForSection:(SectionIdentifier)sectionID {
+// designated by `sectionID`.
+- (TableViewHeaderFooterItem*)headerForSectionIndex:
+    (SectionIdentifier)sectionID {
   TableViewTextHeaderFooterItem* header =
       [[TableViewTextHeaderFooterItem alloc] initWithType:ItemTypeHeader];
 
@@ -779,7 +788,8 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
     case SectionIdentifierUnread:
       header.text = l10n_util::GetNSString(IDS_IOS_READING_LIST_UNREAD_HEADER);
       break;
-    case SectionIdentifierMessagesSwitch:
+    case SectionIdentifierSignInPromo:
+      header = nil;
       break;
   }
   return header;
@@ -801,13 +811,13 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
 #pragma mark - Item Editing Helpers
 
-// Returns |item| cast as a TableViewItem.
+// Returns `item` cast as a TableViewItem.
 - (TableViewItem<ReadingListListItem>*)tableItemForReadingListItem:
     (id<ReadingListListItem>)item {
   return base::mac::ObjCCastStrict<TableViewItem<ReadingListListItem>>(item);
 }
 
-// Applies |updater| to the items in |section|. The updates are done in reverse
+// Applies `updater` to the items in `section`. The updates are done in reverse
 // order of the cells in the section to keep the order. Monitoring of the
 // data source updates are suspended during this time.
 - (void)updateItemsInSection:(SectionIdentifier)section
@@ -816,14 +826,18 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self.dataSource beginBatchUpdates];
   NSArray* items = [self.tableViewModel itemsInSectionWithIdentifier:section];
   // Read the objects in reverse order to keep the order (last modified first).
-  for (id<ReadingListListItem> item in [items reverseObjectEnumerator]) {
-    updater(item);
+  for (TableViewItem* item in [items reverseObjectEnumerator]) {
+    // TODO(crbug.com/1430839): the runtime check will be replaced using new
+    // methods implementations in TableViewItem and ReadingListTableViewItem.
+    if ([item conformsToProtocol:@protocol(ReadingListListItem)]) {
+      updater((id<ReadingListListItem>)item);
+    }
   }
   [self.dataSource endBatchUpdates];
 }
 
-// Applies |updater| to the items in |indexPaths|. The updates are done in
-// reverse order |indexPaths| to keep the order. The monitoring of the data
+// Applies `updater` to the items in `indexPaths`. The updates are done in
+// reverse order `indexPaths` to keep the order. The monitoring of the data
 // source updates are suspended during this time.
 - (void)updateItemsAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths
                 withItemUpdater:(ReadingListListItemUpdater)updater {
@@ -831,12 +845,17 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self.dataSource beginBatchUpdates];
   // Read the objects in reverse order to keep the order (last modified first).
   for (NSIndexPath* indexPath in [indexPaths reverseObjectEnumerator]) {
-    updater([self.tableViewModel itemAtIndexPath:indexPath]);
+    TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
+    // TODO(crbug.com/1430839): the runtime check will be replaced by new
+    // methods implementations in TableViewItem and ReadingListTableViewItem.
+    if ([item conformsToProtocol:@protocol(ReadingListListItem)]) {
+      updater((id<ReadingListListItem>)item);
+    }
   }
   [self.dataSource endBatchUpdates];
 }
 
-// Moves all the items from |fromSection| to |toSection| and removes the empty
+// Moves all the items from `fromSection` to `toSection` and removes the empty
 // section from the collection.
 - (void)moveItemsFromSection:(SectionIdentifier)fromSection
                    toSection:(SectionIdentifier)toSection {
@@ -858,7 +877,7 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self moveItemsAtIndexPaths:sortedIndexPaths toSection:toSection];
 }
 
-// Moves the items at |sortedIndexPaths| to |toSection|, removing any empty
+// Moves the items at `sortedIndexPaths` to `toSection`, removing any empty
 // sections.
 - (void)moveItemsAtIndexPaths:(NSArray*)sortedIndexPaths
                     toSection:(SectionIdentifier)toSection {
@@ -879,7 +898,7 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
     NSInteger newItemIndex = 0;
     for (NSIndexPath* indexPath in sortedIndexPaths) {
-      // The |sortedIndexPaths| is a copy of the index paths before the
+      // The `sortedIndexPaths` is a copy of the index paths before the
       // destination section has been added if necessary. The section part of
       // the index potentially needs to be updated.
       NSInteger updatedSection = indexPath.section;
@@ -913,18 +932,18 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self performBatchTableViewUpdates:updates completion:completion];
 }
 
-// Moves the ListItem within self.tableViewModel at |modelIndex| and the
-// UITableViewCell at |tableViewIndex| to |toIndexPath|.
+// Moves the ListItem within self.tableViewModel at `modelIndex` and the
+// UITableViewCell at `tableViewIndex` to `toIndexPath`.
 - (void)moveItemWithModelIndex:(NSIndexPath*)modelIndex
                 tableViewIndex:(NSIndexPath*)tableViewIndex
                        toIndex:(NSIndexPath*)toIndexPath {
   TableViewModel* model = self.tableViewModel;
   TableViewItem* item = [model itemAtIndexPath:modelIndex];
 
-  // Move the item in |model|.
+  // Move the item in `model`.
   [self deleteItemAtIndexPathFromModel:modelIndex];
   NSInteger toSectionID =
-      [model sectionIdentifierForSection:toIndexPath.section];
+      [model sectionIdentifierForSectionIndex:toIndexPath.section];
   [model insertItem:item
       inSectionWithIdentifier:toSectionID
                       atIndex:toIndexPath.row];
@@ -933,7 +952,7 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self.tableView moveRowAtIndexPath:tableViewIndex toIndexPath:toIndexPath];
 }
 
-// Makes sure the table view section with |sectionID| exists with the correct
+// Makes sure the table view section with `sectionID` exists with the correct
 // header. Returns the index of the new section in the table view, or
 // NSIntegerMax if no section has been created.
 - (NSInteger)initializeTableViewSection:(SectionIdentifier)sectionID {
@@ -947,13 +966,10 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   BOOL hasUnreadItems = [self hasItemInSection:SectionIdentifierUnread];
   BOOL creatingReadSection = (sectionID == SectionIdentifierRead);
   NSInteger sectionIndex = (hasUnreadItems && creatingReadSection) ? 1 : 0;
-  if (IsReadingListMessagesEnabled()) {
-    sectionIndex++;
-  }
 
   void (^updates)(void) = ^{
     [model insertSectionWithIdentifier:sectionID atIndex:sectionIndex];
-    [model setHeader:[self headerForSection:sectionID]
+    [model setHeader:[self headerForSectionIndex:sectionID]
         forSectionWithIdentifier:sectionID];
     [self.tableView insertSections:[NSIndexSet indexSetWithIndex:sectionIndex]
                   withRowAnimation:UITableViewRowAnimationMiddle];
@@ -963,12 +979,12 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   return sectionIndex;
 }
 
-// Whether the model has items in |sectionID|.
+// Whether the model has items in `sectionID`.
 - (BOOL)hasItemInSection:(SectionIdentifier)sectionID {
   return [self itemsForSection:sectionID].count > 0;
 }
 
-// Deletes the items at |indexPaths|, exiting editing and removing empty
+// Deletes the items at `indexPaths`, exiting editing and removing empty
 // sections upon completion.
 - (void)deleteItemsAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths {
   [self deleteItemsAtIndexPaths:indexPaths
@@ -976,8 +992,8 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
             removeEmptySections:YES];
 }
 
-// Deletes the items at |indexPaths|.  Exits editing mode if |endEditing| is
-// YES.  Removes empty sections upon completion if |removeEmptySections| is YES.
+// Deletes the items at `indexPaths`.  Exits editing mode if `endEditing` is
+// YES.  Removes empty sections upon completion if `removeEmptySections` is YES.
 - (void)deleteItemsAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths
                      endEditing:(BOOL)endEditing
             removeEmptySections:(BOOL)removeEmptySections {
@@ -1011,10 +1027,11 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   }
 }
 
-// Deletes the ListItem corresponding to |indexPath| in the model.
+// Deletes the ListItem corresponding to `indexPath` in the model.
 - (void)deleteItemAtIndexPathFromModel:(NSIndexPath*)indexPath {
   TableViewModel* model = self.tableViewModel;
-  NSInteger sectionID = [model sectionIdentifierForSection:indexPath.section];
+  NSInteger sectionID =
+      [model sectionIdentifierForSectionIndex:indexPath.section];
   NSInteger itemType = [model itemTypeForIndexPath:indexPath];
   NSUInteger index = [model indexInItemTypeForIndexPath:indexPath];
   [model removeItemWithType:itemType
@@ -1022,14 +1039,14 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
                         atIndex:index];
 }
 
-// Marks all the items at |indexPaths| as read or unread depending on |read|.
+// Marks all the items at `indexPaths` as read or unread depending on `read`.
 - (void)markItemsAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths
                withReadStatus:(BOOL)read {
   // Record metric.
   base::RecordAction(base::UserMetricsAction(
       read ? "MobileReadingListMarkRead" : "MobileReadingListMarkUnread"));
 
-  // Mark the items as |read| and exit editing.
+  // Mark the items as `read` and exit editing.
   ReadingListListItemUpdater updater = ^(id<ReadingListListItem> item) {
     [self.dataSource setReadStatus:read forItem:item];
   };
@@ -1044,7 +1061,7 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self exitEditingModeAnimated:YES];
 }
 
-// Marks items from |section| with as read or unread dending on |read|.
+// Marks items from `section` with as read or unread dending on `read`.
 - (void)markItemsInSection:(SectionIdentifier)section
             withReadStatus:(BOOL)read {
   if (![self.tableViewModel hasSectionForSectionIdentifier:section]) {
@@ -1052,7 +1069,7 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
     return;
   }
 
-  // Mark the items as |read| and exit editing.
+  // Mark the items as `read` and exit editing.
   ReadingListListItemUpdater updater = ^(id<ReadingListListItem> item) {
     [self.dataSource setReadStatus:read forItem:item];
   };
@@ -1083,12 +1100,12 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   void (^updates)(void) = ^{
     SectionIdentifier sections[] = {SectionIdentifierRead,
                                     SectionIdentifierUnread};
-    for (size_t i = 0; i < base::size(sections); ++i) {
+    for (size_t i = 0; i < std::size(sections); ++i) {
       SectionIdentifier section = sections[i];
 
       if ([model hasSectionForSectionIdentifier:section] &&
           ![self hasItemInSection:section]) {
-        // If |section| has no items, remove it from the model and the table
+        // If `section` has no items, remove it from the model and the table
         // view.
         NSInteger sectionIndex = [model sectionForSectionIdentifier:section];
         [tableView deleteSections:[NSIndexSet indexSetWithIndex:sectionIndex]
@@ -1134,37 +1151,14 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   self.tableView.alwaysBounceVertical = NO;
   self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
   [self.audience readingListHasItems:NO];
-}
-
-#pragma mark - Gesture Helpers
-
-// Shows the context menu for a long press from |recognizer|.
-- (void)handleLongPress:(UILongPressGestureRecognizer*)recognizer {
-  if (self.editing || recognizer.state != UIGestureRecognizerStateBegan)
-    return;
-
-  CGPoint location = [recognizer locationOfTouch:0 inView:self.tableView];
-  NSIndexPath* indexPath = [self.tableView indexPathForRowAtPoint:location];
-  if (!indexPath)
-    return;
-
-  if (![self.tableViewModel hasItemAtIndexPath:indexPath])
-    return;
-
-  TableViewItem<ReadingListListItem>* item =
-      [self.tableViewModel itemAtIndexPath:indexPath];
-  if (item.type != ItemTypeItem) {
-    return;
-  }
-
-  [self.delegate readingListListViewController:self
-                     displayContextMenuForItem:item
-                                       atPoint:location];
+  [self updateEmptyViewTopMargin];
 }
 
 #pragma mark - Accessibility
 
 - (BOOL)accessibilityPerformEscape {
+  base::RecordAction(
+      base::UserMetricsAction("MobileReadingListAccessibilityClose"));
   [self.delegate dismissReadingListListViewController:self];
   return YES;
 }
@@ -1177,6 +1171,25 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   if (self.dataSourceModifiedWhileEditing &&
       self.numberOfBatchOperationInProgress == 0 && !self.editing) {
     [self reloadData];
+  }
+}
+
+// The empty view has different top margin according to the sign-in promo view
+// presence. This method needs to be called after the promo view changes.
+- (void)updateEmptyViewTopMargin {
+  BOOL promoViewVisible =
+      [self.tableViewModel hasItemForItemType:ItemTypeSignInPromo
+                            sectionIdentifier:SectionIdentifierSignInPromo];
+  if (promoViewVisible && !self.dataSource.hasElements) {
+    NSIndexPath* promoIndexPath =
+        [self.tableViewModel indexPathForItemType:ItemTypeSignInPromo
+                                sectionIdentifier:SectionIdentifierSignInPromo];
+    UITableViewCell* promoCell =
+        [self.tableView cellForRowAtIndexPath:promoIndexPath];
+    CGFloat promoHeight = promoCell.bounds.size.height;
+    [self setEmptyViewTopOffset:promoHeight];
+  } else {
+    [self setEmptyViewTopOffset:0.0];
   }
 }
 

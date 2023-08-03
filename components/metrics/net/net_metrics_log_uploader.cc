@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <sstream>
 
 #include "base/base64.h"
-#include "base/bind.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/statistics_recorder.h"
 #include "base/strings/strcat.h"
@@ -19,10 +19,10 @@
 #include "net/base/load_flags.h"
 #include "net/base/url_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
-#include "net/url_request/url_fetcher.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "services/network/public/cpp/simple_url_loader_throttle.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "third_party/metrics_proto/chrome_user_metrics_extension.pb.h"
 #include "third_party/metrics_proto/reporting_info.pb.h"
@@ -41,6 +41,9 @@ const uint8_t kServerPublicKey[] = {
     0x31, 0x1a, 0x39, 0x5b, 0x76, 0xb1, 0x6b, 0x3d, 0x6a, 0x2b};
 
 const uint32_t kServerPublicKeyVersion = 1;
+
+constexpr char kNoUploadUrlsReasonMsg[] =
+    "No server upload URLs specified. Will not attempt to retransmit.";
 
 net::NetworkTrafficAnnotationTag GetNetworkTrafficAnnotation(
     const metrics::MetricsLogUploader::MetricServiceType& service_type) {
@@ -217,11 +220,12 @@ NetMetricsLogUploader::NetMetricsLogUploader(
     base::StringPiece mime_type,
     MetricsLogUploader::MetricServiceType service_type,
     const MetricsLogUploader::UploadCallback& on_upload_complete)
-    : url_loader_factory_(std::move(url_loader_factory)),
-      server_url_(server_url),
-      mime_type_(mime_type.data(), mime_type.size()),
-      service_type_(service_type),
-      on_upload_complete_(on_upload_complete) {}
+    : NetMetricsLogUploader(url_loader_factory,
+                            server_url,
+                            /*insecure_server_url=*/GURL(),
+                            mime_type,
+                            service_type,
+                            on_upload_complete) {}
 
 NetMetricsLogUploader::NetMetricsLogUploader(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
@@ -323,8 +327,13 @@ void NetMetricsLogUploader::UploadLogToURL(
     resource_request->headers.SetHeader("content-encoding", "gzip");
   }
 
-  url_loader_ = network::SimpleURLLoader::Create(
-      std::move(resource_request), GetNetworkTrafficAnnotation(service_type_));
+  net::NetworkTrafficAnnotationTag traffic_annotation =
+      GetNetworkTrafficAnnotation(service_type_);
+  url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
+                                                 traffic_annotation);
+
+  if (network::SimpleURLLoaderThrottle::IsBatchingEnabled(traffic_annotation))
+    url_loader_->SetAllowBatching();
 
   if (should_encrypt) {
     std::string encrypted_message;
@@ -348,10 +357,17 @@ void NetMetricsLogUploader::UploadLogToURL(
 }
 
 void NetMetricsLogUploader::HTTPFallbackAborted() {
-  // The callbark is called with: a response code of 0 to indicate no upload was
+  // The callback is called with: a response code of 0 to indicate no upload was
   // attempted, a generic net error, and false to indicate it wasn't a secure
-  // connection.
-  on_upload_complete_.Run(0, net::ERR_FAILED, false);
+  // connection. If no server URLs were specified, discard the log and do not
+  // attempt retransmission.
+  bool force_discard =
+      server_url_.is_empty() && insecure_server_url_.is_empty();
+  base::StringPiece force_discard_reason =
+      force_discard ? kNoUploadUrlsReasonMsg : "";
+  on_upload_complete_.Run(/*response_code=*/0, net::ERR_FAILED,
+                          /*was_https=*/false, force_discard,
+                          force_discard_reason);
 }
 
 // The callback is only invoked if |url_loader_| it was bound against is alive.
@@ -365,7 +381,15 @@ void NetMetricsLogUploader::OnURLLoadComplete(
 
   bool was_https = url_loader_->GetFinalURL().SchemeIs(url::kHttpsScheme);
   url_loader_.reset();
-  on_upload_complete_.Run(response_code, error_code, was_https);
+
+  // If no server URLs were specified, discard the log and do not attempt
+  // retransmission.
+  bool force_discard =
+      server_url_.is_empty() && insecure_server_url_.is_empty();
+  base::StringPiece force_discard_reason =
+      force_discard ? kNoUploadUrlsReasonMsg : "";
+  on_upload_complete_.Run(response_code, error_code, was_https, force_discard,
+                          force_discard_reason);
 }
 
 }  // namespace metrics

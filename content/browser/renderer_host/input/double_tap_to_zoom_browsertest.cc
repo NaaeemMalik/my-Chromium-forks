@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -73,10 +73,10 @@ class DoubleTapToZoomBrowserTest
           std::tuple<std::string, bool, std::string>> {
  public:
   DoubleTapToZoomBrowserTest() {
-    std::vector<base::Feature> enable_features;
+    std::vector<base::test::FeatureRef> enable_features;
     enable_features.push_back(features::kRemoveMobileViewportDoubleTap);
     feature_list_.InitWithFeatures(enable_features,
-                                   std::vector<base::Feature>());
+                                   std::vector<base::test::FeatureRef>());
   }
   ~DoubleTapToZoomBrowserTest() override = default;
 
@@ -109,7 +109,7 @@ IN_PROC_BROWSER_TEST_P(DoubleTapToZoomBrowserTest, MobileOptimizedStatus) {
 }
 
 // TODO(crbug.com/1271210): Flaky on mac and linux.
-#if defined(OS_MAC) || defined(OS_LINUX)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 #define MAYBE_TapDelayEnabled DISABLED_TapDelayEnabled
 #else
 #define MAYBE_TapDelayEnabled TapDelayEnabled

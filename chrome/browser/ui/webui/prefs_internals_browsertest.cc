@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,13 +39,10 @@ IN_PROC_BROWSER_TEST_F(PrefsInternalsTest, TestPrefsAreServed) {
 
   // It's difficult to test the content of the page without duplicating the
   // implementation, but we can at least assert that something is being shown.
-  bool has_text = false;
-  EXPECT_TRUE(content::ExecuteScriptAndExtractBool(
-      web_contents,
-      base::StringPrintf("window.domAutomationController.send("
-                         "document.body.textContent && "
-                         "document.body.textContent.indexOf('%s') >= 0);",
-                         guid.c_str()),
-      &has_text));
-  EXPECT_TRUE(has_text);
+  EXPECT_EQ(true,
+            content::EvalJs(web_contents,
+                            base::StringPrintf(
+                                "document.body.textContent && "
+                                "document.body.textContent.indexOf('%s') >= 0;",
+                                guid.c_str())));
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,15 +23,21 @@
 #include "ui/views/widget/widget.h"
 
 ExtensionViewViews::ExtensionViewViews(extensions::ExtensionViewHost* host)
-    : views::WebView(host->browser() ? host->browser()->profile() : nullptr),
+    : views::WebView(host->GetBrowser() ? host->GetBrowser()->profile()
+                                        : nullptr),
       host_(host) {
   host_->set_view(this);
   SetWebContents(host_->web_contents());
 }
 
 ExtensionViewViews::~ExtensionViewViews() {
-  if (parent())
+  if (parent()) {
     parent()->RemoveChildView(this);
+  }
+
+  for (auto& observer : observers_) {
+    observer.OnViewDestroying();
+  }
 }
 
 void ExtensionViewViews::Init() {
@@ -89,6 +95,14 @@ ExtensionViewViews::Container* ExtensionViewViews::GetContainer() const {
   return container_;
 }
 
+void ExtensionViewViews::AddObserver(Observer* observer) {
+  observers_.AddObserver(observer);
+}
+
+void ExtensionViewViews::RemoveObserver(Observer* observer) {
+  observers_.RemoveObserver(observer);
+}
+
 gfx::NativeView ExtensionViewViews::GetNativeView() {
   return holder()->native_view();
 }
@@ -130,8 +144,8 @@ void ExtensionViewViews::OnLoaded() {
   ResizeDueToAutoResize(web_contents(), pending_preferred_size_);
 }
 
-gfx::NativeCursor ExtensionViewViews::GetCursor(const ui::MouseEvent& event) {
-  return gfx::kNullCursor;
+ui::Cursor ExtensionViewViews::GetCursor(const ui::MouseEvent& event) {
+  return ui::Cursor();
 }
 
 void ExtensionViewViews::PreferredSizeChanged() {

@@ -1,27 +1,27 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_ALLOCATION_GUARD_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_ALLOCATION_GUARD_H_
 
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "build/build_config.h"
 
-namespace base {
-namespace internal {
+namespace partition_alloc {
 
-#if defined(PA_HAS_ALLOCATION_GUARD)
+#if PA_CONFIG(HAS_ALLOCATION_GUARD)
 
 // Disallow allocations in the scope. Does not nest.
-class ScopedDisallowAllocations {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) ScopedDisallowAllocations {
  public:
   ScopedDisallowAllocations();
   ~ScopedDisallowAllocations();
 };
 
 // Disallow allocations in the scope. Does not nest.
-class ScopedAllowAllocations {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) ScopedAllowAllocations {
  public:
   ScopedAllowAllocations();
   ~ScopedAllowAllocations();
@@ -32,21 +32,18 @@ class ScopedAllowAllocations {
 
 #else
 
-// TODO(lizeb): Remove once NaCl is either gone, or the compiler gets updated.
-#if defined(OS_NACL)
-#define PA_MAYBE_UNUSED __attribute__((unused))
-#else
-#define PA_MAYBE_UNUSED [[maybe_unused]]
-#endif
+struct [[maybe_unused]] ScopedDisallowAllocations {};
+struct [[maybe_unused]] ScopedAllowAllocations {};
 
-struct PA_MAYBE_UNUSED ScopedDisallowAllocations {};
-struct PA_MAYBE_UNUSED ScopedAllowAllocations {};
+#endif  // PA_CONFIG(HAS_ALLOCATION_GUARD)
 
-#undef PA_MAYBE_UNUSED
+}  // namespace partition_alloc
 
-#endif  // defined(PA_HAS_ALLOCATION_GUARD)
+namespace base::internal {
 
-}  // namespace internal
-}  // namespace base
+using ::partition_alloc::ScopedAllowAllocations;
+using ::partition_alloc::ScopedDisallowAllocations;
+
+}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_ALLOCATION_GUARD_H_

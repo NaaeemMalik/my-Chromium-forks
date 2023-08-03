@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,10 @@
 
 #include "base/auto_reset.h"
 #include "base/base64.h"
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/stringprintf.h"
-#include "base/threading/thread_task_runner_handle.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/trace_event.h"
 #include "gpu/config/gpu_finch_features.h"
@@ -54,9 +54,10 @@ GrShaderCache::GrShaderCache(size_t max_cache_size_bytes, Client* client)
       client_(client),
       enable_vk_pipeline_cache_(
           base::FeatureList::IsEnabled(features::kEnableVkPipelineCache)) {
-  if (base::ThreadTaskRunnerHandle::IsSet()) {
+  if (base::SingleThreadTaskRunner::HasCurrentDefault()) {
     base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
-        this, "GrShaderCache", base::ThreadTaskRunnerHandle::Get());
+        this, "GrShaderCache",
+        base::SingleThreadTaskRunner::GetCurrentDefault());
   }
 }
 
@@ -279,9 +280,6 @@ void GrShaderCache::StoreVkPipelineCacheIfNeeded(GrDirectContext* gr_context) {
   // thread. Calling it from multiple gpu threads and hence multiple context is
   // redundant and expensive since each GrContext will have same key. Hence
   // adding a DCHECK here.
-  // TODO(vikassoni) : https://crbug.com/1211085. Ensure that we call this
-  // method from only one gpu thread when multiple gpu threads aka dr-dc is
-  // implemented.
   DCHECK_CALLED_ON_VALID_THREAD(gpu_main_thread_checker_);
 
   bool need_store_pipeline_cache = false;

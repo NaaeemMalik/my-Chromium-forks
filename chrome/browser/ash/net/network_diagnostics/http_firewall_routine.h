@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,13 @@
 #include <memory>
 #include <vector>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ash/net/network_diagnostics/network_diagnostics_routine.h"
 #include "chrome/browser/ash/net/network_diagnostics/tls_prober.h"
 #include "net/base/host_port_pair.h"
 
-namespace chromeos {
+namespace ash {
 namespace network_diagnostics {
 
 // Tests whether a firewall is blocking HTTP port 80.
@@ -45,7 +45,7 @@ class HttpFirewallRoutine : public NetworkDiagnosticsRoutine {
   ~HttpFirewallRoutine() override;
 
   // NetworkDiagnosticsRoutine:
-  mojom::RoutineType Type() override;
+  chromeos::network_diagnostics::mojom::RoutineType Type() override;
   void Run() override;
   void AnalyzeResultsAndExecuteCallback() override;
 
@@ -82,12 +82,13 @@ class HttpFirewallRoutine : public NetworkDiagnosticsRoutine {
   int tls_probe_failures_ = 0;
   int num_no_dns_failure_tls_probes_attempted_ = 0;
   std::unique_ptr<TlsProber> tls_prober_;
-  std::vector<mojom::HttpFirewallProblem> problems_;
+  std::vector<chromeos::network_diagnostics::mojom::HttpFirewallProblem>
+      problems_;
 
   base::WeakPtrFactory<HttpFirewallRoutine> weak_factory_{this};
 };
 
 }  // namespace network_diagnostics
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_DIAGNOSTICS_HTTP_FIREWALL_ROUTINE_H_

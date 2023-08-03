@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,8 +47,9 @@ void ForceInstalledTestBase::SetUp() {
       TestingBrowserProcess::GetGlobal());
   ASSERT_TRUE(profile_manager_->SetUp());
   profile_ = profile_manager_->CreateTestingProfile(
-      "p1", nullptr, u"p1", 0, "", TestingProfile::TestingFactories(),
-      absl::nullopt, std::move(policy_service));
+      "p1", nullptr, u"p1", 0, TestingProfile::TestingFactories(),
+      /*is_supervised_profile=*/false, absl::nullopt,
+      std::move(policy_service));
 
   prefs_ = profile_->GetTestingPrefService();
   registry_ = ExtensionRegistry::Get(profile_);
@@ -58,13 +59,13 @@ void ForceInstalledTestBase::SetUp() {
 }
 
 void ForceInstalledTestBase::SetupForceList(ExtensionOrigin origin) {
-  base::Value list(base::Value::Type::LIST);
+  base::Value::List list;
   const std::string update_url = origin == ExtensionOrigin::kWebStore
                                      ? kExtensionUpdateUrl
                                      : kOffStoreUpdateUrl;
   list.Append(base::StrCat({kExtensionId1, ";", update_url}));
   list.Append(base::StrCat({kExtensionId2, ";", update_url}));
-  std::unique_ptr<base::Value> dict =
+  base::Value::Dict dict =
       DictionaryBuilder()
           .Set(kExtensionId1,
                DictionaryBuilder()
@@ -85,13 +86,13 @@ void ForceInstalledTestBase::SetupForceList(ExtensionOrigin origin) {
   policy::PolicyMap map;
   map.Set("ExtensionInstallForcelist", policy::POLICY_LEVEL_MANDATORY,
           policy::POLICY_SCOPE_MACHINE, policy::POLICY_SOURCE_PLATFORM,
-          std::move(list), nullptr);
+          base::Value(std::move(list)), nullptr);
   policy_provider_.UpdateChromePolicy(map);
   base::RunLoop().RunUntilIdle();
 }
 
 void ForceInstalledTestBase::SetupEmptyForceList() {
-  std::unique_ptr<base::Value> dict = DictionaryBuilder().Build();
+  base::Value::Dict dict = DictionaryBuilder().Build();
   prefs_->SetManagedPref(pref_names::kInstallForceList, std::move(dict));
 
   EXPECT_CALL(policy_provider_, IsInitializationComplete(testing::_))

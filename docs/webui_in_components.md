@@ -16,7 +16,6 @@ To create a WebUI interface in `components/` you need to follow different steps 
 
 [TOC]
 
-<a name="creating_webui_page"></a>
 ## Creating the WebUI page
 
 WebUI resources in `components/` will be added in your specific project folder. Create a project folder `src/components/hello_world/`. When creating WebUI resources, follow the [Web Development Style Guide](https://chromium.googlesource.com/chromium/src/+/main/styleguide/web/web.md). For a sample WebUI page you could start with the following files:
@@ -168,24 +167,29 @@ HelloWorldUI::HelloWorldUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
   // Set up the chrome://hello-world source.
   content::WebUIDataSource* html_source =
-      content::WebUIDataSource::Create(chrome::kChromeUIHelloWorldHost);
+      content::WebUIDataSource::CreateAndAdd(
+          web_ui->GetWebContents()->GetBrowserContext(),
+          chrome::kChromeUIHelloWorldHost);
 
   // Localized strings.
-  html_source->AddLocalizedString("helloWorldTitle", IDS_HELLO_WORLD_TITLE);
-  html_source->AddLocalizedString("welcomeMessage", IDS_HELLO_WORLD_WELCOME_TEXT);
+  static constexpr webui::LocalizedString kStrings[] = {
+      {"helloWorldTitle", IDS_HELLO_WORLD_TITLE},
+      {"welcomeMessage", IDS_HELLO_WORLD_WELCOME_TEXT},
+  };
+  html_source->AddLocalizedStrings(kStrings);
 
   // As a demonstration of passing a variable for JS to use we pass in the name "Bob".
   html_source->AddString("userName", "Bob");
   html_source->UseStringsJs();
 
   // Add required resources.
-  html_source->AddResourcePath("hello_world.css", IDR_HELLO_WORLD_CSS);
-  html_source->AddResourcePath("hello_world.js", IDR_HELLO_WORLD_JS);
+  static constexpr webui::ResourcePath kResources[] = {
+      {"hello_world.html", IDR_HELLO_WORLD_HTML},
+      {"hello_world.css", IDR_HELLO_WORLD_CSS},
+      {"hello_world.js", IDR_HELLO_WORLD_JS},
+  };
+  source->AddResourcePaths(kResources);
   html_source->SetDefaultResource(IDR_HELLO_WORLD_HTML);
-
-  content::BrowserContext* browser_context =
-      web_ui->GetWebContents()->GetBrowserContext();
-  content::WebUIDataSource::Add(browser_context, html_source);
 }
 
 HelloWorldUI::~HelloWorldUI() {
@@ -241,7 +245,8 @@ You probably want your new WebUI page to be able to do something or get informat
 // The WebUI for chrome://hello-world
 ...
     // Set up the chrome://hello-world source.
-    content::WebUIDataSource* html_source = content::WebUIDataSource::Create(hello_world::kChromeUIHelloWorldHost);
+    content::WebUIDataSource::CreateAndAdd(
+        browser_context, hello_world::kChromeUIHelloWorldHost);
 +
 +   // Register callback handler.
 +   RegisterMessageCallback("addNumbers",

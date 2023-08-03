@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -82,11 +82,11 @@ class SnapshotController {
   // now completed (so the next one can be started).
   void PendingSnapshotCompleted();
 
-  // Invoked from WebContentObserver::DocumentAvailableInMainFrame
-  void DocumentAvailableInMainFrame();
+  // Invoked from WebContentObserver::PrimaryMainDocumentElementAvailable
+  void PrimaryMainDocumentElementAvailable();
 
-  // Invoked from WebContentObserver::DocumentOnLoadCompletedInMainFrame
-  void DocumentOnLoadCompletedInMainFrame();
+  // Invoked from WebContentObserver::DocumentOnLoadCompletedInPrimaryMainFrame
+  void DocumentOnLoadCompletedInPrimaryMainFrame();
 
   int64_t GetDelayAfterDocumentAvailableForTest();
   int64_t GetDelayAfterDocumentOnLoadCompletedForTest();

@@ -54,6 +54,7 @@
 #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
 #include "third_party/blink/renderer/core/editing/frame_selection.h"
 #include "third_party/blink/renderer/core/editing/ime/edit_context.h"
+#include "third_party/blink/renderer/core/editing/ime/input_method_controller.h"
 #include "third_party/blink/renderer/core/editing/iterators/text_iterator.h"
 #include "third_party/blink/renderer/core/editing/kill_ring.h"
 #include "third_party/blink/renderer/core/editing/selection_modifier.h"
@@ -68,6 +69,7 @@
 #include "third_party/blink/renderer/core/html/html_br_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/input/event_handler.h"
+#include "third_party/blink/renderer/core/input/keyboard_shortcut_recorder.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar.h"
@@ -94,7 +96,7 @@ const CommandNameEntry kCommandNameEntries[] = {
 };
 // Handles all commands except EditingCommandType::Invalid.
 static_assert(
-    base::size(kCommandNameEntries) + 1 ==
+    std::size(kCommandNameEntries) + 1 ==
         static_cast<size_t>(EditingCommandType::kNumberOfCommandTypes),
     "must handle all valid EditingCommandType");
 
@@ -260,8 +262,8 @@ static bool ExecuteApplyParagraphStyle(LocalFrame& frame,
                                        const String& property_value) {
   auto* style =
       MakeGarbageCollected<MutableCSSPropertyValueSet>(kHTMLQuirksMode);
-  style->SetProperty(property_id, property_value, /* important */ false,
-                     frame.DomWindow()->GetSecureContextMode());
+  style->ParseAndSetProperty(property_id, property_value, /* important */ false,
+                             frame.DomWindow()->GetSecureContextMode());
   // FIXME: We don't call shouldApplyStyle when the source is DOM; is there a
   // good reason for that?
   switch (source) {
@@ -349,7 +351,7 @@ static bool ExecuteCreateLink(LocalFrame& frame,
                               Event*,
                               EditorCommandSource,
                               const String& value) {
-  if (value.IsEmpty())
+  if (value.empty())
     return false;
   DCHECK(frame.GetDocument());
   return MakeGarbageCollected<CreateLinkCommand>(*frame.GetDocument(), value)
@@ -515,6 +517,10 @@ static bool ExecuteDeleteToBeginningOfLine(LocalFrame& frame,
                                            Event*,
                                            EditorCommandSource,
                                            const String&) {
+#if BUILDFLAG(IS_ANDROID)
+  RecordKeyboardShortcutForAndroid(KeyboardShortcut::kDeleteLine);
+#endif  // BUILDFLAG(IS_ANDROID)
+
   DeleteWithDirection(frame, DeleteDirection::kBackward,
                       TextGranularity::kLineBoundary, true, false);
   return true;
@@ -755,7 +761,7 @@ static bool ExecuteScrollPageBackward(LocalFrame& frame,
                                       const String&) {
   return frame.GetEventHandler().BubblingScroll(
       mojom::blink::ScrollDirection::kScrollBlockDirectionBackward,
-      ScrollGranularity::kScrollByPage);
+      ui::ScrollGranularity::kScrollByPage);
 }
 
 static bool ExecuteScrollPageForward(LocalFrame& frame,
@@ -764,7 +770,7 @@ static bool ExecuteScrollPageForward(LocalFrame& frame,
                                      const String&) {
   return frame.GetEventHandler().BubblingScroll(
       mojom::blink::ScrollDirection::kScrollBlockDirectionForward,
-      ScrollGranularity::kScrollByPage);
+      ui::ScrollGranularity::kScrollByPage);
 }
 
 static bool ExecuteScrollLineUp(LocalFrame& frame,
@@ -773,7 +779,7 @@ static bool ExecuteScrollLineUp(LocalFrame& frame,
                                 const String&) {
   return frame.GetEventHandler().BubblingScroll(
       mojom::blink::ScrollDirection::kScrollUpIgnoringWritingMode,
-      ScrollGranularity::kScrollByLine);
+      ui::ScrollGranularity::kScrollByLine);
 }
 
 static bool ExecuteScrollLineDown(LocalFrame& frame,
@@ -782,7 +788,7 @@ static bool ExecuteScrollLineDown(LocalFrame& frame,
                                   const String&) {
   return frame.GetEventHandler().BubblingScroll(
       mojom::blink::ScrollDirection::kScrollDownIgnoringWritingMode,
-      ScrollGranularity::kScrollByLine);
+      ui::ScrollGranularity::kScrollByLine);
 }
 
 static bool ExecuteScrollToBeginningOfDocument(LocalFrame& frame,
@@ -791,7 +797,7 @@ static bool ExecuteScrollToBeginningOfDocument(LocalFrame& frame,
                                                const String&) {
   return frame.GetEventHandler().BubblingScroll(
       mojom::blink::ScrollDirection::kScrollBlockDirectionBackward,
-      ScrollGranularity::kScrollByDocument);
+      ui::ScrollGranularity::kScrollByDocument);
 }
 
 static bool ExecuteScrollToEndOfDocument(LocalFrame& frame,
@@ -800,7 +806,7 @@ static bool ExecuteScrollToEndOfDocument(LocalFrame& frame,
                                          const String&) {
   return frame.GetEventHandler().BubblingScroll(
       mojom::blink::ScrollDirection::kScrollBlockDirectionForward,
-      ScrollGranularity::kScrollByDocument);
+      ui::ScrollGranularity::kScrollByDocument);
 }
 
 static bool ExecuteSelectAll(LocalFrame& frame,
@@ -1811,10 +1817,14 @@ static const EditorInternalCommand* InternalCommand(
       {EditingCommandType::kAlignCenter, ExecuteJustifyCenter,
        SupportedFromMenuOrKeyBinding, EnabledInRichlyEditableText, StateNone,
        ValueStateOrNull, kNotTextInsertion, CanNotExecuteWhenDisabled},
+      {EditingCommandType::kPasteFromImageURL,
+       ClipboardCommands::ExecutePasteFromImageURL,
+       SupportedFromMenuOrKeyBinding, EnabledInEditableText, StateNone,
+       ValueStateOrNull, kNotTextInsertion, CanNotExecuteWhenDisabled},
   };
   // Handles all commands except EditingCommandType::Invalid.
   static_assert(
-      base::size(kEditorCommands) + 1 ==
+      std::size(kEditorCommands) + 1 ==
           static_cast<size_t>(EditingCommandType::kNumberOfCommandTypes),
       "must handle all valid EditingCommandType");
 
@@ -1825,7 +1835,7 @@ static const EditorInternalCommand* InternalCommand(
 
   int command_index = static_cast<int>(command_type) - 1;
   DCHECK(command_index >= 0 &&
-         command_index < static_cast<int>(base::size(kEditorCommands)));
+         command_index < static_cast<int>(std::size(kEditorCommands)));
   return &kEditorCommands[command_index];
 }
 
@@ -1887,13 +1897,13 @@ bool Editor::ExecuteCommand(const String& command_name, const String& value) {
   if (!CanEdit() && command_name == "moveToBeginningOfDocument") {
     return GetFrame().GetEventHandler().BubblingScroll(
         mojom::blink::ScrollDirection::kScrollUpIgnoringWritingMode,
-        ScrollGranularity::kScrollByDocument);
+        ui::ScrollGranularity::kScrollByDocument);
   }
 
   if (!CanEdit() && command_name == "moveToEndOfDocument") {
     return GetFrame().GetEventHandler().BubblingScroll(
         mojom::blink::ScrollDirection::kScrollDownIgnoringWritingMode,
-        ScrollGranularity::kScrollByDocument);
+        ui::ScrollGranularity::kScrollByDocument);
   }
 
   if (command_name == "ToggleSpellPanel") {
@@ -2052,13 +2062,18 @@ bool EditorCommand::IsTextInsertion() const {
   return command_ && command_->is_text_insertion;
 }
 
+bool EditorCommand::IsValueInterpretedAsHTML() const {
+  return IsSupported() &&
+         command_->command_type == EditingCommandType::kInsertHTML;
+}
+
 int EditorCommand::IdForHistogram() const {
   return IsSupported() ? static_cast<int>(command_->command_type) : 0;
 }
 
 const StaticRangeVector* EditorCommand::GetTargetRanges() const {
   const Node* target = EventTargetNodeForDocument(frame_->GetDocument());
-  if (!IsSupported() || !frame_ || !target || !HasRichlyEditableStyle(*target))
+  if (!IsSupported() || !frame_ || !target || !IsRichlyEditable(*target))
     return nullptr;
 
   switch (command_->command_type) {

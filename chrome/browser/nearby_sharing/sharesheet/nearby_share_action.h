@@ -1,12 +1,14 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_NEARBY_SHARING_SHARESHEET_NEARBY_SHARE_ACTION_H_
 #define CHROME_BROWSER_NEARBY_SHARING_SHARESHEET_NEARBY_SHARE_ACTION_H_
 
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/sharesheet/share_action/share_action.h"
 #include "chrome/browser/ui/webui/nearby_share/nearby_share_dialog_ui.h"
+#include "components/services/app_service/public/cpp/intent.h"
 
 class Profile;
 
@@ -24,10 +26,10 @@ class NearbyShareAction : public sharesheet::ShareAction {
   const gfx::VectorIcon& GetActionIcon() override;
   void LaunchAction(sharesheet::SharesheetController* controller,
                     views::View* root_view,
-                    apps::mojom::IntentPtr intent) override;
+                    apps::IntentPtr intent) override;
   void OnClosing(sharesheet::SharesheetController* controller) override {}
   bool HasActionView() override;
-  bool ShouldShowAction(const apps::mojom::IntentPtr& intent,
+  bool ShouldShowAction(const apps::IntentPtr& intent,
                         bool contains_hosted_document) override;
   bool OnAcceleratorPressed(const ui::Accelerator& accelerator) override;
   void SetActionCleanupCallbackForArc(
@@ -35,7 +37,7 @@ class NearbyShareAction : public sharesheet::ShareAction {
 
   static std::vector<std::unique_ptr<Attachment>> CreateAttachmentsFromIntent(
       Profile* profile,
-      apps::mojom::IntentPtr intent);
+      apps::IntentPtr intent);
 
   void SetNearbyShareDisabledByPolicyForTesting(bool disabled) {
     nearby_share_disabled_by_policy_for_testing_ = disabled;
@@ -44,7 +46,7 @@ class NearbyShareAction : public sharesheet::ShareAction {
  private:
   bool IsNearbyShareDisabledByPolicy();
 
-  Profile* profile_;
+  raw_ptr<Profile, ExperimentalAsh> profile_;
   absl::optional<bool> nearby_share_disabled_by_policy_for_testing_ =
       absl::nullopt;
 };

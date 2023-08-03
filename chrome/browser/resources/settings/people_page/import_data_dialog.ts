@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,45 +6,51 @@
  * @fileoverview 'settings-import-data-dialog' is a component for importing
  * bookmarks and other data from other sources.
  */
-import 'gtx://resources/cr_elements/cr_button/cr_button.m.js';
-import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import 'gtx://resources/cr_elements/md_select_css.m.js';
+import 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import 'gtx://resources/cr_elements/md_select.css.js';
 import 'gtx://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import 'gtx://resources/polymer/v3_0/paper-spinner/paper-spinner-lite.js';
 import '../controls/settings_checkbox.js';
 import '../controls/settings_toggle_button.js';
-import '../icons.js';
-import '../settings_vars_css.js';
+import '../icons.html.js';
+import '../settings_vars.css.js';
 import '../i18n_setup.js';
 
-import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.m.js';
-import {I18nMixin} from 'gtx://resources/js/i18n_mixin.js';
-import {WebUIListenerMixin} from 'gtx://resources/js/web_ui_listener_mixin.js';
-import {html, PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {PrefsMixin} from 'gtx://resources/cr_components/settings_prefs/prefs_mixin.js';
+import {CrButtonElement} from 'gtx://resources/cr_elements/cr_button/cr_button.js';
+import {CrDialogElement} from 'gtx://resources/cr_elements/cr_dialog/cr_dialog.js';
+import {I18nMixin} from 'gtx://resources/cr_elements/i18n_mixin.js';
+import {WebUiListenerMixin} from 'gtx://resources/cr_elements/web_ui_listener_mixin.js';
+import {PolymerElement} from 'gtx://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {SettingsCheckboxElement} from '../controls/settings_checkbox.js';
-import {PrefsMixin} from '../prefs/prefs_mixin.js';
 
 import {BrowserProfile, ImportDataBrowserProxy, ImportDataBrowserProxyImpl, ImportDataStatus} from './import_data_browser_proxy.js';
+import {getTemplate} from './import_data_dialog.html.js';
 
-interface SettingsImportDataDialogElement {
+export interface SettingsImportDataDialogElement {
   $: {
-    dialog: CrDialogElement,
     browserSelect: HTMLSelectElement,
+    cancel: CrButtonElement,
+    dialog: CrDialogElement,
+    done: CrButtonElement,
+    import: CrButtonElement,
+    successIcon: HTMLElement,
   };
 }
 
 const SettingsImportDataDialogElementBase =
-    WebUIListenerMixin(I18nMixin(PrefsMixin(PolymerElement)));
+    WebUiListenerMixin(I18nMixin(PrefsMixin(PolymerElement)));
 
-class SettingsImportDataDialogElement extends
+export class SettingsImportDataDialogElement extends
     SettingsImportDataDialogElementBase {
   static get is() {
     return 'settings-import-data-dialog';
   }
 
   static get template() {
-    return html`{__html_template__}`;
+    return getTemplate();
   }
 
   static get properties() {
@@ -80,20 +86,20 @@ class SettingsImportDataDialogElement extends
     };
   }
 
-  private browserProfiles_: Array<BrowserProfile>;
+  private browserProfiles_: BrowserProfile[];
   private selected_: BrowserProfile;
   private noImportDataTypeSelected_: boolean;
   private importStatus_: ImportDataStatus;
   private browserProxy_: ImportDataBrowserProxy =
       ImportDataBrowserProxyImpl.getInstance();
 
-  ready() {
+  override ready() {
     super.ready();
     this.addEventListener(
         'settings-boolean-control-change', this.updateImportDataTypesSelected_);
   }
 
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
 
     this.browserProxy_.initializeImportDialog().then(data => {
@@ -105,7 +111,7 @@ class SettingsImportDataDialogElement extends
       this.$.dialog.showModal();
     });
 
-    this.addWebUIListener(
+    this.addWebUiListener(
         'import-data-status-changed', (importStatus: ImportDataStatus) => {
           this.importStatus_ = importStatus;
           if (this.hasImportStatus_(ImportDataStatus.FAILED)) {
@@ -147,7 +153,7 @@ class SettingsImportDataDialogElement extends
     this.selected_ = this.browserProfiles_[this.$.browserSelect.selectedIndex];
   }
 
-  private onActionButtonTap_() {
+  private onActionButtonClick_() {
     const checkboxes = this.shadowRoot!.querySelectorAll('settings-checkbox');
     if (this.isImportFromFileSelected_()) {
       this.browserProxy_.importFromBookmarksFile();
@@ -171,6 +177,12 @@ class SettingsImportDataDialogElement extends
   private shouldDisableImport_(): boolean {
     return this.hasImportStatus_(ImportDataStatus.IN_PROGRESS) ||
         this.noImportDataTypeSelected_;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'settings-import-data-dialog': SettingsImportDataDialogElement;
   }
 }
 

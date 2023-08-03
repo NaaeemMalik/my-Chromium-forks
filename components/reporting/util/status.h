@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 #include <iosfwd>
 #include <string>
 
-#include "base/compiler_specific.h"
 #include "base/strings/string_piece.h"
-#include "components/reporting/util/status.pb.h"
+#include "components/reporting/proto/synced/status.pb.h"
 
 namespace reporting {
 namespace error {
@@ -30,7 +29,6 @@ enum Code : int32_t {
   NOT_FOUND = 5,
   ALREADY_EXISTS = 6,
   PERMISSION_DENIED = 7,
-  UNAUTHENTICATED = 16,
   RESOURCE_EXHAUSTED = 8,
   FAILED_PRECONDITION = 9,
   ABORTED = 10,
@@ -39,12 +37,13 @@ enum Code : int32_t {
   INTERNAL = 13,
   UNAVAILABLE = 14,
   DATA_LOSS = 15,
+  UNAUTHENTICATED = 16,
   // The value should always be kept last.
   MAX_VALUE
 };
 }  // namespace error
 
-class WARN_UNUSED_RESULT Status {
+class [[nodiscard]] Status {
  public:
   // Creates a "successful" status.
   Status();

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,12 @@
 
 #include <string>
 
-#include "base/memory/weak_ptr.h"
+#include "base/memory/raw_ptr.h"
 #include "components/prefs/pref_change_registrar.h"
 
 class PrefRegistrySimple;
 
-namespace chromeos {
+namespace ash {
 
 // NetworkThrottlingObserver is a singleton, owned by
 // `ChromeBrowserMainPartsAsh`.
@@ -35,15 +35,10 @@ class NetworkThrottlingObserver {
   // Callback used when prefs::kNetworkThrottlingEnabled changes
   void OnPreferenceChanged(const std::string& pref_name);
 
-  PrefService* local_state_;
+  raw_ptr<PrefService, ExperimentalAsh> local_state_;
   PrefChangeRegistrar pref_change_registrar_;
 };
 
-}  // namespace chromeos
-
-// TODO(https://crbug.com/1164001): remove after the migration is finished.
-namespace ash {
-using ::chromeos::NetworkThrottlingObserver;
-}
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_NETWORK_THROTTLING_OBSERVER_H_

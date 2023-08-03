@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,9 +7,12 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "base/component_export.h"
 #include "build/build_config.h"
+#include "printing/buildflags/buildflags.h"
 #include "printing/mojom/print.mojom.h"
 #include "printing/page_range.h"
 #include "printing/page_setup.h"
@@ -18,11 +21,15 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 #include <map>
 
 #include "base/values.h"
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chromeos/crosapi/mojom/local_printer.mojom.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace printing {
 
@@ -37,43 +44,46 @@ mojom::ColorModel ColorModeToColorModel(int color_mode);
 COMPONENT_EXPORT(PRINTING)
 absl::optional<bool> IsColorModelSelected(mojom::ColorModel color_model);
 
-#if defined(USE_CUPS)
+#if BUILDFLAG(USE_CUPS)
 // Get the color model setting name and value for the `color_model`.
 COMPONENT_EXPORT(PRINTING)
 void GetColorModelForModel(mojom::ColorModel color_model,
                            std::string* color_setting_name,
                            std::string* color_value);
 
-#if defined(OS_MAC) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS)
 // Convert from `color_model` to a print-color-mode value from PWG 5100.13.
 COMPONENT_EXPORT(PRINTING)
 std::string GetIppColorModelForModel(mojom::ColorModel color_model);
 #endif
-#endif  // defined(USE_CUPS)
+#endif  // BUILDFLAG(USE_CUPS)
 
 class COMPONENT_EXPORT(PRINTING) PrintSettings {
  public:
   // Media properties requested by the user. Default instance represents
   // default media selection.
   struct RequestedMedia {
+    bool operator==(const RequestedMedia& other) const;
+    bool IsDefault() const {
+      return size_microns.IsEmpty() && vendor_id.empty();
+    }
+
     // Size of the media, in microns.
     gfx::Size size_microns;
     // Platform specific id to map it back to the particular media.
     std::string vendor_id;
-
-    bool IsDefault() const {
-      return size_microns.IsEmpty() && vendor_id.empty();
-    }
   };
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   using AdvancedSettings = std::map<std::string, base::Value>;
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
   PrintSettings();
   PrintSettings(const PrintSettings&);
   PrintSettings& operator=(const PrintSettings&);
   ~PrintSettings();
+
+  bool operator==(const PrintSettings& other) const;
 
   // Reinitialize the settings to the default values.
   void Clear();
@@ -106,6 +116,11 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
   void SetPrinterPrintableArea(const gfx::Size& physical_size_device_units,
                                const gfx::Rect& printable_area_device_units,
                                bool landscape_needs_flip);
+#if BUILDFLAG(IS_WIN)
+  // Update the printer printable area for the current media using the
+  // provided area in microns.
+  void UpdatePrinterPrintableArea(const gfx::Rect& printable_area_um);
+#endif
   const PageSetup& page_setup_device_units() const {
     return page_setup_device_units_;
   }
@@ -145,11 +160,21 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
   bool supports_alpha_blend() const { return supports_alpha_blend_; }
 
   int device_units_per_inch() const {
-#if defined(OS_MAC)
-    return 72;
-#else   // defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
+    return kMacDeviceUnitsPerInch;
+#else   // BUILDFLAG(IS_MAC)
     return dpi();
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
+  }
+
+  const gfx::Size& device_units_per_inch_size() const {
+#if BUILDFLAG(IS_MAC)
+    static constexpr gfx::Size kSize{kMacDeviceUnitsPerInch,
+                                     kMacDeviceUnitsPerInch};
+    return kSize;
+#else   // BUILDFLAG(IS_MAC)
+    return dpi_size();
+#endif  // BUILDFLAG(IS_MAC)
   }
 
   void set_ranges(const PageRanges& ranges) { ranges_ = ranges; }
@@ -190,7 +215,7 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
   }
   mojom::DuplexMode duplex_mode() const { return duplex_mode_; }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   void set_printer_language_type(mojom::PrinterLanguageType type) {
     printer_language_type_ = type;
   }
@@ -221,14 +246,14 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
     pages_per_sheet_ = pages_per_sheet;
   }
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   AdvancedSettings& advanced_settings() { return advanced_settings_; }
   const AdvancedSettings& advanced_settings() const {
     return advanced_settings_;
   }
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
   void set_send_user_info(bool send_user_info) {
     send_user_info_ = send_user_info;
   }
@@ -237,9 +262,35 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
   void set_username(const std::string& username) { username_ = username; }
   const std::string& username() const { return username_; }
 
+  void set_oauth_token(const std::string& oauth_token) {
+    oauth_token_ = oauth_token;
+  }
+  const std::string& oauth_token() const { return oauth_token_; }
+
   void set_pin_value(const std::string& pin_value) { pin_value_ = pin_value; }
   const std::string& pin_value() const { return pin_value_; }
-#endif  // defined(OS_CHROMEOS)
+
+  void set_client_infos(std::vector<mojom::IppClientInfo> client_infos) {
+    client_infos_ = std::move(client_infos);
+  }
+  const std::vector<mojom::IppClientInfo>& client_infos() const {
+    return client_infos_;
+  }
+
+  void set_printer_manually_selected(bool printer_manually_selected) {
+    printer_manually_selected_ = printer_manually_selected;
+  }
+  bool printer_manually_selected() const { return printer_manually_selected_; }
+
+  void set_printer_status_reason(
+      crosapi::mojom::StatusReason::Reason printer_status_reason) {
+    printer_status_reason_ = printer_status_reason;
+  }
+  absl::optional<crosapi::mojom::StatusReason::Reason> printer_status_reason()
+      const {
+    return printer_status_reason_;
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Cookie generator. It is used to initialize `PrintedDocument` with its
   // associated `PrintSettings`, to be sure that each generated `PrintedPage`
@@ -247,6 +298,10 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
   static int NewCookie();
 
  private:
+#if BUILDFLAG(IS_MAC)
+  static constexpr int kMacDeviceUnitsPerInch = 72;
+#endif
+
   // Multi-page printing. Each `PageRange` describes a from-to page combination.
   // This permits printing selected pages only.
   PageRanges ranges_;
@@ -310,7 +365,7 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
   // True if this printer supports AlphaBlend.
   bool supports_alpha_blend_;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   mojom::PrinterLanguageType printer_language_type_;
 #endif
 
@@ -322,21 +377,36 @@ class COMPONENT_EXPORT(PRINTING) PrintSettings {
   // Number of pages per sheet.
   int pages_per_sheet_;
 
-#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   // Advanced settings.
   AdvancedSettings advanced_settings_;
-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
-#if defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
   // Whether to send user info.
   bool send_user_info_;
 
   // Username if it's required by the printer.
   std::string username_;
 
+  // OAuth access token if it's required by the printer.
+  std::string oauth_token_;
+
   // PIN code entered by the user.
   std::string pin_value_;
-#endif
+
+  // Value of the 'client-info' that will be sent to the printer.
+  // Should only be set for printers that support 'client-info'.
+  std::vector<mojom::IppClientInfo> client_infos_;
+
+  // True if the user selects to print to a different printer than the original
+  // destination shown when Print Preview opens.
+  bool printer_manually_selected_;
+
+  // The printer status reason shown for the selected printer at the time print
+  // is requested. Only local CrOS printers set printer statuses.
+  absl::optional<crosapi::mojom::StatusReason::Reason> printer_status_reason_;
+#endif  // BUILDFLAG(IS_CHROMEOS)
 };
 
 }  // namespace printing

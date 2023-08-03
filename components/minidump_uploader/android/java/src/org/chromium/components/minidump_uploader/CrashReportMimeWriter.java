@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import org.chromium.base.annotations.NativeMethods;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +31,18 @@ public class CrashReportMimeWriter {
     public static void rewriteMinidumpsAsMIMEs(File srcDir, File destDir) {
         CrashReportMimeWriterJni.get().rewriteMinidumpsAsMIMEs(
                 srcDir.getAbsolutePath(), destDir.getAbsolutePath());
+    }
+
+    /*
+     * Rewrites ANR reports as MIME multipart messages, including the serialized AnrData as a file
+     * attachment.
+     *
+     * @param anrFiles Pairs of serialized ANR proto file names and the versions they happened on.
+     * @param destDir The directory in which to write the MIME files.
+     */
+    public static void rewriteAnrsAsMIMEs(List<String> anrs, File destDir) {
+        CrashReportMimeWriterJni.get().rewriteAnrsAsMIMEs(
+                anrs.toArray(new String[0]), destDir.getAbsolutePath());
     }
 
     /*
@@ -72,5 +85,6 @@ public class CrashReportMimeWriter {
     interface Natives {
         void rewriteMinidumpsAsMIMEs(String srcDir, String destDir);
         String[] rewriteMinidumpsAsMIMEsAndGetCrashKeys(String srcDir, String destDir);
+        void rewriteAnrsAsMIMEs(String[] anrs, String destDir);
     }
 }

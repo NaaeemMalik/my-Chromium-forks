@@ -1,4 +1,4 @@
-# Copyright 2013 The Chromium Authors. All rights reserved.
+# Copyright 2013 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,8 +8,7 @@ import socket
 import subprocess
 import threading
 import time
-
-from six.moves import urllib
+import urllib
 
 def terminate_process(proc):
   """Terminates the process.
@@ -30,7 +29,7 @@ class Server(object):
 
   def __init__(self, exe_path, log_path=None, verbose=True,
                replayable=False, devtools_replay_path=None,
-               additional_args=None):
+               bidi_mapper_path=None, additional_args=None):
     """Starts the ChromeDriver server and waits for it to be ready.
 
     Args:
@@ -61,6 +60,9 @@ class Server(object):
     if devtools_replay_path:
       chromedriver_args.extend(['--devtools-replay=%s' % devtools_replay_path])
 
+    if bidi_mapper_path:
+      chromedriver_args.extend(['--bidi-mapper-path=%s' % bidi_mapper_path])
+
     if additional_args:
       for arg in additional_args:
         if not arg.startswith('--'):
@@ -80,7 +82,7 @@ class Server(object):
       if time.time() > max_time:
         self._process.poll()
         if self._process.returncode is None:
-          print( 'ChromeDriver process still running, but not responding')
+          print('ChromeDriver process still running, but not responding')
         else:
           print('ChromeDriver process exited with return code %d'
                 % self._process.returncode)

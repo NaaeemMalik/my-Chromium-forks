@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,13 +8,13 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/browser_thread.h"
 
 typedef struct CERTCertificateStr CERTCertificate;
 
-namespace chromeos {
+namespace ash {
 
 // A client certificate filter that filters by applying a
 // NSSProfileFilterChromeOS.
@@ -52,6 +52,6 @@ class ClientCertFilter {
   base::WeakPtrFactory<ClientCertFilter> weak_ptr_factory_{this};
 };
 
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROME_BROWSER_ASH_NET_CLIENT_CERT_FILTER_H_

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
 #include "device/base/features.h"
 #include "device/fido/authenticator_get_assertion_response.h"
 #include "device/fido/ctap2_device_operation.h"
@@ -41,10 +41,8 @@ bool SetResponseCredential(
     const std::vector<PublicKeyCredentialDescriptor>& allow_list) {
   if (response->credential) {
     if (!allow_list.empty() &&
-        std::none_of(allow_list.cbegin(), allow_list.cend(),
-                     [&response](const auto& credential) {
-                       return credential.id == response->credential->id;
-                     })) {
+        !base::Contains(allow_list, response->credential->id,
+                        &PublicKeyCredentialDescriptor::id)) {
       return false;
     }
 
@@ -68,8 +66,7 @@ bool HasCredentialSpecificPRFInputs(const CtapGetAssertionOptions& options) {
 }
 
 // GetDefaultPRFInput returns the default PRF input from |options|, if any.
-const CtapGetAssertionOptions::PRFInput* GetDefaultPRFInput(
-    const CtapGetAssertionOptions& options) {
+const PRFInput* GetDefaultPRFInput(const CtapGetAssertionOptions& options) {
   if (options.prf_inputs.empty() ||
       options.prf_inputs[0].credential_id.has_value()) {
     return nullptr;
@@ -80,9 +77,8 @@ const CtapGetAssertionOptions::PRFInput* GetDefaultPRFInput(
 // GetPRFInputForCredential returns the PRF input specific to the given
 // credential ID from |options|, or the default PRF input if there's nothing
 // specific for |id|, or |nullptr| if there's not a default value.
-const CtapGetAssertionOptions::PRFInput* GetPRFInputForCredential(
-    const CtapGetAssertionOptions& options,
-    const std::vector<uint8_t>& id) {
+const PRFInput* GetPRFInputForCredential(const CtapGetAssertionOptions& options,
+                                         const std::vector<uint8_t>& id) {
   for (const auto& prf_input : options.prf_inputs) {
     if (prf_input.credential_id == id) {
       return &prf_input;
@@ -141,8 +137,7 @@ bool GetAssertionTask::StringFixupPredicate(
 }
 
 void GetAssertionTask::StartTask() {
-  if (device()->supported_protocol() == ProtocolVersion::kCtap2 &&
-      !request_.is_u2f_only) {
+  if (device()->supported_protocol() == ProtocolVersion::kCtap2) {
     GetAssertion();
   } else {
     // |device_info| should be present iff the device is CTAP2.
@@ -173,7 +168,9 @@ void GetAssertionTask::GetAssertion() {
         device(), request_,
         base::BindOnce(&GetAssertionTask::HandleResponse,
                        weak_factory_.GetWeakPtr(), request_.allow_list),
-        base::BindOnce(&ReadCTAPGetAssertionResponse), StringFixupPredicate);
+        base::BindOnce(&ReadCTAPGetAssertionResponse,
+                       device()->DeviceTransport()),
+        StringFixupPredicate);
     sign_operation_->Start();
     return;
   }
@@ -214,7 +211,9 @@ void GetAssertionTask::GetAssertion() {
         device(), std::move(request),
         base::BindOnce(&GetAssertionTask::HandleResponse,
                        weak_factory_.GetWeakPtr(), request.allow_list),
-        base::BindOnce(&ReadCTAPGetAssertionResponse), StringFixupPredicate);
+        base::BindOnce(&ReadCTAPGetAssertionResponse,
+                       device()->DeviceTransport()),
+        StringFixupPredicate);
     sign_operation_->Start();
     return;
   }
@@ -228,7 +227,8 @@ void GetAssertionTask::GetAssertion() {
           device(), NextSilentRequest(),
           base::BindOnce(&GetAssertionTask::HandleResponseToSilentRequest,
                          weak_factory_.GetWeakPtr()),
-          base::BindOnce(&ReadCTAPGetAssertionResponse),
+          base::BindOnce(&ReadCTAPGetAssertionResponse,
+                         device()->DeviceTransport()),
           /*string_fixup_predicate=*/nullptr);
   sign_operation_->Start();
 }
@@ -269,15 +269,19 @@ void GetAssertionTask::HandleResponse(
   }
 
   if (response_code == CtapDeviceResponseCode::kSuccess) {
-    if (!SetResponseCredential(&response_data.value(), allow_list)) {
-      FIDO_LOG(DEBUG)
-          << "Assertion response has invalid credential information";
-      std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                               absl::nullopt);
-      return;
+    if (response_data->user_selected && !allow_list.empty()) {
+      // The userSelected signal is only valid if the request had an empty
+      // allowList.
+      return LogAndFail(
+          "Assertion response has userSelected for non-empty allowList");
     }
 
-    // Decrypt any hmac-secret response.
+    if (!SetResponseCredential(&response_data.value(), allow_list)) {
+      return LogAndFail(
+          "Assertion response has invalid credential information");
+    }
+
+    // Extract any hmac-secret or prf response.
     const absl::optional<cbor::Value>& extensions_cbor =
         response_data->authenticator_data.extensions();
     if (extensions_cbor) {
@@ -286,18 +290,16 @@ void GetAssertionTask::HandleResponse(
       auto it = extensions.find(cbor::Value(kExtensionHmacSecret));
       if (it != extensions.end()) {
         if (!hmac_secret_request_ || !it->second.is_bytestring()) {
-          FIDO_LOG(DEBUG) << "Unexpected or invalid hmac_secret extension";
-          std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                                   absl::nullopt);
-          return;
+          return LogAndFail("Unexpected or invalid hmac-secret extension");
+        }
+        if (response_data->hmac_secret.has_value()) {
+          return LogAndFail(
+              "Assertion response has both hmac-secret and prf extensions");
         }
         absl::optional<std::vector<uint8_t>> plaintext =
             hmac_secret_request_->Decrypt(it->second.GetBytestring());
         if (!plaintext) {
-          FIDO_LOG(DEBUG) << "Failed to decrypt hmac_secret extension";
-          std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                                   absl::nullopt);
-          return;
+          return LogAndFail("Failed to decrypt hmac-secret extension");
         }
         response_data->hmac_secret = std::move(plaintext.value());
       }
@@ -339,7 +341,8 @@ void GetAssertionTask::HandleResponseToSilentRequest(
         device(), std::move(request),
         base::BindOnce(&GetAssertionTask::HandleResponse,
                        weak_factory_.GetWeakPtr(), request.allow_list),
-        base::BindOnce(&ReadCTAPGetAssertionResponse),
+        base::BindOnce(&ReadCTAPGetAssertionResponse,
+                       device()->DeviceTransport()),
         /*string_fixup_predicate=*/nullptr);
     sign_operation_->Start();
     return;
@@ -353,7 +356,8 @@ void GetAssertionTask::HandleResponseToSilentRequest(
         device(), NextSilentRequest(),
         base::BindOnce(&GetAssertionTask::HandleResponseToSilentRequest,
                        weak_factory_.GetWeakPtr()),
-        base::BindOnce(&ReadCTAPGetAssertionResponse),
+        base::BindOnce(&ReadCTAPGetAssertionResponse,
+                       device()->DeviceTransport()),
         /*string_fixup_predicate=*/nullptr);
     sign_operation_->Start();
     return;
@@ -384,9 +388,8 @@ void GetAssertionTask::HandleDummyMakeCredentialComplete(
                            absl::nullopt);
 }
 
-void GetAssertionTask::MaybeSetPRFParameters(
-    CtapGetAssertionRequest* request,
-    const CtapGetAssertionOptions::PRFInput* maybe_inputs) {
+void GetAssertionTask::MaybeSetPRFParameters(CtapGetAssertionRequest* request,
+                                             const PRFInput* maybe_inputs) {
   if (maybe_inputs == nullptr) {
     return;
   }
@@ -409,6 +412,12 @@ void GetAssertionTask::MaybeRevertU2fFallbackAndInvokeCallback(
     device()->set_supported_protocol(ProtocolVersion::kCtap2);
   }
   std::move(callback_).Run(status, std::move(response));
+}
+
+void GetAssertionTask::LogAndFail(const char* error) {
+  FIDO_LOG(DEBUG) << error;
+  std::move(callback_).Run(CtapDeviceResponseCode::kCtap2ErrOther,
+                           absl::nullopt);
 }
 
 }  // namespace device

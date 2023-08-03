@@ -1,12 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_CREDENTIAL_PROVIDER_TEST_TEST_CREDENTIAL_H_
 #define CHROME_CREDENTIAL_PROVIDER_TEST_TEST_CREDENTIAL_H_
 
-#include <atlbase.h>
-#include <atlcom.h>
+#include "base/win/atl.h"
+
 #include <atlcomcli.h>
 #include <credentialprovider.h>
 
@@ -220,7 +220,7 @@ template <class T>
 bool CTestCredentialBase<T>::IsAuthenticationResultsEmpty() {
   auto& results = this->get_authentication_results();
 
-  return !results || (results->is_dict() && results->DictEmpty());
+  return !results || (results->is_dict() && results->GetDict().empty());
 }
 
 template <class T>

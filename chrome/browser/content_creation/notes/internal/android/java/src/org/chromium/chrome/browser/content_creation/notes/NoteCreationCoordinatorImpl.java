@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.os.Build;
 import android.view.View;
 
 import androidx.fragment.app.FragmentActivity;
@@ -18,11 +17,10 @@ import org.chromium.chrome.browser.content_creation.notes.fonts.GoogleFontServic
 import org.chromium.chrome.browser.content_creation.notes.images.ImageService;
 import org.chromium.chrome.browser.content_creation.notes.top_bar.TopBarCoordinator;
 import org.chromium.chrome.browser.content_creation.notes.top_bar.TopBarDelegate;
-import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.profiles.ProfileKey;
 import org.chromium.chrome.browser.share.ChromeShareExtras;
 import org.chromium.chrome.browser.share.ChromeShareExtras.DetailedContentType;
 import org.chromium.chrome.browser.share.share_sheet.ChromeOptionShareCallback;
-import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.browser_ui.share.ShareImageFileUtils;
 import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.components.content_creation.notes.NoteService;
@@ -30,12 +28,11 @@ import org.chromium.components.image_fetcher.ImageFetcher;
 import org.chromium.components.image_fetcher.ImageFetcherConfig;
 import org.chromium.components.image_fetcher.ImageFetcherFactory;
 import org.chromium.components.url_formatter.UrlFormatter;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.url.GURL;
 
 import java.text.DateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
 
@@ -46,7 +43,7 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
     private static final String PNG_MIME_TYPE = "image/PNG";
 
     private final Activity mActivity;
-    private final Tab mTab;
+    private final WindowAndroid mWindowAndroid;
     private final ModelList mListModel;
     private final NoteCreationMediator mMediator;
     private final NoteCreationDialog mDialog;
@@ -58,11 +55,11 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
 
     private TopBarCoordinator mTopBarCoordinator;
 
-    public NoteCreationCoordinatorImpl(Activity activity, Tab tab, NoteService noteService,
-            ChromeOptionShareCallback chromeOptionShareCallback, String shareUrl, String title,
-            String selectedText) {
+    public NoteCreationCoordinatorImpl(Activity activity, WindowAndroid windowAndroid,
+            NoteService noteService, ChromeOptionShareCallback chromeOptionShareCallback,
+            String shareUrl, String title, String selectedText) {
         mActivity = activity;
-        mTab = tab;
+        mWindowAndroid = windowAndroid;
         mChromeOptionShareCallback = chromeOptionShareCallback;
         mShareUrl = shareUrl;
         mSelectedText = selectedText;
@@ -71,17 +68,16 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
 
         mListModel = new ModelList();
 
-        Profile profile = Profile.fromWebContents(tab.getWebContents());
         ImageFetcher imageFetcher = ImageFetcherFactory.createImageFetcher(
-                ImageFetcherConfig.DISK_CACHE_ONLY, profile.getProfileKey());
+                ImageFetcherConfig.DISK_CACHE_ONLY, ProfileKey.getLastUsedRegularProfileKey());
         mMediator = new NoteCreationMediator(mListModel, new GoogleFontService(mActivity),
                 noteService, new ImageService(imageFetcher));
 
         String urlDomain = UrlFormatter.formatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
                 new GURL(mShareUrl));
         mDialog = new NoteCreationDialog();
-        mDialog.initDialog(this::onViewCreated, urlDomain, title, selectedText,
-                noteService.isPublishAvailable(), this::executeAction);
+        mDialog.initDialog(
+                this::onViewCreated, urlDomain, title, selectedText, this::executeAction);
     }
 
     @Override
@@ -104,14 +100,6 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
     }
 
     /**
-     * Publish the selected note
-     */
-    @Override
-    public void publish() {
-        mMediator.publishNote(mSelectedText, mShareUrl, this::resolvePublishedNote);
-    }
-
-    /**
      * Share the currently selected note.
      */
     @Override
@@ -121,7 +109,8 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
         int selectedNoteIndex = mDialog.getSelectedItemIndex();
         NoteCreationMetrics.recordNoteTemplateSelected(getTimeElapsedSinceCreationStart(),
                 mDialog.getNbTemplateSwitches(),
-                mListModel.get(selectedNoteIndex).model.get(NoteProperties.TEMPLATE).id);
+                mListModel.get(selectedNoteIndex).model.get(NoteProperties.TEMPLATE).id,
+                selectedNoteIndex);
 
         View noteView = mDialog.getNoteViewAt(selectedNoteIndex);
 
@@ -136,11 +125,9 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
                 getNoteFilenamePrefix(), bitmap, (imageUri) -> {
                     final String sheetTitle = getShareSheetTitle();
                     ShareParams params =
-                            new ShareParams.Builder(mTab.getWindowAndroid(), sheetTitle, mShareUrl)
-                                    .setFileUris(
-                                            new ArrayList<>(Collections.singletonList(imageUri)))
-                                    .setFileAltTexts(new ArrayList<>(
-                                            Collections.singletonList(mSelectedText)))
+                            new ShareParams.Builder(mWindowAndroid, sheetTitle, mShareUrl)
+                                    .setSingleImageUri(imageUri)
+                                    .setImageAltText(mSelectedText)
                                     .setFileContentType(PNG_MIME_TYPE)
                                     .setCallback(new ShareParams.TargetChosenCallback() {
                                         @Override
@@ -205,9 +192,7 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
      * Retrieves the user's preferred locale from the app's configurations.
      */
     private Locale getPreferredLocale() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
-                ? mActivity.getResources().getConfiguration().getLocales().get(0)
-                : mActivity.getResources().getConfiguration().locale;
+        return mActivity.getResources().getConfiguration().getLocales().get(0);
     }
 
     private String addQuotes(String text) {
@@ -218,27 +203,6 @@ public class NoteCreationCoordinatorImpl implements NoteCreationCoordinator, Top
                 .append(text)
                 .append(mActivity.getString(R.string.quotation_mark_suffix))
                 .toString();
-    }
-
-    /**
-     * Starts the sharing flow for the newly published note.
-     * @param noteUrl The url where the new note can be accessed.
-     */
-    private void resolvePublishedNote(String noteUrl) {
-        final String sheetTitle = getShareSheetTitle();
-        ShareParams params =
-                new ShareParams.Builder(mTab.getWindowAndroid(), sheetTitle, noteUrl).build();
-
-        long shareStartTime = System.currentTimeMillis();
-        ChromeShareExtras extras = new ChromeShareExtras.Builder()
-                                           .setSkipPageSharingActions(false)
-                                           .setContentUrl(new GURL(noteUrl))
-                                           .setDetailedContentType(DetailedContentType.WEB_NOTES)
-                                           .build();
-
-        // Dismiss current dialog before showing the share sheet.
-        mDialog.dismiss();
-        mChromeOptionShareCallback.showShareSheet(params, extras, shareStartTime);
     }
 
     /**

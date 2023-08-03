@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/url_matcher/url_util.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -69,11 +70,11 @@ void ClipboardRestrictionService::UpdateSettings() {
     return;
   }
 
-  const base::DictionaryValue* settings = pref_service_->GetDictionary(
-      enterprise::content::kCopyPreventionSettings);
-  const base::Value* enable = settings->FindListKey(
+  const base::Value::Dict& settings =
+      pref_service_->GetDict(enterprise::content::kCopyPreventionSettings);
+  const base::Value::List* enable = settings.FindList(
       enterprise::content::kCopyPreventionSettingsEnableFieldName);
-  const base::Value* disable = settings->FindListKey(
+  const base::Value::List* disable = settings.FindList(
       enterprise::content::kCopyPreventionSettingsDisableFieldName);
 
   DCHECK(enable);
@@ -81,11 +82,6 @@ void ClipboardRestrictionService::UpdateSettings() {
 
   enable_url_matcher_ = std::make_unique<url_matcher::URLMatcher>();
   disable_url_matcher_ = std::make_unique<url_matcher::URLMatcher>();
-
-  // Convert the `base::Value`s to `base::ListValue`s because that's what
-  // AddFilters expects.
-  const base::ListValue* enable_list = &base::Value::AsListValue(*enable);
-  const base::ListValue* disable_list = &base::Value::AsListValue(*disable);
 
   // For the following 2 calls, the second param is a bool called `allow`. In
   // this context, we're not concerned about a URL being "allowed" or not, but
@@ -96,12 +92,12 @@ void ClipboardRestrictionService::UpdateSettings() {
   // and the copy will be blocked. While confusing, this is mostly to map to the
   // same policy format as the content analysis connector, which also has
   // "enable" and "disable" lists used in this way.
-  policy::url_util::AddFilters(enable_url_matcher_.get(), true, &next_id_,
-                               enable_list);
-  policy::url_util::AddFilters(disable_url_matcher_.get(), false, &next_id_,
-                               disable_list);
+  url_matcher::util::AddFilters(enable_url_matcher_.get(), true, &next_id_,
+                                *enable);
+  url_matcher::util::AddFilters(disable_url_matcher_.get(), false, &next_id_,
+                                *disable);
 
-  absl::optional<int> min_data_size = settings->FindIntKey(
+  absl::optional<int> min_data_size = settings.FindInt(
       enterprise::content::kCopyPreventionSettingsMinDataSizeFieldName);
   DCHECK(min_data_size);
   DCHECK(min_data_size >= 0);

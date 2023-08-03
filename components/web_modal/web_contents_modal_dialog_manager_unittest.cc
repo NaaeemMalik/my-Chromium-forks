@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -117,7 +117,7 @@ class WebContentsModalDialogManagerTest
   gfx::NativeWindow MakeFakeDialog() {
     // WebContentsModalDialogManager treats the dialog window as an opaque
     // type, so creating fake dialog windows using reinterpret_cast is valid.
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
     NSWindow* window = reinterpret_cast<NSWindow*>(next_dialog_id++);
     return gfx::NativeWindow(window);
 #else

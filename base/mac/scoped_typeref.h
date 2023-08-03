@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,6 @@
 #define BASE_MAC_SCOPED_TYPEREF_H_
 
 #include "base/check.h"
-#include "base/compiler_specific.h"
 #include "base/memory/scoped_policy.h"
 
 namespace base {
@@ -51,7 +50,7 @@ struct ScopedTypeRefTraits;
 template<typename T, typename Traits = ScopedTypeRefTraits<T>>
 class ScopedTypeRef {
  public:
-  using element_type = T;
+  using element_type = __unsafe_unretained T;
 
   explicit constexpr ScopedTypeRef(
       element_type object = Traits::InvalidValue(),
@@ -92,7 +91,7 @@ class ScopedTypeRef {
   // This is to be used only to take ownership of objects that are created
   // by pass-by-pointer create functions. To enforce this, require that the
   // object be reset to NULL before this may be used.
-  element_type* InitializeInto() WARN_UNUSED_RESULT {
+  [[nodiscard]] element_type* InitializeInto() {
     DCHECK(!object_);
     return &object_;
   }
@@ -111,13 +110,21 @@ class ScopedTypeRef {
     object_ = object;
   }
 
-  bool operator==(const element_type& that) const { return object_ == that; }
+  bool operator==(const ScopedTypeRef& that) const {
+    return object_ == that.object_;
+  }
 
-  bool operator!=(const element_type& that) const { return object_ != that; }
+  bool operator!=(const ScopedTypeRef& that) const {
+    return object_ != that.object_;
+  }
 
-  operator element_type() const { return object_; }
+  operator element_type() const __attribute__((ns_returns_not_retained)) {
+    return object_;
+  }
 
-  element_type get() const { return object_; }
+  element_type get() const __attribute__((ns_returns_not_retained)) {
+    return object_;
+  }
 
   void swap(ScopedTypeRef& that) {
     element_type temp = that.object_;
@@ -128,7 +135,7 @@ class ScopedTypeRef {
   // ScopedTypeRef<>::release() is like std::unique_ptr<>::release.  It is NOT
   // a wrapper for Release().  To force a ScopedTypeRef<> object to call
   // Release(), use ScopedTypeRef<>::reset().
-  element_type release() WARN_UNUSED_RESULT {
+  [[nodiscard]] element_type release() {
     element_type temp = object_;
     object_ = Traits::InvalidValue();
     return temp;

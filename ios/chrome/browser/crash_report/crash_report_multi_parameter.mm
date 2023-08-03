@@ -1,39 +1,38 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/crash_report/crash_report_multi_parameter.h"
 
-#include <memory>
+#import <memory>
 
-#include "base/check.h"
-#include "base/json/json_writer.h"
-#include "base/notreached.h"
-#include "base/strings/sys_string_conversions.h"
-#include "base/values.h"
+#import "base/check.h"
+#import "base/json/json_writer.h"
+#import "base/notreached.h"
+#import "base/strings/sys_string_conversions.h"
+#import "base/values.h"
 #import "components/previous_session_info/previous_session_info.h"
 #import "ios/chrome/browser/crash_report/crash_helper.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#import "third_party/abseil-cpp/absl/types/optional.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
 namespace {
-// Maximum size of a breakpad parameter. The length of the dictionary serialized
-// into JSON cannot exceed this length. See declaration in (BreakPad.h) for
-// details.
-const int kMaximumBreakpadValueSize = 255;
+// The maximum size of the multi parameter key.
+const int kMaximumMultiParameterValueSize = 256;
 }
 
 @implementation CrashReportMultiParameter {
-  crash_reporter::CrashKeyString<256>* _key;
+  crash_reporter::CrashKeyString<kMaximumMultiParameterValueSize>* _key;
   base::Value _dictionary;
 }
 
-- (instancetype)initWithKey:(crash_reporter::CrashKeyString<256>&)key {
+- (instancetype)initWithKey:
+    (crash_reporter::CrashKeyString<kMaximumMultiParameterValueSize>&)key {
   if ((self = [super init])) {
-    _dictionary = base::Value(base::Value::Type::DICTIONARY);
+    _dictionary = base::Value(base::Value::Type::DICT);
     _key = &key;
   }
   return self;
@@ -71,7 +70,7 @@ const int kMaximumBreakpadValueSize = 255;
 - (void)updateCrashReport {
   std::string stateAsJson;
   base::JSONWriter::Write(_dictionary, &stateAsJson);
-  if (stateAsJson.length() > kMaximumBreakpadValueSize) {
+  if (stateAsJson.length() > (kMaximumMultiParameterValueSize - 1)) {
     NOTREACHED();
     return;
   }

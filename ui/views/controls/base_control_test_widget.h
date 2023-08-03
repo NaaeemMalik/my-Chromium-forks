@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,19 +12,15 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_utils.h"
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 #include <memory>
 
-namespace display {
-namespace test {
+namespace display::test {
 class TestScreen;
-}  // namespace test
-}  // namespace display
+}  // namespace display::test
 #endif
 
-namespace views {
-
-namespace test {
+namespace views::test {
 
 class BaseControlTestWidget : public ViewsTestBase {
  public:
@@ -45,7 +41,7 @@ class BaseControlTestWidget : public ViewsTestBase {
  private:
   UniqueWidgetPtr widget_;
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   // Need a test screen to work with the event generator to correctly track
   // cursor locations. See https://crbug.com/1071633. Consider moving this
   // into ViewsTestHelperMac in the future.
@@ -53,7 +49,6 @@ class BaseControlTestWidget : public ViewsTestBase {
 #endif
 };
 
-}  // namespace test
-}  // namespace views
+}  // namespace views::test
 
 #endif  // UI_VIEWS_CONTROLS_BASE_CONTROL_TEST_WIDGET_H_

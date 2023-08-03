@@ -67,7 +67,6 @@
 #include "third_party/blink/renderer/core/events/web_input_event_conversion.h"
 #include "third_party/blink/renderer/core/events/wheel_event.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/core/exported/web_document_loader_impl.h"
 #include "third_party/blink/renderer/core/exported/web_view_impl.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
 #include "third_party/blink/renderer/core/frame/event_handler_registry.h"
@@ -94,10 +93,10 @@
 #include "third_party/blink/renderer/core/script/classic_script.h"
 #include "third_party/blink/renderer/core/scroll/scroll_animator_base.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar_theme.h"
+#include "third_party/blink/renderer/platform/bindings/script_forbidden_scope.h"
 #include "third_party/blink/renderer/platform/exported/wrapped_resource_response.h"
 #include "third_party/blink/renderer/platform/geometry/layout_rect.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_layer.h"
 #include "third_party/blink/renderer/platform/graphics/paint/cull_rect.h"
 #include "third_party/blink/renderer/platform/graphics/paint/drawing_recorder.h"
 #include "third_party/blink/renderer/platform/graphics/paint/foreign_layer_display_item.h"
@@ -112,7 +111,7 @@ namespace blink {
 
 namespace {
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
 const WebInputEvent::Modifiers kEditingModifier = WebInputEvent::kMetaKey;
 #else
 const WebInputEvent::Modifiers kEditingModifier = WebInputEvent::kControlKey;
@@ -165,7 +164,7 @@ void WebPluginContainerImpl::UpdateAllLifecyclePhases() {
 }
 
 void WebPluginContainerImpl::Paint(GraphicsContext& context,
-                                   const GlobalPaintFlags,
+                                   PaintFlags,
                                    const CullRect& cull_rect,
                                    const gfx::Vector2d& paint_offset) const {
   // Don't paint anything if the plugin doesn't intersect.
@@ -186,12 +185,12 @@ void WebPluginContainerImpl::Paint(GraphicsContext& context,
         visual_rect);
   }
 
-  if (RuntimeEnabledFeatures::CompositeAfterPaintEnabled() && layer_) {
+  if (layer_) {
     layer_->SetBounds(Size());
     layer_->SetIsDrawable(true);
     layer_->SetHitTestable(true);
-    // When compositing is after paint, composited plugins should have their
-    // layers inserted rather than invoking WebPlugin::paint.
+    // Composited plugins should have their layers inserted rather than invoking
+    // WebPlugin::paint.
     RecordForeignLayer(context, *element_->GetLayoutObject(),
                        DisplayItem::kForeignLayerPlugin, layer_,
                        FrameRect().origin() + paint_offset);
@@ -320,25 +319,21 @@ void WebPluginContainerImpl::ReportFindInPageMatchCount(int identifier,
       WebLocalFrameImpl::FromFrame(element_->GetDocument().GetFrame());
   if (!frame)
     return;
+
   frame->GetFindInPage()->ReportFindInPageMatchCount(identifier, total,
                                                      final_update);
 }
 
 void WebPluginContainerImpl::ReportFindInPageSelection(int identifier,
-                                                       int index) {
+                                                       int index,
+                                                       bool final_update) {
   WebLocalFrameImpl* frame =
       WebLocalFrameImpl::FromFrame(element_->GetDocument().GetFrame());
   if (!frame)
     return;
-  frame->GetFindInPage()->ReportFindInPageSelection(
-      identifier, index, gfx::Rect(), false /* final_update */);
-}
 
-float WebPluginContainerImpl::DeviceScaleFactor() {
-  Page* page = element_->GetDocument().GetPage();
-  if (!page)
-    return 1.0;
-  return page->DeviceScaleFactorDeprecated();
+  frame->GetFindInPage()->ReportFindInPageSelection(identifier, index,
+                                                    gfx::Rect(), final_update);
 }
 
 float WebPluginContainerImpl::PageScaleFactor() {
@@ -382,8 +377,8 @@ bool WebPluginContainerImpl::IsMouseLocked() {
 bool WebPluginContainerImpl::LockMouse(bool request_unadjusted_movement) {
   if (Page* page = element_->GetDocument().GetPage()) {
     bool res = page->GetPointerLockController().RequestPointerLock(
-        element_, WTF::Bind(&WebPluginContainerImpl::HandleLockMouseResult,
-                            WrapWeakPersistent(this)));
+        element_, WTF::BindOnce(&WebPluginContainerImpl::HandleLockMouseResult,
+                                WrapWeakPersistent(this)));
     if (res) {
       mouse_lock_lost_listener_ =
           MakeGarbageCollected<MouseLockLostListener>(this);
@@ -452,6 +447,9 @@ void WebPluginContainerImpl::PrintEnd() {
 }
 
 void WebPluginContainerImpl::Copy() {
+  if (!web_plugin_->CanCopy())
+    return;
+
   if (!web_plugin_->HasSelection())
     return;
 
@@ -757,10 +755,7 @@ WebPluginContainerImpl::WebPluginContainerImpl(HTMLPlugInElement& element,
                                                WebPlugin* web_plugin)
     : EmbeddedContentView(gfx::Rect()),
       element_(element),
-      web_plugin_(web_plugin),
-      layer_(nullptr),
-      touch_event_request_type_(kTouchEventRequestTypeNone),
-      wants_wheel_events_(false) {}
+      web_plugin_(web_plugin) {}
 
 WebPluginContainerImpl::~WebPluginContainerImpl() {
   // The plugin container must have been disposed of by now.
@@ -790,6 +785,8 @@ void WebPluginContainerImpl::Dispose() {
   }
 
   if (web_plugin_) {
+    // Plugins may execute script on being detached during the lifecycle update.
+    ScriptForbiddenScope::AllowUserAgentScript allow_script;
     CHECK(web_plugin_->Container() == this);
     web_plugin_->Destroy();
     web_plugin_ = nullptr;
@@ -864,8 +861,8 @@ void WebPluginContainerImpl::HandleDragEvent(MouseEvent& event) {
   DragOperationsMask drag_operation_mask = data_transfer->SourceOperation();
   gfx::PointF drag_screen_location(event.screenX(), event.screenY());
   gfx::Point location(Location());
-  gfx::PointF drag_location(event.AbsoluteLocation().X() - location.x(),
-                            event.AbsoluteLocation().Y() - location.y());
+  gfx::PointF drag_location(event.AbsoluteLocation().x() - location.x(),
+                            event.AbsoluteLocation().y() - location.y());
 
   web_plugin_->HandleDragStatusUpdate(drag_status, drag_data,
                                       drag_operation_mask, drag_location,

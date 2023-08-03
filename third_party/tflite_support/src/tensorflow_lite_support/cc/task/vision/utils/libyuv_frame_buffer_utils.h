@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef TENSORFLOW_LITE_SUPPORT_CC_TASK_VISION_UTILS_LIBYUV_FRAME_BUFFER_UTILS_H_
 #define TENSORFLOW_LITE_SUPPORT_CC_TASK_VISION_UTILS_LIBYUV_FRAME_BUFFER_UTILS_H_
 
-#include "absl/status/status.h"
+#include "absl/status/status.h"  // from @com_google_absl
 #include "tensorflow_lite_support/cc/task/vision/core/frame_buffer.h"
 #include "tensorflow_lite_support/cc/task/vision/utils/frame_buffer_utils_interface.h"
 
@@ -48,9 +48,15 @@ class LibyuvFrameBufferUtils : public FrameBufferUtilsInterface {
                     int y1,
                     FrameBuffer* output_buffer) override;
 
-  // Resizes `buffer` to the size of the given `output_buffer`.
+  // Resizes `buffer` to the size of the given `output_buffer` using bilinear
+  // interpolation.
   absl::Status Resize(const FrameBuffer& buffer,
                       FrameBuffer* output_buffer) override;
+
+  // Resizes `buffer` to the size of the given `output_buffer` using
+  // nearest-neighbor interpolation.
+  absl::Status ResizeNearestNeighbor(const FrameBuffer& buffer,
+                                     FrameBuffer* output_buffer) override;
 
   // Rotates `buffer` counter-clockwise by the given `angle_deg` (in degrees).
   //

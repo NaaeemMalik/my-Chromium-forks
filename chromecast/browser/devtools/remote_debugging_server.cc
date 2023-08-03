@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
@@ -31,10 +31,10 @@
 #include "net/log/net_log_source.h"
 #include "net/socket/tcp_server_socket.h"
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include "content/public/browser/android/devtools_auth.h"
 #include "net/socket/unix_domain_server_socket_posix.h"
-#endif  // defined(OS_ANDROID)
+#endif  // BUILDFLAG(IS_ANDROID)
 
 namespace chromecast {
 namespace shell {
@@ -45,7 +45,7 @@ const uint16_t kDefaultRemoteDebuggingPort = 9222;
 
 const int kBackLog = 10;
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 class UnixDomainServerSocketFactory : public content::DevToolsSocketFactory {
  public:
   explicit UnixDomainServerSocketFactory(const std::string& socket_name)
@@ -90,8 +90,10 @@ class TCPServerSocketFactory : public content::DevToolsSocketFactory {
     std::unique_ptr<net::ServerSocket> socket(
         new net::TCPServerSocket(nullptr, net::NetLogSource()));
 
-    if (socket->Listen(endpoint_, kBackLog) != net::OK)
+    if (socket->Listen(endpoint_, kBackLog, /*ipv6_only=*/absl::nullopt) !=
+        net::OK) {
       return nullptr;
+    }
 
     return socket;
   }
@@ -107,7 +109,7 @@ class TCPServerSocketFactory : public content::DevToolsSocketFactory {
 
 std::unique_ptr<content::DevToolsSocketFactory> CreateSocketFactory(
     uint16_t port) {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   std::string socket_name = "cast_shell_devtools_remote";
   if (command_line->HasSwitch(switches::kRemoteDebuggingSocketName)) {

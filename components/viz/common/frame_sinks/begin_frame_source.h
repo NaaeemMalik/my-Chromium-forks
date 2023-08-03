@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,6 +13,8 @@
 #include "base/check.h"
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
+#include "base/time/time.h"
 #include "build/build_config.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
 #include "components/viz/common/frame_sinks/delay_based_time_source.h"
@@ -128,18 +130,6 @@ class VIZ_COMMON_EXPORT DynamicBeginFrameDeadlineOffsetSource {
   virtual base::TimeDelta GetDeadlineOffset(base::TimeDelta interval) const = 0;
 };
 
-// For observing the state of a BeginFrameSource, not for receiving BeginFrame
-// signals from the BeginFrameSource.
-class VIZ_COMMON_EXPORT BeginFrameSourceObserver {
- public:
-  virtual ~BeginFrameSourceObserver() = default;
-
-  // Called when this BeginFrameSource is requested to start or stop sending
-  // BeginFrames. This usually happens when the first `BeginFrameObserver` is
-  // added or the last one is removed.
-  virtual void BeginFrameRequestedChanged(bool requested) = 0;
-};
-
 // Interface for a class which produces BeginFrame calls to a
 // BeginFrameObserver.
 //
@@ -185,7 +175,9 @@ class VIZ_COMMON_EXPORT BeginFrameSource {
     // time is off.
     uint64_t next_sequence_number_ = BeginFrameArgs::kStartingFrameNumber;
 
-    DynamicBeginFrameDeadlineOffsetSource*
+    // This field is not a raw_ptr<> because it was filtered by the rewriter
+    // for: #constexpr-ctor-field-initializer
+    RAW_PTR_EXCLUSION DynamicBeginFrameDeadlineOffsetSource*
         dynamic_begin_frame_deadline_offset_source_ = nullptr;
   };
 
@@ -227,11 +219,6 @@ class VIZ_COMMON_EXPORT BeginFrameSource {
   virtual void AddObserver(BeginFrameObserver* obs) = 0;
   virtual void RemoveObserver(BeginFrameObserver* obs) = 0;
 
-  // Add/Remove observer that observes the state of this BeginFrameSource, not
-  // for receiving begin frame signals.
-  virtual void AddStateObserver(BeginFrameSourceObserver* obs) = 0;
-  virtual void RemoveStateObserver(BeginFrameSourceObserver* obs) = 0;
-
   virtual void AsProtozeroInto(
       perfetto::EventContext& ctx,
       perfetto::protos::pbzero::BeginFrameSourceState* state) const;
@@ -257,6 +244,7 @@ class VIZ_COMMON_EXPORT BeginFrameSource {
   // The BeginFrameSource should not send the begin-frame messages to clients if
   // gpu is busy.
   bool is_gpu_busy_ = false;
+  base::TimeTicks gpu_busy_start_time_;
 
   // Keeps track of whether a begin-frame was paused, and whether
   // OnGpuNoLongerBusy() should be invoked when the gpu is no longer busy.
@@ -282,8 +270,6 @@ class VIZ_COMMON_EXPORT StubBeginFrameSource : public BeginFrameSource {
   void DidFinishFrame(BeginFrameObserver* obs) override {}
   void AddObserver(BeginFrameObserver* obs) override {}
   void RemoveObserver(BeginFrameObserver* obs) override {}
-  void AddStateObserver(BeginFrameSourceObserver* obs) override {}
-  void RemoveStateObserver(BeginFrameSourceObserver* obs) override {}
   void OnGpuNoLongerBusy() override {}
 };
 
@@ -315,8 +301,6 @@ class VIZ_COMMON_EXPORT BackToBackBeginFrameSource
   // BeginFrameSource implementation.
   void AddObserver(BeginFrameObserver* obs) override;
   void RemoveObserver(BeginFrameObserver* obs) override;
-  void AddStateObserver(BeginFrameSourceObserver* obs) override;
-  void RemoveStateObserver(BeginFrameSourceObserver* obs) override;
   void DidFinishFrame(BeginFrameObserver* obs) override;
   void OnGpuNoLongerBusy() override;
 
@@ -333,7 +317,6 @@ class VIZ_COMMON_EXPORT BackToBackBeginFrameSource
   std::unique_ptr<DelayBasedTimeSource> time_source_;
   base::flat_set<BeginFrameObserver*> observers_;
   base::flat_set<BeginFrameObserver*> pending_begin_frame_observers_;
-  base::flat_set<BeginFrameSourceObserver*> state_observers_;
   uint64_t next_sequence_number_;
   base::WeakPtrFactory<BackToBackBeginFrameSource> weak_factory_{this};
 };
@@ -356,8 +339,6 @@ class VIZ_COMMON_EXPORT DelayBasedBeginFrameSource
   // BeginFrameSource implementation.
   void AddObserver(BeginFrameObserver* obs) override;
   void RemoveObserver(BeginFrameObserver* obs) override;
-  void AddStateObserver(BeginFrameSourceObserver* obs) override;
-  void RemoveStateObserver(BeginFrameSourceObserver* obs) override;
   void DidFinishFrame(BeginFrameObserver* obs) override {}
   void OnGpuNoLongerBusy() override;
   void SetDynamicBeginFrameDeadlineOffsetSource(
@@ -384,7 +365,6 @@ class VIZ_COMMON_EXPORT DelayBasedBeginFrameSource
 
   std::unique_ptr<DelayBasedTimeSource> time_source_;
   base::flat_set<BeginFrameObserver*> observers_;
-  base::flat_set<BeginFrameSourceObserver*> state_observers_;
   base::TimeTicks last_timebase_;
   BeginFrameArgs last_begin_frame_args_;
 
@@ -417,8 +397,6 @@ class VIZ_COMMON_EXPORT ExternalBeginFrameSource : public BeginFrameSource {
   // BeginFrameSource implementation.
   void AddObserver(BeginFrameObserver* obs) override;
   void RemoveObserver(BeginFrameObserver* obs) override;
-  void AddStateObserver(BeginFrameSourceObserver* obs) override;
-  void RemoveStateObserver(BeginFrameSourceObserver* obs) override;
   void DidFinishFrame(BeginFrameObserver* obs) override {}
   void AsProtozeroInto(
       perfetto::EventContext& ctx,
@@ -428,7 +406,7 @@ class VIZ_COMMON_EXPORT ExternalBeginFrameSource : public BeginFrameSource {
   void OnSetBeginFrameSourcePaused(bool paused);
   void OnBeginFrame(const BeginFrameArgs& args);
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // Notifies when the refresh rate of the display is updated. |refresh_rate| is
   // the rate in frames per second.
   virtual void UpdateRefreshRate(float refresh_rate) {}
@@ -438,6 +416,11 @@ class VIZ_COMMON_EXPORT ExternalBeginFrameSource : public BeginFrameSource {
   // observers.
   virtual void SetPreferredInterval(base::TimeDelta interval) {}
 
+  virtual void SetVSyncDisplayID(int64_t display_id) {}
+
+  // Returns the maximum supported refresh rate interval for a given BFS.
+  virtual base::TimeDelta GetMaximumRefreshFrameInterval();
+
  protected:
   // Called on AddObserver and gets missed BeginFrameArgs for the given
   // observer. The missed BeginFrame is sent only if the returned
@@ -446,7 +429,6 @@ class VIZ_COMMON_EXPORT ExternalBeginFrameSource : public BeginFrameSource {
 
   BeginFrameArgs last_begin_frame_args_;
   base::flat_set<BeginFrameObserver*> observers_;
-  base::flat_set<BeginFrameSourceObserver*> state_observers_;
   raw_ptr<ExternalBeginFrameSourceClient> client_;
   bool paused_ = false;
 

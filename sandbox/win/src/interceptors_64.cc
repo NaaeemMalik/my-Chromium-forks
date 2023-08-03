@@ -1,4 +1,4 @@
-// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,6 @@
 
 namespace sandbox {
 
-SANDBOX_INTERCEPT NtExports g_nt;
 SANDBOX_INTERCEPT OriginalFunctions g_originals;
 
 NTSTATUS WINAPI TargetNtMapViewOfSection64(HANDLE section,
@@ -50,7 +49,7 @@ NTSTATUS WINAPI TargetNtUnmapViewOfSection64(HANDLE process, PVOID base) {
 
 NTSTATUS WINAPI
 TargetNtSetInformationThread64(HANDLE thread,
-                               NT_THREAD_INFORMATION_CLASS thread_info_class,
+                               THREADINFOCLASS thread_info_class,
                                PVOID thread_information,
                                ULONG thread_information_bytes) {
   NtSetInformationThreadFunction orig_fn =

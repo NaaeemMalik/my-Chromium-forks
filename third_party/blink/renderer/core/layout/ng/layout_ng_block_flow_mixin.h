@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,6 @@
 
 #include <type_traits>
 
-#include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/layout_box_model_object.h"
 #include "third_party/blink/renderer/core/layout/ng/layout_ng_mixin.h"
 #include "third_party/blink/renderer/core/layout/ng/ng_constraint_space.h"
@@ -37,22 +36,19 @@ struct NGInlineNodeData;
 template <typename Base>
 class LayoutNGBlockFlowMixin : public LayoutNGMixin<Base> {
  public:
-  explicit LayoutNGBlockFlowMixin(Element* element);
+  explicit LayoutNGBlockFlowMixin(ContainerNode*);
   ~LayoutNGBlockFlowMixin() override;
 
   NGInlineNodeData* TakeNGInlineNodeData() final;
   NGInlineNodeData* GetNGInlineNodeData() const final;
   void ResetNGInlineNodeData() final;
   void ClearNGInlineNodeData() final;
-  bool HasNGInlineNodeData() const final { return ng_inline_node_data_; }
-
-  LayoutUnit FirstLineBoxBaseline() const final;
-  LayoutUnit InlineBlockBaseline(LineDirectionMode) const final;
+  bool HasNGInlineNodeData() const final;
 
   bool NodeAtPoint(HitTestResult&,
                    const HitTestLocation&,
                    const PhysicalOffset& accumulated_offset,
-                   HitTestAction) override;
+                   HitTestPhase) override;
 
   PositionWithAffinity PositionForPoint(const PhysicalOffset&) const override;
 
@@ -61,11 +57,8 @@ class LayoutNGBlockFlowMixin : public LayoutNGMixin<Base> {
  protected:
   void StyleDidChange(StyleDifference, const ComputedStyle* old_style) override;
 
-#if DCHECK_IS_ON()
-  void AddLayoutOverflowFromChildren() final { NOTREACHED(); }
-#endif
-
-  void AddOutlineRects(Vector<PhysicalRect>&,
+  void AddOutlineRects(OutlineRectCollector&,
+                       LayoutObject::OutlineInfo*,
                        const PhysicalOffset& additional_offset,
                        NGOutlineType) const final;
 

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ namespace content {
 namespace {
 
 bool SupportsSharedWorker() {
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
   // SharedWorkers are not enabled on Android. https://crbug.com/154571
   return false;
 #else
@@ -83,7 +83,7 @@ class WorkerNetworkIsolationKeyBrowserTest : public ContentBrowserTest {
   }
 
   RenderFrameHost* CreateSubframe(const GURL& subframe_url) {
-    DCHECK_EQ(shell()->web_contents()->GetURL().path(),
+    DCHECK_EQ(shell()->web_contents()->GetLastCommittedURL().path(),
               "/workers/frame_factory.html");
 
     content::TestNavigationObserver navigation_observer(
@@ -92,7 +92,7 @@ class WorkerNetworkIsolationKeyBrowserTest : public ContentBrowserTest {
 
     std::string subframe_name = GetUniqueSubframeName();
     EvalJsResult result = EvalJs(
-        shell()->web_contents()->GetMainFrame(),
+        shell()->web_contents()->GetPrimaryMainFrame(),
         JsReplace("createFrame($1, $2)", subframe_url.spec(), subframe_name));
     DCHECK(result.error.empty());
     navigation_observer.Wait();
@@ -227,8 +227,19 @@ INSTANTIATE_TEST_SUITE_P(
                        ::testing::Values(WorkerType::kServiceWorker,
                                          WorkerType::kSharedWorker)));
 
-using ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest =
-    WorkerNetworkIsolationKeyBrowserTest;
+class ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest
+    : public WorkerNetworkIsolationKeyBrowserTest {
+ public:
+  ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest() {
+    // TODO(crbug.com/1147281): Tests under this class fail when
+    // kThirdPartyStoragePartitioning is enabled.
+    feature_list_.InitAndDisableFeature(
+        net::features::kThirdPartyStoragePartitioning);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
 
 // Test that network isolation key is filled in correctly for service worker's
 // main script request. The test navigates to "a.test" and creates an iframe
@@ -245,6 +256,9 @@ using ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest =
 // Note that it's sufficient not to test the cache miss when subframe origins
 // are different as in that case the two script urls must be different and it
 // also won't trigger an update.
+//
+// TODO(crbug.com/1147281): Update test to not depend on
+// kThirdPartyStoragePartitioning being disabled.
 IN_PROC_BROWSER_TEST_F(
     ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest,
     ServiceWorkerMainScriptRequest) {
@@ -299,7 +313,7 @@ IN_PROC_BROWSER_TEST_F(
 }
 
 using SharedWorkerMainScriptRequestNetworkIsolationKeyBrowserTest =
-    ServiceWorkerMainScriptRequestNetworkIsolationKeyBrowserTest;
+    WorkerNetworkIsolationKeyBrowserTest;
 
 // Test that network isolation key is filled in correctly for shared worker's
 // main script request. The test navigates to "a.test" and creates an iframe

@@ -1,4 +1,4 @@
-// Copyright 2015 The Crashpad Authors. All rights reserved.
+// Copyright 2015 The Crashpad Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,9 +40,13 @@
 #include "util/net/url.h"
 #include "util/stdlib/map_insert.h"
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 #include "handler/mac/file_limit_annotation.h"
-#endif  // OS_APPLE
+#endif  // BUILDFLAG(IS_APPLE)
+
+#if BUILDFLAG(IS_IOS)
+#include "util/ios/scoped_background_task.h"
+#endif  // BUILDFLAG(IS_IOS)
 
 namespace crashpad {
 
@@ -51,7 +55,7 @@ namespace {
 // The number of seconds to wait between checking for pending reports.
 const int kRetryWorkIntervalSeconds = 15 * 60;
 
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
 // The number of times to attempt to upload a pending report, repeated on
 // failure. Attempts will happen once per launch, once per call to
 // ReportPending(), and, if Options.watch_pending_reports is true, once every
@@ -59,12 +63,36 @@ const int kRetryWorkIntervalSeconds = 15 * 60;
 const int kRetryAttempts = 5;
 #endif
 
+// Wraps a reference to a no-args function (which can be empty). When this
+// object goes out of scope, invokes the function if it is non-empty.
+//
+// The lifetime of the function must outlive the lifetime of this object.
+class ScopedFunctionInvoker final {
+ public:
+  ScopedFunctionInvoker(const std::function<void()>& function)
+      : function_(function) {}
+  ScopedFunctionInvoker(const ScopedFunctionInvoker&) = delete;
+  ScopedFunctionInvoker& operator=(const ScopedFunctionInvoker&) = delete;
+
+  ~ScopedFunctionInvoker() {
+    if (function_) {
+      function_();
+    }
+  }
+
+ private:
+  const std::function<void()>& function_;
+};
+
 }  // namespace
 
-CrashReportUploadThread::CrashReportUploadThread(CrashReportDatabase* database,
-                                                 const std::string& url,
-                                                 const Options& options)
+CrashReportUploadThread::CrashReportUploadThread(
+    CrashReportDatabase* database,
+    const std::string& url,
+    const Options& options,
+    ProcessPendingReportsObservationCallback callback)
     : options_(options),
+      callback_(callback),
       url_(url),
       // When watching for pending reports, check every 15 minutes, even in the
       // absence of a signal from the handler thread. This allows for failed
@@ -97,6 +125,14 @@ void CrashReportUploadThread::Stop() {
 }
 
 void CrashReportUploadThread::ProcessPendingReports() {
+#if BUILDFLAG(IS_IOS)
+  internal::ScopedBackgroundTask scoper("CrashReportUploadThread");
+#endif  // BUILDFLAG(IS_IOS)
+
+  // If callback_ is non-empty, invoke it when this function returns after
+  // uploads complete (regardless of whether or not that succeeded).
+  ScopedFunctionInvoker scoped_function_invoker(callback_);
+
   std::vector<UUID> known_report_uuids = known_pending_report_uuids_.Drain();
   for (const UUID& report_uuid : known_report_uuids) {
     CrashReportDatabase::Report report;
@@ -152,9 +188,9 @@ void CrashReportUploadThread::ProcessPendingReports() {
 
 void CrashReportUploadThread::ProcessPendingReport(
     const CrashReportDatabase::Report& report) {
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   RecordFileLimitAnnotation();
-#endif  // OS_APPLE
+#endif  // BUILDFLAG(IS_APPLE)
 
   Settings* const settings = database_->GetSettings();
 
@@ -172,10 +208,10 @@ void CrashReportUploadThread::ProcessPendingReport(
   if (ShouldRateLimitUpload(report))
     return;
 
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
   if (ShouldRateLimitRetry(report))
     return;
-#endif
+#endif  // BUILDFLAG(IS_IOS)
 
   std::unique_ptr<const CrashReportDatabase::UploadReport> upload_report;
   CrashReportDatabase::OperationStatus status =
@@ -217,7 +253,7 @@ void CrashReportUploadThread::ProcessPendingReport(
           report.uuid, Metrics::CrashSkippedReason::kPrepareForUploadFailed);
       break;
     case UploadResult::kRetry:
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
       if (upload_report->upload_attempts > kRetryAttempts) {
         upload_report.reset();
         database_->SkipReportUpload(report.uuid,
@@ -303,7 +339,7 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
   }
   http_transport->SetBodyStream(http_multipart_builder.GetBodyStream());
   // TODO(mark): The timeout should be configurable by the client.
-  http_transport->SetTimeout(60.0);  // 1 minute.
+  http_transport->SetTimeout(internal::kUploadReportTimeoutSeconds);
 
   std::string url = url_;
   if (options_.identify_client_via_url) {
@@ -377,7 +413,7 @@ bool CrashReportUploadThread::ShouldRateLimitUpload(
   return false;
 }
 
-#if defined(OS_IOS)
+#if BUILDFLAG(IS_IOS)
 bool CrashReportUploadThread::ShouldRateLimitRetry(
     const CrashReportDatabase::Report& report) {
   if (retry_uuid_time_map_.find(report.uuid) != retry_uuid_time_map_.end()) {

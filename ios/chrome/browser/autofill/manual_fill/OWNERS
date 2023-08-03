@@ -1,2 +1,5 @@
-javierrobles@chromium.org
 djean@chromium.org
+
+# For password-related changes.
+per-file *password*=tmartino@chromium.org
+per-file BUILD.gn=tmartino@chromium.org

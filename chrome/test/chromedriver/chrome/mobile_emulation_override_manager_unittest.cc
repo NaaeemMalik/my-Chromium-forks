@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,21 +17,23 @@ using ::testing::Optional;
 void AssertDeviceMetricsCommand(const Command& command,
                                 const DeviceMetrics& device_metrics) {
   ASSERT_EQ("Page.setDeviceMetricsOverride", command.method);
-  int width, height;
-  ASSERT_TRUE(command.params.GetInteger("width", &width));
-  ASSERT_TRUE(command.params.GetInteger("height", &height));
-  ASSERT_THAT(command.params.FindBoolKey("mobile"),
+  absl::optional<int> width = command.params.FindInt("width");
+
+  absl::optional<int> height = command.params.FindInt("height");
+  ASSERT_TRUE(width);
+  ASSERT_TRUE(height);
+  ASSERT_THAT(command.params.FindBool("mobile"),
               Optional(device_metrics.mobile));
-  ASSERT_THAT(command.params.FindBoolKey("fitWindow"),
+  ASSERT_THAT(command.params.FindBool("fitWindow"),
               Optional(device_metrics.fit_window));
-  ASSERT_THAT(command.params.FindBoolKey("textAutosizing"),
+  ASSERT_THAT(command.params.FindBool("textAutosizing"),
               Optional(device_metrics.text_autosizing));
-  ASSERT_EQ(device_metrics.width, width);
-  ASSERT_EQ(device_metrics.height, height);
+  ASSERT_EQ(device_metrics.width, *width);
+  ASSERT_EQ(device_metrics.height, *height);
   ASSERT_EQ(device_metrics.device_scale_factor,
-            command.params.FindDoubleKey("deviceScaleFactor").value());
+            command.params.FindDouble("deviceScaleFactor").value());
   ASSERT_EQ(device_metrics.font_scale_factor,
-            command.params.FindDoubleKey("fontScaleFactor").value());
+            command.params.FindDouble("fontScaleFactor").value());
 }
 
 }  // namespace
@@ -39,7 +41,9 @@ void AssertDeviceMetricsCommand(const Command& command,
 TEST(MobileEmulationOverrideManager, SendsCommandWithTouchOnConnect) {
   RecorderDevToolsClient client;
   DeviceMetrics device_metrics(1, 2, 3.0, true, true);
-  MobileEmulationOverrideManager manager(&client, &device_metrics);
+  MobileDevice mobile_device;
+  mobile_device.device_metrics = device_metrics;
+  MobileEmulationOverrideManager manager(&client, std::move(mobile_device));
   ASSERT_EQ(0u, client.commands_.size());
   ASSERT_EQ(kOk, manager.OnConnected(&client).code());
 
@@ -53,7 +57,9 @@ TEST(MobileEmulationOverrideManager, SendsCommandWithTouchOnConnect) {
 TEST(MobileEmulationOverrideManager, SendsCommandWithoutTouchOnConnect) {
   RecorderDevToolsClient client;
   DeviceMetrics device_metrics(1, 2, 3.0, false, true);
-  MobileEmulationOverrideManager manager(&client, &device_metrics);
+  MobileDevice mobile_device;
+  mobile_device.device_metrics = device_metrics;
+  MobileEmulationOverrideManager manager(&client, std::move(mobile_device));
   ASSERT_EQ(0u, client.commands_.size());
   ASSERT_EQ(kOk, manager.OnConnected(&client).code());
 
@@ -67,8 +73,10 @@ TEST(MobileEmulationOverrideManager, SendsCommandWithoutTouchOnConnect) {
 TEST(MobileEmulationOverrideManager, SendsCommandOnNavigation) {
   RecorderDevToolsClient client;
   DeviceMetrics device_metrics(1, 2, 3.0, true, true);
-  MobileEmulationOverrideManager manager(&client, &device_metrics);
-  base::DictionaryValue main_frame_params;
+  MobileDevice mobile_device;
+  mobile_device.device_metrics = device_metrics;
+  MobileEmulationOverrideManager manager(&client, std::move(mobile_device));
+  base::Value::Dict main_frame_params;
   ASSERT_EQ(kOk,
             manager.OnEvent(&client, "Page.frameNavigated", main_frame_params)
                 .code());
@@ -80,8 +88,8 @@ TEST(MobileEmulationOverrideManager, SendsCommandOnNavigation) {
   ASSERT_NO_FATAL_FAILURE(
       AssertDeviceMetricsCommand(client.commands_[2], device_metrics));
 
-  base::DictionaryValue sub_frame_params;
-  sub_frame_params.SetString("frame.parentId", "id");
+  base::Value::Dict sub_frame_params;
+  sub_frame_params.SetByDottedPath("frame.parentId", "id");
   ASSERT_EQ(
       kOk,
       manager.OnEvent(&client, "Page.frameNavigated", sub_frame_params).code());

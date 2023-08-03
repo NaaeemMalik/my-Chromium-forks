@@ -1,13 +1,10 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// clang-format off
-// #import 'chrome://os-settings/chromeos/lazy_load.js';
-
-// #import {PrinterType} from 'chrome://os-settings/chromeos/lazy_load.js';
-// #import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-// clang-format on
+import {PrinterOnlineState, PrinterType} from 'chrome://os-settings/chromeos/lazy_load.js';
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {isVisible} from 'chrome://webui-test/test_util.js';
 
 /**
  * Helper function to verify that printers in |printerListEntries| that contain
@@ -68,15 +65,19 @@ function verifySearchQueryResults(
     printerEntryListTestElement, expectedVisiblePrinters, searchTerm) {
   printerEntryListTestElement.searchTerm = searchTerm;
 
-  Polymer.dom.flush();
+  flush();
 
   verifyVisiblePrinters(printerEntryListTestElement, expectedVisiblePrinters);
   verifyFilteredPrinters(printerEntryListTestElement, searchTerm);
 
   if (expectedVisiblePrinters.length) {
-    assertTrue(printerEntryListTestElement.$$('#no-search-results').hidden);
+    assertTrue(printerEntryListTestElement.shadowRoot
+                   .querySelector('#no-search-results')
+                   .hidden);
   } else {
-    assertFalse(printerEntryListTestElement.$$('#no-search-results').hidden);
+    assertFalse(printerEntryListTestElement.shadowRoot
+                    .querySelector('#no-search-results')
+                    .hidden);
   }
 }
 
@@ -95,6 +96,7 @@ function createPrinterEntry(printerType) {
       printerId: 'id_123',
       printerMakeAndModel: '',
       printerName: 'Test name',
+      printerOnlineState: PrinterOnlineState.UNKNOWN,
       printerPPDPath: '',
       printerPpdReference: {
         userSuppliedPpdUrl: '',
@@ -103,7 +105,6 @@ function createPrinterEntry(printerType) {
       },
       printerProtocol: 'ipp',
       printerQueue: 'moreinfohere',
-      printerStatus: '',
     },
     printerType: printerType,
   };
@@ -158,27 +159,34 @@ suite('CupsPrinterEntry', function() {
         createPrinterEntry(PrinterType.SAVED);
 
     // Assert that three dot menu is not shown before the dom is updated.
-    assertFalse(!!printerEntryTestElement.$$('.icon-more-vert'));
+    assertFalse(
+        !!printerEntryTestElement.shadowRoot.querySelector('.icon-more-vert'));
 
-    Polymer.dom.flush();
+    flush();
 
     // Three dot menu should be visible when |printerType| is set to
     // PrinterType.SAVED.
-    assertTrue(!!printerEntryTestElement.$$('.icon-more-vert'));
+    assertTrue(
+        !!printerEntryTestElement.shadowRoot.querySelector('.icon-more-vert'));
   });
 
   test('disableButtonWhenSavingPrinterOrDisallowedByPolicy', function() {
     const printerTypes = [
-      PrinterType.DISCOVERED, PrinterType.AUTOMATIC, PrinterType.PRINTSERVER
+      PrinterType.DISCOVERED,
+      PrinterType.AUTOMATIC,
+      PrinterType.PRINTSERVER,
     ];
     const printerIds = [
-      '#setupPrinterButton', '#automaticPrinterButton', '#savePrinterButton'
+      '#setupPrinterButton',
+      '#automaticPrinterButton',
+      '#savePrinterButton',
     ];
     for (let i = 0; i < printerTypes.length; i++) {
       printerEntryTestElement.printerEntry =
           createPrinterEntry(printerTypes[i]);
-      Polymer.dom.flush();
-      const actionButton = printerEntryTestElement.$$(printerIds[i]);
+      flush();
+      const actionButton =
+          printerEntryTestElement.shadowRoot.querySelector(printerIds[i]);
       printerEntryTestElement.savingPrinter = true;
       printerEntryTestElement.userPrintersAllowed = true;
       assertTrue(actionButton.disabled);
@@ -195,5 +203,49 @@ suite('CupsPrinterEntry', function() {
       printerEntryTestElement.userPrintersAllowed = false;
       assertTrue(actionButton.disabled);
     }
+  });
+
+  // Verify the printer status icons are only visible for saved printers.
+  test('savedPrinterShowPrinterStatusIcons', function() {
+    printerEntryTestElement.printerEntry =
+        createPrinterEntry(PrinterType.SAVED);
+    assertTrue(isVisible(printerEntryTestElement.shadowRoot.querySelector(
+        '#printerStatusIcon')));
+
+    printerEntryTestElement.printerEntry =
+        createPrinterEntry(PrinterType.AUTOMATIC);
+    assertFalse(isVisible(printerEntryTestElement.shadowRoot.querySelector(
+        '#printerStatusIcon')));
+  });
+
+  // Verify the correct printer status icon is shown based on the printer's
+  // online state.
+  test('savedPrinterCorrectPrinterStatusIcon', function() {
+    printerEntryTestElement.printerEntry =
+        createPrinterEntry(PrinterType.SAVED);
+
+    // Start at the unknown state.
+    assertEquals(
+        'os-settings:printer-status-grey',
+        printerEntryTestElement.shadowRoot.querySelector('#printerStatusIcon')
+            .icon);
+
+    // Set online state.
+    printerEntryTestElement.set(
+        'printerEntry.printerInfo.printerOnlineState',
+        PrinterOnlineState.ONLINE);
+    assertEquals(
+        'os-settings:printer-status-green',
+        printerEntryTestElement.shadowRoot.querySelector('#printerStatusIcon')
+            .icon);
+
+    // Set offline state.
+    printerEntryTestElement.set(
+        'printerEntry.printerInfo.printerOnlineState',
+        PrinterOnlineState.OFFLINE);
+    assertEquals(
+        'os-settings:printer-status-red',
+        printerEntryTestElement.shadowRoot.querySelector('#printerStatusIcon')
+            .icon);
   });
 });

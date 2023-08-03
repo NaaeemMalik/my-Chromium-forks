@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@
 
 #include "ash/ash_export.h"
 #include "ash/login/ui/auth_factor_model.h"
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
 #include "ui/views/view.h"
 
@@ -21,7 +22,7 @@ namespace ash {
 
 class AuthIconView;
 class AuthFactorModel;
-class AuthFactorsLabel;
+class AnimatedAuthFactorsLabelWrapper;
 class ArrowButtonView;
 
 // A view that displays a collection of auth factors to be shown on the lock and
@@ -48,10 +49,12 @@ class ASH_EXPORT LoginAuthFactorsView : public views::View {
     AuthIconView* checkmark_icon();
 
    private:
-    LoginAuthFactorsView* const view_;
+    const raw_ptr<LoginAuthFactorsView, ExperimentalAsh> view_;
   };
 
-  explicit LoginAuthFactorsView(base::RepeatingClosure on_click_to_enter);
+  LoginAuthFactorsView(base::RepeatingClosure on_click_to_enter_callback,
+                       base::RepeatingCallback<void(bool)>
+                           on_auth_factor_is_hiding_password_changed_callback);
   LoginAuthFactorsView(LoginAuthFactorsView&) = delete;
   LoginAuthFactorsView& operator=(LoginAuthFactorsView&) = delete;
   ~LoginAuthFactorsView() override;
@@ -69,6 +72,10 @@ class ASH_EXPORT LoginAuthFactorsView : public views::View {
   // authentication mechanism.
   void SetCanUsePin(bool can_use_pin);
 
+  // Returns true if the active auth factor is requesting to take visual
+  // precedence, by hiding the password field.
+  bool ShouldHidePasswordField();
+
  private:
   // Recomputes the state and updates the label and icons. Should be called
   // whenever any auth factor's state changes so that those changes can be
@@ -79,10 +86,6 @@ class ASH_EXPORT LoginAuthFactorsView : public views::View {
   void ShowSingleAuthFactor(AuthFactorModel* auth_factor);
   void ShowReadyAndDisabledAuthFactors();
   void ShowCheckmark();
-
-  // Sets the text and accessible name of the label using the provided string
-  // IDs.
-  void SetLabelTextAndAccessibleName(int label_id, int accessible_name_id);
 
   // Computes the label to be shown when one or more auth factors are in the
   // Ready state.
@@ -112,33 +115,39 @@ class ASH_EXPORT LoginAuthFactorsView : public views::View {
   // Sets visibility of |arrow_icon_container_|, |arrow_button_|, and
   // |arrow_nudge_animation_| and starts/stops arrow animations accordingly.
   void SetArrowVisibility(bool is_visible);
+
+  // Sets |should_hide_password_field_| and invokes
+  // |auth_factor_click_changed_callback_| if |should_hide_password_field_| has
+  // changed.
+  void UpdateShouldHidePasswordField(const AuthFactorModel& active_auth_factor);
+
   /////////////////////////////////////////////////////////////////////////////
   // Child views, owned by the Views hierarchy
 
   // A container laying added icons horizontally.
-  views::View* auth_factor_icon_row_;
+  raw_ptr<views::View, ExperimentalAsh> auth_factor_icon_row_;
 
-  // The label shown under the icons. Always visible.
-  AuthFactorsLabel* label_;
+  // An animated label.
+  raw_ptr<AnimatedAuthFactorsLabelWrapper, ExperimentalAsh> label_wrapper_;
 
   // A container laying arrow button and its corresponding animation view on top
   // of each other.
-  views::View* arrow_icon_container_;
+  raw_ptr<views::View, ExperimentalAsh> arrow_icon_container_;
 
   // A box layout container for arrow button and its label.
-  views::View* arrow_button_container_;
+  raw_ptr<views::View, ExperimentalAsh> arrow_button_container_;
 
   // A button with an arrow icon. Only visible when an auth factor is in the
   // kClickRequired state.
-  ArrowButtonView* arrow_button_;
+  raw_ptr<ArrowButtonView, ExperimentalAsh> arrow_button_;
 
   // A view with nudge animation expanding from arrow icon to encourage user to
   // tap. Only visible when an auth factor is in the kClickRequired state.
-  AuthIconView* arrow_nudge_animation_;
+  raw_ptr<AuthIconView, ExperimentalAsh> arrow_nudge_animation_;
 
   // A green checkmark icon (or animation) shown when an auth factor reaches
   // the kAuthenticated state, just before the login/lock screen is dismissed.
-  AuthIconView* checkmark_icon_;
+  raw_ptr<AuthIconView, ExperimentalAsh> checkmark_icon_;
 
   /////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +156,13 @@ class ASH_EXPORT LoginAuthFactorsView : public views::View {
   // multiple are visible.
   std::vector<std::unique_ptr<AuthFactorModel>> auth_factors_;
 
+  // True if an active auth factor is requesting to hide the password field.
+  // Changes value based on the current state of the active auth factor.
+  bool should_hide_password_field_ = false;
+
   base::RepeatingClosure on_click_to_enter_callback_;
+  base::RepeatingCallback<void(bool)>
+      on_auth_factor_is_hiding_password_changed_callback_;
   base::OneShotTimer error_timer_;
 };
 

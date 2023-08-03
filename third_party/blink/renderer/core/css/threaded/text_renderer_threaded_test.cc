@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -86,14 +86,14 @@ TSAN_TEST(TextRendererThreadedTest, DrawText) {
     TextRunPaintInfo text_run_paint_info(text_run);
 
     MockPaintCanvas mpc;
-    PaintFlags flags;
+    cc::PaintFlags flags;
 
     EXPECT_CALL(mpc, getSaveCount()).WillOnce(Return(17));
     EXPECT_CALL(mpc, drawTextBlob(_, 0, 0, _)).Times(1);
     EXPECT_CALL(mpc, restoreToCount(17)).WillOnce(Return());
 
     font.DrawBidiText(&mpc, text_run_paint_info, location,
-                      Font::kUseFallbackIfFontNotReady, 1.0, flags,
+                      Font::kUseFallbackIfFontNotReady, flags,
                       Font::DrawType::kGlyphsAndClusters);
   });
 }

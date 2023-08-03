@@ -1,33 +1,14 @@
 <style include="profile-picker-shared cr-hidden-style cr-shared-style">
   :host {
-    --banner-img-height: 400px;
-    --banner-img-width: 169px;
+    --profile-item-border-width: 1px;
     --profile-item-margin: 4px;
-  }
-
-  .banner {
-    height: var(--banner-img-height);
-    overflow: hidden;
-    position: absolute;
-    top: 0;
-    width: var(--banner-img-width);
-    z-index: -1;
   }
 
   .flex-container {
     display: flex;
     flex-flow: column;
     height: calc(100% - var(--cr-button-height) - 2 * var(--footer-spacing));
-  }
-
-  #leftBanner {
-    background: url(images/left_banner_image.svg);
-    left: 0;
-  }
-
-  #rightBanner {
-    background: url(images/right_banner_image.svg);
-    right: 0;
+    justify-content: space-evenly;
   }
 
   .title-container {
@@ -43,20 +24,22 @@
     height: 32px;
   }
 
-  .title-container h2 {
+  .title {
     margin-bottom: 8px;
   }
 
-  .title-container h3 {
+  .subtitle {
     margin-top: 8px;
   }
 
   #wrapper {
     display: flex;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     margin-bottom: 4px;
     margin-inline-end: 140px;
     margin-inline-start: 140px;
+    min-height: calc(var(--profile-item-height) + 2*var(--profile-item-margin)
+      + 2*var(--profile-item-border-width));
     overflow-x: hidden;
     overflow-y: auto;
   }
@@ -99,7 +82,7 @@
 
   #addProfile.profile-item {
     --hover-bg-color: none;
-    border: 1px dashed var(--google-grey-300);
+    border: var(--profile-item-border-width) dashed var(--google-grey-300);
     box-shadow: none;
     position: relative;
   }
@@ -108,19 +91,26 @@
     top: 0;
   }
 
+  :host-context([chrome-refresh-2023]) #addProfileButtonLabel {
+    left: 0;
+  }
+
   iron-icon[icon='profiles:add'] {
     --iron-icon-height: var(--profile-card-avatar-icon-size);
     --iron-icon-width: var(--profile-card-avatar-icon-size);
-    --iron-icon-fill-color: var(--google-grey-refresh-100);
-    --iron-icon-stroke-color: var(--google-grey-refresh-700);
+    --iron-icon-fill-color: var(--google-grey-100);
+    --iron-icon-stroke-color: var(--google-grey-700);
   }
 
   #browseAsGuestButton {
     margin-inline-start: var(--footer-spacing);
+    padding: 8px 16px;
   }
 
   #browseAsGuestButton > iron-icon {
-    margin-inline-end: 8px;
+    margin-inline-end: 0;
+    --iron-icon-height: 24px;
+    --iron-icon-width: 24px;
   }
 
   cr-checkbox {
@@ -134,38 +124,30 @@
   }
 
   @media (prefers-color-scheme: dark) {
-    #leftBanner {
-      background: url(images/dark_mode_left_banner_image.svg);
-    }
-
-    #rightBanner {
-      background: url(images/dark_mode_right_banner_image.svg);
-    }
-
     .profile-item,
     #addProfile.profile-item {
-      border-color: var(--google-grey-refresh-700);
+      border-color: var(--google-grey-700);
     }
 
     iron-icon[icon='profiles:add'] {
-      --iron-icon-fill-color: var(--google-grey-refresh-500);
+      --iron-icon-fill-color: var(--google-grey-500);
       --iron-icon-stroke-color: rgb(48, 48, 50);
     }
   }
 </style>
 
 <div class="flex-container">
-  <div id="leftBanner" class="banner"></div>
-  <div class="title-container">
-    <img id="product-logo" on-click="onProductLogoTap_"
+  <div class$="title-container [[getTangibleSyncStyleClass_()]]">
+    <img id="product-logo" on-click="onProductLogoClick_"
         srcset="gtx://theme/current-channel-logo@1x 1x,
                 gtx://theme/current-channel-logo@2x 2x"
         role="presentation">
-    <h2>$i18n{mainViewTitle}</h2>
-    <h3>$i18n{mainViewSubtitle}</h3>
+    <h1 class="title">$i18n{mainViewTitle}</h1>
+    <div class="subtitle">$i18n{mainViewSubtitle}</div>
   </div>
-  <div id="wrapper" hidden$="[[!profilesListLoaded_]]">
-    <div id="profilesContainer" class="custom-scrollbar">
+  <div id="wrapper">
+    <div id="profilesContainer" class="custom-scrollbar"
+        hidden$="[[!profilesListLoaded_]]">
       <template is="dom-repeat" items="[[profilesList_]]">
         <profile-card
             class="profile-item" profile-state="[[item]]">
@@ -182,12 +164,11 @@
       </cr-button>
     </div>
   </div>
-  <div id="rightBanner" class="banner"></div>
 </div>
 <div class="footer">
   <cr-button id="browseAsGuestButton" on-click="onLaunchGuestProfileClick_">
-    <iron-icon icon="profiles:account-circle"></iron-icon>
-    <div>$i18n{browseAsGuestButton}</div>
+    <iron-icon icon="profiles:account-circle" slot="prefix-icon"></iron-icon>
+    $i18n{browseAsGuestButton}
   </cr-button>
   <cr-checkbox id="askOnStartup" checked="{{askOnStartup_}}"
       on-change="onAskOnStartupChangedByUser_" hidden$="[[hideAskOnStartup_]]">
