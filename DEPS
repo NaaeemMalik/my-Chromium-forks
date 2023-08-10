@@ -878,6 +878,9 @@ deps = {
       'condition': 'checkout_nacl',
   },
 
+  'src/net/third_party/quiche/src':
+    Var('quiche_git') + '/quiche.git' + '@' +  Var('quiche_revision'),
+
   'src/testing/rts/linux-amd64': {
       'packages': [
         {
@@ -1089,6 +1092,8 @@ deps = {
       'dep_type': 'cipd',
   },
 
+  'src/third_party/angle':
+    Var('chromium_git') + '/angle/angle.git' + '@' +  Var('angle_revision'),
 
   'src/third_party/content_analysis_sdk/src':
     Var('chromium_git') + '/external/github.com/chromium/content_analysis_sdk.git' + '@' + 'b8744f00646d175057f0be7443c7c72a311b5381',
@@ -1676,6 +1681,9 @@ deps = {
     'condition': 'checkout_openxr',
   },
 
+  'src/third_party/pdfium':
+    Var('pdfium_git') + '/pdfium.git' + '@' +  Var('pdfium_revision'),
+
   # Parses Windows PE/COFF executable format.
   'src/third_party/pefile': {
       'url': Var('chromium_git') + '/external/pefile.git' + '@' + '72c6ae42396cb913bcab63c15585dc3b5c3f92f1',
@@ -1762,6 +1770,9 @@ deps = {
 
   'src/third_party/ruy/src':
     Var('chromium_git') + '/external/github.com/google/ruy.git' + '@' + '363f252289fb7a1fba1703d99196524698cb884d',
+
+  'src/third_party/skia':
+    Var('skia_git') + '/skia.git' + '@' +  Var('skia_revision'),
 
   'src/third_party/smhasher/src':
     Var('chromium_git') + '/external/smhasher.git' + '@' + 'e87738e57558e0ec472b2fc3a643b838e5b6e88f',
@@ -1951,6 +1962,8 @@ deps = {
       'condition': 'checkout_mac',
   },
 
+  'src/v8':
+    Var('chromium_git') + '/v8/v8.git' + '@' +  Var('v8_revision'),
 
   'src-internal': {
     'url': Var('chrome_git') + '/chrome/src-internal.git' + '@' + Var('src_internal_revision'),

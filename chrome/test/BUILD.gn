@@ -11311,8 +11311,6 @@ if (is_chromeos_ash) {
     ]
     sources = [ "//infra/archive_config/test-ash-chrome.yaml" ]
     outputs = [ "$root_out_dir/test_ash_chrome.yaml" ]
-<<<<<<< HEAD
-=======
   }
 }
 
@@ -11342,7 +11340,6 @@ if (is_chromeos_ash) {
       "//testing/gtest",
     ]
     data_deps = [ ":test_ash_chrome" ]
->>>>>>> gtx-new
   }
 }
 
