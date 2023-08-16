@@ -1,0 +1,1 @@
+ "out/gtx/gtxbrowser.exe" --enable-logging=stderr --v=0

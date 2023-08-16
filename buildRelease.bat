@@ -1,0 +1,1 @@
+gn gen out\release --args="enable_widevine=true  treat_warnings_as_errors = false is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true"  && autoninja -C out\release chrome -j 40 & ninja -C out\release mini_installer -j 40  && "out/release/chrome.exe"  --enable-logging=stderr --v=0
