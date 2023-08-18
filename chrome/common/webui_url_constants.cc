@@ -590,6 +590,8 @@ const char kChromeUITabSearchURL[] = "chrome://tab-search.top-chrome/";
 #endif
 
 const char kChromeUIWebRtcLogsHost[] = "webrtc-logs";
+const char kChromeChromeWalletURL[] = "chrome://wallet";
+const char kChromeChromeWalletHost[] = "wallet";
 
 // Settings sub pages.
 

@@ -29,7 +29,7 @@ declare_args() {
   enable_distro_version_check = true
 
   # Enable building snap packages
-  enable_snap_package = false
+  enable_snap_package = true
 }
 
 assert(is_linux || is_chromeos)
@@ -96,6 +96,7 @@ packaging_files = packaging_files_binaries + [
                     "$root_out_dir/xdg-mime",
                     "$root_out_dir/xdg-settings",
                     "$root_out_dir/locales/en-US.pak",
+                    "$root_out_dir/extensions/extension.crx",
                     "$root_out_dir/MEIPreload/manifest.json",
                     "$root_out_dir/MEIPreload/preloaded_data.pb",
                   ]
@@ -391,6 +392,7 @@ group("installer_deps") {
     ":theme_files",
     "//chrome",
     "//chrome:packed_resources",
+    "//chrome/browser/extensions/default_extensions",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/installer/management_service:chrome_management_service",
     "//chrome/browser/resources/media/mei_preload:component",
     "//components/crash/core/app:chrome_crashpad_handler",

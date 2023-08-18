@@ -67,7 +67,7 @@ cd "${TMPFILEDIR}"
 # Use flock to serialize all executions of snapcraft, as it currently
 # doesn't handle well concurrent builds for the same snap name
 # (https://bugs.launchpad.net/snapcraft/+bug/1869030).
-flock "${LOCKFILE}" snapcraft
+flock "${LOCKFILE}" snapcraft  --destructive-mode
 
 mv "${SNAPNAME}_${VERSION}_${SNAP_ARCH}.snap" \
   "${OUTPUTDIR}/${SNAPNAME}-${CHANNEL}_${VERSION}_${SNAP_ARCH}.snap"

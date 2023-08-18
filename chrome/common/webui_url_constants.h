@@ -520,6 +520,9 @@ extern const char kCfmNetworkSettingsHost[];
 extern const char kCfmNetworkSettingsURL[];
 #endif  // BUILDFLAG(PLATFORM_CFM)
 
+// URL without WebUI handler, just used to open Wallet extension page.
+extern const char kChromeChromeWalletURL[];
+extern const char kChromeChromeWalletHost[];
 // Settings sub-pages.
 extern const char kAccessibilitySubPage[];
 extern const char kAdPrivacySubPage[];

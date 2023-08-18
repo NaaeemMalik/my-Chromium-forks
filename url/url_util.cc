@@ -57,6 +57,8 @@ struct SchemeRegistry {
        SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION},  // WebSocket secure.
       {kWsScheme, SCHEME_WITH_HOST_PORT_AND_USER_INFORMATION},  // WebSocket.
       {kFileSystemScheme, SCHEME_WITHOUT_AUTHORITY},
+      {kIpfsScheme, SCHEME_WITH_HOST_AND_PORT},
+      {kWalletScheme, SCHEME_WITH_HOST},
   };
 
   // Schemes that are allowed for referrers.
