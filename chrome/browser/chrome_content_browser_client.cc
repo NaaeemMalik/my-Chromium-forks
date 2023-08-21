@@ -746,7 +746,7 @@ namespace {
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 const char kChromeWalletHomePageExtensionURL[] =
-    "chrome-extension://dmpbddmnggjnboanaijofechppkckooj/home.html";
+    "chrome-extension://dmpbddmnggjnboanaijofechppkckooj/home.html#initialize/welcome";
 
 // Provides the same functionality as kAllowlistedExtensionID.
 // TODO(b/204179234): Remove at the end of the deprecation period. Deprecated on

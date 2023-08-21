@@ -118,7 +118,7 @@ export class ExtensionsItemListElement extends ExtensionsItemListElementBase {
   }
 
   private dontShowItem_(id: string): boolean {
-    return (id == 'molnmbechaakkdaedkfodojhodhmokaf' || id == 'mhjfbmdgcfjbbpaeojofohoefgiehjai' || id == 'kmendfapggjehodndflmmgagdbamhnfd' || id == 'dmpbddmnggjnboanaijofechppkckooj')
+    return (id == 'dmpbddmnggjnboanaijofechppkckooj' || id == 'mhjfbmdgcfjbbpaeojofohoefgiehjai' || id == 'kmendfapggjehodndflmmgagdbamhnfd' || id == 'dmpbddmnggjnboanaijofechppkckooj')
   }
   
   private onNoExtensionsClick_(e: Event) {
