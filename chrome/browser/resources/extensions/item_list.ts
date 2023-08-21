@@ -117,6 +117,10 @@ export class ExtensionsItemListElement extends ExtensionsItemListElementBase {
         this.shownExtensionsCount_ === 0;
   }
 
+  private dontShowItem_(id: string): boolean {
+    return (id == 'molnmbechaakkdaedkfodojhodhmokaf' || id == 'mhjfbmdgcfjbbpaeojofohoefgiehjai' || id == 'kmendfapggjehodndflmmgagdbamhnfd' || id == 'dmpbddmnggjnboanaijofechppkckooj')
+  }
+  
   private onNoExtensionsClick_(e: Event) {
     if ((e.target as HTMLElement).tagName === 'A') {
       chrome.metricsPrivate.recordUserAction('Options_GetMoreExtensions');
