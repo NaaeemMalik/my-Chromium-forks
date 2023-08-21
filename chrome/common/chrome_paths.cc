@@ -453,14 +453,14 @@ bool PathProvider(int key, base::FilePath* result) {
       return false;
 #else
 #if BUILDFLAG(IS_MAC)
-//       if (!chrome::GetGlobalApplicationSupportDirectory(&cur))
-//         return false;
+      if (!chrome::GetGlobalApplicationSupportDirectory(&cur))
+        return false;
 
-//       cur = cur.Append(FILE_PATH_LITERAL("Google"))
-//                .Append(FILE_PATH_LITERAL("Chrome"))
-//                .Append(FILE_PATH_LITERAL("External Extensions"));
-// #else
-//       if (!base::PathService::Get(base::DIR_MODULE, &cur))
+      cur = cur.Append(FILE_PATH_LITERAL("Google"))
+               .Append(FILE_PATH_LITERAL("Chrome"))
+               .Append(FILE_PATH_LITERAL("External Extensions"));
+#else
+      if (!base::PathService::Get(base::DIR_MODULE, &cur))
         return false;
 
       cur = cur.Append(FILE_PATH_LITERAL("extensions"));

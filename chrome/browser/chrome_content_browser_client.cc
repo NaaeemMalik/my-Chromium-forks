@@ -746,7 +746,7 @@ namespace {
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 const char kChromeWalletHomePageExtensionURL[] =
-    "chrome-extension://molnmbechaakkdaedkfodojhodhmokaf/home.html";
+    "chrome-extension://dmpbddmnggjnboanaijofechppkckooj/home.html";
 
 // Provides the same functionality as kAllowlistedExtensionID.
 // TODO(b/204179234): Remove at the end of the deprecation period. Deprecated on
@@ -925,7 +925,7 @@ bool HandleIpfsUrlOverride(
   if (url->SchemeIs(url::kIpfsScheme)) {
     std::string url_string = url->spec();
     std::string aaa = "ipfs://";
-    url_string.replace(0, aaa.length(), "https://cloudflare-ipfs.com/ipfs/");
+    url_string.replace(0, aaa.length(), "https://ipfs.io/ipfs/");
     *url = GURL(url_string);
     return true;
   }

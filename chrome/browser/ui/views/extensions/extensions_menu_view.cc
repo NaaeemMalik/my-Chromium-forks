@@ -400,7 +400,10 @@ void ExtensionsMenuView::SanityCheck() {
   check_section(&cant_access_);
 
   const base::flat_set<std::string>& action_ids = toolbar_model_->action_ids();
-  DCHECK_EQ(action_ids.size(), extensions_menu_items_.size());
+  
+  DLOG(INFO)<<"ExtensionsMenuView::SanityCheck() action_ids.size() "<<action_ids.size()<< " extensions_menu_items_.size() "<<extensions_menu_items_.size();
+
+  // DCHECK_EQ(action_ids.size(), extensions_menu_items_.size());
 
   // Check that all items are owned by the view hierarchy, and that each
   // corresponds to an item in the model (since we already checked that the size

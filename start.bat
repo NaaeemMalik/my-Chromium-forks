@@ -1,1 +1,1 @@
- "out/gtx/gtxbrowser.exe" --enable-logging=stderr --v=0
+ "out/gtx/chrome.exe" --enable-logging=stderr --v=0
