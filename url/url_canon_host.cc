@@ -54,21 +54,31 @@ namespace {
 // the same vailidity, so reject this.
 const unsigned char kEsc = 0xff;
 const unsigned char kHostCharLookup[0x80] = {
-// 00-1f: all are invalid
-     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-//  ' '   !    "    #    $    %    &    '    (    )    *    +    ,    -    .    /
-   kEsc,kEsc,kEsc,kEsc,kEsc,  0, kEsc,kEsc,kEsc,kEsc,kEsc, '+',kEsc, '-', '.',  0,
-//   0    1    2    3    4    5    6    7    8    9    :    ;    <    =    >    ?
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':',  0 ,kEsc,kEsc,kEsc,  0 ,
-//   @    A    B    C    D    E    F    G    H    I    J    K    L    M    N    O
-   kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-//   P    Q    R    S    T    U    V    W    X    Y    Z    [    \    ]    ^    _
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[',  0 , ']',  0 , '_',
-//   `    a    b    c    d    e    f    g    h    i    j    k    l    m    n    o
-   kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-//   p    q    r    s    t    u    v    w    x    y    z    {    |    }    ~
-    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',kEsc,kEsc,kEsc,  0 ,  0 };
+    // 00-1f: all are invalid
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
+    //  ' '   !    "    #    $    %    &    '    (    )    *    +    ,    -    .
+    //  /
+    kEsc, kEsc, kEsc, kEsc, kEsc, 0, kEsc, kEsc, kEsc, kEsc, kEsc, '+', kEsc,
+    '-', '.', 0,
+    //   0    1    2    3    4    5    6    7    8    9    :    ;    <    =    >
+    //   ?
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', 0, kEsc, kEsc, kEsc,
+    0,
+    //   @    A    B    C    D    E    F    G    H    I    J    K    L    M    N
+    //   O
+    kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o',
+    //   P    Q    R    S    T    U    V    W    X    Y    Z    [    \    ]    ^
+    //   _
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '[', 0, ']', 0, '_',
+    //   `    a    b    c    d    e    f    g    h    i    j    k    l    m    n
+    //   o
+    kEsc, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o',
+    //   p    q    r    s    t    u    v    w    x    y    z    {    |    }    ~
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', kEsc, kEsc, kEsc, 0,
+    0};
 
 const unsigned char kHostCharLookup4Ipfs[0x80] = {
     // 00-1f: all are invalid
