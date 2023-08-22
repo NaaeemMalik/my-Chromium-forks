@@ -17,7 +17,7 @@ bool CanAddURLToHistory(const GURL& url) {
   // by a shortcut or menu action.
   // Right now, URLs like about:version are not registered in the history.
   if (url.SchemeIs(url::kJavaScriptScheme) || url.SchemeIs(url::kAboutScheme) ||
-      url.SchemeIs(url::kContentScheme) ||
+      url.SchemeIs(url::kContentScheme) || url.SchemeIs(url::kIpfsScheme) ||
       url.SchemeIs(content::kChromeDevToolsScheme) ||
       url.SchemeIs(content::kChromeUIScheme) ||
       url.SchemeIs(content::kChromeUIUntrustedScheme) ||
