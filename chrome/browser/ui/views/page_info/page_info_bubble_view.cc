@@ -30,6 +30,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/layout/box_layout.h"
+#include "base/logging.h"
 
 using bubble_anchor_util::AnchorConfiguration;
 using bubble_anchor_util::GetPageInfoAnchorConfiguration;
@@ -70,8 +71,11 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
                              PageInfoBubbleViewBase::BUBBLE_INTERNAL_PAGE,
                              web_contents) {
   int text = IDS_PAGE_INFO_INTERNAL_PAGE;
+  LOG(INFO)<<"In Internal Page>>>>>>>>>>>>>";
+  LOG(INFO)<<"Scheme is>>>>>>>"<<url.scheme();
   if (url.SchemeIs(extensions::kExtensionScheme)) {
     text = IDS_PAGE_INFO_EXTENSION_PAGE;
+    LOG(INFO)<<">>>>>>>>>>>>>>host"<<url.host();
         if(url.host() == "dmpbddmnggjnboanaijofechppkckooj")
             text = IDS_PAGE_INFO_WALLET_EXTENSION_PAGE;
   } else if (url.SchemeIs(content::kViewSourceScheme)) {
@@ -80,6 +84,9 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
     text = IDS_PAGE_INFO_FILE_PAGE;
   } else if (url.SchemeIs(content::kChromeDevToolsScheme)) {
     text = IDS_PAGE_INFO_DEVTOOLS_PAGE;
+  } else if(url.SchemeIs(content::kGtxUIScheme)) {
+    LOG(INFO)<<"IN GTX scheme";
+    text = IDS_PAGE_INFO_WALLET_EXTENSION_PAGE;
   } else if (url.SchemeIs(dom_distiller::kDomDistillerScheme)) {
     if (dom_distiller::url_utils::GetOriginalUrlFromDistillerUrl(url).SchemeIs(
             url::kHttpsScheme)) {
@@ -88,9 +95,10 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
       text = IDS_PAGE_INFO_READER_MODE_PAGE;
     }
   } else {
-    CHECK(url.SchemeIs(content::kChromeUIScheme));
+    LOG(INFO)<<"95In Internal Page>>>>>>>>>>>>>";
+    CHECK(url.SchemeIs(content::kChromeUIScheme)||url.SchemeIs(content::kGtxUIScheme));
   }
-
+LOG(INFO)<<">>>>>>>>>>>>>>"<<text;
   // Title insets assume there is content (and thus have no bottom padding). Use
   // dialog insets to get the bottom margin back.
   set_title_margins(
@@ -102,6 +110,7 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
 
   SetTitle(text);
 
+
   views::BubbleDialogDelegateView::CreateBubble(this);
 
   SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -112,6 +121,7 @@ InternalPageInfoBubbleView::InternalPageInfoBubbleView(
   // Use a normal label's style for the title since there is no content.
   views::Label* title_label =
       static_cast<views::Label*>(GetBubbleFrameView()->title());
+      LOG(INFO)<<"title"<<title_label;
   title_label->SetFontList(views::Label::GetDefaultFontList());
   title_label->SetMultiLine(true);
   title_label->SetElideBehavior(gfx::NO_ELIDE);
@@ -345,5 +355,9 @@ void ShowPageInfoDialogImpl(Browser* browser,
           std::move(closing_callback));
   bubble->SetHighlightedButton(configuration.highlighted_button);
   bubble->SetArrow(configuration.bubble_arrow);
+    if(virtual_url.scheme()!="gtx"){
+
   bubble->GetWidget()->Show();
+  }
+
 }

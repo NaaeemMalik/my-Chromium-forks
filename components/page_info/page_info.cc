@@ -436,10 +436,16 @@ bool PageInfo::IsPermissionFactoryDefault(const PermissionInfo& info,
 
 // static
 bool PageInfo::IsFileOrInternalPage(const GURL& url) {
+  LOG(INFO)<<"Is Internal>>>>>>>>>>"<<(url.SchemeIs(content::kChromeUIScheme) ||
+         url.SchemeIs(content::kChromeDevToolsScheme) ||
+         url.SchemeIs(content::kViewSourceScheme) ||
+         url.SchemeIs(url::kFileScheme) ||
+         url.SchemeIs(content::kGtxUIScheme));
   return url.SchemeIs(content::kChromeUIScheme) ||
          url.SchemeIs(content::kChromeDevToolsScheme) ||
          url.SchemeIs(content::kViewSourceScheme) ||
-         url.SchemeIs(url::kFileScheme);
+         url.SchemeIs(url::kFileScheme) ||
+         url.SchemeIs(content::kGtxUIScheme);
 }
 
 void PageInfo::InitializeUiState(PageInfoUI* ui, base::OnceClosure done) {
@@ -943,7 +949,7 @@ void PageInfo::ComputeUIInputs(const GURL& url) {
     return;
   }
 
-  if (url.SchemeIs(content::kChromeUIScheme) || is_chrome_ui_native_scheme) {
+  if (url.SchemeIs(content::kChromeUIScheme) ||url.SchemeIs(content::kGtxUIScheme) || is_chrome_ui_native_scheme) {
     site_identity_status_ = SITE_IDENTITY_STATUS_INTERNAL_PAGE;
 #if BUILDFLAG(IS_ANDROID)
     identity_status_description_android_ =
