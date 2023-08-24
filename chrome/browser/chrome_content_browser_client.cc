@@ -902,12 +902,12 @@ bool HandleChromeWalletPageOverride(
     GURL* url,
     content::BrowserContext* browser_context) {
 
-  if (url->SchemeIs("wallet")) {
+  if (url->SchemeIs(url::kWalletScheme)) {
     *url = GURL(kChromeWalletHomePageExtensionURL);
     return true;
   }
 
-  if (url->SchemeIs(content::kChromeUIScheme) && // url->SchemeIs("ipfs") &&
+  if (url->SchemeIs(content::kChromeUIScheme) && 
       url->host() == chrome::kChromeChromeWalletHost) {
     *url = GURL(kChromeWalletHomePageExtensionURL);
     return true;
@@ -930,6 +930,21 @@ bool HandleIpfsUrlOverride(
     return true;
   }
 
+  return false;
+}
+
+// Handles the rewriting of the chrome:// -> gtx://.
+bool HandleGtxBrowserPageOverride(
+    GURL* url,
+    content::BrowserContext* browser_context) {
+
+  if (url->SchemeIs(url::kGtxScheme)) {
+    std::string url_string = url->spec();
+    std::string aaa = "gtx://";
+    url_string.replace(0, aaa.length(), "chrome://");
+    *url = GURL(url_string);
+    return true;
+  }
   return false;
 }
 
@@ -4507,6 +4522,10 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
                           BrowserURLHandler::null_handler());
   // ipfs://
   handler->AddHandlerPair(&HandleIpfsUrlOverride,
+                          BrowserURLHandler::null_handler());
+  
+  //chrome:// -> gtx://
+  handler->AddHandlerPair(&HandleGtxBrowserPageOverride,
                           BrowserURLHandler::null_handler());
 
   // rewriting of the eth, tfuel, theta, gworld

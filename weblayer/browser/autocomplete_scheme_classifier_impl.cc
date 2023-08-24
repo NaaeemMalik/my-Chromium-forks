@@ -42,7 +42,7 @@ AutocompleteSchemeClassifierImpl::GetInputTypeForScheme(
       url::kFileScheme,       url::kAboutScheme,
       url::kFtpScheme,        url::kBlobScheme,
       url::kIpfsScheme,       url::kWalletScheme,
-      url::kFileSystemScheme, content::kViewSourceScheme,
+      url::kFileSystemScheme, url:kGtxScheme, content::kViewSourceScheme,
       url::kJavaScriptScheme};
 
   for (const char* known_scheme : kKnownURLSchemes) {
