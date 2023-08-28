@@ -924,6 +924,7 @@ void PageInfo::ComputeUIInputs(const GURL& url) {
   // On desktop, internal URLs aren't handled by this class. Instead, a
   // custom and simpler bubble is shown.
   DCHECK(!url.SchemeIs(content::kChromeUIScheme) &&
+         !url.SchemeIs(content::kGtxUIScheme) &&
          !url.SchemeIs(content::kChromeDevToolsScheme) &&
          !url.SchemeIs(content::kViewSourceScheme) &&
          !url.SchemeIs(content_settings::kExtensionScheme));
