@@ -1530,7 +1530,7 @@ are declared in tools/grit/grit_rule.gni.
           Manage Extensions
         </message>
         <message name="IDS_EXTENSIONS_SUBMENU_CHROME_WEBSTORE_ITEM" desc="The text for the link in the extensions menu, in the app menu, to visit the GTX Browser Web Store to get more extensions (title case).">
-          Visit GTX Browser Web Store
+          Visit Chrome Web Store
         </message>
         <message name="IDS_SHOW_PERFORMANCE" desc="The text label of the Performance menu item">
           Performance
@@ -1580,7 +1580,7 @@ are declared in tools/grit/grit_rule.gni.
           Manage Extensions
         </message>
         <message name="IDS_EXTENSIONS_SUBMENU_CHROME_WEBSTORE_ITEM" desc="In Title Case: The text for the link in the extensions menu, in the app menu, to visit the GTX Browser Web Store to get more extensions.">
-          Visit GTX Browser Web Store
+          Visit Chrome Web Store
         </message>
         <message name="IDS_SHOW_PERFORMANCE" desc="In Title Case: The text label of the Performance menu item">
           Performance
