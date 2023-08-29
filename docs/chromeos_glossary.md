@@ -1,1 +1,1 @@
-See [Chromium OS Glossary](https://chromium.googlesource.com/chromiumos/docs/+/main/glossary.md)
+See [GTX Browser OS Glossary](https://chromium.googlesource.com/chromiumos/docs/+/main/glossary.md)

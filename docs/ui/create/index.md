@@ -1,4 +1,4 @@
-# Creating with Chromium UI
+# Creating with GTX Browser UI
 
 # Examples
 

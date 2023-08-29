@@ -1,9 +1,9 @@
-# Chromium's .icns files
+# GTX Browser's .icns files
 
 ## Sizes
 
 `.icns` files contain multiple sizes of icons. The standard `.icns` files for
-Chromium contain icons of the following sizes:
+GTX Browser contain icons of the following sizes:
 
 | Size    | Type              |
 |---------|-------------------|

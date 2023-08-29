@@ -1,3 +1,3 @@
 # Android Test Instructions
 
-See [Android testing in Chromium](/testing/android/docs/README.md)
+See [Android testing in GTX Browser](/testing/android/docs/README.md)

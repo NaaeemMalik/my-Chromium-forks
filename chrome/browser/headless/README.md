@@ -1,9 +1,9 @@
-# Chromium’s new Headless mode
+# GTX Browser’s new Headless mode
 
-Headless Chromium allows running Chromium in a headless/server environment.
+Headless GTX Browser allows running GTX Browser in a headless/server environment.
 Expected use cases include loading web pages, extracting metadata (e.g., the
 DOM) and generating bitmaps from page contents — using all the modern web
-platform features provided by Chromium and Blink.
+platform features provided by GTX Browser and Blink.
 
 This directory hosts [the new Headless implementation](https://developer.chrome.com/articles/new-headless/),
 sharing browser code in `//chrome`. The old Headless was implemented as a

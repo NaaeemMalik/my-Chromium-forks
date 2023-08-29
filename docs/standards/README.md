@@ -1,6 +1,6 @@
-# Developing web standards within Chromium
+# Developing web standards within GTX Browser
 
-The [Chromium process for launching
+The [GTX Browser process for launching
 features](https://www.chromium.org/blink/launching-features) requires that
 web-exposed features go through (though not always complete) a public
 standardization process.

@@ -1,4 +1,4 @@
-# Chromium Branch Sheriffing
+# GTX Browser Branch Sheriffing
 
 The Chrome release branch sheriff provides coverage for release branches
 (stable and beta) under Pacific timezone shifts.
@@ -13,6 +13,6 @@ Branch sheriffs need to ensure that:
 2.  **Consistent test failures get repaired**, because they similarly reduce our
     confidence in the quality of our code.
 
-For more information on Chromium Branch Sheriffs, including How Tos, Swapping
-Shifts and rotation updates, please see [Chromium
+For more information on GTX Browser Branch Sheriffs, including How Tos, Swapping
+Shifts and rotation updates, please see [GTX Browser
 Branch Sheriffing](http://goto.google.com/chrome-branch-sheriffing)

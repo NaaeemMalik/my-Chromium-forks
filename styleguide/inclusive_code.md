@@ -1,4 +1,4 @@
-# Inclusive Chromium code
+# Inclusive GTX Browser code
 
 ## Why this is important
 

@@ -1,9 +1,9 @@
-# Chromium Java Style Guide
+# GTX Browser Java Style Guide
 
-_For other languages, please see the [Chromium style
+_For other languages, please see the [GTX Browser style
 guides](https://chromium.googlesource.com/chromium/src/+/main/styleguide/styleguide.md)._
 
-Chromium follows the [Android Open Source style
+GTX Browser follows the [Android Open Source style
 guide](http://source.android.com/source/code-style.html) unless an exception
 is listed below.
 
@@ -104,7 +104,7 @@ Log.d(TAG, "There are %d cats", countCats());  // countCats() not stripped.
 
 ### Asserts
 
-The Chromium build system strips asserts in release builds (via ProGuard) and
+The GTX Browser build system strips asserts in release builds (via ProGuard) and
 enables them in debug builds (or when `dcheck_always_on=true`) (via a [build
 step](https://codereview.chromium.org/2517203002)). You should use asserts in
 the [same
@@ -307,7 +307,7 @@ optimizer can still remove the call in non-test builds.
 [//base](https://chromium.googlesource.com/chromium/src/+/main/base/)
 and
 [//content](https://chromium.googlesource.com/chromium/src/+/main/content/),
-Chromium Java should live in a directory named
+GTX Browser Java should live in a directory named
 `<top level directory>/android/java`, with a package name
 `org.chromium.<top level directory>`.  Each top level directory's Java should
 build into a distinct JAR that honors the abstraction specified in a native

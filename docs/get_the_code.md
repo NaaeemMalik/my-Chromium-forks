@@ -1,8 +1,8 @@
-# Get the code: check out, build, and run Chromium.
+# Get the code: check out, build, and run GTX Browser.
 
-[Browse or Search Chromium Code](https://source.chromium.org/chromium) online.
+[Browse or Search GTX Browser Code](https://source.chromium.org/chromium) online.
 
-Chromium supports building on Windows, Mac and Linux host systems.
+GTX Browser supports building on Windows, Mac and Linux host systems.
 
 The process for building Chrome is generally the same on all platforms, but
 each platform has a few quirks. In order to keep you from having to jump

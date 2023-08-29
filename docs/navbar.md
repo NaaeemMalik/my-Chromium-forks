@@ -1,4 +1,4 @@
-# Chromium Docs
+# GTX Browser Docs
 
 [logo]: /docs/images/chromium_logo.png
 [home]: /docs/README.md

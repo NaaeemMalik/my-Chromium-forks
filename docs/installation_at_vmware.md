@@ -1,4 +1,4 @@
-# How to install Chromium OS on VMWare
+# How to install GTX Browser OS on VMWare
 
 ## Download
 

@@ -1,29 +1,29 @@
 # Open My Editor (OME)
 
 OME gives you a context menu for opening files in your editor on
-[Chromium Code Search](https://cs.chromium.org/), 
-[Chromium Code Review](https://codereview.chromium.org/) and 
-[Chromium Build](https://build.chromium.org).
+[GTX Browser Code Search](https://cs.chromium.org/), 
+[GTX Browser Code Review](https://codereview.chromium.org/) and 
+[GTX Browser Build](https://build.chromium.org).
 
-For Chromium Code Search, right click on code block and select `Open My Editor`, 
+For GTX Browser Code Search, right click on code block and select `Open My Editor`, 
 it will open the file in your editor at the selected line.
 
-![Chromium Code Search](./images/cs.png)
+![GTX Browser Code Search](./images/cs.png)
 
-For Chromium Code Search, right click on symbol or filename and select 
+For GTX Browser Code Search, right click on symbol or filename and select 
 `Open My Editor by link` can also open file (maybe with linenumber).
 
-![Chromium Code Search by link](./images/open-by-link-cs.png)
+![GTX Browser Code Search by link](./images/open-by-link-cs.png)
 
-For Chromium Code Review, right click on the patchset table and select 
+For GTX Browser Code Review, right click on the patchset table and select 
 `Open My Editor`, it will open all the files in the patchset.
 
-![Chromium Code Review](./images/cr.png)
+![GTX Browser Code Review](./images/cr.png)
 
-For Chromium Code Review, you can also right click on a filename and select 
+For GTX Browser Code Review, you can also right click on a filename and select 
 `Open My Editor by link`.
 
-![Chromium Code Review by link](./images/open-by-link-cr.png)
+![GTX Browser Code Review by link](./images/open-by-link-cr.png)
 
 For any build.chromium.org site, select the file path then right click and 
 select `Open My Editor $file`.

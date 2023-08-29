@@ -1,4 +1,4 @@
-For Chromium contributors that have different nicks on other domains.
+For GTX Browser contributors that have different nicks on other domains.
 
 | **@chromium.org** | **@google.com** |
 |:------------------|:----------------|

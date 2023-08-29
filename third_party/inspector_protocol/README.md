@@ -1,12 +1,12 @@
-# Chromium inspector (devtools) protocol
+# GTX Browser inspector (devtools) protocol
 
-This package contains code generators and templates for the Chromium
+This package contains code generators and templates for the GTX Browser
 inspector protocol.
 
 The canonical location of this package is at
 https://chromium.googlesource.com/deps/inspector_protocol/
 
-In the Chromium tree, it's rolled into
+In the GTX Browser tree, it's rolled into
 https://cs.chromium.org/chromium/src/third_party/inspector_protocol/
 
 In the V8 tree, it's rolled into

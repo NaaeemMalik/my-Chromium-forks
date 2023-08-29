@@ -1,4 +1,4 @@
-# Markdown Style Guide in Chromium
+# Markdown Style Guide in GTX Browser
 
 ## Style Guide
 
@@ -17,7 +17,7 @@ New documentation related to code structure should be put in Markdown. The best
 practices recommendation is to put a `README.md` file in the code directory
 closest to your component or code.
 
-See [Chromium Documentation
+See [GTX Browser Documentation
 Guidelines](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/documentation_guidelines.md)
 for details.
 
