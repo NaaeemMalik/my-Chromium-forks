@@ -80,7 +80,7 @@ if (is_win) {
     # target for why this cannot be 'initial' like the DLL.
     inputs = [ "$root_out_dir/initialexe/chrome.exe" ]
     outputs = [
-      "$root_out_dir/chrome.exe",
+      "$root_out_dir/gtxbrowser.exe",
       "$root_out_dir/chrome.exe.pdb",
     ]
     args = [
