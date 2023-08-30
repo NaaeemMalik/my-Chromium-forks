@@ -539,7 +539,7 @@ std::string ChromeURLs() {
             host.replace(pos, searchPattern.length(), replacePattern);
             pos = host.find(searchPattern, pos + replacePattern.length());
         }
-    }
+      }
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   const bool is_lacros_primary = about_ui::isLacrosPrimaryOrCurrentBrowser();
@@ -563,8 +563,14 @@ std::string ChromeURLs() {
   {
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
     for (const std::string& host : hosts) {
+      if(host=="about"){
+        html += "<li><a href='gtx://gtx-urls/'>gtx://about</a></li>\n";
+      }else if(host=="help"){
+        html += "<li><a href='gtx://settings/help'>gtx://help</a></li>\n";
+      }else{
       html += "<li><a href='gtx://" + host + "/'>gtx://" + host +
-              "</a></li>\n";
+              "</a></li>\n";     
+      }
     }
 
     html +=

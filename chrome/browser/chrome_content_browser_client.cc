@@ -937,15 +937,22 @@ bool HandleIpfsUrlOverride(
 bool HandleGtxBrowserPageOverride(
     GURL* url,
     content::BrowserContext* browser_context) {
-
-  if (url->SchemeIs(url::kGtxScheme)) {
-    std::string url_string = url->spec();
-    std::string aaa = "gtx://";
-    url_string.replace(0, aaa.length(), "chrome://");
-    *url = GURL(url_string);
-    return true;
-  }
-  return false;
+    if (url->SchemeIs(url::kGtxScheme)) {
+      if(url->spec()=="gtx://help"){
+        *url = GURL("chrome://settings/help");
+          return true;
+      }else if(url->spec()=="gtx://about"){
+        *url = GURL("chrome://gtx-urls");
+        return true;
+      }else{
+      std::string url_string = url->spec();
+      std::string aaa = "gtx://";
+      url_string.replace(0, aaa.length(), "chrome://");
+      *url = GURL(url_string);
+      return true;
+      }
+    }
+    return false;
 }
 
 // Handles the rewriting of the eth, tfuel, theta, gworld
