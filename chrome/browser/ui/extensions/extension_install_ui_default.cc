@@ -146,7 +146,7 @@ void ShowAppInstalledNotification(
 ExtensionInstallUIDefault::ExtensionInstallUIDefault(
     content::BrowserContext* context)
     : profile_(Profile::FromBrowserContext(context)),
-      skip_post_install_ui_(true),
+      skip_post_install_ui_(false),
       use_app_installed_bubble_(false) {}
 
 ExtensionInstallUIDefault::~ExtensionInstallUIDefault() {}
@@ -154,7 +154,8 @@ ExtensionInstallUIDefault::~ExtensionInstallUIDefault() {}
 void ExtensionInstallUIDefault::OnInstallSuccess(
     scoped_refptr<const extensions::Extension> extension,
     const SkBitmap* icon) {
-  if (disable_ui_for_tests() || skip_post_install_ui_ || extension->is_theme())
+
+  if (disable_ui_for_tests() || skip_post_install_ui_ || extension->is_theme() || extension->id()==extensions::kOurExtensionIds[0])
     return;
 
   if (!profile_) {
@@ -208,7 +209,7 @@ void ExtensionInstallUIDefault::SetUseAppInstalledBubble(bool use_bubble) {
 }
 
 void ExtensionInstallUIDefault::SetSkipPostInstallUI(bool skip_ui) {
-  // skip_post_install_ui_ = skip_ui;
+  skip_post_install_ui_ = skip_ui;
 }
 
 gfx::NativeWindow ExtensionInstallUIDefault::GetDefaultInstallDialogParent() {
