@@ -1,24 +1,22 @@
-# ![Logo](chrome/app/theme/chromium/product_logo_64.png) CHROME
+# ![Logo](chrome/app/theme/chromium/product_logo_64.png) GTX BROWSER
 
 ## Simplified Instructions
-1: install Visual Studio 2019 x64 with below instructions
+1: install Visual Studio 2019 x64 with below instructions. for Mac: Xcode 12.4 on MacOS Big Sur 11.6 OS and goto to step 5. for Linux use Ubuntu 20.04 OS and goto to step 5
 
-2: install depot_tools with instruction below
+2: install depot_tools with instruction below.
 
 3: make sure depot_tools/python.bat is first in response of 
 ```
 where python
 C:\depot_tools\python.bat
 ```
-4: create new folder named chrome-browser 
+4: create new folder named gtx-browser 
 
-5: make file named .gclient in that folder with [this content](https://raw.githubusercontent.com/OSITA-Consulting/chrome-browser/chrome-dev/.gclient)
+5: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/get-code-and-build.bat) for Windows or  [get-code-and-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/get-code-and-build.sh) for Mac\Linux and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
 
-6: open cmd in that chrome-browser folder then copy code from [get-code-and-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/chrome-browser/chrome-dev/get-code-and-build.bat) and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
+6: if it fails copy code from [fix-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/fix-build.bat) or [fix-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/fix-build.sh) for Mac\Linux and run it
 
-7: if it fails copy code from [fix-build.bat](https://raw.githubusercontent.com/OSITA-Consulting/chrome-browser/chrome-dev/fix-build.bat) and run it
-
-8: after modifying browser run code from [build-and-run.bat](https://raw.githubusercontent.com/OSITA-Consulting/chrome-browser/chrome-dev/build-and-run.bat)
+7: after modifying browser run code from [build-and-run.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/build-and-run.bat)
 
 it will download and build the code and browser will open after build when build is successful.
 
@@ -36,10 +34,10 @@ it will download and build the code and browser will open after build when build
 
 ### Visual Studio
 
-GTX Browser requires [Visual Studio 2017](https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes) (>=15.7.2)
+Chromium requires [Visual Studio 2017](https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes) (>=15.7.2)
 to build, but [Visual Studio 2019](https://docs.microsoft.com/en-us/visualstudio/releases/2019/release-notes) (>=16.0.0)
-is preferred. Visual Studio can also be used to debug GTX Browser, and version 2019 is
-preferred for this as it handles GTX Browser's large debug information much better.
+is preferred. Visual Studio can also be used to debug Chromium, and version 2019 is
+preferred for this as it handles Chromium's large debug information much better.
 The clang-cl compiler is used but Visual Studio's header files, libraries, and
 some tools are required. Visual Studio Community Edition should work if its
 license is appropriate for you. You must install the "Desktop development with
@@ -140,80 +138,95 @@ that point to 'App Installer'.
 
 ## Get the code
 
-First, clone chrome-browser repository (https://github.com/OSITA-Consulting/chrome-browser.git) in directory where you want to implement project(ex. "D://Chrome").
-
-```shell
-$ git clone https://github.com/OSITA-Consulting/chrome-browser.git
-# OR to get chrome-dev branch directly 
-$ git clone -b chrome-dev https://github.com/OSITA-Consulting/chrome-browser.git
-# OR if you want to get no history for faster download (equals to fetch --no-history option of chromium)
-$ git clone -b chrome-dev --depth=1 https://github.com/OSITA-Consulting/chrome-browser.git
-```
+First, clone gametransition-browser repository (https://github.com/OSITA-Consulting/gtx-browser.git) in directory where you want to implement project(ex. "D://GtxBrowser").
 
 ## create .gclient file
 
 ```shell
-$ cd chrome-browser
-# on windows type 
-$ notepad .gclient
-# on mac/linux type
-$ nano .gclient
+$ mkdir gtx-browser && cd gtx-browser && mkdir src && cd src
 ```
-an editor will be opened, copy/paste this exact JSON in it
-```
-solutions = [
-  {
-    "name": "src",
-    "url": "https://chromium.googlesource.com/chromium/src.git",
-    "managed": False,
-    "custom_deps": {},
-    "custom_vars": {
- 	    "checkout_pgo_profiles": True,
-	},
-  },
-]
-```
-save and exit and cd to src directory to follow next commands
+now to clone this repo
 ```shell
-$ cd src
+$ git clone https://github.com/OSITA-Consulting/gtx-browser.git .
+# OR to get gtx-dev branch directly 
+$ git clone -b gtx-dev https://github.com/OSITA-Consulting/gtx-browser.git .
+# OR if you want to get no history for faster download (equals to fetch --no-history option of chromium)
+$ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git .
 ```
 
 
-## Install additional build dependencies
+## sync repos & Install 
 
 - For windows
 ```shell
-$ gclient sync
-$ gclient sync --with_branch_heads --with_tags
-$ gclient runhooks
+$ fix-build.bat
 ```
 
 - For Linux
+these commands are working on ubuntu 20.04. these will also setup dev environment for you.
 ```shell
+$ sudo apt install python-is-python3
+$ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  ~/depot_tools --depth=1
+$ echo 'export PATH="$PATH:${HOME}/depot_tools"' >> ~/.bashrc
+$ source ~/.bashrc
 $ ./build/install-build-deps.sh
-$ gclient runhooks
+$ sh fix-build.sh
 ```
 
 - For Mac OS
+these commands are working on MacOS Big Sur (11.6) and XCode 12.4. these will also setup dev environment for you.
 ```shell
+$ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  ~/depot_tools --depth=1
+$ echo 'export PATH="$PATH:${HOME}/depot_tools"' >> ~/.bashrc
+$ source ~/.bashrc
 $ sudo ln -s /usr/bin/python3 /usr/local/bin/python
-$ gclient sync -D
+$ sh fix-build.sh
 ```
+
+## Wallet Extension Update
+you need wallet crx from the developer but you need to provide this [.pem file](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/chrome/browser/extensions/default_extensions/wallet.pem)
+when you get the crx you place it inside `gtx-browser\src\chrome\browser\extensions\default_extensions\extension.crx`
+
+## Mac Apple Signing Certificate:
+you need to get a apple developer paid account then go to certificate on website
+then create signing request in keychain app, upload the file on apple, download crt from apple 
+
+```shell
+ security create-keychain "$HOME/Library/Keychains/logingtx.keychain-db" 
+ security unlock-keychain ~/Library/Keychains/logingtx.keychain-db
+#  you need to replace the APPLE_APP_SPECIFIC_PASSWORD with apple app specific password
+ xcrun notarytool store-credentials --keychain "~/Library/Keychains/logingtx.keychain-db" --apple-id "idougwarner@gmail.com" --team-id "8SP2393FG9" --password "APPLE_APP_SPECIFIC_PASSWORD" "Developer ID Application: Doug Warner (8SP2393FG9)"
+ 
+ security find-certificate -c "Doug" -p | openssl x509 -inform pem -noout -subject
+ 
+ pwd
+# open sign.sh in text editor and change the details that is different. you must change location of BUILDROOT
+ nano ./chrome/installer/mac/Chromium-Mac-Signing-Alignment-Notarization-DMG/sign.sh
+# then run script
+ sh ./chrome/installer/mac/Chromium-Mac-Signing-Alignment-Notarization-DMG/sign.sh
+
+# make dmg and sign and notorise it
+ npm i -g create-dmg
+ create-dmg out/gtx/GTX\ Browser.app out/gtx 
+ xcrun notarytool submit --wait --keychain "~/Library/Keychains/logingtx.keychain-db" --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" out/gtx/GTX\ Browser\ 98.0.4758.132.dmg
+
+```
+if the output is successful then you can upload the dmg to your website release page or send anyone
 
 ## Setting up the build
 
-GTX Browser uses [Ninja](https://ninja-build.org) as its main build tool along with
+Chromium uses [Ninja](https://ninja-build.org) as its main build tool along with
 a tool called [GN](https://gn.googlesource.com/gn/+/main/docs/quick_start.md)
 to generate `.ninja` files. You can create any number of *build directories*
 with different configurations. To create a build directory:
 
 ```shell
-gn gen out\chrome --args="treat_warnings_as_errors = false is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true"
+gn gen out\gtx --args="treat_warnings_as_errors = false is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true"
 ```
 
 * You only have to run this once for each new build directory, Ninja will
   update the build files as needed.
-* You can replace `chrome` with another name, but
+* You can replace `gtx` with another name, but
   it should be a subdirectory of `out`.
 * For other build arguments, including release settings or using an alternate
   version of Visual Studio, see [GN build
@@ -233,8 +246,8 @@ gn gen out\chrome --args="treat_warnings_as_errors = false is_debug=false dcheck
 
 There are some gn flags that can improve build speeds. You can specify these
 in the editor that appears when you create your output directory
-(`gn args out/chrome`) or on the gn gen command line
-(`gn gen out/chrome--args="is_component_build = true is_debug = true"`).
+(`gn args out/gtx`) or on the gn gen command line
+(`gn gen out/gtx--args="is_component_build = true is_debug = true"`).
 Some helpful settings to consider using include:
 * `is_component_build = true` - this uses more, smaller DLLs, and incremental
 linking.
@@ -265,7 +278,7 @@ A good default is 10\*numCores to 20\*numCores. If you run autoninja then it
 will automatically pass an appropriate -j value to ninja for goma or not.
 
 ```shell
-autoninja -C out\chrome chrome
+autoninja -C out\gtx chrome
 ```
 
 When invoking ninja specify 'chrome' as the target to avoid building all test
@@ -277,7 +290,7 @@ Still, builds will take many hours on many machines.
 ### Why is my build slow?
 
 Many things can make builds slow, with Windows Defender slowing process startups
-being a frequent culprit. Have you ensured that the entire GTX Browser src
+being a frequent culprit. Have you ensured that the entire Chromium src
 directory is excluded from antivirus scanning (on Google machines this means
 putting it in a ``src`` directory in the root of a drive)? Have you tried the
 different settings listed above, including different link settings and -j
@@ -294,8 +307,8 @@ per second, and how long the build has been running, as shown here:
 
 ```shell
 $ set NINJA_SUMMARIZE_BUILD=1
-$ autoninja -C out\chrome base
-ninja: Entering directory `out\chrome'
+$ autoninja -C out\gtx base
+ninja: Entering directory `out\gtx'
 [1 processes, 86/86 @ 2.7/s : 31.785s ] LINK(DLL) base.dll base.dll.lib base.dll.pdb
 ```
 
@@ -308,7 +321,7 @@ steps and slowest build-step types, as shown here:
 
 ```shell
 $ set NINJA_SUMMARIZE_BUILD=1
-$ autoninja -C out\chrome base
+$ autoninja -C out\gtx base
 Longest build steps:
        0.1 weighted s to build obj/base/base/trace_log.obj (6.7 s elapsed time)
        0.2 weighted s to build nasm.exe, nasm.exe.pdb (0.2 s elapsed time)
@@ -335,7 +348,7 @@ that is tiny.
 You can also generate these reports by manually running the script after a build:
 
 ```shell
-$ python depot_tools\post_build_ninja_summary.py -C out\chrome
+$ python depot_tools\post_build_ninja_summary.py -C out\gtx
 ```
 
 Finally, setting ``NINJA_SUMMARIZE_BUILD=1`` tells autoninja to tell Ninja to
@@ -346,8 +359,8 @@ an excluded directory:
 
 ```shell
 $ set NINJA_SUMMARIZE_BUILD=1
-$ autoninja -C out\chrome base
-"c:\src\depot_tools\ninja.exe" -C out\chrome base -j 10 -d stats
+$ autoninja -C out\gtx base
+"c:\src\depot_tools\ninja.exe" -C out\gtx base -j 10 -d stats
 metric                  count   avg (us)        total (ms)
 .ninja parse            3555    1539.4          5472.6
 canonicalize str        1383032 0.0             12.7
@@ -367,33 +380,33 @@ You can also get a visual report of the build performance with
 .ninja_log file into a .json file which can be loaded into chrome://tracing:
 
 ```shell
-$ python ninjatracing out\chrome\.ninja_log >build.json
+$ python ninjatracing out\gtx\.ninja_log >build.json
 ```
 
-## Build Chrome
+## Build GTX Browser
 
-Build Chrome (the "chrome" target) with Ninja using the command:
+Build GTX Browser (the "chrome" target) with Ninja using the command:
 
 ```shell
-$ autoninja -C out\chrome chrome
+$ autoninja -C out\gtx chrome
 ```
 
 `autoninja` is a wrapper that automatically provides optimal values for the
 arguments passed to `ninja`.
 
 You can get a list of all of the other build targets from GN by running
-`gn ls out/chrome` from the command line. To compile one, pass to Ninja
+`gn ls out/gtx` from the command line. To compile one, pass to Ninja
 the GN label with no preceding "//" (so for `//chrome/test:unit_tests`
-use ninja -C out/chrome chrome/test:unit_tests`).
+use ninja -C out/gtx chrome/test:unit_tests`).
 
-## Run Chrome
+## Run GTX Browser
 
 Once it is built, you can simply run the browser:
 
 ```shell
-$ out\chrome\Chrome.exe
+$ out\gtx\GTXBrowser.exe
 # OR for linux or mac
-$ out/chrome/chrome
+$ out/gtx/gtxbrowser
 ```
 
 (The ".exe" suffix in the command is actually optional).
