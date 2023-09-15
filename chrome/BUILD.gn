@@ -776,7 +776,7 @@ if (is_win) {
       ]
 
       if (defined(invoker.deps)) {
-        deps += invoker.deps
+        deps += invoker.deps  
       }
 
       ldflags = []

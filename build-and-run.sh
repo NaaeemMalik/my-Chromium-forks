@@ -5,8 +5,10 @@ if [ "$os_name" = "Darwin" ]; then
     gn gen out/gtx --args="enable_widevine=true treat_warnings_as_errors = false is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true" && caffeinate autoninja -C out/gtx chrome &&    "out/gtx/GTX Browser.app/Contents/MacOS/GTX Browser" --enable-logging=stderr --v=0
 elif [ "$os_name" = "Linux" ]; then
     # Linux
-    gn gen out/gtx --args="enable_widevine=true treat_warnings_as_errors = false enable_linux_installer = true is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true" &&    autoninja -C out/gtx chrome -j20 && "out/gtx/GTXBrowser" --enable-logging=stderr --v=0 && cp -r out/gtx/default_apps out/gtx/extensions 
+    gn gen out/gtx --args="enable_widevine=true treat_warnings_as_errors = false enable_linux_installer = true is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true" &&    autoninja -C out/gtx chrome -j20 && "out/gtx/GTXBrowser" --enable-logging=stderr --v=0 && cp /path/to/source/GTXBrowser.stripped /path/to/source/GTXBrowser.debug /path/to/source/chrome.stripped /path/to/source/chrome.debug && ninja -C out/gtx  "chrome/installer/linux:stable_deb" -j20
+
 else
     echo "Unsupported operating system: $os_name . Exiting without installing."
     exit 1
 fi
+  
