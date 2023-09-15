@@ -6,13 +6,13 @@
 # chromium-browser packages for various platforms.
 
 # Base name of the package.
-PACKAGE="chromium-browser"
+PACKAGE="gtx-browser"
 
 # Base name of the snap package
-SNAPNAME="chromium"
+SNAPNAME="GTXBrowser"
 
 # Filename of the main executable (for generating launcher scripts, etc.)
-PROGNAME=chrome
+PROGNAME=GTXBrowser
 
 # Base directory for package installation.
 INSTALLDIR=/opt/chromium.org/chromium

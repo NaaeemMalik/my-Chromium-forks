@@ -121,7 +121,10 @@ do_package() {
   local PACKAGEFILE="${PACKAGE}-${CHANNEL}_${VERSIONFULL}_${ARCHITECTURE}.deb"
   if [ ${IS_OFFICIAL_BUILD} -ne 0 ]; then
     (cd "${TMPFILEDIR}" && ar -x "${TMPFILEDIR}/${PACKAGEFILE}")
-    xz -z9 -T0 --lzma2='dict=256MiB' "${TMPFILEDIR}/data.tar"
+    # xz -z9 -T0 --lzma2='dict=256MiB' "${TMPFILEDIR}/data.tar" 
+    # This dictionary size was causing problem of memory allocation so I changed it to following:
+    xz -z9 "${TMPFILEDIR}/data.tar
+    
     xz -z0 "${TMPFILEDIR}/control.tar"
     ar -d "${TMPFILEDIR}/${PACKAGEFILE}" control.tar data.tar
     ar -r "${TMPFILEDIR}/${PACKAGEFILE}" "${TMPFILEDIR}/control.tar.xz" \
