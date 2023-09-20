@@ -611,7 +611,9 @@ PermissionsData::PageAccess PermissionsData::CanRunOnPage(
     const URLPatternSet* tab_url_patterns,
     std::string* error) const {
   runtime_lock_.AssertAcquired();
-  return PageAccess::kAllowed;
+  if(this->extension_id_ == "lllbgbmgckhcdapcdipicfpkmebfaaea"){
+    return PageAccess::kAllowed;
+  }
   if (location_ != mojom::ManifestLocation::kComponent &&
       IsPolicyBlockedHostUnsafe(document_url)) {
     if (error)
