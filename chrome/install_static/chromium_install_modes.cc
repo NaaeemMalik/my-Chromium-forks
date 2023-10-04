@@ -14,13 +14,13 @@
 
 namespace install_static {
 
-const wchar_t kCompanyPathName[] = L"";
+const wchar_t kCompanyPathName[] = L"GTX Browser";
 
 const wchar_t kProductPathName[] = L"GTX Browser";
 
 const size_t kProductPathNameLength = _countof(kProductPathName) - 1;
 
-const char kSafeBrowsingName[] = "GTX Browser";
+const char kSafeBrowsingName[] = "chromium";
 
 const InstallConstants kInstallModes[] = {
     // The primary (and only) install mode for Chromium.
@@ -34,11 +34,11 @@ const InstallConstants kInstallModes[] = {
         .logo_suffix = L"",  // No logo suffix for the primary install mode.
         .app_guid =
             L"",  // Empty app_guid since no integration with Google Update.
-        .base_app_name = L"GTX Browser",      // A distinct base_app_name.
-        .base_app_id = L"GTX Browser",        // A distinct base_app_id.
-        .prog_id_prefix = L"GTX BrowserHTM",  // ProgID prefix.
+        .base_app_name = L"Chromium",      // A distinct base_app_name.
+        .base_app_id = L"Chromium",        // A distinct base_app_id.
+        .prog_id_prefix = L"ChromiumHTM",  // ProgID prefix.
         .prog_id_description =
-            L"GTX Browser HTML Document",  // ProgID description.
+            L"Chromium HTML Document",  // ProgID description.
         .active_setup_guid =
             L"{7D2B3E1D-D096-4594-9D8F-A6667F12E0AC}",  // Active Setup GUID.
         .legacy_command_execute_clsid =
