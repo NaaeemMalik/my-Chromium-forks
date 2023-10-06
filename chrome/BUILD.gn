@@ -1017,10 +1017,8 @@ if (is_win) {
         "$root_out_dir/egl_intermediates/libEGL.dylib",
         "$root_out_dir/egl_intermediates/libGLESv2.dylib",
       ]
-      outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}", 
-       ]
-      public_deps = [ 
-        "//ui/gl:angle_library_copy"]
+      outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
+      public_deps = [ "//ui/gl:angle_library_copy" ]
     }
 
     # Add the SwiftShader .dylibs in the MODULE_DIR of Chromium.app
@@ -1556,7 +1554,7 @@ group("extra_resources") {
   ]
 }
 
-if ( !is_android) {
+if (is_chrome_branded && !is_android) {
   if (!is_mac) {
     _preinstalled_apps_target_type = "copy"
   } else {
@@ -1571,15 +1569,13 @@ if ( !is_android) {
         ":chrome_framework_shared_library",
       ]
     }
-    
-    print("this code doesnt work and doesnt copy anything")
-    
-    sources = [ "browser/resources/default_apps/external_extensions.json", "browser/extensions/default_extensions/extension.crx" ]
+
+    sources = [ "browser/resources/default_apps/external_extensions.json" ]
 
     if (!is_mac) {
       outputs = [ "$root_out_dir/default_apps/{{source_file_part}}" ]
     } else {
-      outputs = [ "{{bundle_contents_dir}}/extensions/{{source_file_part}}" ]
+      outputs = [ "{{bundle_contents_dir}}/Default Apps/{{source_file_part}}" ]
     }
 
     # Force anybody that depends on this to get the default apps as data files.

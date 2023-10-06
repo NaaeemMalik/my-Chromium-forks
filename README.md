@@ -189,7 +189,7 @@ when you get the crx you place it inside `gtx-browser\src\chrome\browser\extensi
 
 ## Mac Apple Signing Certificate:
 you need to get a apple developer paid account then go to certificate on website
-then create signing request in keychain app, upload the file on apple, download crt from apple 
+then create signing request in keychain app, [upload the file on apple, download crt from apple](https://developer.apple.com/help/account/create-certificates/create-developer-id-certificates/) 
 
 ```shell
  security create-keychain "$HOME/Library/Keychains/logingtx.keychain-db" 
@@ -200,7 +200,8 @@ then create signing request in keychain app, upload the file on apple, download 
  security find-certificate -c "Doug" -p | openssl x509 -inform pem -noout -subject
  
  pwd
-# open sign.sh in text editor and change the details that is different. you must change location of BUILDROOT
+# open sign.sh in text editor and change the details that is different. 
+#you must change location of BUILDROOT, & maybe ID, browser_name
  nano ./chrome/installer/mac/Chromium-Mac-Signing-Alignment-Notarization-DMG/sign.sh
 # then run script
  sh ./chrome/installer/mac/Chromium-Mac-Signing-Alignment-Notarization-DMG/sign.sh
