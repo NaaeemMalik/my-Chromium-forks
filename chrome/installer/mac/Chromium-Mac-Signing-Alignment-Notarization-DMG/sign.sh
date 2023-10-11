@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Signs the application binary using the appropiated signer depending on the distribution channel
 # PARAMETERS
-
+"/out/gtx/GTX\ Browser" Packaging/sign_chrome.py --input out/gtx --output out/release/signed --identity 'Developer ID Application: Doug Warner (8SP2393FG9)' --development --disable-packaging
 # Fail in case something goes wrong
 set -o xtrace
 set -o errexit
@@ -12,10 +12,10 @@ set -o nounset
     # Declare global variables
      SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )" #get path of script
      CERTIFICATE_NAME="Developer ID Application: Doug Warner (8SP2393FG9)" #add full name of cert like it's in keychain
-     ID="org.GTXBrowser.GTXBrowser" #this needs to be added to the apple account as a proj and id copied from there
+     ID="org.gtxbrowser.GtxBrowser" #this needs to be added to the apple account as a proj and id copied from there
      BROWSER_NAME="GTX Browser" #add name
      CHROMIUM_VERSION="114.0.5735.199" #add version
-     BUILDROOT=( "/Volumes/CA/gtx/src/out/gtx"* ) #change path to app relative to script path
+     BUILDROOT=( "/Volumes/CA/gtx/src/out" ) #change path to app relative to script path
      cd "$BUILDROOT"
      APP_PATH="$BUILDROOT/$BROWSER_NAME.app"
      HELPER_ID="$ID.helper"
@@ -47,7 +47,7 @@ set -o nounset
      RELATIVE_APP_MODE_LOADER_PATH="$RELATIVE_FRAMEWORK/Helpers/app_mode_loader"
      RELATIVE_libGLESv2="$RELATIVE_FRAMEWORK/Libraries/libGLESv2.dylib"
      EXTENSION_CRX="$RELATIVE_FRAMEWORK/extensions/extension.crx"
-
+UpdaterPrivilegedHelper="$BROWSER_NAME.app/Contents/Library/LaunchServices/org.chromium.Chromium.UpdaterPrivilegedHelper"
 
     # Entitlements
     RELATIVE_ENTITLEMENTS_APP_PATH="$SCRIPT_PATH/app-entitlements.plist"
@@ -57,7 +57,7 @@ set -o nounset
     RELATIVE_ENTITLEMENTS_HELPER_PLUGIN_PATH="$SCRIPT_PATH/helper-plugin-entitlements.plist"
 
     # Code sign files 
-    # codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "extension_crx"' --timestamp --options runtime,restrict,library,kill --force "$EXTENSION_CRX"
+     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "extension_crx"' --timestamp --options runtime,restrict,library,kill --force "$EXTENSION_CRX"
     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "chrome_crashpad_handler"' --timestamp --options runtime,restrict,library,kill --force "$RELATIVE_CRASHPAD_PATH"
     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "APP_LOADER_ID"' --timestamp --options runtime,restrict,library,kill --force "$RELATIVE_APP_MODE_LOADER_PATH"
     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "libvk_swiftshader"' --timestamp --force "$RELATIVE_LIBVK_SW"
@@ -70,6 +70,9 @@ set -o nounset
     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "'"$LIBEGL_ID"'"' --timestamp --force "$RELATIVE_LIBEGL"
     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "app_mode_loader"' --timestamp --options runtime,restrict,library,kill --force "$RELATIVE_APP_MODE_LOADER_PATH"
     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "'"$HELPER_ID"'"' --timestamp --options runtime,restrict,kill  --force --entitlements "$RELATIVE_ENTITLEMENTS_HELPER_PATH" "$RELATIVE_APP_HELPER_PATH"
+     codesign --entitlements "$RELATIVE_ENTITLEMENTS_APP_PATH" -s "$CERTIFICATE_NAME" -f --strict --timestamp --options=runtime --deep -v "$UpdaterPrivilegedHelper"
+    # codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "UpdaterPrivilegedHelper"' --timestamp --options runtime,restrict,library,kill --force "$UpdaterPrivilegedHelper"
+
     codesign -s "$CERTIFICATE_NAME" --requirements '=designated => identifier "'"$FRAMEWORK_ID"'"' --timestamp --force "$RELATIVE_APP_FRAMEWORK"
     codesign -s "$CERTIFICATE_NAME" --timestamp --options runtime,restrict,library,kill --deep --force --entitlements "$RELATIVE_ENTITLEMENTS_APP_PATH" "$MAIN_FRAMEWORK_EXECUTABLE_PATH"
     codesign -s "$CERTIFICATE_NAME" --timestamp --options runtime,restrict,library,kill --deep --force --entitlements "$RELATIVE_ENTITLEMENTS_APP_PATH" "$MacOS_EXECUTABLE_PATH"
@@ -106,4 +109,4 @@ set -o nounset
 
 # make dmg and sign and notorise it
 # create-dmg out/gtx/GTX\ Browser.app
-# xcrun notarytool submit --wait --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" GTX\ Browser\ 98.0.4758.132.dmg
+# xcrun notarytool submit --wait --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" --keychain /Users/naeem/Library/Keychains/logingtx114.keychain-db GTX\ Browser\ 98.0.4758.132.dmg

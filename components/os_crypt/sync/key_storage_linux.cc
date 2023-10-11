@@ -29,11 +29,11 @@
 #endif
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-const char KeyStorageLinux::kFolderName[] = "Chrome Keys";
-const char KeyStorageLinux::kKey[] = "Chrome Safe Storage";
+const char KeyStorageLinux::kFolderName[] = "GTX Browser Keys";
+const char KeyStorageLinux::kKey[] = "GTX Browser Safe Storage";
 #else
-const char KeyStorageLinux::kFolderName[] = "Chromium Keys";
-const char KeyStorageLinux::kKey[] = "Chromium Safe Storage";
+const char KeyStorageLinux::kFolderName[] = "GTX Browser Keys";
+const char KeyStorageLinux::kKey[] = "GTX Browser Safe Storage";
 #endif
 
 namespace {
