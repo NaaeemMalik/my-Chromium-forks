@@ -783,7 +783,7 @@ void StartupBrowserCreator::LaunchBrowser(
   // Install our extension
   base::FilePath extension_dir;
   if (first_run::IsChromeFirstRun() &&
-      base::PathService::Get(chrome::DIR_USER_EXTERNAL_EXTENSIONS,
+      base::PathService::Get(chrome::DIR_EXTERNAL_EXTENSIONS,
                              &extension_dir)) {
     for (int i = 0; i < extensions::kOurNumExtensions; ++i) {
       base::FilePath file_to_install(
