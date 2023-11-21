@@ -36,6 +36,9 @@ EOL
 
 # Sync and run hooks
 gclient sync
+rm -rf net/third_party/quiche/src
+git clone -b gtx-114 --depth=1 https://github.com/OSITA-Consulting/quiche net/third_party/quiche/src
+
 gclient runhooks
 
 # Build and setup based on OS
