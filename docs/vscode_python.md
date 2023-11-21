@@ -1,4 +1,4 @@
-# Debugging GTX Browser Python With The VSCode Debugger
+# Debugging GTx Browser Python With The VSCode Debugger
 
 ## Before You Begin
 

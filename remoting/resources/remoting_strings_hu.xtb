@@ -4,7 +4,7 @@
 <translation id="1002108253973310084">A rendszer nem kompatibilis protokollverziót észlelt. Győződjön meg róla, hogy a szoftver legfrissebb verziója van telepítve mindkét számítógépen, majd próbálja újra.</translation>
 <translation id="1008557486741366299">Ne most</translation>
 <translation id="1201402288615127009">Tovább</translation>
-<translation id="1296511125400541222">Copyright 2023 – A GTX Browser szerzői. Minden jog fenntartva.</translation>
+<translation id="1296511125400541222">Copyright 2023 – A GTx Browser szerzői. Minden jog fenntartva.</translation>
 <translation id="1297009705180977556">Hiba a következőhöz való csatlakozáskor: <ph name="HOSTNAME" /></translation>
 <translation id="1450760146488584666">A kért objektum nem létezik.</translation>
 <translation id="1480046233931937785">Készítők</translation>
@@ -156,7 +156,7 @@ Ha már be van jelölve az „<ph name="SERVICE_SCRIPT_NAME" />” melletti nég
 <translation id="7868137160098754906">Kérjük, adja meg a PIN kódot a távoli számítógéphez.</translation>
 <translation id="7895403300744144251">A távoli számítógép biztonsági házirendjei nem engedélyeznek kapcsolatokat a fiókja felől.</translation>
 <translation id="7936528439960309876">Rögzítés jobbra</translation>
-<translation id="7970576581263377361">A hitelesítés nem sikerült. Kérjük, jelentkezzen be újra a GTX Browserba.</translation>
+<translation id="7970576581263377361">A hitelesítés nem sikerült. Kérjük, jelentkezzen be újra a GTx Browserba.</translation>
 <translation id="7981525049612125370">A távoli munkamenet lejárt.</translation>
 <translation id="8038111231936746805">(alapértelmezett)</translation>
 <translation id="8041089156583427627">Visszajelzés küldése</translation>
@@ -191,6 +191,6 @@ Ha már be van jelölve a(z) „<ph name="SERVICE_SCRIPT_NAME" />” melletti n�
 <translation id="9187628920394877737">A „Screen Recording” (Képernyőrögzítés) engedély megadása a következőnek: <ph name="PRODUCT_NAME" /></translation>
 <translation id="9213184081240281106">A gazdagép beállítása érvénytelen.</translation>
 <translation id="981121421437150478">Offline</translation>
-<translation id="985602178874221306">A GTX Browser szerzői</translation>
+<translation id="985602178874221306">A GTx Browser szerzői</translation>
 <translation id="992215271654996353"><ph name="HOSTNAME" /> (utolsó online tevékenység: <ph name="DATE_OR_TIME" />)</translation>
 </translationbundle>

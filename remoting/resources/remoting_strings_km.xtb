@@ -4,7 +4,7 @@
 <translation id="1002108253973310084">កំណែពិធីការមិនត្រូវគ្នាត្រូវបានរកឃើញ។ សូមប្រាកដថាអ្នកបានដំឡើងកំណែកម្មវិធីចុងក្រោយបំផុតលើកុំព្យូទ័រទាំងពីរ ហើយព្យាយាមម្តងទៀត។</translation>
 <translation id="1008557486741366299">មិនមែនឥឡូវនេះទេ</translation>
 <translation id="1201402288615127009">បន្ទាប់</translation>
-<translation id="1296511125400541222">រក្សាសិទ្ធិ​ដោយ GTX Browser Authors ឆ្នាំ 2023។ រក្សាសិទ្ធិគ្រប់យ៉ាង។</translation>
+<translation id="1296511125400541222">រក្សាសិទ្ធិ​ដោយ GTx Browser Authors ឆ្នាំ 2023។ រក្សាសិទ្ធិគ្រប់យ៉ាង។</translation>
 <translation id="1297009705180977556">មានបញ្ហាក្នុងការភា្ជប់ទៅ <ph name="HOSTNAME" /></translation>
 <translation id="1450760146488584666">របស់ដែលបានស្នើមិនមានទេ។</translation>
 <translation id="1480046233931937785">ក្រេឌីត</translation>
@@ -156,7 +156,7 @@
 <translation id="7868137160098754906">សូមបញ្ចូលលេខសម្គាល់របស់អ្នកសម្រាប់កុំព្យូទ័រពីចម្ងាយ។</translation>
 <translation id="7895403300744144251">គោលការណ៍សុវត្ថិភាពនៅលើកុំព្យូទ័របញ្ជាពីចម្ងាយមិនអនុញ្ញាតឲ្យមានការតភា្ជប់ពីគណនីរបស់អ្នកទេ។</translation>
 <translation id="7936528439960309876">ដាក់ធ្នើរ​ទៅ​ស្តាំ</translation>
-<translation id="7970576581263377361">ការផ្ទៀងផ្ទាត់បានបរាជ័យ។ សូមចូលទៅ GTX Browser ម្តងទៀត។</translation>
+<translation id="7970576581263377361">ការផ្ទៀងផ្ទាត់បានបរាជ័យ។ សូមចូលទៅ GTx Browser ម្តងទៀត។</translation>
 <translation id="7981525049612125370">វេនពីចម្ងាយបានផុតកំណត់ហើយ</translation>
 <translation id="8038111231936746805">(លំនាំដើម)</translation>
 <translation id="8041089156583427627">ផ្ញើមតិ</translation>
@@ -191,6 +191,6 @@
 <translation id="9187628920394877737">ផ្ដល់​ការអនុញ្ញាត 'ការថតអេក្រង់' ឱ្យ <ph name="PRODUCT_NAME" /></translation>
 <translation id="9213184081240281106">ការកំណត់រចនាសម្ព័ន្ធម៉ាស៊ីនចែករំលែកគ្មានសុពលភាព។</translation>
 <translation id="981121421437150478">ក្រៅបណ្តាញ</translation>
-<translation id="985602178874221306">ផលិតករ GTX Browser</translation>
+<translation id="985602178874221306">ផលិតករ GTx Browser</translation>
 <translation id="992215271654996353"><ph name="HOSTNAME" /> (ប្រើអ៊ីនធឺណិតលើកចុងក្រោយ <ph name="DATE_OR_TIME" />)</translation>
 </translationbundle>

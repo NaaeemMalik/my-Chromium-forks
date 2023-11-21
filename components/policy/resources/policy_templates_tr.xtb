@@ -801,7 +801,7 @@ Bu politikayı devre dışı bırakırsanız web sayfasını URL yoluyla belirli
           * <ph name="PROXY_MODE_ENUM_FIXED_SERVERS" />, <ph name="PROXY_SERVER_PROXY_SETTINGS_FIELD" /> ve <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" /> alanları kullanılır.
           * <ph name="PROXY_MODE_ENUM_PAC_SCRIPT" />, <ph name="PROXY_BYPASS_LIST_PROXY_PAC_URL" />, <ph name="PROXY_PAC_MANDATORY_PROXY_SETTINGS_FIELD" /> ve <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" /> alanları kullanılır.
 
-      Not: Daha ayrıntılı örnekler için GTX Browser Projeleri'ni ziyaret edin (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
+      Not: Daha ayrıntılı örnekler için GTx Browser Projeleri'ni ziyaret edin (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
 <translation id="1700811900332333712">Cihaza Powerwash isteme izni verme</translation>
 <translation id="1705215165572785706">Üst sıradaki tuşlara medya tuşu olarak davran, ancak kullanıcının değişiklik yapmasına izin ver</translation>
 <translation id="1708496595873025510">Varyasyon temelini alma sınırlamasını ayarla</translation>
@@ -855,7 +855,7 @@ Bu politikayı devre dışı bırakırsanız web sayfasını URL yoluyla belirli
 
        Proxy politikalarının ayarlanmasıyla ilgili olarak başka bir mod seçtiyseniz bu politikayı ayarlamadan bırakın.
 
-       Not: Daha ayrıntılı örnekler için GTX Browser Projeleri'ni ziyaret edin (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
+       Not: Daha ayrıntılı örnekler için GTx Browser Projeleri'ni ziyaret edin (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
 <translation id="1767673020408652620">Arama Kutusunun Sıfır Durumunda Uygulama Önerileri Politikasını Etkinleştir</translation>
 <translation id="1768225118528727376">Bu sitelere pencere yönetimi izni ver</translation>
 <translation id="1770071413238151235">12 saatlik biçim</translation>
@@ -1004,7 +1004,7 @@ Politika <ph name="DISABLE_UNPUBLISHED" /> (1) değerine ayarlanırsa Chrome Web
      </translation>
 <translation id="1919802376548418720">Kimlik bilgilerine yetki vermek için KDC politikasını kullan.</translation>
 <translation id="1920046221095339924">Cihazda yönetilen oturuma izin ver</translation>
-<translation id="1920772397574801429">Politikanın ayarlanması, <ph name="HTTP_NEGOTIATE" /> kimlik doğrulamasını (örneğin, Kerberos kimlik doğrulaması) destekleyen Android kimlik doğrulama uygulamasının sağladığı hesapların türlerini belirtir. Bu bilgi kimlik doğrulama uygulamasının tedarikçisinden edinilebilir. Ayrıntılar için GTX Browser Projeleri'ne bakın (https://goo.gl/hajyfN)
+<translation id="1920772397574801429">Politikanın ayarlanması, <ph name="HTTP_NEGOTIATE" /> kimlik doğrulamasını (örneğin, Kerberos kimlik doğrulaması) destekleyen Android kimlik doğrulama uygulamasının sağladığı hesapların türlerini belirtir. Bu bilgi kimlik doğrulama uygulamasının tedarikçisinden edinilebilir. Ayrıntılar için GTx Browser Projeleri'ne bakın (https://goo.gl/hajyfN)
 
       Politika ayarlanmadan bırakılırsa Android'de <ph name="HTTP_NEGOTIATE" /> kimlik doğrulaması kapanır.</translation>
 <translation id="1923704782248889851">Dikteyi etkinleştir</translation>
@@ -2466,7 +2466,7 @@ Bu politika etkinleştirilirse yeni davranış kullanılır.
 
 Bu politika devre dışı bırakılırsa eski davranış kullanılır.
 
-Bu politika ayarlanmazsa yeni davranış diğer GTX Browser kullanıcılarında olduğu gibi kullanılır.</translation>
+Bu politika ayarlanmazsa yeni davranış diğer GTx Browser kullanıcılarında olduğu gibi kullanılır.</translation>
 <translation id="3219421230122020860">Gizli mod kullanılabilir</translation>
 <translation id="3220624000494482595">Kiosk uygulaması bir Android uygulamasıysa bu politika <ph name="TRUE" /> seçeneğine ayarlansa dahi <ph name="PRODUCT_OS_NAME" /> sürümü üzerinde herhangi bir kontrolü olmaz.</translation>
 <translation id="3222088741899353813">Giriş ekranında sol düğme birincil</translation>
@@ -4436,7 +4436,7 @@ Bu politika Doğru değerine ayarlanır veya ayarlanmadan bırakılırsa alan g�
           Bu politika ayarlanmazsa varsayılan komut satırı kullanılır.</translation>
 <translation id="5151099177901233471">Cihazın saat dilimi bilgileri raporlamasını etkinleştir</translation>
 <translation id="5152393033264257734">DNS müdahale kontrollerine ve bunu mu demek istediniz "http://intranetsite/" bilgi çubuklarına izin ver.</translation>
-<translation id="5152787786897382519">Hem GTX Browser hem de Google Chrome, bir özellik üzerinde kontrol sağlamak için birbirine bağlı bazı politika gruplarına sahiptir. Bu kümeler, aşağıdaki politika grupları tarafından temsil edilir. Politikaların birden çok kaynağı olabileceği düşünülürse, yalnızca en yüksek öncelikli kaynaktan gelen değerler geçerlidir. Aynı gruptaki daha düşük öncelikli kaynaktan gelen değerler, yok sayılır. Öncelik sırası, <ph name="POLICY_PRIORITY_DOC_URL" /> adresinde tanımlanmıştır.</translation>
+<translation id="5152787786897382519">Hem GTx Browser hem de Google Chrome, bir özellik üzerinde kontrol sağlamak için birbirine bağlı bazı politika gruplarına sahiptir. Bu kümeler, aşağıdaki politika grupları tarafından temsil edilir. Politikaların birden çok kaynağı olabileceği düşünülürse, yalnızca en yüksek öncelikli kaynaktan gelen değerler geçerlidir. Aynı gruptaki daha düşük öncelikli kaynaktan gelen değerler, yok sayılır. Öncelik sırası, <ph name="POLICY_PRIORITY_DOC_URL" /> adresinde tanımlanmıştır.</translation>
 <translation id="5153187201534281749">Araç çubuğundaki tarayıcı deneyleri simgesi</translation>
 <translation id="5163002264923337812">Eski web tabanlı oturum açmayı etkinleştir</translation>
 <translation id="5163889437570441600"><ph name="PRODUCT_NAME" /> kullanarak içeriğin cihaza yayınlanmasına izin verin.
@@ -6043,7 +6043,7 @@ Ekran koruyucuyu başlatmak için gereken boşta kalma zaman aşımı ve bir res
 
       Politika ayarlanmazsa kullanıcılar proxy ayarlarını seçebilir.
 
-      Not: Ayrıntılı örnekler için GTX Browser Projeleri'ni ziyaret edin ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett ).</translation>
+      Not: Ayrıntılı örnekler için GTx Browser Projeleri'ni ziyaret edin ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett ).</translation>
 <translation id="656130159911161669">ChromeOS güncellemeleri kiosk uygulamasının manifestinde belirtilen sürümü yoksayar</translation>
 <translation id="6561396069801924653">Erişilebilirlik seçeneklerini sistem tepsisi menüsünde göster</translation>
 <translation id="6562889469672829421">Ekran karartılmadan önce kullanıcı girişi olmadan geçecek süre (milisaniye olarak)</translation>
@@ -6568,7 +6568,7 @@ olarak bu tür istekleri engelleme davranışı geçerli olur.</translation>
 
        Proxy politikalarının ayarlanmasıyla ilgili olarak başka bir mod seçtiyseniz bu politikayı ayarlamadan bırakın.
 
-       Not: Ayrıntılı örnekler için GTX Browser Projeleri'ni ziyaret edin ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett ).</translation>
+       Not: Ayrıntılı örnekler için GTx Browser Projeleri'ni ziyaret edin ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett ).</translation>
 <translation id="7002040773317582266">Ana çerçeve URL'lerin gerçek zamanlı kontrolü etkinleştirildi.</translation>
 <translation id="7003746348783715221"><ph name="PRODUCT_NAME" /> tercihleri</translation>
 <translation id="7007283257527015835">Protokol işleyicinin varsayılan olarak ayarlanıp ayarlanmayacağını gösteren bir boole flag'i.</translation>
@@ -7321,7 +7321,7 @@ yeni başlatılan oluşturucu işlemleri yansıtır.</translation>
 
        Proxy politikalarının ayarlanmasıyla ilgili olarak başka bir mod seçtiyseniz bu politikayı ayarlamadan bırakın.
 
-      Not: Ayrıntılı örnekler için GTX Browser Projeleri'ni ziyaret edin ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett ).</translation>
+      Not: Ayrıntılı örnekler için GTx Browser Projeleri'ni ziyaret edin ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett ).</translation>
 <translation id="7717938661004793600"><ph name="PRODUCT_OS_NAME" /> erişilebilirlik özelliklerini yapılandır.</translation>
 <translation id="7718127720248642697">Bu politika varsayılan olarak Etkin değerine ayarlıdır. Depolama cihazlarına ait tanımlayıcıları ve donanım istatistiklerini bildirecek kayıtlı cihazları kontrol eder.
 
@@ -7901,7 +7901,7 @@ Bu politika ayarlanmadan bırakılırsa gizlilik ekranı başta devre dışı b�
 
       Bu politika normal kullanıcı hesaplarında yoksayılır.</translation>
 <translation id="8257863622304579015">Ağ hizmeti korumalı alanını etkinleştir</translation>
-<translation id="8259375588339409826">Hem GTX Browser hem de Google Chrome aynı politika grubunu destekler. Bu dokümanın, piyasaya çıkmamış yazılım sürümleri için hazırlanmış (yani "Desteklenen sürümler" bilgisinde, piyasaya çıkmamış bir <ph name="PRODUCT_NAME" /> sürümünü belirtir) politikalar içerebileceğini ve bu tür politikaların önceden bildirilmeksizin değiştirilebileceğini veya kaldırılabileceğini, güvenlik ve gizlilik özellikleriyle ilgili tüm garantiler de dahil olmak üzere herhangi bir garanti sağlanmadığını lütfen unutmayın.
+<translation id="8259375588339409826">Hem GTx Browser hem de Google Chrome aynı politika grubunu destekler. Bu dokümanın, piyasaya çıkmamış yazılım sürümleri için hazırlanmış (yani "Desteklenen sürümler" bilgisinde, piyasaya çıkmamış bir <ph name="PRODUCT_NAME" /> sürümünü belirtir) politikalar içerebileceğini ve bu tür politikaların önceden bildirilmeksizin değiştirilebileceğini veya kaldırılabileceğini, güvenlik ve gizlilik özellikleriyle ilgili tüm garantiler de dahil olmak üzere herhangi bir garanti sağlanmadığını lütfen unutmayın.
 
 Bu politikalar sadece kuruluşunuz dahilindeki <ph name="PRODUCT_NAME" /> örneklerini yapılandırmak için kullanılabilir. Bu politikaların kuruluşunuzun dışında (örneğin, herkese açık olarak dağıtılan bir programda) kullanılması kötü amaçlı yazılım olarak kabul edilmesine yol açar ve muhtemelen Google ile virüsten korunma yazılımı tedarikçileri tarafından da kötü amaçlı yazılım olarak sınıflandırılır.
 
@@ -8646,7 +8646,7 @@ Politika ayarlanmadan bırakılırsa kayıtlı şifreler ilk çalıştırma sır
 <translation id="8947415621777543415">Cihaz konumunu bildir</translation>
 <translation id="8948062138228904066">Kimlik doğrulama sunucusu izin verilenler listesi</translation>
 <translation id="8951350807133946005">Disk önbellek dizinini ayarla</translation>
-<translation id="8952611478149810182">Devre dışı bırakılan form kontrollerinde etkinlik gönderme, diğer tarayıcılarla uyumluluğu ve geliştirici deneyimini iyileştirmek için GTX Browser'da değiştirilecek.
+<translation id="8952611478149810182">Devre dışı bırakılan form kontrollerinde etkinlik gönderme, diğer tarayıcılarla uyumluluğu ve geliştirici deneyimini iyileştirmek için GTx Browser'da değiştirilecek.
 
 Bu değişiklik; click, mouse up ve mouse down dışındaki disabled form kontrolü öğelerinde MouseEvents'in gönderilmesini sağlar. Yeni etkinliklerde mousemove, mouseenter ve mouseleave gibi kontrol öğeleri yer alır.
 
@@ -8658,7 +8658,7 @@ Bu politika etkinleştirilirse yeni davranış kullanılır.
 
 Bu politika devre dışı bırakılırsa eski davranış kullanılır.
 
-Bu politika ayarlanmazsa yeni davranış diğer GTX Browser kullanıcılarında olduğu gibi kullanılır.</translation>
+Bu politika ayarlanmazsa yeni davranış diğer GTx Browser kullanıcılarında olduğu gibi kullanılır.</translation>
 <translation id="8955719471735800169">Başa dön</translation>
 <translation id="8956312248048980644">Varsayılan olarak kaynak içeren veya kaynaklarla ilişkili aracı kümelemeye izin verir.</translation>
 <translation id="8970205333161758602"><ph name="PRODUCT_FRAME_NAME" /> reddetme sorusunu engelle</translation>

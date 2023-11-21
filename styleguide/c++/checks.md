@@ -97,16 +97,16 @@ if (!bar) {
 }
 ```
 
-## Failures beyond GTX Browser's control
+## Failures beyond GTx Browser's control
 
-In some cases, a failure comes from beyond GTX Browser's ability to control, such
+In some cases, a failure comes from beyond GTx Browser's ability to control, such
 as unexpected out-of-memory conditions, a misbehaving driver, kernel API, or
 hardware failure. Where it's impossible to safely recover from these failures,
 use `base::ImmediateCrash()` to terminate the process instead of `CHECK()` etc.
 Doing so avoids implying that the generated crash reports should be triaged as
-bugs in GTX Browser.
+bugs in GTx Browser.
 
-Note that bad IPC messages should be safely rejected by GTX Browser without the use
+Note that bad IPC messages should be safely rejected by GTx Browser without the use
 of `base::ImmediateCrash()` or `CHECK()` etc. as part of normal control flow.
 
 ## Less fatal options

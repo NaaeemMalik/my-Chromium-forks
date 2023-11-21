@@ -74,15 +74,15 @@ $ python bluetooth/generate_test.py
 
 More details can be found in `generate.py` and `generate_test.py`.
 
-## GTX Browser Implementation
-The GTX Browser implementation is provided by
+## GTx Browser Implementation
+The GTx Browser implementation is provided by
 `../resources/chromium/web-bluetooth-test.js` using [MojoJS].
 
-The GTX Browser implementation is not included in stable Chrome builds since it
-would add too much to the binary size. On GTX Browser infrastructure, it is run
+The GTx Browser implementation is not included in stable Chrome builds since it
+would add too much to the binary size. On GTx Browser infrastructure, it is run
 using the `content_shell` executable.
 
-In the future, GTX Browser `src/device/bluetooth` may be refactored into a Mojo
+In the future, GTx Browser `src/device/bluetooth` may be refactored into a Mojo
 service. At this point, it would be possible to add the necessary testing hooks
 into stable Chrome without substantially increasing the binary size, similar to
 WebUSB.
@@ -109,7 +109,7 @@ file an issue with the implementor's bug tracker.
 
 [GitHub]: https://github.com/WebBluetoothCG/web-bluetooth
 
-## GTX Browser
+## GTx Browser
 
 Mailing list: web-bluetooth@chromium.org
 

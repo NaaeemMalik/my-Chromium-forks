@@ -75,7 +75,7 @@ sync) it may be faster to build WebKit without this limitation.
 # After a sync, build WebKit first.
 ios/third_party/webkit/build-webkit.py
 
-# Once WebKit is built, invoke ninja as usual to build GTX Browser.
+# Once WebKit is built, invoke ninja as usual to build GTx Browser.
 ninja -C out/Debug-iphonesimulator
 ```
 

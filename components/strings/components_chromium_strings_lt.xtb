@@ -2,12 +2,12 @@
 <!DOCTYPE translationbundle>
 <translationbundle lang="lt">
 <translation id="130631256467250065">Pakeitimai įsigalios kitą kartą iš naujo paleidus įrenginį.</translation>
-<translation id="275588974610408078">„GTX Browser“ negalima teikti strigčių ataskaitų.</translation>
-<translation id="3064346599913645280">Peržiūrite saugų „GTX Browser“ puslapį</translation>
-<translation id="358997566136285270">„GTX Browser“ logotipas</translation>
-<translation id="4365115785552740256">„GTX Browser“ pasiekiama naudojant <ph name="BEGIN_LINK_CHROMIUM" />„GTX Browser“<ph name="END_LINK_CHROMIUM" /> atvirojo šaltinio projektą ir kitą <ph name="BEGIN_LINK_OSS" />atvirojo šaltinio programinę įrangą<ph name="END_LINK_OSS" />.</translation>
+<translation id="275588974610408078">„GTx Browser“ negalima teikti strigčių ataskaitų.</translation>
+<translation id="3064346599913645280">Peržiūrite saugų „GTx Browser“ puslapį</translation>
+<translation id="358997566136285270">„GTx Browser“ logotipas</translation>
+<translation id="4365115785552740256">„GTx Browser“ pasiekiama naudojant <ph name="BEGIN_LINK_CHROMIUM" />„GTx Browser“<ph name="END_LINK_CHROMIUM" /> atvirojo šaltinio projektą ir kitą <ph name="BEGIN_LINK_OSS" />atvirojo šaltinio programinę įrangą<ph name="END_LINK_OSS" />.</translation>
 <translation id="4559775032954821361">Eikite į 
-          „GTX Browser“ meniu &gt;
+          „GTx Browser“ meniu &gt;
           „<ph name="SETTINGS_TITLE" />“
           &gt;
           „<ph name="ADVANCED_TITLE" />“
@@ -16,22 +16,22 @@
           &gt;
           „LAN nustatymai“
           ir panaikinkite žymimojo laukelio „LAN naudoti tarpinį serverį“ pasirinkimą.</translation>
-<translation id="4622039161600275920">Šį puslapį užblokavo „GTX Browser“</translation>
-<translation id="48558539577516920">Leiskite „GTX Browser“ pasiekti tinklą užkardos arba antivirusinės programos
+<translation id="4622039161600275920">Šį puslapį užblokavo „GTx Browser“</translation>
+<translation id="48558539577516920">Leiskite „GTx Browser“ pasiekti tinklą užkardos arba antivirusinės programos
           nustatymuose.</translation>
 <translation id="580822234363523061">Eikite į
-          „GTX Browser“ meniu &gt;
+          „GTx Browser“ meniu &gt;
           „<ph name="SETTINGS_TITLE" />“
           &gt;
           „<ph name="ADVANCED_TITLE" />“
           &gt;
           „<ph name="PROXIES_TITLE" />“ 
           ir nustatykite konfigūraciją kaip „Nėra tarpinio serverio“ arba „Tiesioginis“.</translation>
-<translation id="6549378540556750549">„GTX Browser“ taip pat pasiekiama naudojant kitą <ph name="BEGIN_LINK_OSS" />atvirojo šaltinio programinę įrangą<ph name="END_LINK_OSS" />.</translation>
-<translation id="6613594504749178791">Pakeitimai įsigalios kitą kartą iš naujo paleidus „GTX Browser“.</translation>
-<translation id="7681937895330411637">„GTX Browser“ pasiekiama naudojant <ph name="BEGIN_LINK_CHROMIUM" />„GTX Browser“<ph name="END_LINK_CHROMIUM" /> atvirojo šaltinio projektą.</translation>
+<translation id="6549378540556750549">„GTx Browser“ taip pat pasiekiama naudojant kitą <ph name="BEGIN_LINK_OSS" />atvirojo šaltinio programinę įrangą<ph name="END_LINK_OSS" />.</translation>
+<translation id="6613594504749178791">Pakeitimai įsigalios kitą kartą iš naujo paleidus „GTx Browser“.</translation>
+<translation id="7681937895330411637">„GTx Browser“ pasiekiama naudojant <ph name="BEGIN_LINK_CHROMIUM" />„GTx Browser“<ph name="END_LINK_CHROMIUM" /> atvirojo šaltinio projektą.</translation>
 <translation id="7861509383340276692">Eikite į
-        „GTX Browser“ meniu &gt;
+        „GTx Browser“ meniu &gt;
         „<ph name="SETTINGS_TITLE" />“
         &gt;
         „<ph name="ADVANCED_TITLE" />“
@@ -41,5 +41,5 @@
 <translation id="8187289872471304532">Eikite į
           „Programos“ &gt; „Sistemos nuostatos“ &gt; „Tinklas“ &gt; „Išplėstinis“ &gt; „Tarpiniai serveriai“
           ir panaikinkite visų tarpinių serverių pasirinkimą.</translation>
-<translation id="8684913864886094367">„GTX Browser“ netinkamai išsijungė.</translation>
+<translation id="8684913864886094367">„GTx Browser“ netinkamai išsijungė.</translation>
 </translationbundle>

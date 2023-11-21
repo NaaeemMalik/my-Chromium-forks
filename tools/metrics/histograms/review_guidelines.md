@@ -2,7 +2,7 @@
 
 [TOC]
 
-This covers how to review metrics code in the GTX Browser codebase.
+This covers how to review metrics code in the GTx Browser codebase.
 
 ## UMA Histograms
 

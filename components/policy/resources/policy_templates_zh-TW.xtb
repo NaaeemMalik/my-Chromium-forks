@@ -795,7 +795,7 @@
 
       * <ph name="PROXY_MODE_ENUM_PAC_SCRIPT" /> - 使用 <ph name="PROXY_BYPASS_LIST_PROXY_PAC_URL" />、<ph name="PROXY_PAC_MANDATORY_PROXY_SETTINGS_FIELD" /> 和 <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" /> 欄位。
 
-      注意：如需詳細範例，請前往 GTX Browser 專案 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)。</translation>
+      注意：如需詳細範例，請前往 GTx Browser 專案 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)。</translation>
 <translation id="1700811900332333712">允許裝置要求執行 Powerwash</translation>
 <translation id="1705215165572785706">將最上排按鍵設為媒體鍵，但允許使用者變更</translation>
 <translation id="1708496595873025510">設定變異版本種子的擷取限制</translation>
@@ -848,7 +848,7 @@
 
        如果你選擇了透過任何其他模式設定 Proxy 政策，請勿設定這項政策。
 
-       注意：如需詳細範例，請前往 GTX Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)。</translation>
+       注意：如需詳細範例，請前往 GTx Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)。</translation>
 <translation id="1767673020408652620">在零狀態搜尋框中啟用應用程式推薦</translation>
 <translation id="1768225118528727376">允許這些網站取得視窗管理權限</translation>
 <translation id="1770071413238151235">12 小時制</translation>
@@ -993,7 +993,7 @@
      </translation>
 <translation id="1919802376548418720">使用 KDC 政策來委派憑證。</translation>
 <translation id="1920046221095339924">允許在裝置上進入受管理的工作階段</translation>
-<translation id="1920772397574801429">你可以透過這項政策，指定支援 <ph name="HTTP_NEGOTIATE" /> 驗證 (例如 Kerberos 驗證) 的 Android 驗證應用程式所提供的帳戶類型。驗證應用程式的供應商應可提供這類資訊。詳情請見 GTX Browser 計畫，網址為 https://goo.gl/hajyfN
+<translation id="1920772397574801429">你可以透過這項政策，指定支援 <ph name="HTTP_NEGOTIATE" /> 驗證 (例如 Kerberos 驗證) 的 Android 驗證應用程式所提供的帳戶類型。驗證應用程式的供應商應可提供這類資訊。詳情請見 GTx Browser 計畫，網址為 https://goo.gl/hajyfN
 
       如果未設定這項政策，系統會關閉 Android 上的 <ph name="HTTP_NEGOTIATE" /> 驗證。</translation>
 <translation id="1923704782248889851">啟用語音輸入功能</translation>
@@ -2425,7 +2425,7 @@
 以下提供幾項可恢復舊行為的補充功能，以協助遷移作業：https://github.com/josepharhar/offsetparent-polyfills。
 如果停用這項政策，系統將使用舊行為。
 
-如果不設定這項政策，系統將如同其他 GTX Browser 使用者一樣使用新行為。</translation>
+如果不設定這項政策，系統將如同其他 GTx Browser 使用者一樣使用新行為。</translation>
 <translation id="3219421230122020860">可使用無痕模式</translation>
 <translation id="3220624000494482595">如果資訊站應用程式是 Android 應用程式，即使將這項政策設為 <ph name="TRUE" />，仍無法控制 <ph name="PRODUCT_OS_NAME" />版本。</translation>
 <translation id="3222088741899353813">在登入畫面上使用左鍵做為主要按鈕</translation>
@@ -4358,7 +4358,7 @@
           如果未設定這項政策，系統會使用預設命令列。</translation>
 <translation id="5151099177901233471">啟用裝置時區資訊回報功能</translation>
 <translation id="5152393033264257734">允許 DNS 攔截檢查功能，以及你是不是要前往「http://intranetsite/」資訊列。</translation>
-<translation id="5152787786897382519">GTX Browser 和 Google Chrome 有部分政策群組具有相依關係，依此共同管控特定功能。這些組合如下列政策群組所示。由於政策可能具有多個來源，系統只會套用群組中最高優先來源所提供的值，忽略同個群組中優先順序較低的來源所提供的值。請參閱 <ph name="POLICY_PRIORITY_DOC_URL" /> 瞭解來源的優先順序。</translation>
+<translation id="5152787786897382519">GTx Browser 和 Google Chrome 有部分政策群組具有相依關係，依此共同管控特定功能。這些組合如下列政策群組所示。由於政策可能具有多個來源，系統只會套用群組中最高優先來源所提供的值，忽略同個群組中優先順序較低的來源所提供的值。請參閱 <ph name="POLICY_PRIORITY_DOC_URL" /> 瞭解來源的優先順序。</translation>
 <translation id="5153187201534281749">工具列中的瀏覽器實驗功能圖示</translation>
 <translation id="5163002264923337812">啟用舊版網頁式登入流程</translation>
 <translation id="5163889437570441600">允許透過 <ph name="PRODUCT_NAME" /> 將內容投放至裝置。
@@ -5908,7 +5908,7 @@ Origin-Agent-Cluster HTTP 標頭會控制文件要在 origin-keyed 代理程式�
 
       如果不設定這項政策，使用者將可選擇要使用的 Proxy 設定。
 
-      注意：如需詳細範例，請前往 GTX Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )。</translation>
+      注意：如需詳細範例，請前往 GTx Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )。</translation>
 <translation id="656130159911161669">ChromeOS 更新會忽略資訊站應用程式資訊清單中所定義的版本</translation>
 <translation id="6561396069801924653">在系統匣選單中顯示無障礙選項</translation>
 <translation id="6562889469672829421">調暗螢幕前的閒置時間長度 (以毫秒為單位)。如果使用者在這段時間內沒有任何動作，系統就會將螢幕調暗</translation>
@@ -6425,7 +6425,7 @@ Origin-Agent-Cluster HTTP 標頭會控制文件要在 origin-keyed 代理程式�
 
        如果你選擇了透過任何其他模式設定 Proxy 政策，請勿設定這項政策。
 
-       注意：如需詳細範例，請前往 GTX Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )。</translation>
+       注意：如需詳細範例，請前往 GTx Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )。</translation>
 <translation id="7002040773317582266">已啟用主頁框網址的即時檢查功能。</translation>
 <translation id="7003746348783715221"><ph name="PRODUCT_NAME" /> 偏好設定</translation>
 <translation id="7007283257527015835">布林值標記，表示是否應將通訊協定處理常式設為預設值。</translation>
@@ -7161,7 +7161,7 @@ Origin-Agent-Cluster HTTP 標頭會控制文件要在 origin-keyed 代理程式�
 
        如果你選擇了透過任何其他模式設定 Proxy 政策，請勿設定這項政策。
 
-      注意：如需詳細範例，請前往 GTX Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )。</translation>
+      注意：如需詳細範例，請前往 GTx Browser 計畫 (網址為 https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )。</translation>
 <translation id="7717938661004793600">設定 <ph name="PRODUCT_OS_NAME" /> 無障礙功能。</translation>
 <translation id="7718127720248642697">這項政策預設為啟用，已註冊的裝置會回報儲存裝置的硬體統計資料和 ID。
 
@@ -7711,7 +7711,7 @@ Origin-Agent-Cluster HTTP 標頭會控制文件要在 origin-keyed 代理程式�
 
       這項政策對於一般使用者帳戶無效。</translation>
 <translation id="8257863622304579015">啟用網路服務沙箱</translation>
-<translation id="8259375588339409826">GTX Browser 和 Google Chrome 支援同一套政策。請注意，這份文件可能包含未發布的政策 (即「支援環境」項目是指尚未發布的 <ph name="PRODUCT_NAME" /> 版本)，後續有關這些政策的變更與移除恕不另行通知，我們也不提供任何方面的保證，包括安全性和隱私權方面的保證。
+<translation id="8259375588339409826">GTx Browser 和 Google Chrome 支援同一套政策。請注意，這份文件可能包含未發布的政策 (即「支援環境」項目是指尚未發布的 <ph name="PRODUCT_NAME" /> 版本)，後續有關這些政策的變更與移除恕不另行通知，我們也不提供任何方面的保證，包括安全性和隱私權方面的保證。
 
 這些政策僅適用於設定貴機構內部的 <ph name="PRODUCT_NAME" /> 執行個體。如果在機構外 (例如公開發布的程式中) 使用這些政策，會被視為惡意軟體行徑，且 Google 和防毒軟體廠商可能會將其標示為惡意軟體。
 
@@ -8445,7 +8445,7 @@ Origin-Agent-Cluster HTTP 標頭會控制文件要在 origin-keyed 代理程式�
 <translation id="8947415621777543415">回報裝置位置</translation>
 <translation id="8948062138228904066">驗證伺服器許可清單</translation>
 <translation id="8951350807133946005">設定磁碟快取目錄</translation>
-<translation id="8952611478149810182">為了改善與其他瀏覽器的相容性及提升開發人員體驗，我們正著手變更 GTX Browser 中在已停用的表單控制項上傳送事件的行為。
+<translation id="8952611478149810182">為了改善與其他瀏覽器的相容性及提升開發人員體驗，我們正著手變更 GTx Browser 中在已停用的表單控制項上傳送事件的行為。
 
 這項變更會讓系統傳送已停用的表單控制元素上的 MouseEvent，但 click、mouseup 和 mousedown 除外。這些新事件將包括滑鼠移動、滑鼠進入和滑鼠離開等。
 
@@ -8457,7 +8457,7 @@ Origin-Agent-Cluster HTTP 標頭會控制文件要在 origin-keyed 代理程式�
 
 如果停用這項政策，系統將使用舊行為。
 
-如果不設定這項政策，系統將如同其他 GTX Browser 使用者一樣使用新行為。</translation>
+如果不設定這項政策，系統將如同其他 GTx Browser 使用者一樣使用新行為。</translation>
 <translation id="8955719471735800169">返回頁首</translation>
 <translation id="8956312248048980644">在預設情況下，允許使用 origin-keyed 代理程式叢集。</translation>
 <translation id="8970205333161758602">隱藏停止支援 <ph name="PRODUCT_FRAME_NAME" />的提示</translation>

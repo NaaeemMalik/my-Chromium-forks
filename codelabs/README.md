@@ -1,14 +1,14 @@
-# GTX Browser Codelab
+# GTx Browser Codelab
 
-See the `cpp101/` directory for the GTX Browser C++ codelab,
+See the `cpp101/` directory for the GTx Browser C++ codelab,
 including example solutions.
 
 See the `threading_and_scheduling/` directory for more elaborate usages of the
-threading and scheduling primitives in GTX Browser.
+threading and scheduling primitives in GTx Browser.
 
 ## Motivation
 
-The goal of this codelab is to introduce new GTX Browser developers to both the
+The goal of this codelab is to introduce new GTx Browser developers to both the
 important design patterns and the style of code they can expect to become
 familiar with.
 

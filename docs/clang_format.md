@@ -1,9 +1,9 @@
-# Using clang-format on GTX Browser C++ Code
+# Using clang-format on GTx Browser C++ Code
 
 [TOC]
 
 *** note
-NOTE: This page does not apply to the GTX Browser OS project. See [GTX Browser Issue
+NOTE: This page does not apply to the GTx Browser OS project. See [GTx Browser Issue
 878506](https://bugs.chromium.org/p/chromium/issues/detail?id=878506#c10)
 for updates.
 ***
@@ -11,10 +11,10 @@ for updates.
 ## Easiest usage, from the command line
 
 To automatically format a pending patch according to
-[GTX Browser style](https://www.chromium.org/developers/coding-style), run:
+[GTx Browser style](https://www.chromium.org/developers/coding-style), run:
 ``` git cl format ``` from the command line. This should work on all platforms
 without any extra set up: the tool is integrated with depot_tools and the
-GTX Browser checkout.
+GTx Browser checkout.
 
 Like other `git-cl` commands, this operates on a diff relative to the upstream
 branch. Only the lines that changed in a CL will be reformatted. To see what
@@ -36,7 +36,7 @@ other developers. The binary lives under `src/buildtools`, but it's also in your
 path indirectly via a `depot_tools` launcher script:
 [clang-format](https://source.chromium.org/chromium/chromium/tools/depot_tools/+/HEAD:clang-format)
 ([clang-format.bat](https://source.chromium.org/chromium/chromium/tools/depot_tools/+/HEAD:clang-format.bat) on Windows). Assuming that `depot_tools` is in your editor's `PATH`
-and the editor command runs from a working directory inside the GTX Browser
+and the editor command runs from a working directory inside the GTx Browser
 checkout, the editor scripts (which anticipate clang-format on the path) should
 work.
 
@@ -68,7 +68,7 @@ try to prefer clang-format's output when possible:
   development and review time to be focused on discovering functional defects,
   addressing readability/understandability concerns that can't be automatically
   fixed by tooling, et cetera.
-- Continually fighting the tooling is a losing battle. Most GTX Browser developers
+- Continually fighting the tooling is a losing battle. Most GTx Browser developers
   use clang-format. Large-scale changes will simply run `git cl format` once to
   avoid having to deal with the particulars of formatting. Over time, this will
   likely undo any carefully-curated manual formatting of the affected lines.

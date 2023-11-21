@@ -1,5 +1,5 @@
 {
-  "Linux GTX BrowserOS Full": {
+  "Linux GTx BrowserOS Full": {
     "gn_args": {
       "dcheck_always_on": false,
       "ffmpeg_branding": "ChromeOS",

@@ -17,7 +17,7 @@
 #elif BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
 #define PRODUCT_STRING "Google Chrome for Testing"
 #elif BUILDFLAG(CHROMIUM_BRANDING)
-#define PRODUCT_STRING "GTX Browser"
+#define PRODUCT_STRING "GTx Browser"
 #else
 #error Unknown branding
 #endif

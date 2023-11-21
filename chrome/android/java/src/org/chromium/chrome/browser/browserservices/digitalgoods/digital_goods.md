@@ -24,14 +24,14 @@ Android APIs are the source of truth for information such as price.
 
 ## Interface versions
 
-The bundles passed from the TWA shell to GTX Browser may contain a version code
+The bundles passed from the TWA shell to GTx Browser may contain a version code
 (see `DigitalGoodsConverter#KEY_VERSION`). If the version code is missing, it
 is assumed to be `0`.
 
 Naturally, version `0` was the first version of the interface, but it was
-never used by stable GTX Browser or Android Browser Helper.
+never used by stable GTx Browser or Android Browser Helper.
 
 Version changes:
 - Version `1` changed the format of response code. Previously the response code
-  had been given in the Play Billing format. With version `1` GTX Browser expects
-  the TWA client to convert the response code to a GTX Browser format.
+  had been given in the Play Billing format. With version `1` GTx Browser expects
+  the TWA client to convert the response code to a GTx Browser format.

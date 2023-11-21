@@ -1,7 +1,7 @@
 os_name="$(uname)"
 
 # Define the browser name and output directory
-browser_name="GTX Browser"
+browser_name="GTx Browser"
 out_dir="out/gtx"
 
 if [ "$os_name" = "Darwin" ]; then

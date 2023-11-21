@@ -1,5 +1,5 @@
 # Define the browser name for easier modification
-browser_name="GTX Browser"
+browser_name="GTx Browser"
 out_dir="out/gtx"
 
 # Clone the necessary repositories

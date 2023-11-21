@@ -797,7 +797,7 @@
           * <ph name="PROXY_MODE_ENUM_FIXED_SERVERS" /> ระบบจะใช้ช่อง <ph name="PROXY_SERVER_PROXY_SETTINGS_FIELD" /> และ <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" />
           * <ph name="PROXY_MODE_ENUM_PAC_SCRIPT" /> ระบบจะใช้ช่อง <ph name="PROXY_BYPASS_LIST_PROXY_PAC_URL" />, <ph name="PROXY_PAC_MANDATORY_PROXY_SETTINGS_FIELD" /> และ <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" />
 
-      หมายเหตุ: ดูตัวอย่างโดยละเอียดเพิ่มเติมได้ที่ The GTX Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
+      หมายเหตุ: ดูตัวอย่างโดยละเอียดเพิ่มเติมได้ที่ The GTx Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
 <translation id="1700811900332333712">อนุญาตให้อุปกรณ์ขอทำ Powerwash</translation>
 <translation id="1705215165572785706">ใช้ปุ่มแถวบนสุดเป็นปุ่มสำหรับสื่อ แต่ผู้ใช้จะแก้ไขได้</translation>
 <translation id="1708496595873025510">ตั้งค่าข้อจำกัดการเรียกเมล็ดรูปแบบ</translation>
@@ -851,7 +851,7 @@
 
        ไม่ต้องตั้งค่านโยบายนี้หากเลือกโหมดอื่นๆ สำหรับการตั้งค่านโยบายพร็อกซีแล้ว
 
-       หมายเหตุ: ดูตัวอย่างโดยละเอียดเพิ่มเติมได้ที่ The GTX Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
+       หมายเหตุ: ดูตัวอย่างโดยละเอียดเพิ่มเติมได้ที่ The GTx Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
 <translation id="1767673020408652620">เปิดใช้แอปแนะนำในสถานะค่าเป็นศูนย์ของช่องค้นหา</translation>
 <translation id="1768225118528727376">อนุญาตสิทธิ์การจัดการหน้าต่างในเว็บไซต์เหล่านี้</translation>
 <translation id="1770071413238151235">รูปแบบนาฬิการะบบ 12 ชั่วโมง</translation>
@@ -995,7 +995,7 @@
      </translation>
 <translation id="1919802376548418720">ใช้นโยบาย KDC เพื่อมอบอำนาจข้อมูลเข้าสู่ระบบ</translation>
 <translation id="1920046221095339924">อนุญาตเซสชันที่จัดการในอุปกรณ์</translation>
-<translation id="1920772397574801429">การตั้งค่านโยบายจะระบุประเภทของบัญชีที่มาจากแอปการตรวจสอบสิทธิ์ของ Android ที่รองรับการตรวจสอบสิทธิ์ <ph name="HTTP_NEGOTIATE" /> (เช่น การตรวจสอบสิทธิ์ Kerberos) ข้อมูลนี้ควรได้รับจากซัพพลายเออร์ของแอปการตรวจสอบสิทธิ์ ดูข้อมูลเพิ่มเติมที่ The GTX Browser Projects ( https://goo.gl/hajyfN )
+<translation id="1920772397574801429">การตั้งค่านโยบายจะระบุประเภทของบัญชีที่มาจากแอปการตรวจสอบสิทธิ์ของ Android ที่รองรับการตรวจสอบสิทธิ์ <ph name="HTTP_NEGOTIATE" /> (เช่น การตรวจสอบสิทธิ์ Kerberos) ข้อมูลนี้ควรได้รับจากซัพพลายเออร์ของแอปการตรวจสอบสิทธิ์ ดูข้อมูลเพิ่มเติมที่ The GTx Browser Projects ( https://goo.gl/hajyfN )
 
       การไม่ตั้งค่านโยบายจะปิดการตรวจสอบสิทธิ์ <ph name="HTTP_NEGOTIATE" /> ใน Android</translation>
 <translation id="1923704782248889851">เปิดใช้การพิมพ์ตามคำบอก</translation>
@@ -2448,7 +2448,7 @@
 
 หากปิดใช้นโยบายนี้ ระบบจะใช้ลักษณะการทํางานแบบเก่า
 
-หากไม่ได้ตั้งค่านโยบายนี้ ระบบจะใช้ลักษณะการทํางานแบบใหม่เช่นเดียวกับผู้ใช้ GTX Browser ที่เหลือ</translation>
+หากไม่ได้ตั้งค่านโยบายนี้ ระบบจะใช้ลักษณะการทํางานแบบใหม่เช่นเดียวกับผู้ใช้ GTx Browser ที่เหลือ</translation>
 <translation id="3219421230122020860">โหมดไม่ระบุตัวตนพร้อมใช้งาน</translation>
 <translation id="3220624000494482595">หากแอปคีออสก์เป็นแอป Android แอปจะไม่มีสิทธิ์ควบคุมเวอร์ชัน <ph name="PRODUCT_OS_NAME" /> แม้ว่าจะตั้งนโยบายนี้เป็น <ph name="TRUE" /> ก็ตาม</translation>
 <translation id="3222088741899353813">ปุ่มซ้ายคือปุ่มหลักในหน้าจอการเข้าสู่ระบบ</translation>
@@ -4402,7 +4402,7 @@ https://cloud.google.com/docs/chrome-enterprise/policies/url-patterns *
           หากไม่ได้ตั้งค่านโยบายนี้เอาไว้ คำสั่งที่เป็นค่าเริ่มต้นจะถูกนำมาใช้</translation>
 <translation id="5151099177901233471">เปิดใช้การรายงานข้อมูลเขตเวลาของอุปกรณ์</translation>
 <translation id="5152393033264257734">อนุญาตการตรวจสอบการสกัดกั้น DNS และแถบข้อมูล "หรือคุณหมายถึง http://intranetsite/"</translation>
-<translation id="5152787786897382519">ทั้ง GTX Browser และ Google Chrome ต่างก็มีกลุ่มนโยบายที่พึ่งพากันและกันเพื่อให้การควบคุมฟีเจอร์หนึ่งๆ ชุดเหล่านี้แสดงด้วยกลุ่มนโยบายต่อไปนี้ เนื่องจากนโยบายมีแหล่งที่มาได้หลายแหล่ง ระบบจึงจะใช้เฉพาะค่าที่มาจากแหล่งที่มาที่มีลำดับความสำคัญสูงสุด และจะไม่สนใจค่าที่มาจากแหล่งที่มาที่มีลำดับความสำคัญต่ำในกลุ่มเดียวกัน ลำดับความสำคัญกำหนดไว้ใน <ph name="POLICY_PRIORITY_DOC_URL" /></translation>
+<translation id="5152787786897382519">ทั้ง GTx Browser และ Google Chrome ต่างก็มีกลุ่มนโยบายที่พึ่งพากันและกันเพื่อให้การควบคุมฟีเจอร์หนึ่งๆ ชุดเหล่านี้แสดงด้วยกลุ่มนโยบายต่อไปนี้ เนื่องจากนโยบายมีแหล่งที่มาได้หลายแหล่ง ระบบจึงจะใช้เฉพาะค่าที่มาจากแหล่งที่มาที่มีลำดับความสำคัญสูงสุด และจะไม่สนใจค่าที่มาจากแหล่งที่มาที่มีลำดับความสำคัญต่ำในกลุ่มเดียวกัน ลำดับความสำคัญกำหนดไว้ใน <ph name="POLICY_PRIORITY_DOC_URL" /></translation>
 <translation id="5153187201534281749">ไอคอนการทดสอบเบราว์เซอร์แถบเครื่องมือ</translation>
 <translation id="5163002264923337812">เปิดใช้การลงชื่อเข้าใช้ผ่านเว็บแบบเก่า</translation>
 <translation id="5163889437570441600">อนุญาตให้แคสต์เนื้อหาไปยังอุปกรณ์โดยใช้ <ph name="PRODUCT_NAME" />
@@ -5982,7 +5982,7 @@ Salt ต้องเป็นสตริงที่ยาว 8 ถึง 32 �
 
       การไม่ตั้งค่านโยบายนี้จะทำให้ผู้ใช้เลือกการตั้งค่าพร็อกซีได้
 
-      หมายเหตุ: ดูตัวอย่างโดยละเอียดได้ที่ The GTX Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
+      หมายเหตุ: ดูตัวอย่างโดยละเอียดได้ที่ The GTx Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
 <translation id="656130159911161669">การอัปเดต ChromeOS ไม่สนใจเวอร์ชันที่ระบุไว้ในไฟล์ Manifest ของแอปคีออสก์</translation>
 <translation id="6561396069801924653">แสดงตัวเลือกการเข้าถึงในเมนูถาดระบบ</translation>
 <translation id="6562889469672829421">ระยะเวลาเป็นมิลลิวินาทีก่อนหรี่แสงหน้าจอหลังจากไม่มีการป้อนข้อมูลจากผู้ใช้</translation>
@@ -6503,7 +6503,7 @@ Salt ต้องเป็นสตริงที่ยาว 8 ถึง 32 �
 
        ไม่ต้องตั้งค่านโยบายนี้หากได้เลือกโหมดอื่นสำหรับการตั้งค่านโยบายพร็อกซีแล้ว
 
-       หมายเหตุ: ดูตัวอย่างโดยละเอียดได้ที่ The GTX Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
+       หมายเหตุ: ดูตัวอย่างโดยละเอียดได้ที่ The GTx Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
 <translation id="7002040773317582266">เปิดใช้การตรวจหา URL ในเมนเฟรมแบบเรียลไทม์อยู่</translation>
 <translation id="7003746348783715221">ค่ากำหนดของ <ph name="PRODUCT_NAME" /></translation>
 <translation id="7007283257527015835">ธงบูลีนที่ระบุว่าเครื่องจัดการโปรโตคอลควรตั้งค่าเป็นค่าเริ่มต้นหรือไม่</translation>
@@ -7247,7 +7247,7 @@ Salt ต้องเป็นสตริงที่ยาว 8 ถึง 32 �
 
        ไม่ต้องตั้งค่านโยบายนี้หากได้เลือกโหมดอื่นสำหรับการตั้งค่านโยบายพร็อกซีแล้ว
 
-      หมายเหตุ: ดูตัวอย่างโดยละเอียดได้ที่ The GTX Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
+      หมายเหตุ: ดูตัวอย่างโดยละเอียดได้ที่ The GTx Browser Projects ( https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett )</translation>
 <translation id="7717938661004793600">กำหนดค่าฟีเจอร์การเข้าถึงของ <ph name="PRODUCT_OS_NAME" /></translation>
 <translation id="7718127720248642697">นโยบายนี้จะตั้งค่าเป็น "เปิดใช้" โดยค่าเริ่มต้น ซึ่งควบคุมให้อุปกรณ์ที่ลงทะเบียนไว้รายงานสถิติด้านฮาร์ดแวร์และตัวระบุของอุปกรณ์จัดเก็บข้อมูล
 
@@ -7806,7 +7806,7 @@ Salt ต้องเป็นสตริงที่ยาว 8 ถึง 32 �
 
       นโยบายนี้จะไม่มีผลกับบัญชีผู้ใช้ทั่วไป</translation>
 <translation id="8257863622304579015">เปิดใช้แซนด์บ็อกซ์ของบริการเครือข่าย</translation>
-<translation id="8259375588339409826">ทั้ง GTX Browser และ Google Chrome รองรับนโยบายชุดเดียวกัน โปรดทราบว่าเอกสารนี้อาจมีนโยบายที่ยังไม่ได้เผยแพร่ (รายการ "รองรับใน" หมายถึงเวอร์ชันที่ยังไม่เปิดตัวของ <ph name="PRODUCT_NAME" />) ซึ่งอาจมีการเปลี่ยนแปลงหรือนำออกโดยไม่แจ้งให้ทราบล่วงหน้า และไม่มีการรับประกันใดๆ ทั้งสิ้น รวมทั้งไม่มีการรับประกันในแง่คุณสมบัติด้านการรักษาความปลอดภัยและความเป็นส่วนตัวของผลิตภัณฑ์
+<translation id="8259375588339409826">ทั้ง GTx Browser และ Google Chrome รองรับนโยบายชุดเดียวกัน โปรดทราบว่าเอกสารนี้อาจมีนโยบายที่ยังไม่ได้เผยแพร่ (รายการ "รองรับใน" หมายถึงเวอร์ชันที่ยังไม่เปิดตัวของ <ph name="PRODUCT_NAME" />) ซึ่งอาจมีการเปลี่ยนแปลงหรือนำออกโดยไม่แจ้งให้ทราบล่วงหน้า และไม่มีการรับประกันใดๆ ทั้งสิ้น รวมทั้งไม่มีการรับประกันในแง่คุณสมบัติด้านการรักษาความปลอดภัยและความเป็นส่วนตัวของผลิตภัณฑ์
 
 นโยบายเหล่านี้มีวัตถุประสงค์เพื่อใช้ในการกำหนดค่าอินสแตนซ์ของ <ph name="PRODUCT_NAME" /> ภายในองค์กรของคุณเท่านั้น การใช้นโยบายภายนอกองค์กร (ตัวอย่างเช่น ในโปรแกรมที่เผยแพร่ต่อสาธารณะ) จะถือว่าเป็นมัลแวร์และมีแนวโน้มที่ Google และผู้ให้บริการป้องกันไวรัสจะติดป้ายว่าเป็นมัลแวร์
 
@@ -8550,7 +8550,7 @@ Salt ต้องเป็นสตริงที่ยาว 8 ถึง 32 �
 <translation id="8947415621777543415">รายงานตำแหน่งอุปกรณ์</translation>
 <translation id="8948062138228904066">รายการที่อนุญาตสำหรับเซิร์ฟเวอร์การตรวจสอบสิทธิ์</translation>
 <translation id="8951350807133946005">ตั้งค่าไดเรกทอรีสำหรับแคชของดิสก์</translation>
-<translation id="8952611478149810182">มีการเปลี่ยนแปลงการส่งเหตุการณ์ในตัวควบคุมแบบฟอร์มที่ปิดใช้ใน GTX Browser เพื่อปรับปรุงความเข้ากันได้กับเบราว์เซอร์อื่นๆ รวมถึงปรับปรุงการใช้งานสําหรับนักพัฒนาซอฟต์แวร์
+<translation id="8952611478149810182">มีการเปลี่ยนแปลงการส่งเหตุการณ์ในตัวควบคุมแบบฟอร์มที่ปิดใช้ใน GTx Browser เพื่อปรับปรุงความเข้ากันได้กับเบราว์เซอร์อื่นๆ รวมถึงปรับปรุงการใช้งานสําหรับนักพัฒนาซอฟต์แวร์
 
 การเปลี่ยนแปลงนี้ทําให้มีการส่งเหตุการณ์ MouseEvents ไปยังองค์ประกอบของตัวควบคุมแบบฟอร์มที่ปิดใช้ ยกเว้นเหตุการณ์ click, mouseup และ mousedown โดยเหตุการณ์ใหม่จะรวมถึง mousemove, mouseenter และ mouseleave เป็นต้น
 
@@ -8562,7 +8562,7 @@ Salt ต้องเป็นสตริงที่ยาว 8 ถึง 32 �
 
 หากปิดใช้นโยบายนี้ ระบบจะใช้ลักษณะการทํางานแบบเก่า
 
-หากไม่ได้ตั้งค่านโยบายนี้ ระบบจะใช้ลักษณะการทํางานแบบใหม่เช่นเดียวกับผู้ใช้ GTX Browser ที่เหลือ</translation>
+หากไม่ได้ตั้งค่านโยบายนี้ ระบบจะใช้ลักษณะการทํางานแบบใหม่เช่นเดียวกับผู้ใช้ GTx Browser ที่เหลือ</translation>
 <translation id="8955719471735800169">กลับไปด้านบน</translation>
 <translation id="8956312248048980644">อนุญาตการสร้างคลัสเตอร์ Agent ที่ผูกกับต้นทางโดยค่าเริ่มต้น</translation>
 <translation id="8970205333161758602">ระงับการแจ้งเตือนการปฏิเสธของ <ph name="PRODUCT_FRAME_NAME" /></translation>

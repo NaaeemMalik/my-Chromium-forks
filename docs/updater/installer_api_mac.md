@@ -1,5 +1,5 @@
 # Mac Installer API
-This document describes how macOS software integrates with GTX Browser Updater for
+This document describes how macOS software integrates with GTx Browser Updater for
 software updates.
 
 ## Design

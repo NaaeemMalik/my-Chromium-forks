@@ -1,13 +1,13 @@
 ## //chrome/browser/share
 
 This directory contains the implementation of some of the sharing, social, and
-community features in GTX Browser. Specifically, this directory contains the
+community features in GTx Browser. Specifically, this directory contains the
 implementations for parts of:
 
 * QR code generation
 * Link-to-text / link-to-highlight
 * Screenshot editing
-* The Android GTX Browser share hub
+* The Android GTx Browser share hub
 
 Related directories:
 

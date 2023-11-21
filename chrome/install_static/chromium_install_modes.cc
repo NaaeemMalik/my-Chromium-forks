@@ -14,9 +14,9 @@
 
 namespace install_static {
 
-const wchar_t kCompanyPathName[] = L"GTX Browser";
+const wchar_t kCompanyPathName[] = L"GTx Browser";
 
-const wchar_t kProductPathName[] = L"GTX Browser";
+const wchar_t kProductPathName[] = L"GTx Browser";
 
 const size_t kProductPathNameLength = _countof(kProductPathName) - 1;
 

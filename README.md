@@ -1,4 +1,4 @@
-# ![Logo](chrome/app/theme/chromium/product_logo_64.png) GTX BROWSER
+# ![Logo](chrome/app/theme/chromium/product_logo_64.png) GTx BROWSER
 
 ## Simplified Instructions
 1: install Visual Studio 2019 x64 with below instructions. for Mac: Xcode 12.4 on MacOS Big Sur 11.6 OS and goto to step 5. for Linux use Ubuntu 20.04 OS and goto to step 5
@@ -208,8 +208,8 @@ then create signing request in keychain app, [upload the file on apple, download
 
 # make dmg and sign and notorise it
  npm i -g create-dmg
- create-dmg out/gtx/GTX\ Browser.app out/gtx 
- xcrun notarytool submit --wait --keychain "~/Library/Keychains/logingtx114.keychain-db" --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" out/gtx/GTX\ Browser\ 114.0.5735.199.dmg
+ create-dmg out/gtx/GTx\ Browser.app out/gtx 
+ xcrun notarytool submit --wait --keychain "~/Library/Keychains/logingtx114.keychain-db" --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" out/gtx/GTx\ Browser\ 114.0.5735.199.dmg
 
 ```
 if the output is successful then you can upload the dmg to your website release page or send anyone
@@ -384,9 +384,9 @@ You can also get a visual report of the build performance with
 $ python ninjatracing out\gtx\.ninja_log >build.json
 ```
 
-## Build GTX Browser
+## Build GTx Browser
 
-Build GTX Browser (the "chrome" target) with Ninja using the command:
+Build GTx Browser (the "chrome" target) with Ninja using the command:
 
 ```shell
 $ autoninja -C out\gtx chrome
@@ -400,7 +400,7 @@ You can get a list of all of the other build targets from GN by running
 the GN label with no preceding "//" (so for `//chrome/test:unit_tests`
 use ninja -C out/gtx chrome/test:unit_tests`).
 
-## Run GTX Browser
+## Run GTx Browser
 
 Once it is built, you can simply run the browser:
 

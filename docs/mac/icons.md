@@ -1,9 +1,9 @@
-# GTX Browser's .icns files
+# GTx Browser's .icns files
 
 ## Sizes
 
 `.icns` files contain multiple sizes of icons. The standard `.icns` files for
-GTX Browser contain icons of the following sizes:
+GTx Browser contain icons of the following sizes:
 
 | Size    | Type              |
 |---------|-------------------|

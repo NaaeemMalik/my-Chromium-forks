@@ -1,6 +1,6 @@
-# Java Asserts in GTX Browser
+# Java Asserts in GTx Browser
 This doc exists to explain how asserts in Java are enabled and disabled by
-GTX Browser's build system.
+GTx Browser's build system.
 
 ## javac Assertion Bytecode
 Whenever javac compiles a Java class, assertions are transformed into the

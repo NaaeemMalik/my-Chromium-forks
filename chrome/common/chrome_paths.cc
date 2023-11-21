@@ -494,7 +494,7 @@ bool PathProvider(int key, base::FilePath* result) {
         return false;
       }
 
-      cur = cur.Append(FILE_PATH_LITERAL("GTX Browser"))
+      cur = cur.Append(FILE_PATH_LITERAL("GTx Browser"))
                 .Append(FILE_PATH_LITERAL("External Extensions"));
 
 #else

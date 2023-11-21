@@ -1,4 +1,4 @@
-# Creating with GTX Browser UI
+# Creating with GTx Browser UI
 
 # Examples
 

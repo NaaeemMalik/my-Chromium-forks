@@ -5,7 +5,7 @@
 <translation id="275588974610408078">የብልሽት ሪፖርት በGTX Browser ውስጥ አይገኝም።</translation>
 <translation id="3064346599913645280">ደህንነቱ የተጠበቀ የGTX Browser ገፅ እየተመለከቱ ነው</translation>
 <translation id="358997566136285270">የGTX Browser ዓርማ</translation>
-<translation id="4365115785552740256">GTX Browser በ<ph name="BEGIN_LINK_CHROMIUM" />GTX Browser<ph name="END_LINK_CHROMIUM" />  ክፍት ምንጭ ፕሮጀክት እና በሌላ <ph name="BEGIN_LINK_OSS" />ክፍት ምንጭ ሶፍትዌር<ph name="END_LINK_OSS" /> እውን ሊሆን ችሏል።</translation>
+<translation id="4365115785552740256">GTx Browser በ<ph name="BEGIN_LINK_CHROMIUM" />GTx Browser<ph name="END_LINK_CHROMIUM" />  ክፍት ምንጭ ፕሮጀክት እና በሌላ <ph name="BEGIN_LINK_OSS" />ክፍት ምንጭ ሶፍትዌር<ph name="END_LINK_OSS" /> እውን ሊሆን ችሏል።</translation>
 <translation id="4559775032954821361">ወደ
           የGTX Browser ምናሌ &gt;
           <ph name="SETTINGS_TITLE" />
@@ -17,7 +17,7 @@
           የላን ቅንብሮች
           ይሂዱና የ«ለእርስዎ ላን ተኪ አገልጋይ ይጠቀሙ»ን አመልካች ሳጥኑን አይምረጡ።</translation>
 <translation id="4622039161600275920">ይህ ገፅ በGTX Browser ታግዷል</translation>
-<translation id="48558539577516920">GTX Browser በኬላ ወይም የጸረ-ቫይረስ ቅንብሮችዎን አውታረ መረቡን እንዲደርስበት
+<translation id="48558539577516920">GTx Browser በኬላ ወይም የጸረ-ቫይረስ ቅንብሮችዎን አውታረ መረቡን እንዲደርስበት
         ይፍቀዱለት።</translation>
 <translation id="580822234363523061">ወደ
           የGTX Browser ምናሌ &gt;
@@ -27,9 +27,9 @@
           &gt;
           <ph name="PROXIES_TITLE" />
           ይሂዱና ውቅርዎ ወደ «ምንም ተኪ» ወይም «ቀጥታ» መዋቀሩን ያረጋግጡ።</translation>
-<translation id="6549378540556750549">እንዲሁም GTX Browser በሌላ <ph name="BEGIN_LINK_OSS" />ክፍት ምንጭ ሶፍትዌር<ph name="END_LINK_OSS" /> እንዲሆን ተደርጓል።</translation>
-<translation id="6613594504749178791">ለውጦችዎ GTX Browser በሚያስጀምሩበት ቀጣዩ ጊዜ ላይ ይተገበራሉ።</translation>
-<translation id="7681937895330411637">GTX Browser በ<ph name="BEGIN_LINK_CHROMIUM" />GTX Browser<ph name="END_LINK_CHROMIUM" /> ክፍት ምንጭ ፕሮጀክት እንዲሆን ተደርጓል።</translation>
+<translation id="6549378540556750549">እንዲሁም GTx Browser በሌላ <ph name="BEGIN_LINK_OSS" />ክፍት ምንጭ ሶፍትዌር<ph name="END_LINK_OSS" /> እንዲሆን ተደርጓል።</translation>
+<translation id="6613594504749178791">ለውጦችዎ GTx Browser በሚያስጀምሩበት ቀጣዩ ጊዜ ላይ ይተገበራሉ።</translation>
+<translation id="7681937895330411637">GTx Browser በ<ph name="BEGIN_LINK_CHROMIUM" />GTx Browser<ph name="END_LINK_CHROMIUM" /> ክፍት ምንጭ ፕሮጀክት እንዲሆን ተደርጓል።</translation>
 <translation id="7861509383340276692">ወደ
         የGTX Browser ምናሌ &gt;
         <ph name="SETTINGS_TITLE" />
@@ -40,5 +40,5 @@
 <translation id="8187289872471304532">ወደ
           መተግበሪያዎች &gt; የስርዓት ምርጫዎች &gt; አውታረ መረብ &gt; የላቁ &gt; ተኪዎች
           ይሂዱና የተመረጡ ማናቸውም ተኪዎችን አይምረጡ።</translation>
-<translation id="8684913864886094367">GTX Browser በትክክል አልተዘጋም።</translation>
+<translation id="8684913864886094367">GTx Browser በትክክል አልተዘጋም።</translation>
 </translationbundle>

@@ -22,7 +22,7 @@ The `WebNFCTest` interface is defined as:
   };
 ```
 
-The GTX Browser implementation of the `WebNFCTest` interface is located in
+The GTx Browser implementation of the `WebNFCTest` interface is located in
 [nfc-mock.js](../resources/chromium/nfc-mock.js).
 
 Other browser vendors should provide their own implementations of

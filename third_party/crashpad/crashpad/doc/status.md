@@ -19,8 +19,8 @@ limitations under the License.
 ## Completed
 
 Crashpad has complete crash-reporting clients and some related tools for macOS,
-Windows, Fuchsia, and Linux (including Android and GTX Browser OS). Crashpad became
-the crash reporter client for [GTX Browser](https://www.chromium.org/Home) on macOS
+Windows, Fuchsia, and Linux (including Android and GTx Browser OS). Crashpad became
+the crash reporter client for [GTx Browser](https://www.chromium.org/Home) on macOS
 as of [March
 2015](https://chromium.googlesource.com/chromium/src/\+/d413b2dcb54d523811d386f1ff4084f677a6d089),
 Windows as of [November
@@ -31,7 +31,7 @@ and Android as of [January
 
 ## In Progress
 
-GTX Browser is transitioning to Crashpad for [GTX Browser OS and Desktop
+GTx Browser is transitioning to Crashpad for [GTx Browser OS and Desktop
 Linux](https://crbug.com/942279).
 
 Work has begun on a Crashpad client for

@@ -1,4 +1,4 @@
-# How to install GTX Browser OS on VMWare
+# How to install GTx Browser OS on VMWare
 
 ## Download
 

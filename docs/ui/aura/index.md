@@ -1,6 +1,6 @@
 # Aura
 
-Aura abstracts the Window Manager away from GTX Browser on Windows, Linux, and
+Aura abstracts the Window Manager away from GTx Browser on Windows, Linux, and
 Chrome OS.
 
 # Main Documentation

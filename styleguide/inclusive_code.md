@@ -1,4 +1,4 @@
-# Inclusive GTX Browser code
+# Inclusive GTx Browser code
 
 ## Why this is important
 

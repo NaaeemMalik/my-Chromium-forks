@@ -5,7 +5,7 @@
 
 [TOC]
 
-This page documents the individual scripts that support running various GTX Browser
+This page documents the individual scripts that support running various GTx Browser
 [test types](build_instructions.md#running-test-suites).
 The scripts can be found [here](../../build/fuchsia/test/) The new scripts currently support:
 

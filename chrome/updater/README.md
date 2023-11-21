@@ -1,4 +1,4 @@
-An updater for desktop client software using GTX Browser code and tools.
+An updater for desktop client software using GTx Browser code and tools.
 
 *   The code lives in //chrome/updater.
 *   The documentation lives in //docs/updater.

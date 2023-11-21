@@ -1,6 +1,6 @@
 # Linux Instrumented Libraries
 
-The instrumented libraries are a collection of GTX Browser's dependencies built
+The instrumented libraries are a collection of GTx Browser's dependencies built
 with *SAN enabled. The MSAN libraries are required for an MSAN build to run. The
 others are optional, and are currently unused.
 

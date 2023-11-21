@@ -800,7 +800,7 @@ Nếu bạn tắt chính sách này, thì việc cuộn trang web đến các ph
           * <ph name="PROXY_MODE_ENUM_FIXED_SERVERS" />, thì các trường <ph name="PROXY_SERVER_PROXY_SETTINGS_FIELD" /> và <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" /> sẽ được dùng.
           * <ph name="PROXY_MODE_ENUM_PAC_SCRIPT" />, thì các trường <ph name="PROXY_BYPASS_LIST_PROXY_PAC_URL" />, <ph name="PROXY_PAC_MANDATORY_PROXY_SETTINGS_FIELD" /> và <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" /> sẽ được dùng.
 
-      Lưu ý: Để xem thêm ví dụ cụ thể, hãy truy cập trang của The GTX Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
+      Lưu ý: Để xem thêm ví dụ cụ thể, hãy truy cập trang của The GTx Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
 <translation id="1700811900332333712">Cho phép thiết bị yêu cầu chức năng Powerwash</translation>
 <translation id="1705215165572785706">Coi các phím hàng trên cùng là phím phương tiện nhưng cho phép người dùng thay đổi</translation>
 <translation id="1708496595873025510">Đặt giới hạn cho quá trình tìm nạp khởi đầu Biến thể</translation>
@@ -854,7 +854,7 @@ Nếu bạn tắt chính sách này, thì việc cuộn trang web đến các ph
 
        Bạn không nên đặt chính sách này nếu đã chọn chế độ khác để đặt chính sách proxy.
 
-       Lưu ý: Để xem thêm ví dụ cụ thể, hãy truy cập vào trang The GTX Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
+       Lưu ý: Để xem thêm ví dụ cụ thể, hãy truy cập vào trang The GTx Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
 <translation id="1767673020408652620">Bật Ứng dụng đề xuất khi hộp tìm kiếm ở trạng thái 0</translation>
 <translation id="1768225118528727376">Cấp quyền Quản lý cửa sổ trên những trang web này</translation>
 <translation id="1770071413238151235">Định dạng đồng hồ 12 giờ</translation>
@@ -998,7 +998,7 @@ Nếu bạn đặt chính sách này thành <ph name="DISABLE_UNPUBLISHED" /> (1
      </translation>
 <translation id="1919802376548418720">Sử dụng chính sách KDC để ủy quyền thông tin xác thực.</translation>
 <translation id="1920046221095339924">Cho phép phiên được quản lý trên thiết bị</translation>
-<translation id="1920772397574801429">Nếu bạn đặt chính sách này, hệ thống sẽ chỉ định loại tài khoản do ứng dụng xác thực Android cung cấp có hỗ trợ tính năng xác thực <ph name="HTTP_NEGOTIATE" /> (chẳng hạn như xác thực Kerberos). Nhà cung cấp ứng dụng xác thực sẽ cung cấp thông tin này. Để biết thông tin chi tiết, hãy truy cập vào trang The GTX Browser Projects (https://goo.gl/hajyfN)
+<translation id="1920772397574801429">Nếu bạn đặt chính sách này, hệ thống sẽ chỉ định loại tài khoản do ứng dụng xác thực Android cung cấp có hỗ trợ tính năng xác thực <ph name="HTTP_NEGOTIATE" /> (chẳng hạn như xác thực Kerberos). Nhà cung cấp ứng dụng xác thực sẽ cung cấp thông tin này. Để biết thông tin chi tiết, hãy truy cập vào trang The GTx Browser Projects (https://goo.gl/hajyfN)
 
       Nếu bạn không đặt chính sách này, hệ thống sẽ tắt tính năng xác thực <ph name="HTTP_NEGOTIATE" /> trên Android.</translation>
 <translation id="1923704782248889851">Bật tính năng nhập bằng giọng nói</translation>
@@ -2463,7 +2463,7 @@ Nếu chính sách này đang bật thì thao tác mới sẽ được sử dụ
 
 Nếu chính sách này đang tắt thì thao tác cũ sẽ được sử dụng.
 
-Nếu bạn không đặt chính sách này, thì thao tác mới sẽ được sử dụng giống như thao tác của những người dùng GTX Browser còn lại.</translation>
+Nếu bạn không đặt chính sách này, thì thao tác mới sẽ được sử dụng giống như thao tác của những người dùng GTx Browser còn lại.</translation>
 <translation id="3219421230122020860">Chế độ ẩn danh khả dụng</translation>
 <translation id="3220624000494482595">Nếu ứng dụng kiosk là một ứng dụng Android thì ứng dụng này không có quyền kiểm soát đối với phiên bản <ph name="PRODUCT_OS_NAME" /> ngay cả khi chính sách này được đặt thành <ph name="TRUE" />.</translation>
 <translation id="3222088741899353813">Nút bên trái là nút chính trên màn hình đăng nhập</translation>
@@ -4474,7 +4474,7 @@ Nếu bạn đặt chính sách này thành true hoặc không đặt, thì tín
           Nếu chính sách này không được đặt, dòng lệnh mặc định sẽ được sử dụng.</translation>
 <translation id="5151099177901233471">Bật tính năng báo cáo thông tin múi giờ của thiết bị</translation>
 <translation id="5152393033264257734">Cho phép các tùy chọn kiểm tra chặn hệ thống tên miền (DNS) và thanh thông tin "Ý của bạn là http://intranetsite/".</translation>
-<translation id="5152787786897382519">Cả GTX Browser và Google Chrome đều có một số nhóm chính sách dựa vào nhau để cho phép kiểm soát một tính năng. Các nhóm này được biểu thị qua các nhóm chính sách sau đây. Nếu các chính sách có thể chứa nhiều nguồn, thì chỉ áp dụng những giá trị thuộc nguồn có mức ưu tiên cao nhất. Các giá trị thuộc một nguồn có mức ưu tiên thấp hơn trong cùng một nhóm sẽ bị bỏ qua. Thứ tự ưu tiên được xác định trong <ph name="POLICY_PRIORITY_DOC_URL" />.</translation>
+<translation id="5152787786897382519">Cả GTx Browser và Google Chrome đều có một số nhóm chính sách dựa vào nhau để cho phép kiểm soát một tính năng. Các nhóm này được biểu thị qua các nhóm chính sách sau đây. Nếu các chính sách có thể chứa nhiều nguồn, thì chỉ áp dụng những giá trị thuộc nguồn có mức ưu tiên cao nhất. Các giá trị thuộc một nguồn có mức ưu tiên thấp hơn trong cùng một nhóm sẽ bị bỏ qua. Thứ tự ưu tiên được xác định trong <ph name="POLICY_PRIORITY_DOC_URL" />.</translation>
 <translation id="5153187201534281749">Biểu tượng các tính năng thử nghiệm của trình duyệt trên thanh công cụ</translation>
 <translation id="5163002264923337812">Cho phép quy trình đăng nhập dựa trên web cũ</translation>
 <translation id="5163889437570441600">Có thể truyền nội dung tới thiết bị này bằng cách sử dụng <ph name="PRODUCT_NAME" />.
@@ -6082,7 +6082,7 @@ Bạn có thể điều chỉnh thời gian chờ ở trạng thái rảnh trư�
 
       Nếu bạn không đặt chính sách này, người dùng có thể chọn các tùy chọn cài đặt proxy.
 
-      Lưu ý: Để xem các ví dụ cụ thể, hãy truy cập vào trang The GTX Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
+      Lưu ý: Để xem các ví dụ cụ thể, hãy truy cập vào trang The GTx Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
 <translation id="656130159911161669">Bản cập nhật ChromeOS bỏ qua phiên bản được xác định trong tệp kê khai ứng dụng kiosk</translation>
 <translation id="6561396069801924653">Hiển thị tùy chọn trợ năng trong menu của khay hệ thống</translation>
 <translation id="6562889469672829421">Khoảng thời gian (tính bằng mili giây) kể từ khi không có hoạt động đầu vào của người dùng cho đến thời điểm màn hình tối đi</translation>
@@ -6606,7 +6606,7 @@ tức là chặn những yêu cầu này, sẽ được áp dụng.</translation
 
        Bạn không nên đặt chính sách này nếu đã chọn chế độ khác để đặt chính sách proxy.
 
-       Lưu ý: Để xem các ví dụ cụ thể, hãy truy cập vào trang The GTX Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
+       Lưu ý: Để xem các ví dụ cụ thể, hãy truy cập vào trang The GTx Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
 <translation id="7002040773317582266">Tính năng kiểm tra các URL trong khung chính theo thời gian thực đang bật.</translation>
 <translation id="7003746348783715221">Tùy chọn <ph name="PRODUCT_NAME" /></translation>
 <translation id="7007283257527015835">Một cờ boolean cho biết liệu bạn có phải đặt trình xử lý giao thức làm tùy chọn mặc định hay không.</translation>
@@ -7382,7 +7382,7 @@ LƯU Ý: Chỉ các quy trình kết xuất đồ hoạ mới bắt đầu mới
 
        Bạn không nên đặt chính sách này nếu đã chọn chế độ khác để đặt chính sách proxy.
 
-      Lưu ý: Để xem các ví dụ cụ thể, hãy truy cập vào trang The GTX Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
+      Lưu ý: Để xem các ví dụ cụ thể, hãy truy cập vào trang The GTx Browser Projects (https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett).</translation>
 <translation id="7717938661004793600">Định cấu hình các tính năng hỗ trợ tiếp cận của <ph name="PRODUCT_OS_NAME" />.</translation>
 <translation id="7718127720248642697">Chính sách này được bật theo mặc định. Chính sách này kiểm soát các thiết bị đã đăng ký để báo cáo số liệu thống kê phần cứng và giá trị nhận dạng cho các thiết bị lưu trữ.
 
@@ -7946,7 +7946,7 @@ Nếu bạn không đặt chính sách này, thì màn hình bảo vệ quyền 
 
       Chính sách này bị bỏ qua đối với các tài khoản người dùng thông thường.</translation>
 <translation id="8257863622304579015">Bật hộp cát dịch vụ mạng</translation>
-<translation id="8259375588339409826">Cả GTX Browser và Google Chrome đều hỗ trợ nhóm chính sách giống nhau. Xin lưu ý rằng tài liệu này có thể bao gồm các chính sách chưa được ban hành (nghĩa là mục 'Được hỗ trợ trên' của các chính sách này đề cập đến một phiên bản <ph name="PRODUCT_NAME" /> chưa phát hành). Những chính sách này có thể bị thay đổi hoặc xóa bỏ mà không thông báo trước. Chúng tôi không bảo đảm bất kỳ điều gì, kể cả bảo đảm cho các thuộc tính bảo mật và quyền riêng tư.
+<translation id="8259375588339409826">Cả GTx Browser và Google Chrome đều hỗ trợ nhóm chính sách giống nhau. Xin lưu ý rằng tài liệu này có thể bao gồm các chính sách chưa được ban hành (nghĩa là mục 'Được hỗ trợ trên' của các chính sách này đề cập đến một phiên bản <ph name="PRODUCT_NAME" /> chưa phát hành). Những chính sách này có thể bị thay đổi hoặc xóa bỏ mà không thông báo trước. Chúng tôi không bảo đảm bất kỳ điều gì, kể cả bảo đảm cho các thuộc tính bảo mật và quyền riêng tư.
 
 Những chính sách này chỉ dùng cho mục đích định cấu hình các phiên bản <ph name="PRODUCT_NAME" /> nội bộ trong tổ chức của bạn. Việc sử dụng các chính sách này bên ngoài tổ chức (ví dụ: trong một chương trình được phân phối công khai) sẽ bị coi là phần mềm độc hại và có thể bị Google và các nhà cung cấp phần mềm diệt vi-rút gắn nhãn là phần mềm độc hại.
 
@@ -8705,7 +8705,7 @@ Nếu bạn không đặt chính sách này, thì hệ thống sẽ không nhậ
 <translation id="8947415621777543415">Báo cáo vị trí thiết bị</translation>
 <translation id="8948062138228904066">Danh sách cho phép máy chủ xác thực</translation>
 <translation id="8951350807133946005">Thiết lập thư mục bộ nhớ đệm trên đĩa</translation>
-<translation id="8952611478149810182">Chúng tôi đang thay đổi cách gửi sự kiện trên các đối tượng kiểm soát biểu mẫu đã tắt ở GTX Browser để cải thiện khả năng tương thích với các trình duyệt khác, cũng như cải thiện trải nghiệm của nhà phát triển.
+<translation id="8952611478149810182">Chúng tôi đang thay đổi cách gửi sự kiện trên các đối tượng kiểm soát biểu mẫu đã tắt ở GTx Browser để cải thiện khả năng tương thích với các trình duyệt khác, cũng như cải thiện trải nghiệm của nhà phát triển.
 
 Thay đổi này giúp MouseEvents được gửi trên các phần tử đối tượng kiểm soát biểu mẫu đã tắt, ngoại trừ thao tác nhấp, nhả chuột và nhấn chuột. Ví dụ: các sự kiện mới sẽ bao gồm di chuột qua, di chuột vào và di chuột ra khỏi thành phần.
 
@@ -8717,7 +8717,7 @@ Nếu chính sách này đang bật thì thao tác mới sẽ được sử dụ
 
 Nếu chính sách này đang tắt thì thao tác cũ sẽ được sử dụng.
 
-Nếu bạn không đặt chính sách này, thì thao tác mới sẽ được sử dụng giống như thao tác của những người dùng GTX Browser còn lại.</translation>
+Nếu bạn không đặt chính sách này, thì thao tác mới sẽ được sử dụng giống như thao tác của những người dùng GTx Browser còn lại.</translation>
 <translation id="8955719471735800169">Quay lại đầu trang</translation>
 <translation id="8956312248048980644">Cho phép phân nhóm tác nhân theo khoá nguồn gốc theo mặc định.</translation>
 <translation id="8970205333161758602">Loại bỏ lời nhắc từ chối <ph name="PRODUCT_FRAME_NAME" /></translation>

@@ -1,6 +1,6 @@
-# Ad Tagging in GTX Browser
+# Ad Tagging in GTx Browser
 
-GTX Browser is able to detect some ads and the resources they load in the
+GTx Browser is able to detect some ads and the resources they load in the
 browser. This enables the browser to measure the size, performance, and count of
 ads displayed to our users. It also allows the browser to intervene on the
 user’s behalf when ads run counter to the user’s interest (e.g., by using

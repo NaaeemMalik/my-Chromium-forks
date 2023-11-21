@@ -1,4 +1,4 @@
-# Learning about GTX Browser UI
+# Learning about GTx Browser UI
 
 # Getting Started
 
@@ -9,7 +9,7 @@
 
 # Best Practices
 
-* [Colors](bestpractices/colors.md): How to work with GTX Browser colors.
+* [Colors](bestpractices/colors.md): How to work with GTx Browser colors.
 * [Layout](bestpractices/layout.md): How to use Views layout.
 * [Ownership](bestpractices/ownership.md): How to manage Views object lifetimes.
 

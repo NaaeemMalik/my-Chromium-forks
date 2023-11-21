@@ -1,29 +1,29 @@
-# GTX Browser Flag Expiry
+# GTx Browser Flag Expiry
 
 ellyjones@ / avi@
 
-This document outlines the process by which flags in GTX Browser expire and are
+This document outlines the process by which flags in GTx Browser expire and are
 removed from the codebase. This document only describes entries in
 `chrome://flags`, *not* command-line switches (commonly also called command-line
 flags). This process does not cover command-line switches and there continue to
 be no guarantees about those.
 
-See also [GTX Browser Flag Ownership](flag_ownership.md).
+See also [GTx Browser Flag Ownership](flag_ownership.md).
 
 [TOC]
 
 ## Do Not Depend On Flags
 
 If you are a user or administrator of Chrome and are using (or think you need to
-use) a flag to configure GTX Browser for your use case, please [file a bug] or
+use) a flag to configure GTx Browser for your use case, please [file a bug] or
 email [flags-dev@], because that flag will likely be removed at some point. If
-you are a GTX Browser developer, please carry on using flags as normal :)
+you are a GTx Browser developer, please carry on using flags as normal :)
 
-Flags have never been a supported configuration surface in GTX Browser, and we have
+Flags have never been a supported configuration surface in GTx Browser, and we have
 never guaranteed that any specific flag will behave consistently or even
 continue to exist. This document describes a process for removing flags that
 have been around for long enough that users *might* have come to rely on their
-ongoing existence in a way that hopefully minimizes pain, but GTX Browser
+ongoing existence in a way that hopefully minimizes pain, but GTx Browser
 developers are free to change the behavior of or remove flags at any time. In
 particular, just because a flag will expire through this process does not mean a
 developer will not remove it earlier than this process specifies.

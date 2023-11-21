@@ -1,7 +1,7 @@
-# Testing in GTX Browser
+# Testing in GTx Browser
 
-* [GTX Browser Docs Home](/docs/README.md)
-* [Testing in GTX Browser](/docs/testing/testing_in_chromium.md)
+* [GTx Browser Docs Home](/docs/README.md)
+* [Testing in GTx Browser](/docs/testing/testing_in_chromium.md)
 * [Web Tests](/docs/testing/web_tests.md)
 * [Android](/docs/testing/android_test_instructions.md)
 * [iOS](/docs/ios/testing.md)

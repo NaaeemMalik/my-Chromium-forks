@@ -1,6 +1,6 @@
-# GTX Browser policy definitions
+# GTx Browser policy definitions
 
-This directory houses the data templates used GTX Browser browser and OS policies.
+This directory houses the data templates used GTx Browser browser and OS policies.
 
 # Policy definitions
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define the browser name and output directory
-browser_name="GTX Browser"
+browser_name="GTx Browser"
 out_dir="out/intel"
 
 # Generate the build

@@ -1,6 +1,6 @@
 # Initialization of Blink runtime features in content layer
 This document outlines how to initialize your Blink runtime features in the
-GTX Browser content layer, more specifically in
+GTx Browser content layer, more specifically in
 [content/child/runtime_features.cc][runtime_features]. To learn more on how to
 set up features in blink, see
 [Runtime Enabled Features][RuntimeEnabledFeatures].
@@ -42,7 +42,7 @@ will call `wf::EnableFeatureFromString` with your feature name instead of
 `wf::EnableNewFeatureX` in the same cases as above.
 
 The following table summarizes the relationship between the default status of
-the GTX Browser feature and the status of the blink feature, when `kDefault` is
+the GTx Browser feature and the status of the blink feature, when `kDefault` is
 specified, if **not overridden** by field trial or command line switches
 (horizontal headers: blink feature status; vertical headers: chromium feature
 default status):
@@ -55,15 +55,15 @@ default status):
 \[1]: `base::FeatureList::IsEnabled(features::kNewFeatureX)` is still
 false. These combinations are suitable for features there are fully implemented
 at blink side. Otherwise normally the blink feature should not have a status so
-that the GTX Browser feature can fully control the feature.
+that the GTx Browser feature can fully control the feature.
 
 \[2]: This combination is counter-intuitive and should be avoided.
 
-Field trial and command line switches can always override the GTX Browser feature
+Field trial and command line switches can always override the GTx Browser feature
 status and the blink feature status.
 
 Besides `kDefault`, there are also other options for the relationship
-between the GTX Browser feature and the blink feature. These other options should
+between the GTx Browser feature and the blink feature. These other options should
 only be used in rare cases when the default relationship doesn't work.
 
 For more detailed explanation on the options you have, read the comment in enum

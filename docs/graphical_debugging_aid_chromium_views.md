@@ -1,4 +1,4 @@
-# Graphical Debugging Aid for GTX Browser Views
+# Graphical Debugging Aid for GTx Browser Views
 
 ## Introduction
 

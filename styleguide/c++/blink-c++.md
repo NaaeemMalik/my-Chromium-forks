@@ -1,11 +1,11 @@
 # Blink C++ Style Guide
 
 This document is a list of differences from the overall
-[GTX Browser Style Guide](c++.md), which is in turn a set of differences from the
+[GTx Browser Style Guide](c++.md), which is in turn a set of differences from the
 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html). The
-long-term goal is to make both GTX Browser and Blink style more similar to Google
+long-term goal is to make both GTx Browser and Blink style more similar to Google
 style over time, so this document aims to highlight areas where Blink style
-differs from GTX Browser style.
+differs from GTx Browser style.
 
 [TOC]
 
@@ -32,7 +32,7 @@ When interacting with WTF types, use `wtf_size_t` instead of `size_t`.
 
 ## Do not use `new` and `delete`
 
-GTX Browser [recommends avoiding bare new/delete](c++-dos-and-donts.md#use-and-instead-of-bare);
+GTx Browser [recommends avoiding bare new/delete](c++-dos-and-donts.md#use-and-instead-of-bare);
 Blink bans them.  In addition to the options there, Blink objects may be
 allocated using `blink::MakeGarbageCollected` and manage their lifetimes using
 strong Blink GC references, depending on the type. See

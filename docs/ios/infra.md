@@ -1,8 +1,8 @@
-# Continuous build and test infrastructure for GTX Browser for iOS
+# Continuous build and test infrastructure for GTx Browser for iOS
 
-See the [instructions] for how to check out and build GTX Browser for iOS.
+See the [instructions] for how to check out and build GTx Browser for iOS.
 
-The GTX Browser projects use buildbot for continuous integration. This doc starts
+The GTx Browser projects use buildbot for continuous integration. This doc starts
 with an overview of the system, then gives detailed explanations about each
 part.
 
@@ -11,7 +11,7 @@ part.
 ## Overview
 
 Commits are made using the [commit queue], which triggers a series of try jobs
-to compile and test the proposed patch against GTX Browser tip of tree before
+to compile and test the proposed patch against GTx Browser tip of tree before
 actually making the commit. If the try jobs succeed the patch is committed. A
 newly committed change triggers the builders (or "bots") to compile and test
 the change again.
@@ -24,7 +24,7 @@ to compile and test new commits whenever they are detected. [chromium.mac] is
 the main waterfall for Mac desktop and iOS. [tryserver.chromium.mac] serves
 as the try server for Mac desktop and iOS.
 
-The bots know how to check out a given revision of GTX Browser, compile, and test.
+The bots know how to check out a given revision of GTx Browser, compile, and test.
 
 ### Code location
 
@@ -35,7 +35,7 @@ contains various infra-related scripts.
 
 #### Pollers
 
-[chromium.mac] uses a `GitilesPoller` which polls the GTX Browser repository for
+[chromium.mac] uses a `GitilesPoller` which polls the GTx Browser repository for
 new commits using the [gitiles] interface. When a new commit is detected, the
 bots are triggered.
 
@@ -48,7 +48,7 @@ functionality that the various [iOS recipes] use.
 #### Configs
 
 Because the recipes live in another repository, changes to the recipes don't
-go through the GTX Browser [commit queue] and aren't tested on the [try server].
+go through the GTx Browser [commit queue] and aren't tested on the [try server].
 In order to allow bot changes to be tested by the commit queue, the recipes
 for iOS are generic instead of bot-specific, and rely on configuration files
 which live in master-specific JSON config files located in [src/ios/build/bots].
@@ -64,13 +64,13 @@ can be tested on the [try server].
 
 ### Compiling with goma
 
-Goma is the distributed build system used by GTX Browser. It reduces compilation
+Goma is the distributed build system used by GTx Browser. It reduces compilation
 time by avoiding recompilation of objects which have already been compiled
 elsewhere.
 
 ### Testing with swarming
 
-Tests run on [swarming], a distributed test system used by GTX Browser. After
+Tests run on [swarming], a distributed test system used by GTx Browser. After
 compilation, configured tests will be zipped up along with their necessary
 dependencies ("isolated") and sent to the [swarming server] for execution. The
 server issues tasks to its attached workers for execution. The bots themselves
@@ -96,7 +96,7 @@ tests in the iOS [simulator]. A build is considered successful when both
 compilation and all configured tests succeed.
 
 `ios-device` and `ios-simulator` both compile using the version of [clang]
-defined by the `CLANG_REVISION` in the GTX Browser tree.
+defined by the `CLANG_REVISION` in the GTx Browser tree.
 
 ### Scheduling try jobs using buildbucket
 
@@ -321,27 +321,27 @@ A bot may be configured to upload compiled artifacts. This is defined by the
   ],
   "upload": [
     {
-      "artifact": "GTX Browser.breakpad",
+      "artifact": "GTx Browser.breakpad",
       "bucket": "my-gcs-bucket",
     },
     {
-      "artifact": "GTX Browser.app",
+      "artifact": "GTx Browser.app",
       "bucket": "my-gcs-bucket",
       "compress": true,
     },
     {
-      "artifact": "GTX Browser.breakpad",
+      "artifact": "GTx Browser.breakpad",
       "symupload": "https://clients2.google.com/cr/symbol",
     }
   ]
 }
 ```
 After compilation, the bot will upload three artifacts. First the
-`GTX Browser.breakpad` symbols will be uploaded to
-`gs://my-gcs-bucket/<buildername>/<buildnumber>/GTX Browser.breakpad`. Next
-`GTX Browser.app` will be tarred, gzipped, and uploaded to
-`gs://my-gcs-bucket/<buildername>/<buildnumber>/GTX Browser.tar.gz`. Finally
-the `GTX Browser.breakpad` symbols will be uploaded to the [breakpad] crash
+`GTx Browser.breakpad` symbols will be uploaded to
+`gs://my-gcs-bucket/<buildername>/<buildnumber>/GTx Browser.breakpad`. Next
+`GTx Browser.app` will be tarred, gzipped, and uploaded to
+`gs://my-gcs-bucket/<buildername>/<buildnumber>/GTx Browser.tar.gz`. Finally
+the `GTx Browser.breakpad` symbols will be uploaded to the [breakpad] crash
 reporting server where they can be used to symbolicate stack traces.
 
 If `artifact` is a directory, you must specify `"compress": true`.

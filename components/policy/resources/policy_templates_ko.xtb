@@ -800,7 +800,7 @@
           * <ph name="PROXY_MODE_ENUM_FIXED_SERVERS" />: <ph name="PROXY_SERVER_PROXY_SETTINGS_FIELD" /> 및 <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" /> 필드가 사용됩니다.
           * <ph name="PROXY_MODE_ENUM_PAC_SCRIPT" />, <ph name="PROXY_BYPASS_LIST_PROXY_PAC_URL" />, <ph name="PROXY_PAC_MANDATORY_PROXY_SETTINGS_FIELD" /> 및 <ph name="PROXY_BYPASS_LIST_PROXY_SETTINGS_FIELD" /> 필드가 사용됩니다.
 
-      참고: 자세한 예시를 보려면 GTX Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
+      참고: 자세한 예시를 보려면 GTx Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
 <translation id="1700811900332333712">기기가 파워워시를 요청하도록 허용</translation>
 <translation id="1705215165572785706">맨 위 키를 미디어 키로 사용하지만 사용자가 변경하도록 허용</translation>
 <translation id="1708496595873025510">버전 시드 가져오기 제한 설정</translation>
@@ -854,7 +854,7 @@
 
        프록시 정책 설정에 다른 모드를 선택했다면 이 정책을 설정하지 마세요.
 
-       참고: 자세한 예시를 보려면 GTX Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
+       참고: 자세한 예시를 보려면 GTx Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
 <translation id="1767673020408652620">검색창이 0 상태일 때 앱 추천을 사용 설정합니다.</translation>
 <translation id="1768225118528727376">사이트에 창 관리 권한 허용</translation>
 <translation id="1770071413238151235">12시간 형식</translation>
@@ -998,7 +998,7 @@
      </translation>
 <translation id="1919802376548418720">KDC 정책을 사용하여 사용자 인증 정보를 위임합니다.</translation>
 <translation id="1920046221095339924">기기에서 관리 세션 허용</translation>
-<translation id="1920772397574801429">정책을 설정하면 Kerberos 인증과 같은 <ph name="HTTP_NEGOTIATE" /> 인증을 지원하는 Android 인증 앱에서 제공된 계정 유형이 지정됩니다. 이 정보는 인증 앱 공급업체에서 제공해야 합니다. 자세한 정보는 GTX Browser 프로젝트(https://goo.gl/hajyfN)를 참고하세요.
+<translation id="1920772397574801429">정책을 설정하면 Kerberos 인증과 같은 <ph name="HTTP_NEGOTIATE" /> 인증을 지원하는 Android 인증 앱에서 제공된 계정 유형이 지정됩니다. 이 정보는 인증 앱 공급업체에서 제공해야 합니다. 자세한 정보는 GTx Browser 프로젝트(https://goo.gl/hajyfN)를 참고하세요.
 
       정책을 설정하지 않으면 Android에서 <ph name="HTTP_NEGOTIATE" /> 인증이 사용 중지됩니다.</translation>
 <translation id="1923704782248889851">음성기록 사용 설정</translation>
@@ -2450,7 +2450,7 @@ Chrome 앱은 ID(예: <ph name="DEFAULT_HANDLERS_FOR_FILE_EXTENSIONS_POLICY_CHRO
 
 정책을 사용 중지하면 이전 동작이 사용됩니다.
 
-정책이 설정되지 않으면 다른 GTX Browser 사용자와 마찬가지로 새 동작이 사용됩니다.</translation>
+정책이 설정되지 않으면 다른 GTx Browser 사용자와 마찬가지로 새 동작이 사용됩니다.</translation>
 <translation id="3219421230122020860">시크릿 모드 사용 가능</translation>
 <translation id="3220624000494482595">키오스크 앱이 Android 앱인 경우 이 정책이 <ph name="TRUE" />로 설정되더라도 <ph name="PRODUCT_OS_NAME" /> 버전을 제어할 수 없습니다.</translation>
 <translation id="3222088741899353813">로그인 화면에서 마우스 왼쪽 버튼이 기본 버튼</translation>
@@ -4417,7 +4417,7 @@ Chrome 앱은 ID(예: pjkljhegncpnkpknbcohdijeoejaedia)로, Android 앱은 패�
           해당 정책이 설정되지 않았다면 기본 명령줄이 사용됩니다.</translation>
 <translation id="5151099177901233471">기기 시간대 정보 보고 사용 설정</translation>
 <translation id="5152393033264257734">DNS 가로채기 검사 및 'http://intranetsite/'를 찾으셨나요? 정보 표시줄을 허용합니다.</translation>
-<translation id="5152787786897382519">GTX Browser과 Chrome의 일부 정책 그룹은 특정 기능 제어를 위해 서로 종속되는 경우도 있습니다. 이러한 세트는 다음의 정책 그룹으로 대표됩니다. 정책의 출처가 여러 개일 수 있으므로 우선순위가 가장 높은 출처의 값만 적용됩니다. 같은 그룹에서 우선순위가 낮은 출처의 값은 무시됩니다. 우선순위는 <ph name="POLICY_PRIORITY_DOC_URL" />에 정의되어 있습니다.</translation>
+<translation id="5152787786897382519">GTx Browser과 Chrome의 일부 정책 그룹은 특정 기능 제어를 위해 서로 종속되는 경우도 있습니다. 이러한 세트는 다음의 정책 그룹으로 대표됩니다. 정책의 출처가 여러 개일 수 있으므로 우선순위가 가장 높은 출처의 값만 적용됩니다. 같은 그룹에서 우선순위가 낮은 출처의 값은 무시됩니다. 우선순위는 <ph name="POLICY_PRIORITY_DOC_URL" />에 정의되어 있습니다.</translation>
 <translation id="5153187201534281749">툴바의 브라우저 실험 아이콘</translation>
 <translation id="5163002264923337812">오래된 웹 기반 로그인 플로 사용</translation>
 <translation id="5163889437570441600"><ph name="PRODUCT_NAME" /> 사용을 통해 콘텐츠를 기기로 전송할 수 있도록 허용합니다.
@@ -6021,7 +6021,7 @@ Origin-Agent-Cluster: 헤더가 설정되지 않았을 때 M111의 기본값은 
 
       정책을 설정하지 않으면 사용자가 프록시 설정을 선택할 수 있습니다.
 
-      참고: 자세한 예시를 보려면 GTX Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
+      참고: 자세한 예시를 보려면 GTx Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
 <translation id="656130159911161669">ChromeOS 업데이트 시 키오스크 앱 매니페스트에 정의된 버전을 무시함</translation>
 <translation id="6561396069801924653">작업 표시줄 메뉴에 접근성 옵션 표시</translation>
 <translation id="6562889469672829421">사용자 입력이 없어 화면이 어두워지기까지 걸리는 시간(밀리초)입니다.</translation>
@@ -6542,7 +6542,7 @@ False로 설정하거나 설정하지 않으면 레이아웃을 사용할 수 �
 
        프록시 정책 설정에 다른 모드를 선택했다면 이 정책을 설정하지 마세요.
 
-       참고: 자세한 예시를 보려면 GTX Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
+       참고: 자세한 예시를 보려면 GTx Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
 <translation id="7002040773317582266">메인 프레임 URL의 실시간 확인이 사용 설정됩니다.</translation>
 <translation id="7003746348783715221"><ph name="PRODUCT_NAME" /> 환경설정</translation>
 <translation id="7007283257527015835">프로토콜 핸들러가 기본값으로 설정되어야 하는지 나타내는 부울 플래그입니다.</translation>
@@ -7293,7 +7293,7 @@ False로 설정하거나 설정하지 않으면 레이아웃을 사용할 수 �
 
        프록시 정책 설정에 다른 모드를 선택했다면 이 정책을 설정하지 마세요.
 
-      참고: 자세한 예시를 보려면 GTX Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
+      참고: 자세한 예시를 보려면 GTx Browser 프로젝트(https://www.chromium.org/developers/design-documents/network-settings#TOC-Command-line-options-for-proxy-sett)를 참고하세요.</translation>
 <translation id="7717938661004793600"><ph name="PRODUCT_OS_NAME" /> 접근성 기능을 구성합니다.</translation>
 <translation id="7718127720248642697">이 정책은 기본적으로 사용으로 설정됩니다. 등록된 기기에서 하드웨어 통계 및 저장 장치에 대한 식별자를 보고하도록 제어합니다.
 
@@ -7858,7 +7858,7 @@ False로 설정하면 로그인 화면이 표시될 때 개인 정보 보호 화
 
       이 정책은 일반 사용자 계정에서는 무시됩니다.</translation>
 <translation id="8257863622304579015">네트워크 서비스 샌드박스 사용 설정</translation>
-<translation id="8259375588339409826">GTX Browser과 Chrome은 같은 정책 조합을 지원합니다. 이 문서는 고지 없이 변경되거나 삭제될 수 있는 출시되지 않은 정책(즉, '지원' 항목은 아직 출시되지 않은 <ph name="PRODUCT_NAME" /> 버전을 가리킴)을 포함할 수 있으며, 보안 및 개인 정보 보호 속성에 관한 보장을 포함한 그 어떤 보장도 제공되지 않습니다.
+<translation id="8259375588339409826">GTx Browser과 Chrome은 같은 정책 조합을 지원합니다. 이 문서는 고지 없이 변경되거나 삭제될 수 있는 출시되지 않은 정책(즉, '지원' 항목은 아직 출시되지 않은 <ph name="PRODUCT_NAME" /> 버전을 가리킴)을 포함할 수 있으며, 보안 및 개인 정보 보호 속성에 관한 보장을 포함한 그 어떤 보장도 제공되지 않습니다.
 
 이 정책은 조직 내부용 <ph name="PRODUCT_NAME" />의 인스턴스를 설정할 때 사용하기 위한 것입니다. 조직 외부에서(예: 공개 배포 프로그램) 이러한 정책을 사용하면 멀웨어로 간주되어 Google 및 바이러스 백신 공급업체에 의해 멀웨어로 지정될 수 있습니다.
 
@@ -8610,7 +8610,7 @@ Windows에서는 GPO를 통해 정책을 설정하는 것이 좋습니다. 하�
 <translation id="8947415621777543415">기기 위치 신고</translation>
 <translation id="8948062138228904066">인증 서버 허용 목록</translation>
 <translation id="8951350807133946005">디스크 캐시 디렉터리 설정</translation>
-<translation id="8952611478149810182">다른 브라우저와의 호환성을 개선하고 개발자 환경을 개선하기 위해 GTX Browser의 disabled 양식 컨트롤의 이벤트 전달 동작이 변경됩니다.
+<translation id="8952611478149810182">다른 브라우저와의 호환성을 개선하고 개발자 환경을 개선하기 위해 GTx Browser의 disabled 양식 컨트롤의 이벤트 전달 동작이 변경됩니다.
 
 이 변경사항은 click, mouseup, mousedown을 제외한 disabled 양식 제어 요소에 MouseEvents를 전달하도록 합니다. 새 이벤트에는 mousemove, mouseenter, mouseleave 등이 포함됩니다.
 
@@ -8622,7 +8622,7 @@ Windows에서는 GPO를 통해 정책을 설정하는 것이 좋습니다. 하�
 
 정책을 사용 중지하면 이전 동작이 사용됩니다.
 
-정책이 설정되지 않으면 다른 GTX Browser 사용자와 마찬가지로 새 동작이 사용됩니다.</translation>
+정책이 설정되지 않으면 다른 GTx Browser 사용자와 마찬가지로 새 동작이 사용됩니다.</translation>
 <translation id="8955719471735800169">맨위로</translation>
 <translation id="8956312248048980644">기본적으로 출처 관련 에이전트 클러스터링을 허용합니다.</translation>
 <translation id="8970205333161758602"><ph name="PRODUCT_FRAME_NAME" /> 종료 프롬프트를 표시하지 않음</translation>

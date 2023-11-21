@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Signs the application binary using the appropiated signer depending on the distribution channel
 # PARAMETERS
-"/out/intel/GTX\ Browser" Packaging/sign_chrome.py --input out/intel --output out/release/signed --identity 'Developer ID Application: Doug Warner (8SP2393FG9)' --development --disable-packaging
+"/out/intel/GTx\ Browser" Packaging/sign_chrome.py --input out/intel --output out/release/signed --identity 'Developer ID Application: Doug Warner (8SP2393FG9)' --development --disable-packaging
 # Fail in case something goes wrong
 set -o xtrace
 set -o errexit
@@ -13,7 +13,7 @@ set -o nounset
      SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )" #get path of script
      CERTIFICATE_NAME="Developer ID Application: Doug Warner (8SP2393FG9)" #add full name of cert like it's in keychain
      ID="org.gtxbrowser.GtxBrowser" #this needs to be added to the apple account as a proj and id copied from there
-     BROWSER_NAME="GTX Browser" #add name
+     BROWSER_NAME="GTx Browser" #add name
      CHROMIUM_VERSION="114.0.5735.199" #add version
      BUILDROOT=( "/Volumes/CA/gtx/src/out/intel" ) #change path to app relative to script path
      cd "$BUILDROOT"
@@ -107,5 +107,5 @@ UpdaterPrivilegedHelper="$BROWSER_NAME.app/Contents/Library/LaunchServices/org.c
 
 
 # make dmg and sign and notorise it
-# create-dmg out/intel/GTX\ Browser.app
-# xcrun notarytool submit --wait --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" --keychain ~/Library/Keychains/logingtx114.keychain-db GTX\ Browser\ 114.0.5735.199.dmg
+# create-dmg out/intel/GTx\ Browser.app
+# xcrun notarytool submit --wait --keychain-profile "Developer ID Application: Doug Warner (8SP2393FG9)" --keychain ~/Library/Keychains/logingtx114.keychain-db GTx\ Browser\ 114.0.5735.199.dmg

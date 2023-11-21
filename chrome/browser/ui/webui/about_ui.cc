@@ -521,10 +521,10 @@ namespace {
 
 std::string ChromeURLs() {
   std::string html;
-  AppendHeader(&html, "GTX Browser URLs");
+  AppendHeader(&html, "GTx Browser URLs");
   AppendBody(&html);
 
-  html += "<h2>List of GTX Browser URLs</h2>\n<ul>\n";
+  html += "<h2>List of GTx Browser URLs</h2>\n<ul>\n";
   std::vector<std::string> hosts(
       chrome::kChromeHostURLs,
       chrome::kChromeHostURLs + chrome::kNumberOfChromeHostURLs);
