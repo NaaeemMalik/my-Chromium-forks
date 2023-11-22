@@ -16,7 +16,7 @@ C:\depot_tools\python.bat
 
 6: if it fails copy code from [fix-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/fix-build.bat) or [fix-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/fix-build.sh) for Mac\Linux and run it
 
-7: after modifying browser run code from [build-and-run.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/build-and-run.bat)
+7: after modifying browser run code from [buildRelease.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/buildRelease.bat)
 
 it will download and build the code and browser will open after build when build is successful.
 

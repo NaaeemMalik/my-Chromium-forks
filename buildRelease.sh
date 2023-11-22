@@ -37,8 +37,9 @@ elif [ "$os_name" = "Linux" ]; then
     EXTENSIONS_DIR="${out_dir}/extensions"
     mkdir -p "${EXTENSIONS_DIR}"
     cp -r chrome/browser/extensions/default_extensions/* "${EXTENSIONS_DIR}/"
-    "${out_dir}/${browser_name}" --enable-logging=stderr --v=0 
-    ninja -C "${out_dir}" "chrome/installer/linux:stable_deb" -j20
+    cp out/gtx/chrome_sandbox.stripped out/gtx/GTXBrowser_sandbox.stripped
+    "${out_dir}/GTXBrowser" --enable-logging=stderr --v=0 
+    autoninja -C "${out_dir}" "chrome/installer/linux:stable_deb" -j20
 
 else
     echo "Unsupported operating system: $os_name . Exiting without installing."

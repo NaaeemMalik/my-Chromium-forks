@@ -55,9 +55,9 @@ if [ "$os_name" = "Darwin" ]; then
 elif [ "$os_name" = "Linux" ]; then
     gn gen "${out_dir}" --args="treat_warnings_as_errors = false enable_linux_installer = true is_debug=false dcheck_always_on=false blink_symbol_level=0 symbol_level=0 proprietary_codecs=true ffmpeg_branding=\"Chrome\" is_official_build=true"
     autoninja -C "${out_dir}" chrome
-
+    cp out/gtx/chrome_sandbox.stripped out/gtx/GTXBrowser_sandbox.stripped
     cp -r chrome/browser/extensions/default_extensions "${out_dir}/extensions"
-    "${out_dir}/gtxbrowser" --enable-logging=stderr --v=0
+    "${out_dir}/GTXBrowser" --enable-logging=stderr --v=0
 else
     echo "Unsupported operating system: $os_name . Exiting without installing."
     exit 1
