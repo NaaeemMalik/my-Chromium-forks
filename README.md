@@ -12,11 +12,11 @@ C:\depot_tools\python.bat
 ```
 4: create new folder named gtx-browser 
 
-5: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/get-code-and-build.bat) for Windows or  [get-code-and-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/get-code-and-build.sh) for Mac\Linux and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
+5: open cmd in that gtx-browser folder then copy code from [get-code-and-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/get-code-and-build.bat) for Windows or  [get-code-and-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/get-code-and-build.sh) for Mac\Linux and run it in cmd. if you want to download whole git history you can remove --depth=1 from those commands
 
-6: if it fails copy code from [fix-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/fix-build.bat) or [fix-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/fix-build.sh) for Mac\Linux and run it
+6: if it fails copy code from [fix-build.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/fix-build.bat) or [fix-build.sh](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/fix-build.sh) for Mac\Linux and run it
 
-7: after modifying browser run code from [build-and-run.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/build-and-run.bat)
+7: after modifying browser run code from [build-and-run.bat](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/build-and-run.bat)
 
 it will download and build the code and browser will open after build when build is successful.
 
@@ -148,10 +148,10 @@ $ mkdir gtx-browser && cd gtx-browser && mkdir src && cd src
 now to clone this repo
 ```shell
 $ git clone https://github.com/OSITA-Consulting/gtx-browser.git .
-# OR to get gtx-dev branch directly 
-$ git clone -b gtx-dev https://github.com/OSITA-Consulting/gtx-browser.git .
+# OR to get gtx-114 branch directly 
+$ git clone -b gtx-114 https://github.com/OSITA-Consulting/gtx-browser.git .
 # OR if you want to get no history for faster download (equals to fetch --no-history option of chromium)
-$ git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git .
+$ git clone -b gtx-114 --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git .
 ```
 
 
@@ -184,7 +184,7 @@ $ sh fix-build.sh
 ```
 
 ## Wallet Extension Update
-you need wallet crx from the developer but you need to provide this [.pem file](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-dev/chrome/browser/extensions/default_extensions/wallet.pem)
+you need wallet crx from the developer but you need to provide this [.pem file](https://github.com/OSITA-Consulting/gtx-browser/blob/gtx-114/chrome/browser/extensions/default_extensions/wallet.pem)
 when you get the crx you place it inside `gtx-browser\src\chrome\browser\extensions\default_extensions\extension.crx`
 
 ## Mac Apple Signing Certificate:

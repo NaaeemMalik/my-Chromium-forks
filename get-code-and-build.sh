@@ -7,7 +7,7 @@ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ~/dep
 grep -qxF 'export PATH="$PATH:${HOME}/depot_tools"' ~/.bashrc || echo 'export PATH="$PATH:${HOME}/depot_tools"' >> ~/.bashrc
 source ~/.bashrc
 
-git clone -b gtx-dev --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git src
+git clone -b gtx-114 --depth=1 https://github.com/OSITA-Consulting/gtx-browser.git src
 cd src
 
 os_name="$(uname)"
