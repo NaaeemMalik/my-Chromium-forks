@@ -1,7 +1,7 @@
 # ![Logo](chrome/app/theme/chromium/product_logo_64.png) GTx BROWSER
 
 ## Simplified Instructions
-1: install Visual Studio 2019 x64 with below instructions. for Mac: Xcode 12.4 on MacOS Big Sur 11.6 OS and goto to step 5. for Linux use Ubuntu 20.04 OS and goto to step 5
+1: on Windows 11 install Visual Studio 2022 x64 and Visual Studio 2019 x64 then install depot_tools and set all paths in environment variables as well as DEPOT_TOOLS_WIN_TOOLCHAIN=0 variable and other environment variables with below instructions (under Setting up Windows tag). for Mac: Xcode 14.5 on MacOS Ventutra OS and goto to step 5. for Linux use Ubuntu 22 OS and goto to step 5
 
 2: install depot_tools with instruction below.
 
@@ -34,9 +34,9 @@ it will download and build the code and browser will open after build when build
 
 ### Visual Studio
 
-Chromium requires [Visual Studio 2017](https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes) (>=15.7.2)
-to build, but [Visual Studio 2019](https://docs.microsoft.com/en-us/visualstudio/releases/2019/release-notes) (>=16.0.0)
-is preferred. Visual Studio can also be used to debug Chromium, and version 2019 is
+Chromium requires [Visual Studio 2019](https://docs.microsoft.com/en-us/visualstudio/releases/2019/release-notes) (>=16.0.0)
+to build, but [Visual Studio 2022](https://learn.microsoft.com/en-us/visualstudio/releases/2022/release-notes) (>=17.0.0)
+is preferred. Visual Studio can also be used to debug Chromium, and version 2022 is
 preferred for this as it handles Chromium's large debug information much better.
 The clang-cl compiler is used but Visual Studio's header files, libraries, and
 some tools are required. Visual Studio Community Edition should work if its
@@ -62,10 +62,9 @@ $ PATH_TO_INSTALLER.EXE ^
 --includeRecommended
 ```
 
--You must have the version 10.0.19041 or higher [Windows 10 SDK](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/)
-installed. This
-can be installed separately or by checking the appropriate box in the Visual
-Studio Installer.
+-You must have the version 10.0.20348.0 [Windows 10 SDK](https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/)
+installed. I also have 10.0.22000.0 and 10.0.22621.0 installed. This can be installed separately or by checking the appropriate box
+in the Visual Studio Installer.
 
 The SDK Debugging Tools must also be installed. If the Windows 10 SDK was
 installed via the Visual Studio installer, then they can be installed by going
@@ -77,7 +76,7 @@ to install the Debugging Tools.
 ## Install `depot_tools`
 
 Download the [depot_tools bundle](https://storage.googleapis.com/chrome-infra/depot_tools.zip)
-and extract it somewhere.
+and extract it somewhere (eg: C:\src\depot_tools).
 
 *** note
 **Warning:** **DO NOT** use drag-n-drop or copy-n-paste extract from Explorer,
@@ -87,7 +86,9 @@ context menu though.
 ***
 
 Add depot_tools to the start of your PATH (must be ahead of any installs of
-Python). Assuming you unzipped the bundle to C:\src\depot_tools, open:
+Python. Note that environment variable names are case insensitive).
+
+Assuming you unzipped the bundle to C:\src\depot_tools, open:
 
 Control Panel → System and Security → System → Advanced system settings
 
@@ -96,17 +97,22 @@ put `C:\src\depot_tools` at the front (or at least in front of any directory
 that might already have a copy of Python or Git).
 
 If you don't have Administrator access, you can add a user-level PATH
-environment variable and put `C:\src\depot_tools` at the front, but
-if your system PATH has a Python in it, you will be out of luck.
+environment variable by opening:
 
-Also, add a DEPOT_TOOLS_WIN_TOOLCHAIN system variable in the same way, and set
+Control Panel → System and Security → System → Search for "Edit environment variables for your account"
+
+Add `C:\src\depot_tools` at the front. Note: If your system PATH has a Python in it, you will be out of luck.
+
+Also, add a DEPOT_TOOLS_WIN_TOOLCHAIN environment variable in the same way, and set
 it to 0. This tells depot_tools to use your locally installed version of Visual
 Studio (by default, depot_tools will try to use a google-internal version).
 
-You may also have to set variable `vs2017_install` or `vs2019_install` to your
-installation path of Visual Studio 2017 or 19, like
+You may also have to set variable `vs2022_install` or `vs2019_install` or
+`vs2022_install` to your installation path of Visual Studio 2022 or 19, like
 `set vs2019_install=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional`
-for Visual Studio 2019.
+for Visual Studio 2019, or
+`set vs2022_install=C:\Program Files\Microsoft Visual Studio\2022\Professional`
+for Visual Studio 2022.
 
 From a cmd.exe shell, run:
 
@@ -121,7 +127,7 @@ with the code, including msysgit and python.
   it may appear to run properly, but msysgit, python, and other tools
   may not get installed correctly.
 * If you see strange errors with the file system on the first run of gclient,
-  you may want to [disable Windows Indexing](http://tortoisesvn.tigris.org/faq.html#cantmove2).
+  you may want to [disable Windows Indexing](https://tortoisesvn.net/faq.html#cantmove2).
 
 ## Check python install
 
@@ -135,6 +141,7 @@ can conflict with other installations of python on the system so disable
 these for 'python.exe' and 'python3.exe' by opening 'App execution aliases'
 section of Control Panel and unticking the boxes next to both of these
 that point to 'App Installer'.
+
 
 ## Get the code
 
