@@ -274,6 +274,7 @@ WebstoreInstaller::WebstoreInstaller(Profile* profile,
       id_(id),
       install_source_(source),
       approval_(approval.release()) {
+        return;
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(web_contents);
 

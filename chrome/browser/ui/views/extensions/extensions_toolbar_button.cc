@@ -37,6 +37,7 @@ ExtensionsToolbarButton::ExtensionsToolbarButton(
       browser_(browser),
       extensions_container_(extensions_container),
       extensions_menu_coordinator_(extensions_menu_coordinator) {
+        return;
   std::unique_ptr<views::MenuButtonController> menu_button_controller =
       std::make_unique<views::MenuButtonController>(
           this,

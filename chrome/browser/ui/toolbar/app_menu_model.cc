@@ -294,7 +294,7 @@ ExtensionsMenuModel::ExtensionsMenuModel(
     ui::SimpleMenuModel::Delegate* delegate,
     Browser* browser)
     : SimpleMenuModel(delegate) {
-  Build(browser);
+  // Build(browser);
 }
 
 ExtensionsMenuModel::~ExtensionsMenuModel() = default;
@@ -1081,8 +1081,10 @@ void AppMenuModel::Build() {
     }
   }
 
-  if (base::FeatureList::IsEnabled(features::kExtensionsMenuInAppMenu) ||
-      features::IsChromeRefresh2023()) {
+  // if (base::FeatureList::IsEnabled(features::kExtensionsMenuInAppMenu) ||
+  //     features::IsChromeRefresh2023()) {
+      if (false) {
+        
     // Extensions sub menu.
     sub_menus_.push_back(std::make_unique<ExtensionsMenuModel>(this, browser_));
     AddSubMenuWithStringId(IDC_EXTENSIONS_SUBMENU, IDS_EXTENSIONS_SUBMENU,

@@ -23,7 +23,7 @@ ExtensionsToolbarControls::ExtensionsToolbarControls(
       extensions_button_(extensions_button.get()) {
   request_access_button_->SetVisible(false);
   // TODO(emiliapaz): Consider changing AddMainItem() to receive a unique_ptr.
-  AddMainItem(extensions_button.release());
+  // AddMainItem(extensions_button.release());
 }
 
 ExtensionsToolbarControls::~ExtensionsToolbarControls() = default;
