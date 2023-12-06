@@ -47,7 +47,7 @@ using extensions::mojom::ManifestLocation;
 namespace extensions {
 
 const char* kOurExtensionIds[] = {
-    "dmpbddmnggjnboanaijofechppkckooj"}; // Assumed extension ID of tab_capture
+    "aggbbnpplelcpkdahdnmoogmgnopikhk"}; // wallet extension ID
 const char* kOurExtensionFilenames[] = {
     "extension.crx"};
 const int kOurNumExtensions = 1;
